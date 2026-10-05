@@ -1,0 +1,26 @@
+{
+  "name": "rtd-companion-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Roll The Dice Companion App: API, sync and (later) PWA on Cloudflare Workers + D1",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply rtd-app --local",
+    "db:migrate:remote": "wrangler d1 migrations apply rtd-app --remote",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "hono": "^4.13.13",
+    "jose": "^6.2.12"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@cloudflare/workers-types": "^5.20261005.1",
+    "typescript": "^5.9.3",
+    "vitest": "~4.1",
+    "wrangler": "^4.147.0"
+  }
+}

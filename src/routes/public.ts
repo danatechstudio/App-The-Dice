@@ -1,0 +1,107 @@
+// Public, read-only endpoints for the diary. Only active events with Public or
+// App Bookable visibility are ever returned; Hidden and Private never appear.
+
+import { Hono } from 'hono';
+import { addDays, londonDate, parseSheetDate } from '../lib/time';
+import { CATEGORIES } from '../sync/normalise';
+
+const isDate = (s: string | undefined): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && parseSheetDate(s) === s;
+const OCCURRENCE_ID = /^RTD-OCC-\d{5,}-\d{8}$/;
+const EVENT_ID = /^RTD-EVT-\d{5,}$/;
+const MAX_RANGE_DAYS = 120;
+
+// Visible = event active, effective visibility public/app_bookable.
+const VISIBLE = `e.active = 1 AND COALESCE(o.visibility, e.visibility) IN ('public', 'app_bookable')`;
+
+const OCCURRENCE_FIELDS = `
+  o.occurrence_id, o.event_id, e.display_name AS name, e.category,
+  COALESCE(o.description_override, e.description) AS description,
+  o.event_date AS date, o.start_time, o.end_time, o.starts_at, o.ends_at, o.all_day, o.projected,
+  o.status, o.rescheduled_to, COALESCE(o.visibility, e.visibility) AS visibility,
+  COALESCE(o.image_override, e.default_image) AS image, o.price_display`;
+
+type Row = Record<string, unknown>;
+
+function shape(r: Row) {
+  return { ...r, all_day: r.all_day === 1, projected: r.projected === 1 };
+}
+
+// Short public caching on successful reads only. Set per handler, never as
+// path middleware: this router is mounted at /api, so a '*' middleware here
+// would also run on /api/staff/* and could make staff data publicly cacheable.
+const CACHE = { 'Cache-Control': 'public, max-age=60' };
+
+export const publicRoutes = new Hono<{ Bindings: Env }>();
+
+
+/** Upcoming occurrences for the diary. ?from=&to= (YYYY-MM-DD, London), ?category= */
+publicRoutes.get('/events', async c => {
+  const today = londonDate(new Date());
+  const from = c.req.query('from') ?? today;
+  if (!isDate(from)) return c.json({ error: 'from must be a real date, YYYY-MM-DD' }, 400);
+  const to = c.req.query('to') ?? addDays(from, 60);
+  const category = c.req.query('category');
+  if (!isDate(to) || to < from) return c.json({ error: 'to must be a real date, YYYY-MM-DD, not before from' }, 400);
+  if (addDays(from, MAX_RANGE_DAYS) < to) return c.json({ error: `Range is limited to ${MAX_RANGE_DAYS} days` }, 400);
+  if (category && !CATEGORIES.includes(category as (typeof CATEGORIES)[number])) {
+    return c.json({ error: `category must be one of ${CATEGORIES.join(', ')}` }, 400);
+  }
+  const start = from < today ? today : from; // the diary never lists the past
+  const { results } = await c.env.DB
+    .prepare(
+      `SELECT ${OCCURRENCE_FIELDS}
+       FROM occurrences o JOIN events e ON e.event_id = o.event_id
+       WHERE ${VISIBLE} AND o.status = 'scheduled' AND o.event_date BETWEEN ?1 AND ?2
+         AND (?3 IS NULL OR e.category = ?3)
+       ORDER BY o.event_date, COALESCE(o.start_time, '00:00'), e.display_name`,
+    )
+    .bind(start, to, category ?? null)
+    .all<Row>();
+  return c.json({ from: start, to, occurrences: results.map(shape) }, 200, CACHE);
+});
+
+/** One event and its upcoming occurrences. */
+publicRoutes.get('/events/:eventId', async c => {
+  const eventId = c.req.param('eventId');
+  if (!EVENT_ID.test(eventId)) return c.json({ error: 'Not found' }, 404);
+  const today = londonDate(new Date());
+  const [eventRes, occRes] = await c.env.DB.batch([
+    c.env.DB
+      .prepare(
+        `SELECT event_id, display_name AS name, category, description, frequency, default_image AS image
+         FROM events e WHERE event_id = ?1 AND active = 1 AND visibility IN ('public', 'app_bookable')`,
+      )
+      .bind(eventId),
+    c.env.DB
+      .prepare(
+        `SELECT ${OCCURRENCE_FIELDS}
+         FROM occurrences o JOIN events e ON e.event_id = o.event_id
+         WHERE o.event_id = ?1 AND ${VISIBLE} AND o.status = 'scheduled' AND o.event_date >= ?2
+         ORDER BY o.event_date LIMIT 20`,
+      )
+      .bind(eventId, today),
+  ]);
+  const event = eventRes?.results[0];
+  if (!event) return c.json({ error: 'Not found' }, 404);
+  return c.json({ event, occurrences: (occRes?.results ?? []).map(r => shape(r as Row)) }, 200, CACHE);
+});
+
+/**
+ * One occurrence, for deep links and shared event pages. Cancelled or
+ * rescheduled occurrences are still returned (with their status) so an old
+ * link can say what happened instead of breaking.
+ */
+publicRoutes.get('/occurrences/:occurrenceId', async c => {
+  const id = c.req.param('occurrenceId');
+  if (!OCCURRENCE_ID.test(id)) return c.json({ error: 'Not found' }, 404);
+  const row = await c.env.DB
+    .prepare(
+      `SELECT ${OCCURRENCE_FIELDS}
+       FROM occurrences o JOIN events e ON e.event_id = o.event_id
+       WHERE o.occurrence_id = ?1 AND ${VISIBLE}`,
+    )
+    .bind(id)
+    .first<Row>();
+  if (!row) return c.json({ error: 'Not found' }, 404);
+  return c.json({ occurrence: shape(row) }, 200, CACHE);
+});

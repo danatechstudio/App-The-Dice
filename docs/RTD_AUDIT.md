@@ -52,7 +52,7 @@ Scope: every workflow, data table and credential on the n8n instance (`n8n.arkha
 
 | Component | Status | What it does | Verdict | Why |
 | --- | --- | --- | --- | --- |
-| `Logic Engine_RTD` sheet | Live | Master event data, prompts, post log | **KEEP + MODIFY** | Stays authoritative. Add `Event ID`, `App Visibility` and `Event Type` columns at the end, so no existing column letters move. |
+| `Logic Engine_RTD` sheet | Live | Master event data, prompts, post log | **KEEP + MODIFY** | Stays authoritative. Add `Event ID`, `App Visibility` and `App Category` columns at the end, so no existing column letters move. **Done 2026-10-05.** |
 | RTD Master V1 → Calendar Refresh | Live | Rebuilds Google Calendar daily | **KEEP**, modify later | Works, but delete-then-recreate leaves the calendar empty if the create step fails. Later: upsert with stable IDs from the app DB. |
 | RTD Master V1 → Calculate next dates | Live | Rolls recurring dates forward | **MODIFY** | "Monthly" means same day-of-month in Event Index but every 28 days in Standard Diary. Standard Diary ignores `Two-Weekly`. |
 | RTD Master V1 → social / Instagram / metrics flows | Live | Facebook, Instagram, Meta metrics | **KEEP** | Outside the app's scope. Fix the hard-coded key (§8) and the unfilled `REPLACE_WITH_CAFE_VIBES_FOLDER_ID`. |
@@ -113,6 +113,7 @@ Nothing for capacity, visibility, category or a public description.
    - Inactive rows can still hold future dates.
 7. **Monthly recurrence is inconsistent** (calendar month vs 28 days). Blood on the Clocktower moved 4 Oct → 4 Nov. That is only right if it really runs on the 4th, not "first Sunday".
 8. **Placeholder data:** `Organiser Email` for Quiz is `dan@atechstudio.co.uk`.
+9. **Poster title rule.** The poster prompt strips any trailing capital after a lower-case letter, to hide the "ClubM" workaround. That would also print "DM Alfie's Dn" for "DM Alfie's DnD". The app limits the rule to weekday initials (M/T/W/F/S). The same fix belongs in `rtd-poster-automation`.
 
 ## 5. Booking review
 
@@ -163,7 +164,7 @@ The spec assumes an existing approval process that is "already close to the desi
 
 | # | Severity | Finding | Action |
 | --- | --- | --- | --- |
-| S1 | **High** | The ImageKit **private API key** is hard-coded as a Basic auth header in `Upload to ImageKit (Priority)` and `Upload to ImageKit (Food)` (RTD Master V1). It is visible to anyone who can read or export the workflow. | Rotate the key in ImageKit, store it as an n8n Header Auth credential, and reference that credential. |
+| S1 | **High** | Secrets are hard-coded in RTD Master V1, where anyone who can read or export the workflow can see them:<br>• the ImageKit **private API key**, as a Basic auth header in `Upload to ImageKit (Priority)` and `Upload to ImageKit (Food)`;<br>• the Meta (Facebook) page **access token**, as an `access_token` query parameter in the four `Get Recent Posts (Meta)` / `Get Post Metrics (Meta)` nodes (found by n8n's validator on 5 Oct). | Rotate both (ImageKit dashboard; Meta Business settings), store them as n8n credentials (Header Auth; Query Auth), and reference those. |
 | S2 | High (if reactivated) | Master Booking forms are unauthenticated, with `eventId` in the URL, so decisions can be forged. | Do not reactivate. Use signed, expiring action tokens (spec §42). |
 | S3 | Medium | `RTD Cafe Website Requests` webhook is active and public: `Access-Control-Allow-Origin: *`, no auth, no rate limit, no validation. User input goes straight into an HTML email (HTML injection), and PII is stored in an n8n data table. | Deactivate until the website launches, or add a shared secret, validation and HTML escaping. Retire its booking path once the app takes bookings. |
 | S4 | Medium | Recipient addresses are hard-coded in workflow code (`shellyandrews@ntlworld.com` in the guard and date-change logic; `dan@atechstudio.co.uk` in Notify and Website Requests). | Move them to one RTD config source (§11). |
@@ -208,7 +209,7 @@ App DB + API (hosted off-Pi; Postgres, e.g. Supabase)
 ```
 
 **Field ownership:**
-- **Logic Engine owns:** identity, name, schedule, frequency, status, base details, photo folder, and the new `App Visibility` / `Event Type`.
+- **Logic Engine owns:** identity, name, schedule, frequency, status, base details, photo folder, and the new `App Visibility` / `App Category`.
 - **App DB owns:** occurrences, capacity and booking settings, bookings, waitlist, hosts, games, notifications, audit.
 
 **Occurrence rule:**
@@ -221,10 +222,10 @@ App DB + API (hosted off-Pi; Postgres, e.g. Supabase)
 
 **Migration steps.** Each is non-destructive and reversible.
 
-1. **Export before touching anything.** Save JSON exports of every RTD workflow (and a copy of both RTD sheets) into a dated backup.
+1. **Export before touching anything.** Save JSON exports of every RTD workflow (and a copy of both RTD sheets) into a dated backup. **Done for the changes made so far:** n8n version history holds the rollback points, and a Drive copy of the Logic Engine was taken.
 2. **Fix S1 and S3** (key rotation, webhook protection). These are independent of the app.
-3. **Add three columns** to the end of Event Index and Standard Diary: `Event ID`, `App Visibility`, `Event Type`. Backfill IDs (`RTD-EVT-00001`…). No existing workflow reads these columns, so nothing breaks.
-4. **Create `rtd_config`**, an n8n data table (key/value) holding `RTD_CAFE_NOTIFICATION_EMAIL` and other RTD settings. Point the guard and date-change recipient at it, in the `rtd-poster-automation` source.
+3. **Add three columns** to the end of Event Index and Standard Diary: `Event ID`, `App Visibility`, `App Category`. Backfill IDs (`RTD-EVT-00001`…). No existing workflow reads these columns, so nothing breaks. **Done 2026-10-05.**
+4. **Create `rtd_config`**, an n8n data table (key/value) holding `RTD_CAFE_NOTIFICATION_EMAIL` and other RTD settings. Point the guard and date-change recipient at it, in the `rtd-poster-automation` source. **Table created 2026-10-05; the recipient change waits on that source.**
 5. **Phase 1 build (in this repo):**
    - DB schema and migrations, auth (Staff/Host roles), audit log, and the `/internal/sync` endpoint.
    - The `RTD Event Sync` workflow, which reads only; the sheet is never written.
@@ -238,7 +239,7 @@ App DB + API (hosted off-Pi; Postgres, e.g. Supabase)
 
 1. **Hosting:** OK to host the app on Supabase (DB + auth) with a static PWA host (Vercel or Cloudflare Pages), off the Pi? Which domain should it live on?
 2. **Café email:** what is the fixed café notification address? Date-change requests currently go to `shellyandrews@ntlworld.com`.
-3. **Sheet changes:** may I add `Event ID`, `App Visibility` and `Event Type` columns to the end of Event Index and Standard Diary?
+3. **Sheet changes:** may I add `Event ID`, `App Visibility` and `App Category` columns to the end of Event Index and Standard Diary?
 4. **Monthly events:** for Quiz, Bingo, Blood on the Clocktower and BookClub, is each a fixed date (e.g. the 23rd) or an "Nth weekday" (e.g. the 4th Friday)?
 5. **`RTD_Booking` sheet:** does it hold real events or bookings worth keeping? Is its Google Form still public?
 6. **Website prototype webhook:** may it be deactivated or locked down now (S3)?
@@ -249,3 +250,15 @@ App DB + API (hosted off-Pi; Postgres, e.g. Supabase)
     - Should Standard Diary groups (e.g. Arkham Horror Card Game) appear in the app diary?
     - Should BookClub and Writing Club, which are inactive but have future dates, show?
 11. **Booking emails:** which transactional email provider should send booking confirmations, so bookings work even when the Pi is down? Options: Supabase SMTP, Resend or Postmark.
+
+### Answers (2026-10-05)
+
+| # | Decision | Action taken |
+| --- | --- | --- |
+| 1 | Use Cloudflare (already in use with the Pi); Pi reliance is acceptable where needed | App on **Cloudflare Workers + D1**, Staff/Host sign-in via **Cloudflare Access**. n8n on the Pi remains for automation only. See [RTD_APP_ARCHITECTURE.md](RTD_APP_ARCHITECTURE.md). |
+| 2 | Café email confirmed | Stored once in n8n data table `rtd_config` (`RTD_CAFE_NOTIFICATION_EMAIL`) |
+| 3 | Yes, add the columns | Added and backfilled, after a Drive backup ([RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md)) |
+| 4 | Monthly dates vary: ask Michelle for each new date | Master V1 no longer auto-rolls Monthly. The Guard now expires passed monthly events and sends the date-picker email. Published and dry-run tested. |
+| 5 | `RTD_Booking` holds only test/prototype data | Nothing to migrate. The workflow can be retired when app booking is live. |
+| 8 | `rtd-poster-automation` may go into GitHub | Waiting for it to be pushed. Then: mirror the Guard edit, read the recipient from `rtd_config`, fix the poster title rule. |
+| 6, 7, 9, 10, 11 | Not yet answered | 6: website webhook (S3). 7: ImageKit and Meta key rotation (S1). 9: Buffer account sharing (S5). 10: diary contents (current default: Standard Diary groups Public, inactive events hidden). 11: booking email provider. |

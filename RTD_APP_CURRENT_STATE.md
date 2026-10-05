@@ -3,28 +3,31 @@
 _Last updated: 2026-10-05_
 
 ## Live
-- Nothing from the app yet. Existing RTD automation is unchanged.
+- **Logic Engine:** every event row now has a permanent `Event ID`, plus `App Visibility` and `App Category` (backup taken first).
+- **Monthly events:** no longer auto-rolled. When one passes, Michelle gets the date-picker email.
+- **`rtd_config`** n8n data table holds the café notification email.
 
-## Done
-- Phase 0 audit (read-only): [`docs/RTD_AUDIT.md`](docs/RTD_AUDIT.md).
+## Built, not deployed
+- **Phase 1 Worker:** Cloudflare Worker + D1.
+  - Schema, idempotent Logic Engine sync with occurrence history, public diary API, staff API behind Cloudflare Access, append-only audit log.
+  - 82 tests passing. Smoke-tested locally with today's real event data.
 
 ## Incomplete
-- Phase 0 migration steps 1–4 (backup, security fixes, sheet columns, `rtd_config`). These wait on the decisions below.
-- Phases 1–9.
+- Deployment (needs your Cloudflare login: [docs/RTD_DEPLOYMENT.md](docs/RTD_DEPLOYMENT.md)).
+- RTD Event Sync n8n workflow, built once the Worker URL and token exist.
+- Phases 2–9.
 
-## Known issues (existing system)
-- ImageKit private key is hard-coded in two RTD Master V1 nodes. Rotate it.
-- `RTD Cafe Website Requests` webhook is public and unvalidated.
-- Event Name is the only identity. The Event Index mixes events with social-content rows.
-- One Google OAuth client powers every RTD workflow. It caused a ~34 h outage on 2–3 Oct.
+## Known issues
+- **Secrets in RTD Master V1:** the ImageKit private key and the Meta page access token are hard-coded. Rotate both (S1).
+- **Website webhook:** `RTD Cafe Website Requests` is public and unvalidated (S3).
+- **Event Guard local edit:** the new Monthly node must be mirrored in `rtd-poster-automation`, or its next build will undo it.
+- **Blood on the Clocktower:** auto-rolled from 4 Oct to **4 Nov** before the monthly change, and a poster was generated for that date. Please confirm the date with Michelle.
 
 ## Next actions
-1. Get answers to the decisions in [`docs/RTD_AUDIT.md` §12](docs/RTD_AUDIT.md#12-decisions-needed-from-you).
-2. Export RTD workflows and sheets as a dated backup.
-3. Start Phase 1: DB schema, auth, audit log, `/internal/sync`, `RTD Event Sync`.
+1. You: deploy, steps 1–6 in [docs/RTD_DEPLOYMENT.md](docs/RTD_DEPLOYMENT.md), then send me the app URL.
+2. Me: build and test RTD Event Sync; then start Phase 2 (PWA and diary).
+3. You: push `rtd-poster-automation` to GitHub, so I can fold in the Guard and poster fixes.
 
 ## Required user input
-- Hosting and domain choice; café notification email; approval for the new sheet columns.
-- Monthly recurrence rules; `RTD_Booking` history; website webhook; ImageKit key rotation.
-- `rtd-poster-automation` source in Git; transactional email provider.
-- RTD logo files, brand assets, initial game inventory.
+- Brand assets (logo files, fonts and colours if they differ from navy #14315c / orange #d9822b), and the initial game inventory.
+- Answers to audit §12 items 6, 7, 9, 10 and 11.

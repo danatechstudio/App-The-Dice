@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "rtd-app",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-15",
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "rtd-app",
+      // Set to the id printed by `npx wrangler d1 create rtd-app` (see docs/RTD_DEPLOYMENT.md).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "ENVIRONMENT": "production",
+    // Cloudflare Access team domain and the Access application's AUD tag (docs/RTD_DEPLOYMENT.md).
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": ""
+  }
+  // Secret, set with `npx wrangler secret put INTERNAL_SYNC_TOKEN`: bearer token n8n uses for /internal/*.
+}
