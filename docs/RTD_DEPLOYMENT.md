@@ -115,6 +115,11 @@ Then open `https://<host>/api/staff/me`, sign in with the emailed PIN, and check
 2. Choose type **Header Auth** and name it `RTD App Sync`. Set Name to `Authorization` and Value to `Bearer <the INTERNAL_SYNC_TOKEN value>`.
 3. Save the credential and the workflow. Tell Claude, who runs it once by hand, checks the result in D1, then switches it on.
 
+If a run fails, n8n's error gives the app's reason:
+- **503** "no INTERNAL_SYNC_TOKEN secret": the Worker has no secret. Add it as type **Secret**, not Text.
+- **401** "must be 'Bearer <token>'": the credential value is missing the `Bearer ` prefix.
+- **401** "does not match": the credential and the Worker secret hold different values.
+
 ## Local development
 
 ```sh
