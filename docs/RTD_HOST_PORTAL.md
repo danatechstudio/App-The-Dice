@@ -84,7 +84,7 @@ The organiser's **Sign in** button goes to `/api/staff/sign-in`. That path is be
 
 ## After a one-off session
 
-The n8n workflow **RTD Host Follow-up** emails the host of each one-off session the day after it happens.
+The n8n workflow **RTD Host Follow-up** (`FFy0lBTZCm4A5p08`, daily at 10:00) emails the host of each one-off session the day after it happens.
 
 **Which sessions get the email:**
 - **Eligible:** one-off sessions that were approved (or live) and whose date has passed.

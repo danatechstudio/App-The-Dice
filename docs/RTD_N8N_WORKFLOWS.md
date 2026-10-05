@@ -113,6 +113,26 @@ This workflow copies event photos from Drive into the app. Each Event Index row'
 - **Keep a photo out of the app:** rename it to include `noapp`, or move it out of the folder.
 - **Hidden events never show photos:** Food, Drinks and Cafe Vibes are Hidden, so their folders aren't read.
 
+## RTD Host Follow-up (`FFy0lBTZCm4A5p08`)
+
+This workflow emails the host of each approved **one-off** session the day after it ran, inviting them to run it again ([RTD_HOST_PORTAL.md](RTD_HOST_PORTAL.md#after-a-one-off-session)).
+
+- **Triggers:** every day at 10:00 (Europe/London), plus **Run By Hand**.
+- **Steps:**
+  1. Read `RTD_APP_BASE_URL` and `RTD_CAFE_NOTIFICATION_EMAIL` from `rtd_config`.
+  2. `GET /internal/host-sessions/followups`: approved or live one-offs from the last 14 days whose date has passed and whose host hasn't been emailed.
+  3. **Write Email:** a short thank-you with a link to `/organise`. Host-typed names are HTML-escaped.
+  4. **Email The Host:**
+     - **Sent from:** the `ATech GMAIL` account, as "Roll The Dice".
+     - **Replies:** they go to the café address (Reply-To).
+  5. `POST /internal/host-sessions/:id/followup-sent`, so each host gets it once.
+- **Live since 2026-10-05 21:25** (published).
+- **Checks:**
+  - **First live run** (`19236`): nothing due, so nothing was sent.
+  - **Simulated run with sample data** (`19238`): the email text and escaping are correct.
+- **Errors:** HTTP steps retry 3 times and Gmail twice; failures go to `Studio: Error Handler`. If Gmail fails partway through a run, a host already emailed in that run may get the email again the next day, because their session wasn't marked sent.
+- **Execution data:** successful runs are kept, so you can see who was emailed.
+
 ## Spec §46 workflow map
 
 | Spec workflow | Covered by |
