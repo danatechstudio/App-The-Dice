@@ -242,6 +242,131 @@ export async function markFollowupSent(db: D1Database, id: string, now: string):
   return 'ok';
 }
 
+// ---- Into the Logic Engine, and telling the café (n8n, docs/RTD_HOST_PORTAL.md) ----
+
+const weekdayOf = (iso: string) =>
+  new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'long' }).format(new Date(`${iso}T12:00:00Z`));
+const ukDate = (iso: string) => iso.split('-').reverse().join('/');
+const sessionWhen = (s: { frequency: string; event_date: string }) =>
+  s.frequency === 'weekly' ? `Every ${weekdayOf(s.event_date)}, from ${longDate(s.event_date)}` : longDate(s.event_date);
+
+/** A weekly session approved after its first date runs from its next week instead. */
+function nextWeekly(iso: string, today: string): string {
+  let d = iso;
+  while (d < today) d = addDays(d, 7);
+  return d;
+}
+
+interface PublishRow {
+  session_id: string;
+  name: string;
+  description: string | null;
+  event_date: string;
+  start_time: string;
+  end_time: string | null;
+  price_pence: number;
+  max_players: number;
+  frequency: SessionFrequency;
+  access: SessionAccess;
+  host_email: string;
+}
+
+/**
+ * Approved sessions not yet in Event Index, each with the exact row n8n appends
+ * (keys are the sheet's column headers). One-offs whose day has gone are left out.
+ */
+export async function sessionsToPublish(db: D1Database, today: string) {
+  const { results } = await db
+    .prepare(
+      `SELECT s.session_id, s.name, s.description, s.event_date, s.start_time, s.end_time, s.price_pence, s.max_players,
+         s.frequency, s.access, u.email AS host_email
+       FROM host_sessions s JOIN users u ON u.user_id = s.host_user_id
+       WHERE s.status = 'approved' AND (s.frequency = 'weekly' OR s.event_date >= ?1)
+       ORDER BY s.event_date, s.session_id LIMIT 50`,
+    )
+    .bind(today)
+    .all<PublishRow>();
+  return results.map(s => {
+    const date = s.frequency === 'weekly' ? nextWeekly(s.event_date, today) : s.event_date;
+    return {
+      session_id: s.session_id,
+      row: {
+        'Event Name': s.name,
+        Frequency: s.frequency === 'weekly' ? 'Weekly' : 'One-off',
+        Day: weekdayOf(date),
+        'Event Date': ukDate(date),
+        'Event Time': s.start_time,
+        'End Time': s.end_time ?? '',
+        'Base Details': s.description ?? 'A games session hosted at Roll The Dice.',
+        Status: 'Active',
+        'Organiser Email': s.host_email,
+        // Private: the diary shows only "Private session", and the social posts skip it.
+        'App Visibility': s.access === 'private' ? 'Private' : 'Public',
+        'App Category': 'Gaming',
+        'App Price': priceLabel(s.price_pence),
+        'App Capacity': String(s.max_players),
+        'App Host Session': s.session_id,
+      },
+    };
+  });
+}
+
+/** n8n added the session to Event Index: it's Live (the next sync links its Event ID). */
+export async function markPublished(db: D1Database, id: string, now: string): Promise<'ok' | 'already' | 'not_found' | 'not_approved'> {
+  const res = await db
+    .prepare("UPDATE host_sessions SET status = 'published', published_at = ?2, updated_at = ?2 WHERE session_id = ?1 AND status = 'approved'")
+    .bind(id, now)
+    .run();
+  if (!res.meta.changes) {
+    const row = await db.prepare('SELECT status FROM host_sessions WHERE session_id = ?1').bind(id).first<{ status: string }>();
+    return !row ? 'not_found' : row.status === 'published' ? 'already' : 'not_approved';
+  }
+  await db
+    .prepare(
+      `INSERT INTO audit_log (entity_type, entity_id, actor_type, actor_id, action, previous_value, new_value, source, created_at)
+       VALUES ('host_session', ?1, 'n8n', 'n8n', 'host_session.published', 'approved', 'published', 'n8n', ?2)`,
+    )
+    .bind(id, now)
+    .run();
+  return 'ok';
+}
+
+/** Sessions waiting for approval that the café hasn't been emailed about yet. */
+export async function newSubmissions(db: D1Database) {
+  const { results } = await db
+    .prepare(
+      `SELECT s.session_id, s.name, s.description, s.event_date, s.start_time, s.end_time, s.price_pence, s.max_players,
+         s.frequency, s.access, u.display_name AS host_name, u.email AS host_email
+       FROM host_sessions s JOIN users u ON u.user_id = s.host_user_id
+       WHERE s.status = 'submitted' AND s.cafe_notified_at IS NULL
+       ORDER BY s.created_at, s.session_id LIMIT 50`,
+    )
+    .all<PublishRow & { host_name: string | null }>();
+  return results.map(s => ({
+    session_id: s.session_id,
+    name: s.name,
+    description: s.description,
+    host_name: s.host_name ?? s.host_email,
+    host_email: s.host_email,
+    when: sessionWhen(s),
+    time: s.end_time ? `${s.start_time}–${s.end_time}` : s.start_time,
+    price: priceLabel(s.price_pence),
+    max_players: s.max_players,
+    access: s.access === 'private' ? 'Private (their own group)' : 'Open to anyone',
+  }));
+}
+
+/** n8n emailed the café about this submission; once is enough. */
+export async function markCafeNotified(db: D1Database, id: string, now: string): Promise<'ok' | 'already' | 'not_found'> {
+  const res = await db
+    .prepare('UPDATE host_sessions SET cafe_notified_at = ?2 WHERE session_id = ?1 AND cafe_notified_at IS NULL')
+    .bind(id, now)
+    .run();
+  if (res.meta.changes) return 'ok';
+  const row = await db.prepare('SELECT 1 FROM host_sessions WHERE session_id = ?1').bind(id).first();
+  return row ? 'already' : 'not_found';
+}
+
 /** Hosts, newest first, for the staff section of the organiser. */
 export async function listHosts(db: D1Database) {
   const { results } = await db

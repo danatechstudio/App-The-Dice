@@ -15,7 +15,8 @@ export const OCCURRENCE_FIELDS = `
   COALESCE(o.description_override, e.description) AS description,
   o.event_date AS date, o.start_time, o.end_time, o.starts_at, o.ends_at, o.all_day, o.projected,
   o.status, o.rescheduled_to, COALESCE(o.visibility, e.visibility) AS visibility,
-  COALESCE(o.image_override, e.default_image) AS image, o.price_display`;
+  COALESCE(o.image_override, e.default_image) AS image,
+  COALESCE(o.price_display, e.price_display) AS price_display, COALESCE(o.capacity, e.default_capacity) AS capacity`;
 
 export type Row = Record<string, unknown>;
 
@@ -37,6 +38,8 @@ export interface PublicOccurrence {
   visibility: string;
   image: string | null;
   price_display: string | null;
+  /** Max players, when known (host sessions set it). */
+  capacity: number | null;
 }
 
 export function shape(r: Row): PublicOccurrence {
@@ -69,9 +72,9 @@ export async function nextOccurrence(db: D1Database, eventId: string, today: str
 
 /**
  * What the public may know about a private session: that one is on, and when.
- * The name, description, photo and price never leave the server.
+ * The name, description, photo, price and size never leave the server.
  */
 export function redactPrivate(o: PublicOccurrence): PublicOccurrence {
   if (o.visibility !== 'private') return o;
-  return { ...o, name: 'Private session', description: null, image: null, price_display: null };
+  return { ...o, name: 'Private session', description: null, image: null, price_display: null, capacity: null };
 }

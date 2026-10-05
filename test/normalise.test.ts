@@ -24,8 +24,24 @@ describe('normaliseRows (Event Index)', () => {
         sheet_status: 'Active',
         active: true,
         photo_folder_id: 'abc123',
+        price_display: null,
+        default_capacity: null,
+        host_session_id: null,
         next: { date: '2026-10-23', start_time: '18:30', end_time: '22:00', all_day: false },
       },
+    ]);
+  });
+
+  it('reads the host session columns: App Price, App Capacity, App Host Session', () => {
+    const { events } = normaliseRows('event_index', [
+      indexRow(1, { 'App Price': ' £5 ', 'App Capacity': '6', 'App Host Session': 'RTD-HS-00012' }),
+      indexRow(2, { 'App Price': '', 'App Capacity': 'lots', 'App Host Session': 'not-a-session' }),
+      indexRow(3, { 'App Capacity': '0' }),
+    ]);
+    expect(events.map(e => [e.price_display, e.default_capacity, e.host_session_id])).toEqual([
+      ['£5', 6, 'RTD-HS-00012'],
+      [null, null, null],
+      [null, null, null],
     ]);
   });
 

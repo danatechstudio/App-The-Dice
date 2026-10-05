@@ -1,4 +1,4 @@
-import { CalendarDays, CalendarPlus, ChevronDown, ChevronLeft, Clock, Info, MapPin, Share2, TriangleAlert } from 'lucide-preact';
+import { CalendarDays, CalendarPlus, ChevronDown, ChevronLeft, Clock, Info, MapPin, PoundSterling, Share2, TriangleAlert, UsersRound } from 'lucide-preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Chip, ChipRow, occurrenceChips } from '../components/Chips';
 import { eventHref } from '../components/EventCard';
@@ -136,6 +136,21 @@ function EventDetail({ o, others, images }: { o: Occurrence; others: Occurrence[
                 <span class="fact__icon"><Clock size={20} aria-hidden="true" /></span>
                 <span><strong>{range ?? 'Time to be confirmed'}</strong></span>
               </div>
+              {o.price_display && (
+                <div class="fact">
+                  <span class="fact__icon"><PoundSterling size={20} aria-hidden="true" /></span>
+                  <span>
+                    <strong>{/^free$/i.test(o.price_display.trim()) ? 'Free' : `${o.price_display} per player`}</strong>
+                    {!/^free$/i.test(o.price_display.trim()) && 'Paid at the café'}
+                  </span>
+                </div>
+              )}
+              {o.capacity && (
+                <div class="fact">
+                  <span class="fact__icon"><UsersRound size={20} aria-hidden="true" /></span>
+                  <span><strong>Up to {o.capacity} players</strong></span>
+                </div>
+              )}
               <div class="fact">
                 <span class="fact__icon"><MapPin size={20} aria-hidden="true" /></span>
                 <span><strong>Roll The Dice</strong>Board Game Café</span>

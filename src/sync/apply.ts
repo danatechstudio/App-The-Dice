@@ -131,7 +131,8 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
   const [eventRes, occRes, settingRes] = await db.batch([
     db.prepare(
       `SELECT event_id, source, source_row, event_name, display_name, category, description, frequency, repeatable,
-              requires_redating, visibility, sheet_status, active, photo_folder_id, source_hash FROM events`,
+              requires_redating, visibility, sheet_status, active, photo_folder_id, price_display, default_capacity,
+              host_session_id, source_hash FROM events`,
     ),
     db
       .prepare(
@@ -165,10 +166,11 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
       db
         .prepare(
           `INSERT INTO events (event_id, source, source_row, event_name, display_name, category, description, frequency,
-             repeatable, requires_redating, visibility, sheet_status, active, photo_folder_id, source_hash,
-             last_synced_at, created_at, updated_at)
+             repeatable, requires_redating, visibility, sheet_status, active, photo_folder_id, price_display,
+             default_capacity, host_session_id, source_hash, last_synced_at, created_at, updated_at)
            SELECT ${['event_id', 'source', 'source_row', 'event_name', 'display_name', 'category', 'description', 'frequency',
-             'repeatable', 'requires_redating', 'visibility', 'sheet_status', 'active', 'photo_folder_id', 'source_hash'].map(j).join(', ')},
+             'repeatable', 'requires_redating', 'visibility', 'sheet_status', 'active', 'photo_folder_id', 'price_display',
+             'default_capacity', 'host_session_id', 'source_hash'].map(j).join(', ')},
              ?2, ?2, ?2
            FROM json_each(?1) WHERE true
            ON CONFLICT (event_id) DO UPDATE SET
@@ -176,7 +178,8 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
              display_name = excluded.display_name, category = excluded.category, description = excluded.description,
              frequency = excluded.frequency, repeatable = excluded.repeatable, requires_redating = excluded.requires_redating,
              visibility = excluded.visibility, sheet_status = excluded.sheet_status, active = excluded.active,
-             photo_folder_id = excluded.photo_folder_id,
+             photo_folder_id = excluded.photo_folder_id, price_display = excluded.price_display,
+             default_capacity = excluded.default_capacity, host_session_id = excluded.host_session_id,
              updated_at = CASE WHEN events.source_hash IS excluded.source_hash THEN events.updated_at ELSE excluded.updated_at END,
              source_hash = excluded.source_hash, last_synced_at = excluded.last_synced_at`,
         )
@@ -232,6 +235,20 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
         .bind(JSON.stringify(plan.audit), payload.run_id, now),
     );
   }
+  // Host sessions n8n added to Event Index: link each to its event, so the
+  // organiser shows it as Live (docs/RTD_HOST_PORTAL.md).
+  writes.push(
+    db
+      .prepare(
+        `UPDATE host_sessions SET event_id = e.event_id,
+           status = CASE WHEN host_sessions.status = 'approved' THEN 'published' ELSE host_sessions.status END,
+           published_at = COALESCE(host_sessions.published_at, ?1), updated_at = ?1
+         FROM events AS e
+         WHERE e.host_session_id = host_sessions.session_id
+           AND (host_sessions.event_id IS NOT e.event_id OR host_sessions.status = 'approved')`,
+      )
+      .bind(now),
+  );
   const result: SyncResult = {
     ...base,
     status: 'ok',

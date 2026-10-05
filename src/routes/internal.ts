@@ -2,7 +2,7 @@
 // n8n credential and the INTERNAL_SYNC_TOKEN Worker secret.
 
 import { Hono } from 'hono';
-import { dueFollowups, markFollowupSent } from '../host/sessions';
+import { dueFollowups, markCafeNotified, markFollowupSent, markPublished, newSubmissions, sessionsToPublish } from '../host/sessions';
 import { MAX_IMAGE_BYTES, imagePlan, parseImageSync, storeImage, syncImages } from '../images/store';
 import { checkBearer } from '../lib/auth';
 import { londonDate } from '../lib/time';
@@ -97,4 +97,28 @@ internalRoutes.post('/host-sessions/:id/followup-sent', async c => {
   if (result === 'not_found') return c.json({ error: 'No one-off session with that ID' }, 404);
   if (result === 'already_sent') return c.json({ error: 'Already marked as sent' }, 409);
   return c.json({ ok: true });
+});
+
+/** Approved host sessions to add to Logic Engine Event Index, each with its sheet row. */
+internalRoutes.get('/host-sessions/to-publish', async c =>
+  c.json({ sessions: await sessionsToPublish(c.env.DB, londonDate(new Date())) }),
+);
+
+internalRoutes.post('/host-sessions/:id/published', async c => {
+  const result = await markPublished(c.env.DB, c.req.param('id'), new Date().toISOString());
+  if (result === 'not_found') return c.json({ error: 'No session with that ID' }, 404);
+  if (result === 'not_approved') return c.json({ error: 'That session is no longer approved' }, 409);
+  return c.json({ ok: true, already: result === 'already' });
+});
+
+/** New submissions the café hasn't been told about: n8n emails them, then marks each one. */
+internalRoutes.get('/host-sessions/new-submissions', async c => {
+  const organiserUrl = `${new URL(c.req.url).origin}/organise`;
+  return c.json({ organiser_url: organiserUrl, submissions: await newSubmissions(c.env.DB) });
+});
+
+internalRoutes.post('/host-sessions/:id/cafe-notified', async c => {
+  const result = await markCafeNotified(c.env.DB, c.req.param('id'), new Date().toISOString());
+  if (result === 'not_found') return c.json({ error: 'No session with that ID' }, 404);
+  return c.json({ ok: true, already: result === 'already' });
 });

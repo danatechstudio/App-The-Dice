@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { env, freshDb, request } from './helpers';
+import { env, freshDb, indexRow, request, sync } from './helpers';
 
 const as = (email: string) => ({ ENVIRONMENT: 'development', DEV_AUTH_EMAIL: email });
 const HOST = as('sam@example.com');
@@ -207,5 +207,98 @@ describe('open or private', () => {
     expect(mine.session.access).toBe('private');
     const bad = await request('/api/host/sessions', json(session({ access: 'secret' })), HOST);
     expect((await bad.json<{ errors: Record<string, string> }>()).errors).toEqual({ access: 'Choose an open or private session.' });
+  });
+});
+
+describe('into the diary', () => {
+  const AUTH = { Authorization: 'Bearer test-sync-token' };
+  const post = (path: string) => request(path, { method: 'POST', headers: AUTH });
+  const decide = (id: string, decision: string) => request(`/api/staff/host-sessions/${id}/decision`, json({ decision }), STAFF);
+  type Row = Record<string, string>;
+
+  beforeEach(async () => {
+    await request('/api/host/sessions', json(session()), HOST); // 1: open one-off, approved
+    await request('/api/host/sessions', json(session({ name: 'Campaign Night', frequency: 'weekly', access: 'private', price_pence: 0 })), OTHER); // 2
+    await request('/api/host/sessions', json(session({ name: 'Learn Wingspan' })), OTHER); // 3: declined
+    await request('/api/host/sessions', json(session({ name: 'Root Night' })), OTHER); // 4: still waiting
+    await decide('RTD-HS-00001', 'approve');
+    await decide('RTD-HS-00002', 'approve');
+    await decide('RTD-HS-00003', 'decline');
+    // Approved after its first Wednesday: it should start from the next one.
+    await env.DB.prepare("UPDATE host_sessions SET event_date = '2026-09-30' WHERE session_id = 'RTD-HS-00002'").run();
+  });
+
+  it('gives n8n the Event Index row for each approved session', async () => {
+    expect((await request('/internal/host-sessions/to-publish')).status).toBe(401);
+    const { sessions } = await (await request('/internal/host-sessions/to-publish', { headers: AUTH })).json<{ sessions: { session_id: string; row: Row }[] }>();
+    expect(sessions.map(s => s.session_id)).toEqual(['RTD-HS-00002', 'RTD-HS-00001']);
+    expect(sessions[1]!.row).toEqual({
+      'Event Name': 'D&D One Shot',
+      Frequency: 'One-off',
+      Day: 'Saturday',
+      'Event Date': '24/10/2026',
+      'Event Time': '19:00',
+      'End Time': '22:00',
+      'Base Details': 'A beginner-friendly adventure. Characters provided.',
+      Status: 'Active',
+      'Organiser Email': 'sam@example.com',
+      'App Visibility': 'Public',
+      'App Category': 'Gaming',
+      'App Price': '£5',
+      'App Capacity': '6',
+      'App Host Session': 'RTD-HS-00001',
+    });
+    expect(sessions[0]!.row).toMatchObject({ Frequency: 'Weekly', Day: 'Wednesday', 'Event Date': '07/10/2026', 'App Visibility': 'Private', 'App Price': 'Free' });
+  });
+
+  it('marks a session Live once it is in the sheet, and only approved ones', async () => {
+    expect(await (await post('/internal/host-sessions/RTD-HS-00001/published')).json()).toEqual({ ok: true, already: false });
+    expect(await (await post('/internal/host-sessions/RTD-HS-00001/published')).json()).toEqual({ ok: true, already: true });
+    expect((await post('/internal/host-sessions/RTD-HS-00003/published')).status).toBe(409);
+    expect((await post('/internal/host-sessions/RTD-HS-09999/published')).status).toBe(404);
+    const { sessions } = await (await request('/internal/host-sessions/to-publish', { headers: AUTH })).json<{ sessions: { session_id: string }[] }>();
+    expect(sessions.map(s => s.session_id)).toEqual(['RTD-HS-00002']);
+  });
+
+  it('links the synced Event Index row back to the session, with its price and size in the diary', async () => {
+    const res = await sync({
+      run_id: 'host-link',
+      sources: {
+        event_index: [
+          indexRow(7, { 'Event Name': 'D&D One Shot', 'Event Date': '24/10/2026', 'App Price': '£5', 'App Capacity': '6', 'App Host Session': 'RTD-HS-00001', 'App Category': 'Gaming' }),
+          indexRow(8, { 'Event Name': 'Campaign Night', Frequency: 'Weekly', 'Event Date': '07/10/2026', 'App Visibility': 'Private', 'App Capacity': '5', 'App Host Session': 'RTD-HS-00002' }),
+        ],
+      },
+    });
+    expect(res.status).toBe(200);
+    const mine = await (await request('/api/host/sessions', {}, HOST)).json<{ sessions: { status: string; event_id: string }[] }>();
+    expect(mine.sessions[0]).toMatchObject({ status: 'published', event_id: 'RTD-EVT-00007' });
+    const { occurrences } = await (await request('/api/events')).json<{ occurrences: Record<string, unknown>[] }>();
+    expect(occurrences.find(o => o.event_id === 'RTD-EVT-00007')).toMatchObject({ name: 'D&D One Shot', price_display: '£5', capacity: 6 });
+    expect(occurrences.find(o => o.event_id === 'RTD-EVT-00008')).toMatchObject({ name: 'Private session', capacity: null, price_display: null });
+  });
+
+  it('tells n8n which new submissions the café still needs emailing about', async () => {
+    const list = async () =>
+      (await (await request('/internal/host-sessions/new-submissions', { headers: AUTH })).json<{ organiser_url: string; submissions: Record<string, unknown>[] }>());
+    const first = await list();
+    expect(first.organiser_url).toBe('http://localhost/organise');
+    expect(first.submissions).toEqual([
+      {
+        session_id: 'RTD-HS-00004',
+        name: 'Root Night',
+        description: 'A beginner-friendly adventure. Characters provided.',
+        host_name: 'Alex',
+        host_email: 'alex@example.com',
+        when: 'Saturday 24 October',
+        time: '19:00–22:00',
+        price: '£5',
+        max_players: 6,
+        access: 'Open to anyone',
+      },
+    ]);
+    expect(await (await post('/internal/host-sessions/RTD-HS-00004/cafe-notified')).json()).toEqual({ ok: true, already: false });
+    expect(await (await post('/internal/host-sessions/RTD-HS-00004/cafe-notified')).json()).toEqual({ ok: true, already: true });
+    expect((await list()).submissions).toEqual([]);
   });
 });

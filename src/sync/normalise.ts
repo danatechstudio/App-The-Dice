@@ -25,6 +25,12 @@ export interface NormalisedEvent {
   sheet_status: string | null;
   active: boolean;
   photo_folder_id: string | null;
+  /** Event Index "App Price", as written ("Free", "£5"). Host sessions fill it in. */
+  price_display: string | null;
+  /** Event Index "App Capacity": max players. */
+  default_capacity: number | null;
+  /** Event Index "App Host Session": the organiser session this row came from. */
+  host_session_id: string | null;
   /** The single date the Logic Engine currently holds for this event, if valid. */
   next: { date: string; start_time: string | null; end_time: string | null; all_day: boolean } | null;
 }
@@ -38,6 +44,7 @@ export interface SyncWarning {
 }
 
 const EVENT_ID = /^RTD-EVT-\d{5,}$/;
+const HOST_SESSION_ID = /^RTD-HS-\d{5,}$/;
 
 const text = (v: unknown): string => String(v ?? '').trim();
 const orNull = (s: string): string | null => (s === '' ? null : s);
@@ -54,6 +61,13 @@ export function visibilityOf(raw: unknown): Visibility | undefined {
   if (v === 'app bookable' || v === 'bookable') return 'app_bookable';
   if (v === 'private' || v === 'link only' || v === 'private / link only' || v === 'private link only') return 'private';
   return undefined;
+}
+
+/** "App Capacity": a whole number of players from 1 to 1000; anything else is ignored. */
+export function capacityOf(raw: unknown): number | null {
+  const s = text(raw);
+  const n = Number(s);
+  return s !== '' && Number.isInteger(n) && n >= 1 && n <= 1000 ? n : null;
 }
 
 export function frequencyOf(raw: unknown): Frequency {
@@ -136,6 +150,9 @@ export function normaliseRows(
       // Event Index: only an explicit Active counts. Standard Diary has no Status column.
       active: isIndex ? status.toLowerCase() === 'active' : status === '' || status.toLowerCase() === 'active',
       photo_folder_id: orNull(text(row['Photo Folder ID'])),
+      price_display: isIndex ? orNull(text(row['App Price']).slice(0, 40)) : null,
+      default_capacity: isIndex ? capacityOf(row['App Capacity']) : null,
+      host_session_id: isIndex && HOST_SESSION_ID.test(text(row['App Host Session'])) ? text(row['App Host Session']) : null,
       next: date ? { date, start_time: start, end_time: end, all_day: start === null } : null,
     });
   }

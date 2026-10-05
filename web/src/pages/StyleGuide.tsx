@@ -33,6 +33,7 @@ const sample = (over: Partial<Occurrence>): Occurrence => ({
   visibility: 'public',
   image: null,
   price_display: null,
+  capacity: null,
   ...over,
 });
 

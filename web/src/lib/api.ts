@@ -21,6 +21,8 @@ export interface Occurrence {
   visibility: 'public' | 'app_bookable' | 'private';
   image: string | null;
   price_display: string | null;
+  /** Max players, when known (host sessions set it). */
+  capacity: number | null;
   /** All of the event's photos (single-occurrence endpoint only). */
   images?: string[];
 }
