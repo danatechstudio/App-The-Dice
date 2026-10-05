@@ -26,7 +26,7 @@ How it was verified: two dry runs of the Guard (executions 18094/18095 and 18115
   - Standard Diary rows got `RTD-EVT-00024`–`00031`.
   - Food1–3, Drinks and Cafe Vibes were set to `Hidden`; everything else to `Public`.
   - Categories were guessed from event names. Michelle can change any of them.
-- **Workflow:** `RTD One-Off: Add App ID Columns` (`6XN4fpSvTk5t5OW9`). Manual-only, never activated, safe to re-run (it fills blanks only and never renumbers). Archive once the sync workflow assigns IDs to new rows.
+- **Workflow:** `RTD One-Off: Add App ID Columns` (`6XN4fpSvTk5t5OW9`). Manual-only, never activated, safe to re-run (it fills blanks only and never renumbers). It can be archived: RTD Event Sync now assigns IDs to new rows.
 
 | Event ID | Event Index row |
 | --- | --- |
@@ -38,7 +38,7 @@ How it was verified: two dry runs of the Guard (executions 18094/18095 and 18115
 
 **Rules for the sheet from now on:**
 - Never change or reuse an `Event ID`. Rename events freely; the ID keeps their history together.
-- A new row needs an ID. Until RTD Event Sync assigns them automatically, re-run the one-off workflow.
+- New rows, including copied rows, get an ID automatically within 15 minutes.
 - `App Visibility` accepts: `Public`, `App Bookable`, `Private`, `Hidden`. A blank cell means Hidden.
 - `App Category` accepts: Gaming, Quiz, Social, Club, Tournament, Market, Workshop, Other.
 
@@ -52,41 +52,40 @@ How it was verified: two dry runs of the Guard (executions 18094/18095 and 18115
 
 Still to do: point the Guard's date-change recipient at this instead of its hard-coded copy. That change goes in `rtd-poster-automation`.
 
-## Planned: RTD Event Sync
+## RTD Event Sync (`fOYrFBOElFkWx7R3`)
 
-Built and tested once the Worker is deployed and its URL and token exist ([RTD_DEPLOYMENT.md](RTD_DEPLOYMENT.md)).
+Built 2026-10-05. It stays **switched off** until the `RTD App Sync` credential exists and a manual run has been checked.
 
-- **Trigger:** every 15 minutes, plus a manual trigger.
+- **Triggers:** every 15 minutes (Europe/London), plus **Run By Hand**.
 - **Steps:**
-  1. Read Event Index and Standard Diary.
-  2. Give any named row without an `Event ID` the next free ID, and write it back. This is the same rule as the one-off workflow.
-  3. `POST {RTD_APP_BASE_URL}/internal/sync/logic-engine` with the trimmed rows (no prompt columns). Header Auth credential `RTD App Sync`: `Authorization: Bearer <INTERNAL_SYNC_TOKEN>`.
-- **Payload:**
+  1. Read the app URL from `rtd_config` (`RTD_APP_BASE_URL` = `https://rtd-app.dan-289.workers.dev`).
+  2. Read Event Index and Standard Diary.
+  3. **Build Snapshot.** A row with no `Event ID`, or carrying a copy of another row's ID (a copied row), gets the next free `RTD-EVT` number. The first row holding an ID keeps it. New rows default to `App Visibility` = Public, and `App Category` = Other (Event Index) or Club (Standard Diary).
+  4. Write any new IDs back to the sheet.
+  5. `POST /internal/sync/logic-engine` with only the fields the app uses (no prompt columns). `run_id` = `n8n-<execution id>`.
+- **Errors:** retried 3 times, then passed to `Studio: Error Handler`. A `409` means the app refused a suspicious snapshot (for example an empty sheet read), and the data in the app is left untouched.
+- **Credential `RTD App Sync`:** Header Auth, with name `Authorization` and value `Bearer <INTERNAL_SYNC_TOKEN>`. Create it from the **Send Snapshot To App** node.
 
-  ```json
-  {
-    "run_id": "<n8n execution id>",
-    "sources": {
-      "event_index":    [{ "row_number": 2, "Event Name": "Quiz", "Frequency": "Monthly", "Event Date": "23/10/2026",
-                           "Event Time": "18:30", "End Time": "22:00", "Status": "Active", "Base Details": "...",
-                           "Photo Folder ID": "...", "Event ID": "RTD-EVT-00001", "App Visibility": "Public", "App Category": "Quiz" }],
-      "standard_diary": [{ "row_number": 2, "Group": "...", "Date": "05/10/2026", "Notes": "...", "Frequency": "Weekly",
-                           "Event ID": "RTD-EVT-00024", "App Visibility": "Public", "App Category": "Club" }]
-    }
+Payload shape:
+
+```json
+{
+  "run_id": "n8n-18200",
+  "sources": {
+    "event_index":    [{ "row_number": 2, "Event Name": "Quiz", "Frequency": "Monthly", "Event Date": "23/10/2026",
+                         "Event Time": "18:30", "End Time": "22:00", "Status": "Active", "Base Details": "...",
+                         "Photo Folder ID": "...", "Event ID": "RTD-EVT-00001", "App Visibility": "Public", "App Category": "Quiz" }],
+    "standard_diary": [{ "row_number": 2, "Group": "...", "Date": "05/10/2026", "Notes": "...", "Frequency": "Weekly",
+                         "Event ID": "RTD-EVT-00024", "App Visibility": "Public", "App Category": "Club" }]
   }
-  ```
-
-- **Responses:**
-  - `200`: applied, or `status: duplicate`.
-  - `409`: rejected by the circuit breaker. Route this to Studio: Notify as `repeated_failure`.
-  - `400` / `401`: configuration error.
-- **Error workflow:** `Studio: Error Handler`.
+}
+```
 
 ## Spec §46 workflow map
 
 | Spec workflow | Covered by |
 | --- | --- |
-| RTD – Event Sync | **New** (above) |
+| RTD – Event Sync | **RTD Event Sync** (above) |
 | RTD – Event Approval | New with the Host Portal (Phase 6), reusing the inactive Master Booking decision model |
 | RTD – Event Expiry & Redating | **Existing** Event Guard + Event Date Change |
 | RTD – Booking Daily Digest | New (Phase 5), reads `rtd_config` |

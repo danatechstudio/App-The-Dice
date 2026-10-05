@@ -109,9 +109,11 @@ Then open `https://<host>/api/staff/me`, sign in with the emailed PIN, and check
 
 ## 6. Connect n8n
 
-1. **Create the credential.** In n8n, create a **Header Auth** credential named `RTD App Sync`, with name `Authorization` and value `Bearer <token from step 2>`.
-2. **Add the app address.** Add a row to the `rtd_config` data table: `RTD_APP_BASE_URL` = `https://<host>`.
-3. **Hand over to Claude.** Tell Claude, who then builds and tests **RTD Event Sync** ([RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#planned-rtd-event-sync)).
+`rtd_config` already holds `RTD_APP_BASE_URL`, and the **RTD Event Sync** workflow is built.
+
+1. In n8n, open **RTD Event Sync** → node **Send Snapshot To App** → Credential → *Create new*.
+2. Choose type **Header Auth** and name it `RTD App Sync`. Set Name to `Authorization` and Value to `Bearer <the INTERNAL_SYNC_TOKEN value>`.
+3. Save the credential and the workflow. Tell Claude, who runs it once by hand, checks the result in D1, then switches it on.
 
 ## Local development
 

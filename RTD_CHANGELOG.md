@@ -1,6 +1,9 @@
 # RTD App Changelog
 
 ## 2026-10-05 (Cloudflare)
+- **App deployed** at https://rtd-app.dan-289.workers.dev from GitHub (Workers Builds). Staff Access is on `/api/staff`.
+- **RTD Event Sync** n8n workflow built (switched off until its credential exists). `rtd_config` gained `RTD_APP_BASE_URL`.
+- **Fix:** a retried run of a refused sync now stays refused (`409`), instead of coming back as a "duplicate" success.
 - **D1 database `rtd-app` created** (WEUR) through the Cloudflare connector.
   - `0001_foundation.sql` applied and recorded in `d1_migrations`.
   - First admin user added.

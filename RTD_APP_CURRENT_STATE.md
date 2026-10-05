@@ -18,7 +18,7 @@ _Last updated: 2026-10-05_
   - 82 tests passing. Smoke-tested locally with today's real event data.
 
 ## Incomplete
-- RTD Event Sync n8n workflow, built once the Worker URL and token exist.
+- RTD Event Sync: built in n8n, switched off until the `RTD App Sync` credential is added.
 - Phases 2–9.
 
 ## Known issues
@@ -28,8 +28,8 @@ _Last updated: 2026-10-05_
 - **Blood on the Clocktower:** auto-rolled from 4 Oct to **4 Nov** before the monthly change, and a poster was generated for that date. Please confirm the date with Michelle.
 
 ## Next actions
-1. You: dashboard steps A–C in [docs/RTD_DEPLOYMENT.md](docs/RTD_DEPLOYMENT.md#status-2026-10-05), then send me the `workers.dev` address, the Access AUD tag and the team domain.
-2. Me: build and test RTD Event Sync; then start Phase 2 (PWA and diary).
+1. You: set a new `INTERNAL_SYNC_TOKEN`, because the first one was shared in chat. Then add the `RTD App Sync` credential in n8n ([docs/RTD_DEPLOYMENT.md §6](docs/RTD_DEPLOYMENT.md#6-connect-n8n)).
+2. Me: run RTD Event Sync by hand, check the data, switch it on; then start Phase 2 (PWA and diary).
 3. You: push `rtd-poster-automation` to GitHub, so I can fold in the Guard and poster fixes.
 
 ## Required user input
