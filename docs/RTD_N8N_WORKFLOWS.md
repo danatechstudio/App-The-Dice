@@ -4,6 +4,27 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### 2026-10-05 (evening): host sessions into the diary; private sessions never advertised
+
+Dan's decision: "Private sessions don't advertise, public yes please."
+
+| Workflow | Change | New active version | Roll back to |
+| --- | --- | --- | --- |
+| RTD Master V1 (`yPhchrcwuJSt3RLI`) | **Local edits to three code nodes:** `Find Next 2 Diary Days & Build Prompt` (evening round-up), `Find Next 7 Days Events & Build Prompt` (Sunday weekly post) and `Is Event Due Right Now?` (hourly event post) now skip rows whose `App Visibility` is `Private`, in both Event Index and Standard Diary. Hidden social-content rows (Food1–3, Drinks, Cafe Vibes) are unaffected. | `c8485b62-c318-47f6-bb0f-bee99a670e5c` | `95b638b5-11f4-47ce-91ec-db77c3eb4f89` |
+| RTD Event Guard (sub) (`RtdEventGuardSub1`) | **Two new local-edit nodes:** **App: Private Rows Get No Poster** (before `Evaluate Events`) relabels a Private row's Status in memory, so it gets no poster but still expires. **App: No Date Request For Host Sessions** (before `Request New Date`) drops rows with an `App Host Session`: they still go Inactive when they pass, but the café isn't asked for a new date, because the host gets the follow-up email instead. | `d3c74b27-dfa8-4e02-8f1d-d609751f9537` | `fe0eeae3-49f9-4e20-94d6-a342208809b0` |
+| RTD Event Sync (`fOYrFBOElFkWx7R3`) | `Build Snapshot` also sends `App Price`, `App Capacity` and `App Host Session`. | `a6de4b57-6675-4061-8bea-8b981128ea56` | `1d43463b-e143-413c-ad1a-c2c012063725` |
+| Logic Engine sheet | **Backup first:** "Logic Engine_RTD BACKUP 2026-10-05 2157 (before host session columns)" (`1bMrXUUYfFHP0l-Y-WozCe2ovfzvApVeKyn51EanUTyM`). **Then:** `App Price`, `App Capacity` and `App Host Session` were added as Event Index columns V–X, after App Category. No column moved. Workflow: `RTD One-Off: Add Host Session Columns` (`jgEBveDZA5Dg4Iif`), manual-only and safe to re-run. | — | — |
+| **New:** RTD Host Sessions To Diary (`rdS8LF56B9k170BY`) | See [below](#rtd-host-sessions-to-diary-rds8lf56b9k170by). | | |
+
+**How it was verified:**
+- **Master V1:** the three patched code nodes were run locally against sample rows. Both round-ups left out a Private Event Index row and a Private Standard Diary group, and kept the public ones; the hourly post picked only the public event. The draft was then diffed against the live version: only those three `jsCode` values changed.
+- **Guard:** both new nodes were run locally against sample rows. A dry run through `Event Guard Dry Run (Manual)` (executions 19339/19340) then succeeded, and every existing event took the same path as before.
+
+> **Local edits.**
+> - **Guard:** its code is generated from `~/projects/rtd-poster-automation`, so mirror both Guard nodes there (skip posters when App Visibility is Private; no date request for rows with an App Host Session), then delete them.
+> - **Master V1:** its nodes aren't generated, but keep the three edits if it's ever rebuilt.
+> - **Known limit:** the Guard still refuses to act if more than 3 rows expire in one night, and host one-offs count towards that.
+
 ### 2026-10-05: Monthly events re-dated by Michelle, not auto-rolled
 
 Dan's decision: "dates can vary, ask Michelle for a new date".
@@ -48,7 +69,7 @@ How it was verified: two dry runs of the Guard (executions 18094/18095 and 18115
 
 | key | purpose |
 | --- | --- |
-| `RTD_CAFE_NOTIFICATION_EMAIL` | Fixed café address for the digest, date requests and change notices |
+| `RTD_CAFE_NOTIFICATION_EMAIL` | Fixed café address for the digest, date requests and change notices. Also gets an email for each new host session (RTD Host Sessions To Diary), and is the Reply-To on host follow-up emails. |
 
 Still to do: point the Guard's date-change recipient at this instead of its hard-coded copy. That change goes in `rtd-poster-automation`.
 
@@ -132,6 +153,39 @@ This workflow emails the host of each approved **one-off** session the day after
   - **Simulated run with sample data** (`19238`): the email text and escaping are correct.
 - **Errors:** HTTP steps retry 3 times and Gmail twice; failures go to `Studio: Error Handler`. If Gmail fails partway through a run, a host already emailed in that run may get the email again the next day, because their session wasn't marked sent.
 - **Execution data:** successful runs are kept, so you can see who was emailed.
+
+## RTD Host Sessions To Diary (`rdS8LF56B9k170BY`)
+
+This workflow does two jobs for the host organiser ([RTD_HOST_PORTAL.md](RTD_HOST_PORTAL.md)).
+
+- **Triggers:** every 15 minutes (Europe/London), plus **Run By Hand**.
+- **A. Telling the café about new submissions:**
+  1. `GET /internal/host-sessions/new-submissions`.
+  2. One email per submission to `RTD_CAFE_NOTIFICATION_EMAIL`:
+     - **Contents:** the session name, when, time, cost, max players, open or private, and the description.
+     - **Link:** a link to `/organise` to approve or decline it.
+     - **Sender:** `ATech GMAIL`, shown as "Roll The Dice app".
+     - **Replies:** they go to the host (Reply-To).
+  3. `POST /internal/host-sessions/:id/cafe-notified`, so each submission is emailed once.
+- **B. Approved sessions into Event Index:**
+  1. `GET /internal/host-sessions/to-publish`. The app returns each session's finished row.
+     - **Row values:** Frequency `One-off`/`Weekly`, Day, Event Date as DD/MM/YYYY text, Event Time, End Time, Base Details, Status `Active`, Organiser Email, App Visibility `Public`/`Private`, App Category `Gaming`, App Price, App Capacity and App Host Session.
+  2. **Reading the sheet:** only when something is waiting, it reads Event Index.
+  3. **Already in the sheet:** a session whose `App Host Session` is already there is only marked Live, so a retry never adds a row twice.
+  4. **Name clashes:** Event Name is the poster and guard automations' key, so a clashing name gets " (hosted)" added.
+  5. **Appending:** it appends the rows as RAW text. It stops with an error rather than create a column if a header was renamed.
+  6. **Marking Live:** `POST /internal/host-sessions/:id/published`. The next Event Sync then gives each row an Event ID, and the app links it back to the session.
+- **What happens to the rows afterwards:**
+  - **Weekly rows:** `Calculate next dates` rolls them forward.
+  - **One-offs:** they go Inactive after their date. Event Guard doesn't send the "pick a new date" email for host sessions; the host gets RTD Host Follow-up instead.
+  - **Open sessions:** they appear in the evening and weekly round-up posts.
+  - **Private sessions:** they never appear in posts. The diary shows them only as "Private session".
+- **Individual promotion:** a session gets its own hourly Facebook post or a poster only if Michelle adds a prompt (and a photo folder) to its row, as for any other event.
+- **Live since 2026-10-05 22:15** (published).
+- **Errors:** HTTP steps retry 3 times; failures go to `Studio: Error Handler`.
+- **Checks:**
+  - **First live run** (`19322`): nothing pending, so nothing was sent or written.
+  - **Simulated run with sample data** (`19323`): a clashing "Quiz" became "Quiz (hosted 2)", a session already in the sheet was only marked Live, and the café email escaped host-typed text.
 
 ## Spec §46 workflow map
 

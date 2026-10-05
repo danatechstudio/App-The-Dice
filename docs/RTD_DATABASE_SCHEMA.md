@@ -18,7 +18,10 @@ One row per permanent event identity, synced from the Logic Engine.
 | `repeatable`, `requires_redating` | Derived. Event Index one-offs and monthlies need a new date by hand |
 | `visibility` | `public`, `app_bookable`, `private`, `hidden` (sheet `App Visibility`; blank or unknown = hidden). `private` is listed in the diary only as "Private session" with its time. |
 | `sheet_status`, `active` | Raw Status. `active` = Status is exactly "Active" (Standard Diary: always active) |
-| `default_image`, `default_capacity`, `default_host_id` | App-owned, later phases |
+| `default_image`, `default_host_id` | App-owned, later phases |
+| `default_capacity` | Max players, from the sheet's `App Capacity` (host sessions fill it in) |
+| `price_display` | The sheet's `App Price` ("Free", "£5"). Added in `0006_host_publishing.sql`. |
+| `host_session_id` | The sheet's `App Host Session`: the organiser session this row came from (0006) |
 | `photo_folder_id` | Drive folder used by the poster generator |
 | `source_hash`, `last_synced_at` | Change detection |
 
@@ -99,6 +102,7 @@ Added in `0003_host_sessions.sql`. These are sessions proposed by hosts in the o
 | `frequency` | `one-off` (default) or `weekly`, the Logic Engine's Frequency words. Added in `0004_host_session_frequency.sql`. |
 | `followup_sent_at` | When n8n emailed the host after a one-off session (0004) |
 | `access` | `open` (default) or `private`: a private session goes to Event Index with App Visibility `Private`. Added in `0005_host_session_access.sql`. |
+| `cafe_notified_at`, `published_at` | When n8n emailed the café about the submission, and when it added the session to Event Index (0006) |
 | `status` | `submitted` → `approved` / `declined`; `withdrawn` by the host; `published` once it's in the Logic Engine |
 | `decision_note`, `decided_by`, `decided_at` | The staff decision |
 | `event_id` | The Logic Engine event, once published |

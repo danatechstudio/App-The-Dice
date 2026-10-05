@@ -1,5 +1,19 @@
 # RTD App Changelog
 
+## 2026-10-05 (host sessions into the diary)
+- **Approved host sessions reach the diary:**
+  - **How:** n8n **RTD Host Sessions To Diary** (every 15 minutes) adds them to Event Index, and the sync links each row back to its session, which then shows as Live.
+  - **The rows:** open sessions are Public, private ones Private. New columns App Price, App Capacity and App Host Session were added, after a backup of the sheet.
+- **The café is emailed about each new submission,** with a link to `/organise`. Replies go to the host.
+- **Event pages** show "£5 per player, paid at the café" and "Up to N players" when known.
+- **Private sessions are never advertised:**
+  - **RTD Master V1:** the evening round-up, Sunday weekly post and hourly event post skip `App Visibility = Private`.
+  - **Event Guard:** it makes no posters for Private rows, and doesn't ask the café for a new date when a host one-off passes.
+  - Rollback versions are in `docs/RTD_N8N_WORKFLOWS.md`.
+- **Database:** migration `0006_host_publishing.sql`, applied to the live database.
+- **Tests:** 157 (was 152).
+- **Follow-up email:** a test email went to Dan using a dummy session, which was then removed.
+
 ## 2026-10-05 (open or private sessions; private sessions in the diary)
 - **Organiser:** a new "Who can come?" choice on the session form. **Open** is the default; **Private** is for a host's own group. Cards and the staff queue show "Private".
 - **Diary:**

@@ -53,6 +53,10 @@ _Last updated: 2026-10-05_
   - **Staff:** an approvals queue (approve, or decline with a note), plus adding hosts.
 - **Sign-in:** works through the existing RTD Staff Access application. No dashboard change is needed for staff. For hosts, its policy must let them in (Include → Everyone recommended); see [docs/RTD_HOST_PORTAL.md](docs/RTD_HOST_PORTAL.md#signing-in).
 - **After a one-off:** n8n **RTD Host Follow-up** emails the host the day after, inviting them to run it again.
+- **Into the diary:** n8n **RTD Host Sessions To Diary** emails the café about each new submission. It adds approved sessions to Event Index (Public or Private), and the sync puts them in the diary.
+  - **Open sessions** show in full, with price and max players.
+  - **Private sessions** show as "Private session" only.
+- **Advertising:** open sessions appear in the evening and weekly round-up posts. Private ones never appear in posts or get posters: RTD Master V1 and Event Guard were changed to skip `App Visibility = Private`.
 - **Next:**
   - n8n adds approved sessions to Event Index (new columns App Price, App Capacity and App Host Session), so they reach the diary through the normal sync.
   - n8n emails the café about each new submission.

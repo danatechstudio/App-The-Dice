@@ -82,6 +82,8 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | POST | `/internal/sync/logic-engine` | bearer `INTERNAL_SYNC_TOKEN` | n8n snapshot of the sheet tabs |
 | GET | `/internal/host-sessions/followups` | bearer | One-off host sessions due the follow-up email |
 | POST | `/internal/host-sessions/:id/followup-sent` | bearer | Records that the follow-up email went out |
+| GET / POST | `/internal/host-sessions/new-submissions`, `/internal/host-sessions/:id/cafe-notified` | bearer | New submissions to email the café about, and recording that email |
+| GET / POST | `/internal/host-sessions/to-publish`, `/internal/host-sessions/:id/published` | bearer | Approved sessions with their Event Index row, and marking them Live |
 | GET | `/api/staff/me` | Access + staff/admin | Who am I |
 | GET | `/api/staff/sync-runs` | Access + staff/admin | Last 50 sync runs with warnings |
 | GET | `/api/staff/audit?entity_id&before&limit` | Access + staff/admin | Audit history |

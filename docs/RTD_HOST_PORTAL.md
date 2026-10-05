@@ -10,10 +10,10 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 | Staff section: approvals queue (approve / decline with a note), host list, add a host | **Built** |
 | Sign-in | **Working**, through the existing RTD Staff Access app (see [Signing in](#signing-in)) |
 | One-off or weekly sessions | **Built** |
-| Open or private sessions | **Built**. Private ones will show in the diary as "Private session" and their time (the diary side is live for Logic Engine rows set to `Private`). |
+| Open or private sessions | **Built**. Private ones show in the diary only as "Private session" and their time, and are never advertised. |
 | Email the host the day after a one-off session | **Built** (n8n **RTD Host Follow-up**, see [After a one-off session](#after-a-one-off-session)) |
-| Approved sessions into the Logic Engine, and so into the diary | **Next step** (n8n) |
-| Email the café when a session is submitted | **Next step** (n8n) |
+| Approved sessions into the Logic Engine, and so into the diary | **Built** (n8n **RTD Host Sessions To Diary**, see [From approval to the diary](#from-approval-to-the-diary)) |
+| Email the café when a session is submitted | **Built** (same workflow) |
 | Bookings and attendee lists for hosts | Phase 5 (bookings) |
 
 ## The session form
@@ -47,7 +47,7 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 | Approved (`approved`) | The café said yes | Staff |
 | Not approved (`declined`) | The café said no, optionally with a note the host sees | Staff |
 | Withdrawn (`withdrawn`) | The host pulled it before it reached the diary | Host |
-| Live (`published`) | It's in the Logic Engine and the diary | n8n (next step) |
+| Live (`published`) | It's in the Logic Engine and the diary | n8n |
 
 **Rules:**
 - **Withdrawing:** a host can only withdraw their own session, and only while it is awaiting approval or approved. Once it's live, they ask the café.
@@ -111,16 +111,30 @@ The n8n workflow **RTD Host Follow-up** (`FFy0lBTZCm4A5p08`, daily at 10:00) ema
 | GET | `/api/staff/sign-in` | anyone Access lets in | Redirects to `/organise` after Access sign-in |
 | GET | `/internal/host-sessions/followups` | n8n (bearer token) | One-off sessions due the follow-up email |
 | POST | `/internal/host-sessions/:id/followup-sent` | n8n (bearer token) | Record that the email went out (409 if already) |
+| GET | `/internal/host-sessions/new-submissions` | n8n (bearer token) | Submissions the café hasn't been emailed about |
+| POST | `/internal/host-sessions/:id/cafe-notified` | n8n (bearer token) | Record the café email |
+| GET | `/internal/host-sessions/to-publish` | n8n (bearer token) | Approved sessions, each with its Event Index row |
+| POST | `/internal/host-sessions/:id/published` | n8n (bearer token) | Mark Live once the row is in the sheet (409 if no longer approved) |
 
-## Next step: approved sessions into the diary
+## From approval to the diary
 
-This is the plan from the audit (§6): the Logic Engine stays the one master calendar.
-1. **Append to the sheet:** an n8n workflow picks up approved sessions and appends each to **Event Index**:
-   - Event Name, Frequency (`One-off` or `Weekly`), Date, Event Time, End Time, Status `Active`, Base Details, App Visibility (`Public`, or `Private` for a private session).
-   - Three new columns: **App Price**, **App Capacity** and **App Host Session** (the `RTD-HS` number).
-2. **Into the app:** the next Event Sync gives the row an Event ID. The app reads the new columns, shows the price and max players on the event page, and marks the session **Live** for its host.
-3. **Notify the café:** the same workflow emails the café about each new submission (address from `rtd_config`), with a link to `/organise`.
+The Logic Engine stays the one master calendar (audit §6). n8n **RTD Host Sessions To Diary** (`rdS8LF56B9k170BY`, every 15 minutes) does the sheet work; details are in [RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#rtd-host-sessions-to-diary-rds8lf56b9k170by).
 
-**Before switching this on:**
-- **Promotion:** once a session is in Event Index, RTD Master V1's poster and social automation will promote it like any other event.
-- **Private sessions:** that automation doesn't read App Visibility yet, so it must be changed to skip rows set to `Private` (and `Hidden`) first. Otherwise it would promote a private group's session.
+1. **Submitted:** the café gets an email with the details and a link to `/organise`. Replying to that email reaches the host.
+2. **Approved:**
+   - **Added to the sheet:** within 15 minutes the session is added to **Event Index** as a new row:
+     - **Values:** Event Name, Frequency (`One-off` or `Weekly`), Day, Event Date, Event Time, End Time, Base Details (the description), Status `Active` and Organiser Email.
+     - **App columns:** App Visibility `Public` (open) or `Private`, App Category `Gaming`, **App Price**, **App Capacity** and **App Host Session** (the `RTD-HS` number).
+   - **Marked Live:** the session shows as **Live** for its host.
+3. **In the diary:** the next Event Sync gives the row an Event ID and links it back to the session.
+   - **Open sessions** show in full, with "£5 per player, paid at the café" and "Up to 6 players" on the event page.
+   - **Private sessions** show only as "Private session" and their time.
+4. **Advertising:**
+   - **Open sessions** appear in the evening round-up and Sunday weekly social posts, like any other event.
+   - **Their own posts and posters:** they get a dedicated hourly post or a poster only if Michelle adds a prompt and a photo folder to the row.
+   - **Private sessions are never advertised:** they're left out of every post, and they get no poster.
+5. **Afterwards:**
+   - **Weekly sessions** roll forward each week.
+   - **One-offs** go Inactive after their date, without the café's "pick a new date" email: the host gets the follow-up email instead.
+
+**To change a live session:** edit its Event Index row (for example, set Status to `Inactive` to stop it). Hosts can't withdraw a session once it's live.
