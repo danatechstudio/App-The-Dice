@@ -1,6 +1,9 @@
 # RTD App Changelog
 
 ## 2026-10-05 (Cloudflare)
+- **RTD Event Sync is live** (every 15 min).
+  - First sync: 31 events, 40 occurrences. A repeat sync makes no changes.
+- **Sync refusals now name their cause:** no secret (503), missing or non-Bearer header, or wrong token (401). `keep_vars` stops Git deploys deleting dashboard variables.
 - **App deployed** at https://rtd-app.dan-289.workers.dev from GitHub (Workers Builds). Staff Access is on `/api/staff`.
 - **RTD Event Sync** n8n workflow built (switched off until its credential exists). `rtd_config` gained `RTD_APP_BASE_URL`.
 - **Fix:** a retried run of a refused sync now stays refused (`409`), instead of coming back as a "duplicate" success.

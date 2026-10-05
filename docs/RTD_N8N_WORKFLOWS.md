@@ -54,7 +54,9 @@ Still to do: point the Guard's date-change recipient at this instead of its hard
 
 ## RTD Event Sync (`fOYrFBOElFkWx7R3`)
 
-Built 2026-10-05. It stays **switched off** until the `RTD App Sync` credential exists and a manual run has been checked.
+**Live since 2026-10-05 13:40.**
+- **First run** (`n8n-18419`): 31 events, 40 occurrences. The two expected `invalid_date` warnings were Cleeples ("Every Thursday") and Wednesdays ("Open Wednesdays!").
+- **Repeat run** (`n8n-18421`): 0 changes, which confirms a repeat sync is a no-op.
 
 - **Triggers:** every 15 minutes (Europe/London), plus **Run By Hand**.
 - **Steps:**
@@ -64,7 +66,7 @@ Built 2026-10-05. It stays **switched off** until the `RTD App Sync` credential 
   4. Write any new IDs back to the sheet.
   5. `POST /internal/sync/logic-engine` with only the fields the app uses (no prompt columns). `run_id` = `n8n-<execution id>`.
 - **Errors:** retried 3 times, then passed to `Studio: Error Handler`. A `409` means the app refused a suspicious snapshot (for example an empty sheet read), and the data in the app is left untouched.
-- **Credential `RTD App Sync`:** Header Auth, with name `Authorization` and value `Bearer <INTERNAL_SYNC_TOKEN>`. Create it from the **Send Snapshot To App** node.
+- **Credential `rtd-app` (Header Auth):** header name `Authorization`, value `Bearer <INTERNAL_SYNC_TOKEN>`.
 
 Payload shape:
 
