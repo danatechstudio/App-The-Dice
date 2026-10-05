@@ -1,7 +1,8 @@
 // Staff Control API (Phase 1: identity, sync health and audit history).
 
 import { Hono } from 'hono';
-import { requireRole, type AuthUser } from '../lib/auth';
+import { addHost, decideSession, listHosts, listSessions, type SessionStatus } from '../host/sessions';
+import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
 
 export const staffRoutes = new Hono<{ Bindings: Env; Variables: { user: AuthUser } }>();
 
@@ -10,6 +11,7 @@ staffRoutes.use('*', async (c, next) => {
   await next();
   c.header('Cache-Control', 'no-store');
 });
+staffRoutes.use('*', sameOriginJson);
 staffRoutes.use('*', requireRole('staff'));
 
 staffRoutes.get('/me', c => c.json({ user: c.get('user') }));
@@ -43,4 +45,32 @@ staffRoutes.get('/audit', async c => {
     .bind(entityId, before, limit)
     .all();
   return c.json({ audit: results });
+});
+
+// --- Host sessions and hosts (the staff section of /organise) ---
+
+const SESSION_STATUSES = ['submitted', 'approved', 'declined', 'withdrawn', 'published'];
+
+/** Host sessions by status (default: waiting for a decision). */
+staffRoutes.get('/host-sessions', async c => {
+  const status = c.req.query('status') ?? 'submitted';
+  if (!SESSION_STATUSES.includes(status)) return c.json({ error: `status must be one of ${SESSION_STATUSES.join(', ')}` }, 400);
+  return c.json({ sessions: await listSessions(c.env.DB, { status: status as SessionStatus }) });
+});
+
+/** Approve or decline. Body: { decision: 'approve' | 'decline', note? } */
+staffRoutes.post('/host-sessions/:id/decision', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { decision?: string; note?: unknown };
+  if (body.decision !== 'approve' && body.decision !== 'decline') return c.json({ error: "decision must be 'approve' or 'decline'" }, 400);
+  const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim().slice(0, 500) : null;
+  const result = await decideSession(c.env.DB, c.get('user'), c.req.param('id'), body.decision, note, new Date().toISOString());
+  return result.ok ? c.json({ session: result.session }) : c.json({ error: result.error }, result.status);
+});
+
+staffRoutes.get('/hosts', async c => c.json({ hosts: await listHosts(c.env.DB) }));
+
+/** Add a host by the email they'll sign in with. Body: { email, display_name } */
+staffRoutes.post('/hosts', async c => {
+  const result = await addHost(c.env.DB, c.get('user'), await c.req.json().catch(() => null), new Date().toISOString());
+  return result.ok ? c.json({ host: result.host }, 201) : c.json({ error: 'Please check the form', errors: result.errors }, result.status);
 });

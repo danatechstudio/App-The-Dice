@@ -14,6 +14,7 @@ import { Games } from './pages/Games';
 import { Home } from './pages/Home';
 import { Host } from './pages/Host';
 import { NotFound } from './pages/NotFound';
+import { Organise } from './pages/Organise';
 import { Roll } from './pages/Roll';
 import { StyleGuide } from './pages/StyleGuide';
 
@@ -25,6 +26,7 @@ function route(path: string) {
   if (path === '/book') return <Book />;
   if (path === '/games') return <Games />;
   if (path === '/host') return <Host />;
+  if (path === '/organise') return <Organise />;
   if (path === '/styleguide') return <StyleGuide />;
   if ((p = match('/event/:id', path))) return <EventPage key={p.id} occurrenceId={p.id!} />;
   if ((p = match('/events/:id', path))) return <SeriesPage key={p.id} eventId={p.id!} />;

@@ -80,6 +80,8 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | GET | `/api/staff/me` | Access + staff/admin | Who am I |
 | GET | `/api/staff/sync-runs` | Access + staff/admin | Last 50 sync runs with warnings |
 | GET | `/api/staff/audit?entity_id&before&limit` | Access + staff/admin | Audit history |
+| GET / POST | `/api/host/me`, `/api/host/sessions`, `/api/host/sessions/:id/withdraw` | Access + host/staff/admin | Host organiser ([RTD_HOST_PORTAL.md](RTD_HOST_PORTAL.md)) |
+| GET / POST | `/api/staff/host-sessions`, `/api/staff/host-sessions/:id/decision`, `/api/staff/hosts` | Access + staff/admin | Approvals and hosts |
 
 ## App pages
 
@@ -113,11 +115,12 @@ The **service worker** caches the app shell and the last diary it saw, so the di
 | `src/sync/apply.ts` | Payload validation, circuit breaker, atomic write |
 | `src/lib/queries.ts` | Shared public-read SQL (visibility rules) |
 | `src/lib/calendar.ts` | `.ics` and Google Calendar links |
+| `src/host/sessions.ts` | Host sessions: validation, numbering, withdraw, staff decisions, adding hosts |
 | `src/images/store.ts` | Event photos: plan, sync, upload (type sniffing, content hashing), serving, per-date picking |
 | `src/routes/*` | Public, internal, staff endpoints and app pages (link previews) |
 | `web/` | The PWA: `src/theme` (tokens), `src/styles`, `src/components`, `src/pages`, `public` (icons, manifest, service worker). See [RTD_APP_THEME.md](RTD_APP_THEME.md). |
 | `migrations/` | D1 schema |
-| `test/` | 136 tests, run inside the Workers runtime against a real local D1 and KV |
+| `test/` | 145 tests, run inside the Workers runtime against a real local D1 and KV |
 
 ## Future compatibility
 

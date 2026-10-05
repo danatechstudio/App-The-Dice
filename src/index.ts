@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { readImage } from './images/store';
+import { hostRoutes } from './routes/host';
 import { internalRoutes } from './routes/internal';
 import { pageRoutes } from './routes/pages';
 import { publicRoutes } from './routes/public';
@@ -38,6 +39,7 @@ app.get('/images/:imageId', async c => {
 
 app.route('/api', publicRoutes);
 app.route('/api/staff', staffRoutes);
+app.route('/api/host', hostRoutes);
 app.route('/internal', internalRoutes);
 // App pages the Worker answers first (wrangler.jsonc run_worker_first): link previews.
 app.route('/', pageRoutes);

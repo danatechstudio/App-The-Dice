@@ -1,5 +1,14 @@
 # RTD App Changelog
 
+## 2026-10-05 (host organiser)
+- **`/organise`, the host organiser, is built** (behind Cloudflare Access; the `users` table decides roles).
+  - **Hosts** create sessions (event name, date, start and end time, cost per player, max players, description), see their status, and withdraw them.
+  - **Staff** approve or decline (with a note for the host) and add hosts.
+- **API:** `/api/host/*` and `/api/staff/host-sessions`, `/api/staff/hosts`. Changes must be same-origin JSON.
+- **Database:** migration `0003_host_sessions.sql`, applied to the live database. Sessions are numbered `RTD-HS-00001`, and every change is audited.
+- **Docs:** `docs/RTD_HOST_PORTAL.md`.
+- **Tests:** 145 (was 137).
+
 ## 2026-10-05 (event photos)
 - **Event photos from Drive:** the new n8n workflow **RTD Event Images** (`GeafnErtRe5ZMbiD`, every 6 hours) copies the newest 8 photos from each visible event's Photo Folder ID into the app.
   - Google resizes them to 1400px WebP first.

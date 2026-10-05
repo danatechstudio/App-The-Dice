@@ -84,6 +84,22 @@ Added in `0002_event_images.sql`. These are event photos copied from each event'
 - **Visibility:** photos of hidden or inactive events are removed at the next image sync. They are never served meanwhile.
 - **Audit:** additions and removals are written to `audit_log` (`image.added`, `image.removed`, source `drive_images`).
 
+## host_sessions
+
+Added in `0003_host_sessions.sql`. These are sessions proposed by hosts in the organiser; see [RTD_HOST_PORTAL.md](RTD_HOST_PORTAL.md).
+
+| Column | Notes |
+| --- | --- |
+| `session_id` | `RTD-HS-00001` upwards, assigned in one statement |
+| `host_user_id` | The `users` row of the host who proposed it |
+| `name`, `description` | As entered |
+| `event_date`, `start_time`, `end_time` | London date and wall-clock times. `end_time` is optional. |
+| `price_pence` | 0 = free; otherwise paid at the café, up to £100 |
+| `max_players` | 1–100 |
+| `status` | `submitted` → `approved` / `declined`; `withdrawn` by the host; `published` once it's in the Logic Engine |
+| `decision_note`, `decided_by`, `decided_at` | The staff decision |
+| `event_id` | The Logic Engine event, once published |
+
 ## Coming in later phases
 
 `bookings`, `waitlist`, `hosts` profile fields, `host_applications`, `event_requests` (host submissions before approval), `games`, `game_of_week`, `push_subscriptions`, `notifications`. They are designed in the spec (§15, §18, §24, §29, §47) and will be added as new numbered migrations.

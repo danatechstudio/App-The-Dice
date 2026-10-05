@@ -1,0 +1,496 @@
+import { CalendarDays, Check, Clock, LogOut, Minus, Plus, PoundSterling, Send, UserPlus, UsersRound, X } from 'lucide-preact';
+import { useCallback, useEffect, useState } from 'preact/hooks';
+import { Chip, type ChipKind } from '../components/Chips';
+import { DiceLoader, EmptyState } from '../components/States';
+import { addDays, shortDate, timeRange, todayLondon } from '../lib/dates';
+import { hostApi, type HostRecord, type HostSession, type HostUser, type SessionStatus } from '../lib/hostApi';
+import { toast } from '../lib/toast';
+import { useTitle } from '../lib/title';
+
+const STATUS: Record<SessionStatus, { chip: ChipKind; label: string; note: string }> = {
+  submitted: { chip: 'awaiting', label: 'Awaiting approval', note: 'The café will review it soon.' },
+  approved: { chip: 'approved', label: 'Approved', note: 'Approved. The café will add it to the diary.' },
+  published: { chip: 'live', label: 'Live', note: 'In the diary and on the app.' },
+  declined: { chip: 'draft', label: 'Not approved', note: '' },
+  withdrawn: { chip: 'completed', label: 'Withdrawn', note: '' },
+};
+
+type Gate = { state: 'loading' } | { state: 'signed-out' | 'not-host' | 'error'; message: string } | { state: 'ok'; user: HostUser; canReview: boolean };
+
+/** /organise: the host organiser, behind Cloudflare Access. */
+export function Organise() {
+  useTitle('Host organiser');
+  const [gate, setGate] = useState<Gate>({ state: 'loading' });
+  const [sessions, setSessions] = useState<HostSession[] | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+
+  const loadSessions = useCallback(async () => {
+    const res = await hostApi<{ sessions: HostSession[] }>('/api/host/sessions');
+    if (res.ok) setSessions(res.data.sessions);
+  }, []);
+
+  useEffect(() => {
+    hostApi<{ user: HostUser; can_review: boolean }>('/api/host/me').then(res => {
+      if (res.ok) {
+        setGate({ state: 'ok', user: res.data.user, canReview: res.data.can_review });
+        loadSessions();
+      } else setGate({ state: res.kind === 'invalid' ? 'error' : res.kind, message: res.error });
+    });
+  }, [loadSessions]);
+
+  useEffect(() => {
+    if (sessions && !sessions.length) setFormOpen(true);
+  }, [sessions]);
+
+  if (gate.state === 'loading') return <DiceLoader label="Opening the organiser..." />;
+  if (gate.state !== 'ok') return <Gatekeeper gate={gate} />;
+
+  const today = todayLondon();
+  const upcoming = (sessions ?? []).filter(s => s.event_date >= today && ['submitted', 'approved', 'published'].includes(s.status));
+  const next = upcoming.slice().sort((a, b) => (a.event_date + a.start_time).localeCompare(b.event_date + b.start_time))[0];
+
+  return (
+    <div class="container organiser" data-surface="host">
+      <header class="page-head organiser__head">
+        <div>
+          <p class="label">Host dashboard</p>
+          <h1>Welcome back{gate.user.display_name ? `, ${gate.user.display_name}` : ''}</h1>
+        </div>
+        <a class="btn btn--text btn--sm" href="/cdn-cgi/access/logout">
+          <LogOut size={16} aria-hidden="true" /> Sign out
+        </a>
+      </header>
+
+      <div class="organiser__grid">
+        <div class="stack" style={{ '--gap': '24px' }}>
+          {next && (
+            <section class="card host-dash__next" aria-labelledby="next-session">
+              <p class="label">Next session</p>
+              <h2 id="next-session" class="display" style={{ fontSize: 'var(--rtd-size-h3)' }}>
+                {next.name}
+              </h2>
+              <SessionFacts s={next} />
+              <div>
+                <Chip kind={STATUS[next.status].chip}>{STATUS[next.status].label}</Chip>
+              </div>
+            </section>
+          )}
+
+          <section aria-labelledby="your-sessions">
+            <div class="section-head">
+              <h2 id="your-sessions">Your sessions</h2>
+              {!formOpen && (
+                <button type="button" class="btn btn--primary btn--sm" onClick={() => setFormOpen(true)}>
+                  <Plus size={16} aria-hidden="true" /> Create session
+                </button>
+              )}
+            </div>
+            {sessions === null && <DiceLoader label="Loading your sessions..." />}
+            {sessions && !sessions.length && <EmptyState title="No sessions yet." text="Create your first one and the café will take a look." />}
+            <div class="list">
+              {sessions && sortForHost(sessions, today).map(s => (
+                <SessionCard key={s.session_id} s={s} onChange={loadSessions} />
+              ))}
+            </div>
+          </section>
+        </div>
+
+        {formOpen && (
+          <SessionForm
+            onDone={created => {
+              setFormOpen(false);
+              if (created) loadSessions();
+            }}
+          />
+        )}
+      </div>
+
+      {gate.canReview && <StaffDesk onDecided={loadSessions} />}
+    </div>
+  );
+}
+
+/** Soonest upcoming first, then past sessions, most recent first. */
+function sortForHost(list: HostSession[], today: string): HostSession[] {
+  const key = (s: HostSession) => s.event_date + s.start_time;
+  const upcoming = list.filter(s => s.event_date >= today).sort((a, b) => key(a).localeCompare(key(b)));
+  const past = list.filter(s => s.event_date < today).sort((a, b) => key(b).localeCompare(key(a)));
+  return [...upcoming, ...past];
+}
+
+function Gatekeeper({ gate }: { gate: { state: 'signed-out' | 'not-host' | 'error'; message: string } }) {
+  if (gate.state === 'not-host') {
+    return (
+      <div class="container" data-surface="host">
+        <EmptyState title="You're not set up as a host yet." text="Ask the café team to add you, using the email address you signed in with.">
+          <div class="cluster" style={{ justifyContent: 'center' }}>
+            <a class="btn btn--primary" href="/host">Become a game host</a>
+            <a class="btn btn--text" href="/cdn-cgi/access/logout">Sign in with another email</a>
+          </div>
+        </EmptyState>
+      </div>
+    );
+  }
+  return (
+    <div class="container" data-surface="host">
+      <EmptyState
+        title={gate.state === 'signed-out' ? 'Please sign in to the organiser.' : "That didn't load properly."}
+        text={gate.state === 'signed-out' ? 'The organiser is for Roll The Dice hosts. Sign in with the email the café has on file.' : gate.message}
+      >
+        <button type="button" class="btn btn--primary" onClick={() => location.reload()}>
+          {gate.state === 'signed-out' ? 'Sign in' : 'Try again'}
+        </button>
+      </EmptyState>
+    </div>
+  );
+}
+
+function SessionFacts({ s }: { s: HostSession }) {
+  return (
+    <p class="session-facts">
+      <span><CalendarDays size={16} aria-hidden="true" />{shortDate(s.event_date)}</span>
+      <span><Clock size={16} aria-hidden="true" />{timeRange(s.start_time, s.end_time)}</span>
+      <span><PoundSterling size={16} aria-hidden="true" />{s.price_label}</span>
+      <span><UsersRound size={16} aria-hidden="true" />Up to {s.max_players}</span>
+    </p>
+  );
+}
+
+function SessionCard({ s, onChange }: { s: HostSession; onChange: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const status = STATUS[s.status];
+  const past = s.event_date < todayLondon();
+  const withdraw = async () => {
+    if (!confirm(`Withdraw "${s.name}" on ${shortDate(s.event_date)}?`)) return;
+    setBusy(true);
+    const res = await hostApi(`/api/host/sessions/${s.session_id}/withdraw`, {});
+    setBusy(false);
+    toast(res.ok ? 'Session withdrawn.' : res.error);
+    onChange();
+  };
+  return (
+    <article class="card host-event">
+      <div class="stack" style={{ '--gap': '6px' }}>
+        <h3>{s.name}</h3>
+        <SessionFacts s={s} />
+        {s.status === 'declined' && s.decision_note && <p class="meta">Café note: {s.decision_note}</p>}
+        {status.note && !past && <p class="meta">{status.note}</p>}
+      </div>
+      <div class="host-event__side">
+        <Chip kind={past && s.status === 'published' ? 'completed' : status.chip}>{past && s.status === 'published' ? 'Completed' : status.label}</Chip>
+        {(s.status === 'submitted' || s.status === 'approved') && !past && (
+          <button type="button" class="btn btn--destructive-quiet btn--sm" onClick={withdraw} disabled={busy}>
+            Withdraw
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}
+
+const EMPTY = { name: '', event_date: '', start_time: '', end_time: '', paid: false, price: '', max_players: 6, description: '' };
+
+function SessionForm({ onDone }: { onDone: (created: boolean) => void }) {
+  const [f, setF] = useState(EMPTY);
+  // On phones the form sits below the list: bring it into view when opened.
+  useEffect(() => {
+    const form = document.querySelector('.session-form');
+    form?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    document.querySelector<HTMLInputElement>('#s-name')?.focus({ preventScroll: true });
+  }, []);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const today = todayLondon();
+  const set = <K extends keyof typeof EMPTY>(k: K, v: (typeof EMPTY)[K]) => setF(x => ({ ...x, [k]: v }));
+  const players = (n: number) => set('max_players', Math.min(100, Math.max(1, Math.round(n) || 1)));
+
+  const submit = async (e: Event) => {
+    e.preventDefault();
+    const pence = f.paid ? Math.round(Number(f.price) * 100) : 0;
+    // Quick checks so every missing field is flagged at once; the server re-checks everything.
+    const missing: Record<string, string> = {};
+    if (f.name.trim().length < 3) missing.name = 'Give the session a name (at least 3 characters).';
+    if (!f.event_date) missing.event_date = 'Choose a date.';
+    if (!f.start_time) missing.start_time = 'Choose a start time.';
+    if (f.end_time && f.start_time && f.end_time <= f.start_time) missing.end_time = 'End time must be after the start time.';
+    if (f.paid && !(pence > 0 && pence <= 10_000)) missing.price_pence = 'Enter the cost per player (up to £100), or choose Free.';
+    if (Object.keys(missing).length) {
+      setErrors(missing);
+      requestAnimationFrame(() => document.querySelector<HTMLElement>('.field--error input, .field--error button')?.focus());
+      return;
+    }
+    setBusy(true);
+    const res = await hostApi<{ session: HostSession }>('/api/host/sessions', {
+      name: f.name,
+      description: f.description,
+      event_date: f.event_date,
+      start_time: f.start_time,
+      end_time: f.end_time,
+      price_pence: pence,
+      max_players: f.max_players,
+    });
+    setBusy(false);
+    if (res.ok) {
+      toast('Sent to the café for approval.');
+      setF(EMPTY);
+      setErrors({});
+      onDone(true);
+    } else if (res.kind === 'invalid') {
+      setErrors(res.errors ?? {});
+      document.querySelector<HTMLElement>('.field--error input, .field--error textarea')?.focus();
+    } else toast(res.error);
+  };
+
+  const field = (key: string) => ({
+    class: `field${errors[key] ? ' field--error' : ''}`,
+    describedBy: errors[key] ? `${key}-error` : undefined,
+    error: errors[key] ? <p id={`${key}-error`} class="field__error">{errors[key]}</p> : null,
+  });
+  const name = field('name');
+  const date = field('event_date');
+  const start = field('start_time');
+  const end = field('end_time');
+  const price = field('price_pence');
+  const max = field('max_players');
+  const desc = field('description');
+
+  return (
+    <section class="card card--pad session-form" aria-labelledby="create-session">
+      <div class="section-head" style={{ marginBottom: 0 }}>
+        <h2 id="create-session">Create a session</h2>
+        <button type="button" class="btn btn--icon btn--text" onClick={() => onDone(false)} aria-label="Close the form">
+          <X size={20} aria-hidden="true" />
+        </button>
+      </div>
+      <form class="stack" style={{ '--gap': '18px' }} onSubmit={submit} noValidate>
+        <div class={name.class}>
+          <label for="s-name">Event name</label>
+          <input id="s-name" class="input" value={f.name} maxLength={80} required aria-invalid={!!errors.name} aria-describedby={name.describedBy}
+            placeholder="e.g. D&D One Shot" onInput={e => set('name', e.currentTarget.value)} />
+          {name.error}
+        </div>
+
+        <div class="field-row">
+          <div class={date.class}>
+            <label for="s-date">Date</label>
+            <input id="s-date" class="input" type="date" value={f.event_date} min={addDays(today, 1)} max={addDays(today, 365)} required
+              aria-invalid={!!errors.event_date} aria-describedby={date.describedBy} onInput={e => set('event_date', e.currentTarget.value)} />
+            {date.error}
+          </div>
+          <div class={start.class}>
+            <label for="s-start">Start time</label>
+            <input id="s-start" class="input" type="time" value={f.start_time} required aria-invalid={!!errors.start_time}
+              aria-describedby={start.describedBy} onInput={e => set('start_time', e.currentTarget.value)} />
+            {start.error}
+          </div>
+          <div class={end.class}>
+            <label for="s-end">
+              End time <span class="field__optional">optional</span>
+            </label>
+            <input id="s-end" class="input" type="time" value={f.end_time} aria-invalid={!!errors.end_time} aria-describedby={end.describedBy}
+              onInput={e => set('end_time', e.currentTarget.value)} />
+            {end.error}
+          </div>
+        </div>
+
+        <fieldset class={price.class}>
+          <legend>Cost per player</legend>
+          <div class="segmented segmented--inline" role="group" aria-label="Cost">
+            <button type="button" aria-pressed={!f.paid} onClick={() => set('paid', false)}>Free</button>
+            <button type="button" aria-pressed={f.paid} onClick={() => set('paid', true)}>Paid</button>
+          </div>
+          {f.paid && (
+            <div class="input-money">
+              <span aria-hidden="true">£</span>
+              <input class="input" type="number" inputMode="decimal" min="0.5" max="100" step="0.5" value={f.price} aria-label="Cost per player in pounds"
+                aria-invalid={!!errors.price_pence} aria-describedby={price.describedBy} placeholder="5.00" onInput={e => set('price', e.currentTarget.value)} />
+            </div>
+          )}
+          <p class="field__hint">Paid at the café on the day. There's no online payment.</p>
+          {price.error}
+        </fieldset>
+
+        <div class={max.class}>
+          <label for="s-max">Max players</label>
+          <div class="number-stepper">
+            <button type="button" class="btn btn--secondary btn--icon" onClick={() => players(f.max_players - 1)} aria-label="One fewer player" disabled={f.max_players <= 1}>
+              <Minus size={18} aria-hidden="true" />
+            </button>
+            <input id="s-max" class="input" type="number" inputMode="numeric" min="1" max="100" value={f.max_players}
+              aria-invalid={!!errors.max_players} aria-describedby={max.describedBy} onInput={e => players(Number(e.currentTarget.value))} />
+            <button type="button" class="btn btn--secondary btn--icon" onClick={() => players(f.max_players + 1)} aria-label="One more player" disabled={f.max_players >= 100}>
+              <Plus size={18} aria-hidden="true" />
+            </button>
+          </div>
+          {max.error}
+        </div>
+
+        <div class={desc.class}>
+          <label for="s-desc">
+            Description <span class="field__optional">optional</span>
+          </label>
+          <textarea id="s-desc" class="input" rows={4} maxLength={500} value={f.description} aria-describedby={`s-desc-count${desc.describedBy ? ` ${desc.describedBy}` : ''}`}
+            placeholder="What will people play? Is it beginner friendly?" onInput={e => set('description', e.currentTarget.value)} />
+          <p id="s-desc-count" class="field__hint">{f.description.length} / 500</p>
+          {desc.error}
+        </div>
+
+        <button type="submit" class="btn btn--primary btn--lg btn--block" disabled={busy}>
+          <Send size={18} aria-hidden="true" /> {busy ? 'Sending...' : 'Send to the café for approval'}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+/** Staff only: sessions waiting for a decision, and the host list. */
+function StaffDesk({ onDecided }: { onDecided: () => void }) {
+  const [pending, setPending] = useState<HostSession[] | null>(null);
+  const [hosts, setHosts] = useState<HostRecord[] | null>(null);
+  const load = useCallback(async () => {
+    const [p, h] = await Promise.all([
+      hostApi<{ sessions: HostSession[] }>('/api/staff/host-sessions?status=submitted'),
+      hostApi<{ hosts: HostRecord[] }>('/api/staff/hosts'),
+    ]);
+    if (p.ok) setPending(p.data.sessions.slice().reverse());
+    if (h.ok) setHosts(h.data.hosts);
+  }, []);
+  useEffect(() => void load(), [load]);
+
+  return (
+    <div data-surface="staff" class="staff-desk">
+      <section class="section" aria-labelledby="awaiting">
+        <div class="section-head">
+          <h2 id="awaiting">Awaiting approval {pending && pending.length > 0 && <span class="count-badge">{pending.length}</span>}</h2>
+        </div>
+        {pending === null && <DiceLoader label="Loading submissions..." />}
+        {pending && !pending.length && <p class="meta">Nothing waiting. New submissions from hosts appear here.</p>}
+        <div class="list">
+          {pending?.map(s => (
+            <ReviewCard
+              key={s.session_id}
+              s={s}
+              onDone={() => {
+                load();
+                onDecided();
+              }}
+            />
+          ))}
+        </div>
+      </section>
+      <HostsPanel hosts={hosts} onAdded={load} />
+    </div>
+  );
+}
+
+function ReviewCard({ s, onDone }: { s: HostSession; onDone: () => void }) {
+  const [declining, setDeclining] = useState(false);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const decide = async (decision: 'approve' | 'decline') => {
+    setBusy(true);
+    const res = await hostApi(`/api/staff/host-sessions/${s.session_id}/decision`, { decision, note });
+    setBusy(false);
+    toast(res.ok ? (decision === 'approve' ? `Approved "${s.name}".` : `Declined "${s.name}".`) : res.error);
+    onDone();
+  };
+  return (
+    <article class="card review-card">
+      <div class="stack" style={{ '--gap': '6px' }}>
+        <h3>{s.name}</h3>
+        <SessionFacts s={s} />
+        <p class="meta">
+          From {s.host_name ?? s.host_email} · {s.session_id}
+        </p>
+        {s.description && <p>{s.description}</p>}
+      </div>
+      {declining ? (
+        <div class="stack" style={{ '--gap': '8px' }}>
+          <label class="label" for={`note-${s.session_id}`}>Note for the host (optional)</label>
+          <textarea id={`note-${s.session_id}`} class="input" rows={2} maxLength={500} value={note} onInput={e => setNote(e.currentTarget.value)}
+            placeholder="e.g. That date clashes with Quiz night. Could you do the week after?" />
+          <div class="cluster">
+            <button type="button" class="btn btn--destructive btn--sm" disabled={busy} onClick={() => decide('decline')}>Decline</button>
+            <button type="button" class="btn btn--text btn--sm" onClick={() => setDeclining(false)}>Back</button>
+          </div>
+        </div>
+      ) : (
+        <div class="cluster">
+          <button type="button" class="btn btn--primary btn--sm" disabled={busy} onClick={() => decide('approve')}>
+            <Check size={16} aria-hidden="true" /> Approve
+          </button>
+          <button type="button" class="btn btn--destructive-quiet btn--sm" disabled={busy} onClick={() => setDeclining(true)}>Decline</button>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function HostsPanel({ hosts, onAdded }: { hosts: HostRecord[] | null; onAdded: () => void }) {
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const add = async (e: Event) => {
+    e.preventDefault();
+    setBusy(true);
+    const res = await hostApi<{ host: HostRecord }>('/api/staff/hosts', { email, display_name: name });
+    setBusy(false);
+    if (res.ok) {
+      toast(`${name} can now sign in to the organiser.`);
+      setEmail('');
+      setName('');
+      setErrors({});
+      onAdded();
+    } else if (res.kind === 'invalid') setErrors(res.errors ?? {});
+    else toast(res.error);
+  };
+  return (
+    <section class="section" aria-labelledby="hosts">
+      <div class="section-head">
+        <h2 id="hosts">Hosts</h2>
+      </div>
+      <div class="hosts-grid">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+              </tr>
+            </thead>
+            <tbody>
+              {hosts?.map(h => (
+                <tr key={h.user_id}>
+                  <td>{h.display_name ?? '—'}</td>
+                  <td>{h.email}</td>
+                </tr>
+              ))}
+              {hosts && !hosts.length && (
+                <tr>
+                  <td colSpan={2}>No hosts yet.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <form class="card card--pad stack" style={{ '--gap': '12px' }} onSubmit={add} noValidate>
+          <p class="label">Add a host</p>
+          <div class={`field${errors.display_name ? ' field--error' : ''}`}>
+            <label for="h-name">Name</label>
+            <input id="h-name" class="input" value={name} maxLength={60} onInput={e => setName(e.currentTarget.value)} aria-invalid={!!errors.display_name} />
+            {errors.display_name && <p class="field__error">{errors.display_name}</p>}
+          </div>
+          <div class={`field${errors.email ? ' field--error' : ''}`}>
+            <label for="h-email">Email they sign in with</label>
+            <input id="h-email" class="input" type="email" autoComplete="off" value={email} onInput={e => setEmail(e.currentTarget.value)} aria-invalid={!!errors.email} />
+            {errors.email && <p class="field__error">{errors.email}</p>}
+          </div>
+          <button type="submit" class="btn btn--secondary" disabled={busy}>
+            <UserPlus size={18} aria-hidden="true" /> Add host
+          </button>
+        </form>
+      </div>
+    </section>
+  );
+}

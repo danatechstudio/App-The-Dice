@@ -1142,3 +1142,126 @@ a.card:hover .event-card__cta svg {
 .menu__list a:hover {
   background: var(--rtd-primary-light);
 }
+
+/* ---------- Forms ---------- */
+
+.field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* Fieldsets come with side margins; vertical spacing comes from the form's stack. */
+fieldset.field {
+  margin-inline: 0;
+  margin-bottom: 0;
+}
+
+.field > label,
+.field > legend {
+  padding: 0;
+  font-weight: 700;
+}
+
+.field > legend {
+  margin-bottom: 6px;
+}
+
+.field__optional {
+  margin-left: 4px;
+  color: var(--rtd-text-muted);
+  font-size: var(--rtd-size-meta);
+  font-weight: 400;
+}
+
+.input {
+  width: 100%;
+  min-height: var(--rtd-touch-target);
+  padding: 10px 12px;
+  border: 1.5px solid var(--rtd-border-strong);
+  border-radius: var(--rtd-radius-sm);
+  background: var(--rtd-surface-elevated);
+  color: var(--rtd-text);
+  /* 16px stops iPhones zooming into the field. */
+  font-size: 1rem;
+  line-height: 1.4;
+  transition: border-color var(--rtd-duration-fast) var(--rtd-ease-standard);
+}
+
+.input:hover {
+  border-color: var(--rtd-primary);
+}
+
+.input:focus-visible {
+  border-color: var(--rtd-focus);
+  outline: 3px solid var(--rtd-focus);
+  outline-offset: 1px;
+}
+
+textarea.input {
+  resize: vertical;
+}
+
+.field__hint {
+  color: var(--rtd-text-muted);
+  font-size: var(--rtd-size-meta);
+}
+
+.field--error .input {
+  border-color: var(--rtd-danger);
+}
+
+.field__error {
+  color: var(--rtd-danger);
+  font-size: var(--rtd-size-meta);
+  font-weight: 600;
+}
+
+/* Date on its own line, start and end times side by side. */
+.field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px 12px;
+}
+
+.field-row > :first-child {
+  grid-column: 1 / -1;
+}
+
+.segmented--inline {
+  display: inline-grid;
+  width: min(100%, 260px);
+}
+
+.input-money {
+  position: relative;
+  max-width: 180px;
+  margin-top: 8px;
+}
+
+.input-money span {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--rtd-text-muted);
+  font-weight: 700;
+}
+
+.input-money .input {
+  padding-left: 28px;
+}
+
+.number-stepper {
+  display: grid;
+  grid-template-columns: var(--rtd-touch-target) 88px var(--rtd-touch-target);
+  gap: 8px;
+  align-items: center;
+}
+
+.number-stepper .input {
+  text-align: center;
+  font-weight: 700;
+}

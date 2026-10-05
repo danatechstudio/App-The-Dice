@@ -135,7 +135,7 @@ describe('staff API and Cloudflare Access', () => {
     const staff = await asUser('/api/staff/me', 'Staff@Example.com');
     expect(staff.status).toBe(200);
     expect(staff.headers.get('Cache-Control')).toBe('no-store');
-    expect(await staff.json()).toEqual({ user: { user_id: 'u1', email: 'staff@example.com', role: 'staff' } });
+    expect(await staff.json()).toEqual({ user: { user_id: 'u1', email: 'staff@example.com', display_name: null, role: 'staff' } });
     expect((await asUser('/api/staff/me', 'admin@example.com')).status).toBe(200);
     expect((await asUser('/api/staff/me', 'host@example.com')).status).toBe(403);
     expect((await asUser('/api/staff/me', 'stranger@example.com')).status).toBe(403);

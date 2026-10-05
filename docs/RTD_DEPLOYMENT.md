@@ -6,7 +6,7 @@ Everything runs in the existing Cloudflare account. These are one-off steps. The
 
 Done through the Cloudflare connector:
 - **Database:** D1 `rtd-app` created in Western Europe (id `6c948ad3-0311-459b-895d-facb14d5697d`, now in `wrangler.jsonc`).
-- **Schema:** `0001_foundation.sql` and `0002_event_images.sql` applied and recorded in `d1_migrations`, so `wrangler d1 migrations apply` will skip them. All 7 tables, 4 indexes and both audit triggers are present.
+- **Schema:** `0001_foundation.sql`, `0002_event_images.sql` and `0003_host_sessions.sql` applied and recorded in `d1_migrations`, so `wrangler d1 migrations apply` will skip them. All tables, indexes and both audit triggers are present.
 - **First admin:** Dan's account added (role `admin`).
 
 The connector can't deploy code, set secrets or configure Access, so three dashboard steps remain.
@@ -42,6 +42,9 @@ Don't use the one-click "Enable Cloudflare Access" button. It protects the whole
 ### Event photos: done through the connector
 - **KV namespace:** `rtd-app-images` (id `0a23bcba51b84a749f7c64935fa53335`), bound as `IMAGES` in `wrangler.jsonc`.
 - **Migration:** `0002_event_images.sql` applied and recorded in `d1_migrations`.
+
+### Host organiser: one Access change (yours)
+In Zero Trust → Access → Applications → **RTD Staff** → Configure, add two destinations to the same application: path **`organise`** and path **`api/host`** on `rtd-app.dan-289.workers.dev`. The details are in [RTD_HOST_PORTAL.md](RTD_HOST_PORTAL.md#turning-sign-in-on). Migration `0003_host_sessions.sql` is applied.
 
 ### Future migrations
 Claude applies new files in `migrations/` through the connector and records them in `d1_migrations`. Alternatively, change the Workers Builds deploy command to `npx wrangler d1 migrations apply rtd-app --remote && npx wrangler deploy`.

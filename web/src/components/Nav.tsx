@@ -12,7 +12,7 @@ const ITEMS = [
 function section(path: string): string {
   if (path === '/') return '/';
   if (path.startsWith('/event')) return '/diary';
-  if (path.startsWith('/host')) return '/book';
+  if (path.startsWith('/host') || path.startsWith('/organise')) return '/book';
   return `/${path.split('/')[1] ?? ''}`;
 }
 

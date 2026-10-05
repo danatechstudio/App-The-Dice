@@ -40,6 +40,14 @@ export function Host() {
           <strong>Host applications open soon.</strong> Until then, have a chat with the café team next time you're in.
         </p>
       </div>
+      <div class="section card card--pad cluster" style={{ justifyContent: 'space-between' }}>
+        <p>
+          <strong>Already a host?</strong> Plan your sessions in the organiser.
+        </p>
+        <a class="btn btn--primary" href="/organise" target="_self">
+          Open the organiser
+        </a>
+      </div>
     </div>
   );
 }

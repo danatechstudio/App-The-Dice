@@ -13,6 +13,7 @@ export type Role = 'host' | 'staff' | 'admin';
 export interface AuthUser {
   user_id: string;
   email: string;
+  display_name: string | null;
   role: Role;
 }
 
@@ -70,7 +71,7 @@ export function requireRole(...roles: Role[]): MiddlewareHandler<{ Bindings: Env
     const email = await signedInEmail(c.req.raw, c.env);
     if (!email) return c.json({ error: 'Sign-in required' }, 401);
     const user = await c.env.DB
-      .prepare('SELECT user_id, email, role FROM users WHERE email = ?1 AND active = 1')
+      .prepare('SELECT user_id, email, display_name, role FROM users WHERE email = ?1 AND active = 1')
       .bind(email)
       .first<AuthUser>();
     if (!user || !allowed.has(user.role)) return c.json({ error: 'Not allowed' }, 403);
@@ -99,3 +100,17 @@ export async function checkBearer(header: string | null | undefined, secret: str
   ]);
   return crypto.subtle.timingSafeEqual(a, b) ? 'ok' : 'mismatch';
 }
+
+/**
+ * Changes must come from our own pages as JSON. Browsers can't send a
+ * cross-site JSON POST without a CORS preflight (which we never allow), so
+ * this stops other sites using a signed-in person's Access cookie.
+ */
+export const sameOriginJson: MiddlewareHandler = async (c, next) => {
+  if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
+    const origin = c.req.header('Origin');
+    if (origin && origin !== new URL(c.req.url).origin) return c.json({ error: 'Cross-site request refused' }, 403);
+    if (!(c.req.header('Content-Type') ?? '').startsWith('application/json')) return c.json({ error: 'Send JSON' }, 415);
+  }
+  await next();
+};
