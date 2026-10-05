@@ -1,5 +1,15 @@
 # RTD App Changelog
 
+## 2026-10-05 (open or private sessions; private sessions in the diary)
+- **Organiser:** a new "Who can come?" choice on the session form. **Open** is the default; **Private** is for a host's own group. Cards and the staff queue show "Private".
+- **Diary:**
+  - **Private events now show as busy:** Logic Engine rows with App Visibility `Private` appear as "Private session" with their time, on a purple, striped ticket you can't open. Before, they didn't appear at all.
+  - **Their details never leave the server:** not the name, description, photo or price.
+  - **Never promoted:** they have no event page, link preview or calendar file, and are never featured on Home, Coming Up, Book or the splash screen.
+- **Home:** a "Plus 2 private sessions today" line under the main event.
+- **Database:** migration `0005_host_session_access.sql` (`access`), applied to the live database.
+- **Tests:** 152 (was 150).
+
 ## 2026-10-05 (organiser sign-in, weekly sessions, host follow-up)
 - **Sign-in fixed:** the organiser's Sign in button looped, because `/organise` and `/api/host` weren't behind Access. It now goes through `/api/staff/sign-in`, which is behind the RTD Staff application; Access's cookie then covers the organiser. No dashboard change is needed.
   - **Failed sign-ins are explained:** if a sign-in still doesn't stick, the page explains, with a reason (`missing` or `invalid`), instead of looping.

@@ -39,7 +39,7 @@ How it was verified: two dry runs of the Guard (executions 18094/18095 and 18115
 **Rules for the sheet from now on:**
 - Never change or reuse an `Event ID`. Rename events freely; the ID keeps their history together.
 - New rows, including copied rows, get an ID automatically within 15 minutes.
-- `App Visibility` accepts: `Public`, `App Bookable`, `Private`, `Hidden`. A blank cell means Hidden.
+- `App Visibility` accepts: `Public`, `App Bookable`, `Private`, `Hidden`. A blank cell means Hidden. `Private` shows in the app's diary only as "Private session" with its time (no name or details), so the café still looks busy.
 - `App Category` accepts: Gaming, Quiz, Social, Club, Tournament, Market, Workshop, Other.
 
 ### 2026-10-05: `rtd_config` data table

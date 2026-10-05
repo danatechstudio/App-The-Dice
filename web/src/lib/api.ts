@@ -17,7 +17,8 @@ export interface Occurrence {
   projected: boolean;
   status: 'scheduled' | 'completed' | 'cancelled' | 'rescheduled';
   rescheduled_to: string | null;
-  visibility: 'public' | 'app_bookable';
+  /** Private ones arrive as "Private session" with only their time (the café is busy). */
+  visibility: 'public' | 'app_bookable' | 'private';
   image: string | null;
   price_display: string | null;
   /** All of the event's photos (single-occurrence endpoint only). */

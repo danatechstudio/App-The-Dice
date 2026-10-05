@@ -49,7 +49,7 @@ _Last updated: 2026-10-05_
 
 ## Host organiser (started 2026-10-05)
 - **`/organise`:** hosts create sessions, see their status, and withdraw them.
-  - **Session fields:** event name, one-off or weekly, date, start and end time, cost per player, max players, description.
+  - **Session fields:** event name, one-off or weekly, open or private, date, start and end time, cost per player, max players, description.
   - **Staff:** an approvals queue (approve, or decline with a note), plus adding hosts.
 - **Sign-in:** works through the existing RTD Staff Access application. No dashboard change is needed for staff. For hosts, its policy must let them in (Include → Everyone recommended); see [docs/RTD_HOST_PORTAL.md](docs/RTD_HOST_PORTAL.md#signing-in).
 - **After a one-off:** n8n **RTD Host Follow-up** emails the host the day after, inviting them to run it again.
@@ -71,7 +71,7 @@ _Last updated: 2026-10-05_
 ## Next actions
 0. You: sign in at `/organise` (Book → Become a game host → Open the organiser), create a trial session, and approve it. For hosts to sign in, set the RTD Staff policy to Include → Everyone, then add them under **Add a host**.
 1. You: open https://rtd-app.dan-289.workers.dev on your phone (and `/styleguide`) and tell me what to change. Add it to your home screen to try the installed app.
-2. You: check which Standard Diary groups should appear publicly. They all default to Public (e.g. GirlsGetOut Ladies Night, National Coastguard Institute). Set private bookings to `Hidden` in the sheet's `App Visibility` column.
+2. You: check which Standard Diary groups should appear publicly. They all default to Public (e.g. GirlsGetOut Ladies Night, National Coastguard Institute). Set private group bookings to `Private` in the sheet's `App Visibility` column: the diary then shows "Private session" at that time, so the café still looks busy. Use `Hidden` to leave a row out entirely.
 3. You: push `rtd-poster-automation` to GitHub, so I can fold in the Guard and poster fixes.
 
 ## Required user input

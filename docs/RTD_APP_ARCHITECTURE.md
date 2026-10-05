@@ -49,7 +49,10 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 - **Past dates.** Scheduled occurrences whose date has passed become `completed`.
 - **Moved dates.** If a future scheduled occurrence is no longer implied by the sheet, it becomes `rescheduled`. It points at the new date, or at nothing while a new date is awaited. If the date moves back, it is reinstated.
 - **Nothing is lost.** Nothing is deleted or re-dated. Staff cancellations are never overridden by a sync.
-- **Visibility.** Only active events with `Public` or `App Bookable` visibility are ever served publicly. `Private` and `Hidden` never appear.
+- **Visibility.** Only active events with `Public` or `App Bookable` visibility are served in full. `Hidden` never appears.
+  - **`Private` events appear only in the diary list (`/api/events`):** they show as "Private session" with their date and time, so the café looks as busy as it is.
+  - **Their details never leave the server:** not the name, description, photo or price.
+  - **No other pages:** they have no event page, link preview or calendar file, and the app never features them (Home feature, Coming Up, Book, splash).
 
 ## Safety rails
 
@@ -67,7 +70,7 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
 | GET | `/api/health` | none | Liveness and time of last good sync |
-| GET | `/api/events?from&to&category` | none | Diary listing: upcoming occurrences, max 120-day range |
+| GET | `/api/events?from&to&category` | none | Diary listing: upcoming occurrences, max 120-day range. Private ones are redacted to "Private session" and their time. |
 | GET | `/api/events/:eventId` | none | Event page with upcoming occurrences |
 | GET | `/api/occurrences/:occurrenceId` | none | Deep link. Still returns cancelled/rescheduled status so old links explain themselves |
 | GET | `/api/occurrences/:occurrenceId/calendar.ics` | none | Add to Calendar file (scheduled occurrences only) |

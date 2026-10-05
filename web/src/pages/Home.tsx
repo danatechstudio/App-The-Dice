@@ -1,16 +1,16 @@
-import { ArrowRight, ChevronRight, Dices, Star, Ticket } from 'lucide-preact';
+import { ArrowRight, ChevronRight, Dices, Lock, Star, Ticket } from 'lucide-preact';
 import { DiceMark, Logo } from '../components/Brand';
 import { Chip } from '../components/Chips';
 import { EventCard } from '../components/EventCard';
 import { DiceLoader, EmptyState, ErrorState } from '../components/States';
 import { PREVIEW_GAMES, PREVIEW_GAME_OF_THE_WEEK, minutesLabel, playersLabel } from '../data/preview-games';
 import { addDays } from '../lib/dates';
-import { firstPerEvent, notOver, useUpcoming } from '../lib/events';
+import { firstPerEvent, isPrivate, notOver, useUpcoming } from '../lib/events';
 import { useTitle } from '../lib/title';
 
 export function Home() {
   useTitle(null);
-  const { occurrences, error, loading, reload, today } = useUpcoming();
+  const { occurrences, withPrivate, error, loading, reload, today } = useUpcoming();
   const upcoming = (occurrences ?? []).filter(o => notOver(o, today));
   const tonight = upcoming.filter(o => o.date === today);
   // Lead with tonight (one with a photo, if any); otherwise the next event that
@@ -20,6 +20,8 @@ export function Home() {
     upcoming.find(o => o.start_time) ?? upcoming[0];
   const comingUp = firstPerEvent(upcoming.filter(o => o.date <= addDays(today, 14)), feature ? [feature] : []).slice(0, 8);
   const heading = tonight.length ? 'Tonight at Roll The Dice' : 'Next up at Roll The Dice';
+  // Private sessions are never featured, but they do show the café is busy.
+  const busyToday = (withPrivate ?? []).filter(o => isPrivate(o) && o.date === today && notOver(o, today)).length;
 
   return (
     <>
@@ -47,6 +49,14 @@ export function Home() {
               </div>
             )}
             {feature && <EventCard o={feature} feature today={today} />}
+            {busyToday > 0 && (
+              <p class="meta home-busy">
+                <Lock size={15} aria-hidden="true" />
+                <span>
+                  Plus {busyToday} private {busyToday === 1 ? 'session' : 'sessions'} today. <a href="/diary">See the diary</a>
+                </span>
+              </p>
+            )}
           </section>
 
           {comingUp.length > 0 && (

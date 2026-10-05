@@ -722,6 +722,24 @@ a.card:hover .event-card__cta svg {
   text-decoration-thickness: 2px;
 }
 
+/* A private session: shown so the café looks as busy as it is, but there's
+   nothing to open, so it doesn't lift like a link. Faint stripes read as "booked". */
+.ticket--private {
+  grid-template-columns: var(--stub) minmax(0, 1fr);
+  box-shadow: none;
+  background: repeating-linear-gradient(135deg, var(--rtd-surface) 0 12px, var(--rtd-background-alt) 12px 24px);
+}
+
+.ticket--private:hover,
+.ticket--private:active {
+  transform: none;
+  box-shadow: none;
+}
+
+.ticket--private .ticket__stub {
+  background: var(--rtd-host);
+}
+
 /* ---------- Date dividers ---------- */
 
 .date-divider {

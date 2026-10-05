@@ -18,7 +18,8 @@ type RangeId = (typeof RANGES)[number]['id'];
 
 export function Diary() {
   useTitle("What's on");
-  const { occurrences, error, loading, reload, today } = useUpcoming();
+  // Private sessions are listed too (as "Private session"), so the café shows as busy as it is.
+  const { withPrivate: occurrences, error, loading, reload, today } = useUpcoming();
   const [range, setRange] = useState<RangeId>(() => read<RangeId>('rtd.diary.range', 'week'));
   const [category, setCategory] = useState<Category | null>(null);
 

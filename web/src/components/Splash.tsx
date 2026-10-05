@@ -13,8 +13,8 @@ const SEEN_KEY = 'rtd.splash.seen';
 export const SPLASH_WINDOW_DAYS = 14; // matches settings.splash_window_days
 
 /**
- * Spec §8: a random, promotable event in the next 14 days. Only scheduled
- * public occurrences reach the app; "promotable" here also means it has a
+ * Spec §8: a random, promotable event in the next 14 days: scheduled, never
+ * a private session; "promotable" here also means it has a
  * start time (regular room bookings in the Standard Diary don't). Prefers
  * artwork, and avoids the last few events shown.
  */
@@ -22,7 +22,7 @@ export function pickSplash(occurrences: Occurrence[], today = todayLondon(), now
   const end = addDays(today, SPLASH_WINDOW_DAYS);
   const firstPerEvent = new Map<string, Occurrence>();
   for (const o of occurrences) {
-    if (o.status !== 'scheduled' || !o.start_time || o.date < today || o.date > end) continue;
+    if (o.status !== 'scheduled' || o.visibility === 'private' || !o.start_time || o.date < today || o.date > end) continue;
     if (o.date === today && (o.end_time ?? o.start_time) <= now) continue;
     if (!firstPerEvent.has(o.event_id)) firstPerEvent.set(o.event_id, o);
   }

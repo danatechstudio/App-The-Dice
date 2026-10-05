@@ -24,16 +24,32 @@ beforeEach(async () => {
 afterEach(() => vi.useRealTimers());
 
 describe('public diary API', () => {
-  it('lists only active Public and App Bookable occurrences, in date order', async () => {
+  it('lists active Public, App Bookable and Private occurrences, in date order', async () => {
     const res = await request('/api/events');
     expect(res.status).toBe(200);
     expect(res.headers.get('Cache-Control')).toBe('public, max-age=60');
     const body = await res.json<{ occurrences: { name: string; date: string; visibility: string }[] }>();
     expect(body.occurrences.map(o => [o.name, o.date, o.visibility])).toEqual([
+      ['Private session', '2026-10-10', 'private'],
       ['Spooky Market', '2026-10-17', 'public'],
       ['D&D One Shot', '2026-10-18', 'app_bookable'],
       ['Quiz', '2026-10-23', 'public'],
     ]);
+  });
+
+  it('shows a private session only as busy: its time, never its details', async () => {
+    const text = await (await request('/api/events')).text();
+    expect(text).not.toContain('Members Night');
+    expect(text).not.toContain('Details for event 3');
+    const { occurrences } = JSON.parse(text) as { occurrences: Record<string, unknown>[] };
+    expect(occurrences[0]).toMatchObject({
+      name: 'Private session',
+      description: null,
+      image: null,
+      price_display: null,
+      start_time: '18:30',
+      end_time: '22:00',
+    });
   });
 
   it('filters by category and date range, and validates both', async () => {
@@ -62,7 +78,7 @@ describe('public diary API', () => {
     expect(await occ.json()).toMatchObject({ occurrence: { name: 'Quiz', starts_at: '2026-10-23T17:30:00.000Z', all_day: false } });
   });
 
-  it('hides private, hidden and inactive events everywhere', async () => {
+  it('keeps private, hidden and inactive events off event pages and deep links', async () => {
     for (const id of ['RTD-EVT-00003', 'RTD-EVT-00004', 'RTD-EVT-00005']) {
       expect((await request(`/api/events/${id}`)).status).toBe(404);
     }

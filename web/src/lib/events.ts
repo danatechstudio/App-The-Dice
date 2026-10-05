@@ -3,11 +3,18 @@ import { addDays, nowLondonTime, todayLondon } from './dates';
 
 export const DIARY_DAYS = 60;
 
-/** The upcoming diary, shared by Home, Diary and Book (one cached request). */
+export const isPrivate = (o: Occurrence) => o.visibility === 'private';
+
+/**
+ * The upcoming diary, shared by Home, Diary and Book (one cached request).
+ * `occurrences` leaves out private sessions, so nothing promotes one by
+ * accident; `withPrivate` keeps them, for the diary to show the café is busy.
+ */
 export function useUpcoming() {
   const today = todayLondon();
   const res = useApi<{ occurrences: Occurrence[] }>(`/api/events?from=${today}&to=${addDays(today, DIARY_DAYS)}`);
-  return { ...res, today, occurrences: res.data?.occurrences };
+  const all = res.data?.occurrences;
+  return { ...res, today, withPrivate: all, occurrences: all?.filter(o => !isPrivate(o)) };
 }
 
 /** Still to come (or still running) today. */

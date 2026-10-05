@@ -13,6 +13,8 @@ export interface HostUser {
 export type SessionStatus = 'submitted' | 'approved' | 'declined' | 'withdrawn' | 'published';
 /** The Logic Engine's own Frequency words, so sessions map straight onto Event Index. */
 export type Frequency = 'one-off' | 'weekly';
+/** Private sessions show in the diary only as "Private session" and their time. */
+export type Access = 'open' | 'private';
 
 export interface HostSession {
   session_id: string;
@@ -28,6 +30,7 @@ export interface HostSession {
   price_label: string;
   max_players: number;
   frequency: Frequency;
+  access: Access;
   status: SessionStatus;
   decision_note: string | null;
   decided_at: string | null;

@@ -1,9 +1,9 @@
-import { CalendarDays, Check, Clock, LogOut, Minus, Plus, PoundSterling, Repeat, Send, UserPlus, UsersRound, X } from 'lucide-preact';
+import { CalendarDays, Check, Clock, Lock, LogOut, Minus, Plus, PoundSterling, Repeat, Send, UserPlus, UsersRound, X } from 'lucide-preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { Chip, type ChipKind } from '../components/Chips';
 import { DiceLoader, EmptyState } from '../components/States';
 import { addDays, dayOfMonth, daysBetween, monthShort, shortDate, timeRange, todayLondon, weekday } from '../lib/dates';
-import { SIGN_IN_URL, hostApi, type Frequency, type HostRecord, type HostSession, type HostUser, type SessionStatus } from '../lib/hostApi';
+import { SIGN_IN_URL, hostApi, type Access, type Frequency, type HostRecord, type HostSession, type HostUser, type SessionStatus } from '../lib/hostApi';
 import { toast } from '../lib/toast';
 import { useTitle } from '../lib/title';
 
@@ -194,6 +194,7 @@ function SessionFacts({ s }: { s: HostSession }) {
       <span><Clock size={16} aria-hidden="true" />{timeRange(s.start_time, s.end_time)}</span>
       <span><PoundSterling size={16} aria-hidden="true" />{s.price_label}</span>
       <span><UsersRound size={16} aria-hidden="true" />Up to {s.max_players}</span>
+      {s.access === 'private' && <span><Lock size={16} aria-hidden="true" />Private</span>}
     </p>
   );
 }
@@ -236,6 +237,7 @@ function SessionCard({ s, onChange }: { s: HostSession; onChange: () => void }) 
 const EMPTY = {
   name: '',
   frequency: 'one-off' as Frequency,
+  access: 'open' as Access,
   event_date: '',
   start_time: '',
   end_time: '',
@@ -278,6 +280,7 @@ function SessionForm({ onDone }: { onDone: (created: boolean) => void }) {
     const res = await hostApi<{ session: HostSession }>('/api/host/sessions', {
       name: f.name,
       frequency: f.frequency,
+      access: f.access,
       description: f.description,
       event_date: f.event_date,
       start_time: f.start_time,
@@ -306,6 +309,8 @@ function SessionForm({ onDone }: { onDone: (created: boolean) => void }) {
   const freq = field('frequency');
   const date = field('event_date');
   const weekly = f.frequency === 'weekly';
+  const who = field('access');
+  const isPrivate = f.access === 'private';
   const start = field('start_time');
   const end = field('end_time');
   const price = field('price_pence');
@@ -342,6 +347,20 @@ function SessionForm({ onDone }: { onDone: (created: boolean) => void }) {
                 : 'Every week on the same day, from the date you pick, until you or the café stop it.'}
           </p>
           {freq.error}
+        </fieldset>
+
+        <fieldset class={who.class}>
+          <legend>Who can come?</legend>
+          <div class="segmented segmented--inline" role="group" aria-label="Who can come" aria-describedby="s-access-hint">
+            <button type="button" aria-pressed={!isPrivate} onClick={() => set('access', 'open')}>Open</button>
+            <button type="button" aria-pressed={isPrivate} onClick={() => set('access', 'private')}>Private</button>
+          </div>
+          <p id="s-access-hint" class="field__hint">
+            {isPrivate
+              ? 'Just your group. The diary shows "Private session" at this time, without the name or details, so people can see the café is busy.'
+              : 'Anyone can join. It goes in the diary with its name and details.'}
+          </p>
+          {who.error}
         </fieldset>
 
         <div class="field-row">

@@ -1,10 +1,11 @@
 // Public, read-only endpoints for the diary. Only active events with Public or
-// App Bookable visibility are ever returned; Hidden and Private never appear.
+// App Bookable visibility are ever returned in full. Private ones appear in the
+// diary list only as "Private session" with their time; Hidden never appears.
 
 import { Hono } from 'hono';
 import { imagesByEvent, withImages } from '../images/store';
 import { calendarFile, googleCalendarUrl } from '../lib/calendar';
-import { EVENT_ID, OCCURRENCE_FIELDS, VISIBLE, findOccurrence, shape, type Row } from '../lib/queries';
+import { EVENT_ID, LISTED, OCCURRENCE_FIELDS, VISIBLE, findOccurrence, redactPrivate, shape, type Row } from '../lib/queries';
 import { addDays, londonDate, parseSheetDate } from '../lib/time';
 import { CATEGORIES } from '../sync/normalise';
 
@@ -35,13 +36,14 @@ publicRoutes.get('/events', async c => {
     .prepare(
       `SELECT ${OCCURRENCE_FIELDS}
        FROM occurrences o JOIN events e ON e.event_id = o.event_id
-       WHERE ${VISIBLE} AND o.status = 'scheduled' AND o.event_date BETWEEN ?1 AND ?2
+       WHERE ${LISTED} AND o.status = 'scheduled' AND o.event_date BETWEEN ?1 AND ?2
          AND (?3 IS NULL OR e.category = ?3)
        ORDER BY o.event_date, COALESCE(o.start_time, '00:00'), e.display_name`,
     )
     .bind(start, to, category ?? null)
     .all<Row>();
-  return c.json({ from: start, to, occurrences: await withImages(c.env.DB, results.map(shape)) }, 200, CACHE);
+  const occurrences = (await withImages(c.env.DB, results.map(shape))).map(redactPrivate);
+  return c.json({ from: start, to, occurrences }, 200, CACHE);
 });
 
 /** One event and its upcoming occurrences. */

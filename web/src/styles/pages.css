@@ -33,6 +33,19 @@
   color: var(--rtd-text-inverse);
 }
 
+/* "Plus 2 private sessions today": the café is busier than the public diary. */
+.home-busy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--rtd-space-3);
+}
+
+.home-busy svg {
+  flex: none;
+  color: var(--rtd-host);
+}
+
 .home-tonight .section-head h2 {
   text-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
 }

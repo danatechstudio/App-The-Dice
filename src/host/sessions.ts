@@ -8,10 +8,14 @@ import { addDays, londonDate, parseSheetDate } from '../lib/time';
 export type SessionStatus = 'submitted' | 'approved' | 'declined' | 'withdrawn' | 'published';
 /** The Logic Engine's own Frequency words, so a session maps straight onto Event Index. */
 export type SessionFrequency = 'one-off' | 'weekly';
+/** Open: anyone can come, and the diary shows it in full. Private: the host's own
+ * group; the diary shows only "Private session" and its time (App Visibility Private). */
+export type SessionAccess = 'open' | 'private';
 
 export interface SessionInput {
   name: string;
   frequency: SessionFrequency;
+  access: SessionAccess;
   description: string | null;
   event_date: string;
   start_time: string;
@@ -39,6 +43,9 @@ export function parseSessionInput(
   const frequency = b.frequency ?? 'one-off';
   if (frequency !== 'one-off' && frequency !== 'weekly') errors.frequency = 'Choose one-off or weekly.';
 
+  const access = b.access ?? 'open';
+  if (access !== 'open' && access !== 'private') errors.access = 'Choose an open or private session.';
+
   const description = typeof b.description === 'string' ? b.description.trim() : '';
   if (description.length > 500) errors.description = 'Keep the description to 500 characters.';
 
@@ -65,6 +72,7 @@ export function parseSessionInput(
     value: {
       name,
       frequency: frequency as SessionFrequency,
+      access: access as SessionAccess,
       description: description || null,
       event_date: date as string,
       start_time: start,
@@ -82,7 +90,7 @@ export function priceLabel(pence: number): string {
 }
 
 const FIELDS = `s.session_id, s.host_user_id, u.display_name AS host_name, u.email AS host_email, s.name, s.description,
-  s.event_date, s.start_time, s.end_time, s.price_pence, s.max_players, s.frequency, s.status, s.decision_note, s.decided_at,
+  s.event_date, s.start_time, s.end_time, s.price_pence, s.max_players, s.frequency, s.access, s.status, s.decision_note, s.decided_at,
   s.event_id, s.followup_sent_at, s.created_at, s.updated_at`;
 
 export type SessionRow = Record<string, unknown> & { session_id: string; status: SessionStatus; host_user_id: string };
@@ -131,14 +139,14 @@ export async function createSession(db: D1Database, host: AuthUser, input: Sessi
   const inserted = await db
     .prepare(
       `INSERT INTO host_sessions (session_id, host_user_id, name, description, event_date, start_time, end_time,
-         price_pence, max_players, frequency, status, created_at, updated_at)
+         price_pence, max_players, frequency, access, status, created_at, updated_at)
        SELECT printf('RTD-HS-%05d', COALESCE(MAX(CAST(substr(session_id, 8) AS INTEGER)), 0) + 1),
-         ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?10, 'submitted', ?9, ?9
+         ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?10, ?11, 'submitted', ?9, ?9
        FROM host_sessions
        RETURNING session_id`,
     )
     .bind(host.user_id, input.name, input.description, input.event_date, input.start_time, input.end_time,
-      input.price_pence, input.max_players, now, input.frequency)
+      input.price_pence, input.max_players, now, input.frequency, input.access)
     .first<{ session_id: string }>();
   const id = inserted!.session_id;
   await audit(db, id, host, 'host', 'host_session.submitted', null, JSON.stringify(input), now).run();

@@ -1,10 +1,14 @@
 // Shared public-read SQL. Visible = event active and effective visibility
-// public/app_bookable; Hidden and Private never leave the database.
+// public/app_bookable. Hidden never leaves the database; Private only reaches
+// the diary list, as a "Private session" with its time (see redactPrivate).
 
 export const OCCURRENCE_ID = /^RTD-OCC-\d{5,}-\d{8}$/;
 export const EVENT_ID = /^RTD-EVT-\d{5,}$/;
 
 export const VISIBLE = `e.active = 1 AND COALESCE(o.visibility, e.visibility) IN ('public', 'app_bookable')`;
+
+/** The diary list also shows private sessions, so the café looks as busy as it is. */
+export const LISTED = `e.active = 1 AND COALESCE(o.visibility, e.visibility) IN ('public', 'app_bookable', 'private')`;
 
 export const OCCURRENCE_FIELDS = `
   o.occurrence_id, o.event_id, e.display_name AS name, e.category,
@@ -61,4 +65,13 @@ export async function nextOccurrence(db: D1Database, eventId: string, today: str
     .bind(eventId, today)
     .first<Row>();
   return row ? shape(row) : null;
+}
+
+/**
+ * What the public may know about a private session: that one is on, and when.
+ * The name, description, photo and price never leave the server.
+ */
+export function redactPrivate(o: PublicOccurrence): PublicOccurrence {
+  if (o.visibility !== 'private') return o;
+  return { ...o, name: 'Private session', description: null, image: null, price_display: null };
 }

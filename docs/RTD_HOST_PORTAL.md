@@ -10,6 +10,7 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 | Staff section: approvals queue (approve / decline with a note), host list, add a host | **Built** |
 | Sign-in | **Working**, through the existing RTD Staff Access app (see [Signing in](#signing-in)) |
 | One-off or weekly sessions | **Built** |
+| Open or private sessions | **Built**. Private ones will show in the diary as "Private session" and their time (the diary side is live for Logic Engine rows set to `Private`). |
 | Email the host the day after a one-off session | **Built** (n8n **RTD Host Follow-up**, see [After a one-off session](#after-a-one-off-session)) |
 | Approved sessions into the Logic Engine, and so into the diary | **Next step** (n8n) |
 | Email the café when a session is submitted | **Next step** (n8n) |
@@ -21,6 +22,7 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 | --- | --- |
 | Event name | 3–80 characters |
 | How often? | **One-off** (default) or **Weekly**. Stored as `frequency`, in the Logic Engine's own Frequency words. |
+| Who can come? | **Open** (default): anyone can join, and the diary shows it in full. **Private**: the host's own group; the diary shows only "Private session" and its time, so the café still looks busy. Stored as `access`. |
 | Date (First date, if weekly) | From tomorrow, up to a year ahead. A weekly session runs on that weekday every week until the host withdraws it or the café stops it. |
 | Start time | Required |
 | End time | Optional; must be after the start |
@@ -114,9 +116,11 @@ The n8n workflow **RTD Host Follow-up** (`FFy0lBTZCm4A5p08`, daily at 10:00) ema
 
 This is the plan from the audit (§6): the Logic Engine stays the one master calendar.
 1. **Append to the sheet:** an n8n workflow picks up approved sessions and appends each to **Event Index**:
-   - Event Name, Frequency (`One-off` or `Weekly`), Date, Event Time, End Time, Status `Active`, Base Details, App Visibility `Public`.
+   - Event Name, Frequency (`One-off` or `Weekly`), Date, Event Time, End Time, Status `Active`, Base Details, App Visibility (`Public`, or `Private` for a private session).
    - Three new columns: **App Price**, **App Capacity** and **App Host Session** (the `RTD-HS` number).
 2. **Into the app:** the next Event Sync gives the row an Event ID. The app reads the new columns, shows the price and max players on the event page, and marks the session **Live** for its host.
 3. **Notify the café:** the same workflow emails the café about each new submission (address from `rtd_config`), with a link to `/organise`.
 
-**Before switching this on:** once a session is in Event Index, RTD Master V1's poster and social automation will promote it like any other event.
+**Before switching this on:**
+- **Promotion:** once a session is in Event Index, RTD Master V1's poster and social automation will promote it like any other event.
+- **Private sessions:** that automation doesn't read App Visibility yet, so it must be changed to skip rows set to `Private` (and `Hidden`) first. Otherwise it would promote a private group's session.

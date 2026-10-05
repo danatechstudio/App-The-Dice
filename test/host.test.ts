@@ -198,3 +198,14 @@ describe('after a one-off session', () => {
     expect(audit.results).toEqual([{ actor_type: 'n8n' }]);
   });
 });
+
+describe('open or private', () => {
+  it('records who can come, defaulting to open', async () => {
+    const open = await (await request('/api/host/sessions', json(session()), HOST)).json<{ session: { access: string } }>();
+    expect(open.session.access).toBe('open');
+    const mine = await (await request('/api/host/sessions', json(session({ access: 'private' })), HOST)).json<{ session: { access: string } }>();
+    expect(mine.session.access).toBe('private');
+    const bad = await request('/api/host/sessions', json(session({ access: 'secret' })), HOST);
+    expect((await bad.json<{ errors: Record<string, string> }>()).errors).toEqual({ access: 'Choose an open or private session.' });
+  });
+});
