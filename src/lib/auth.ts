@@ -1,10 +1,11 @@
 // Host / Staff / Admin authentication.
 //
-// Sign-in is handled by Cloudflare Access in front of /api/staff/* and
-// /api/host/* (email one-time PIN, so nobody's password is stored here). Access
-// adds a signed JWT to every request; we verify it, then look the email up in
-// `users` to decide what it may do. Access proves who someone is, this table
-// decides their role, so a Host can never act as Staff.
+// Sign-in is handled by Cloudflare Access in front of /api/staff/* (email
+// one-time PIN, so nobody's password is stored here). Access then sets a signed
+// JWT cookie for the whole site, so the organiser's /api/host calls carry it
+// too; we verify it on every request, then look the email up in `users` to
+// decide what it may do. Access proves who someone is, this table decides
+// their role, so a Host can never act as Staff.
 
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose';
 import type { MiddlewareHandler } from 'hono';
@@ -52,12 +53,16 @@ function tokenFrom(req: Request): string | null {
   return m?.[1] ?? null;
 }
 
-async function signedInEmail(req: Request, env: Env): Promise<string | null> {
-  if (env.ENVIRONMENT === 'development' && env.DEV_AUTH_EMAIL) return env.DEV_AUTH_EMAIL.toLowerCase();
-  if (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD) return null; // Access not configured: nobody gets in
+/** Why nobody is signed in, so the organiser can say what went wrong (never the token itself). */
+export type SignedOutReason = 'not_configured' | 'missing' | 'invalid';
+
+async function signedIn(req: Request, env: Env): Promise<{ email: string } | { email: null; reason: SignedOutReason }> {
+  if (env.ENVIRONMENT === 'development' && env.DEV_AUTH_EMAIL) return { email: env.DEV_AUTH_EMAIL.toLowerCase() };
+  if (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD) return { email: null, reason: 'not_configured' }; // nobody gets in
   const token = tokenFrom(req);
-  if (!token) return null;
-  return verifyAccessToken(token, { teamDomain: env.ACCESS_TEAM_DOMAIN, audience: env.ACCESS_AUD });
+  if (!token) return { email: null, reason: 'missing' };
+  const email = await verifyAccessToken(token, { teamDomain: env.ACCESS_TEAM_DOMAIN, audience: env.ACCESS_AUD });
+  return email ? { email } : { email: null, reason: 'invalid' };
 }
 
 /**
@@ -68,11 +73,11 @@ async function signedInEmail(req: Request, env: Env): Promise<string | null> {
 export function requireRole(...roles: Role[]): MiddlewareHandler<{ Bindings: Env; Variables: { user: AuthUser } }> {
   const allowed = new Set<Role>(roles.includes('staff') ? [...roles, 'admin'] : roles);
   return async (c, next) => {
-    const email = await signedInEmail(c.req.raw, c.env);
-    if (!email) return c.json({ error: 'Sign-in required' }, 401);
+    const who = await signedIn(c.req.raw, c.env);
+    if (who.email === null) return c.json({ error: 'Sign-in required', reason: who.reason }, 401);
     const user = await c.env.DB
       .prepare('SELECT user_id, email, display_name, role FROM users WHERE email = ?1 AND active = 1')
-      .bind(email)
+      .bind(who.email)
       .first<AuthUser>();
     if (!user || !allowed.has(user.role)) return c.json({ error: 'Not allowed' }, 403);
     c.set('user', user);

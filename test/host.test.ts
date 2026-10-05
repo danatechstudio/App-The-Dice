@@ -128,3 +128,73 @@ describe('staff review', () => {
     expect(hosts.map(h => h.email)).toContain('jo@example.com');
   });
 });
+
+describe('signing in', () => {
+  it('sends people back to the organiser once Access has signed them in', async () => {
+    const res = await request('/api/staff/sign-in', { redirect: 'manual' });
+    expect(res.status).toBe(302);
+    expect(res.headers.get('Location')).toBe('/organise?signed-in=1');
+  });
+
+  it('says why nobody is signed in, without echoing the token', async () => {
+    expect(await (await request('/api/host/me')).json()).toEqual({ error: 'Sign-in required', reason: 'missing' });
+    const bad = await request('/api/host/me', { headers: { Cookie: 'CF_Authorization=not.a.jwt' } });
+    expect(await bad.json()).toEqual({ error: 'Sign-in required', reason: 'invalid' });
+  });
+});
+
+describe('one-off or weekly', () => {
+  it('records how often a session runs, defaulting to one-off', async () => {
+    const weekly = await (await request('/api/host/sessions', json(session({ frequency: 'weekly' })), HOST)).json<{ session: { frequency: string } }>();
+    expect(weekly.session.frequency).toBe('weekly');
+    const plain = await (await request('/api/host/sessions', json(session()), HOST)).json<{ session: { frequency: string } }>();
+    expect(plain.session.frequency).toBe('one-off');
+    const bad = await request('/api/host/sessions', json(session({ frequency: 'monthly' })), HOST);
+    expect((await bad.json<{ errors: Record<string, string> }>()).errors).toEqual({ frequency: 'Choose one-off or weekly.' });
+  });
+});
+
+describe('after a one-off session', () => {
+  const AUTH = { Authorization: 'Bearer test-sync-token' };
+  const decide = (id: string, decision: string) => request(`/api/staff/host-sessions/${id}/decision`, json({ decision }), STAFF);
+
+  beforeEach(async () => {
+    await request('/api/host/sessions', json(session({ name: 'Learn Root' })), HOST); // 1: one-off, approved, yesterday
+    await request('/api/host/sessions', json(session({ name: 'Catan Club', frequency: 'weekly' })), HOST); // 2: weekly
+    await request('/api/host/sessions', json(session({ name: 'Wingspan' })), OTHER); // 3: declined
+    await request('/api/host/sessions', json(session({ name: 'Future Night' })), OTHER); // 4: still to come
+    await request('/api/host/sessions', json(session({ name: 'Old Night' })), OTHER); // 5: a month ago
+    for (const id of ['00001', '00002', '00004', '00005']) await decide(`RTD-HS-${id}`, 'approve');
+    await decide('RTD-HS-00003', 'decline');
+    await env.DB.prepare("UPDATE host_sessions SET event_date = '2026-10-04' WHERE session_id IN ('RTD-HS-00001', 'RTD-HS-00002', 'RTD-HS-00003')").run();
+    await env.DB.prepare("UPDATE host_sessions SET event_date = '2026-09-04' WHERE session_id = 'RTD-HS-00005'").run();
+  });
+
+  it('lists only approved one-offs whose day has passed, for n8n to email', async () => {
+    expect((await request('/internal/host-sessions/followups')).status).toBe(401);
+    const { followups } = await (await request('/internal/host-sessions/followups', { headers: AUTH })).json<{ followups: unknown[] }>();
+    expect(followups).toEqual([
+      {
+        session_id: 'RTD-HS-00001',
+        name: 'Learn Root',
+        event_date: '2026-10-04',
+        host_email: 'sam@example.com',
+        host_name: 'Sam',
+        host_first_name: 'Sam',
+        date_label: 'Sunday 4 October',
+        organiser_url: 'http://localhost/organise',
+      },
+    ]);
+  });
+
+  it('marks each email sent once', async () => {
+    const mark = (id: string) => request(`/internal/host-sessions/${id}/followup-sent`, { method: 'POST', headers: AUTH });
+    expect((await mark('RTD-HS-00001')).status).toBe(200);
+    expect((await mark('RTD-HS-00001')).status).toBe(409);
+    expect((await mark('RTD-HS-00002')).status).toBe(404); // weekly sessions don't get one
+    const { followups } = await (await request('/internal/host-sessions/followups', { headers: AUTH })).json<{ followups: unknown[] }>();
+    expect(followups).toEqual([]);
+    const audit = await env.DB.prepare("SELECT actor_type FROM audit_log WHERE action = 'host_session.followup_sent'").all();
+    expect(audit.results).toEqual([{ actor_type: 'n8n' }]);
+  });
+});

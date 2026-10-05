@@ -1,9 +1,9 @@
-import { CalendarDays, Check, Clock, LogOut, Minus, Plus, PoundSterling, Send, UserPlus, UsersRound, X } from 'lucide-preact';
+import { CalendarDays, Check, Clock, LogOut, Minus, Plus, PoundSterling, Repeat, Send, UserPlus, UsersRound, X } from 'lucide-preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { Chip, type ChipKind } from '../components/Chips';
 import { DiceLoader, EmptyState } from '../components/States';
-import { addDays, shortDate, timeRange, todayLondon } from '../lib/dates';
-import { hostApi, type HostRecord, type HostSession, type HostUser, type SessionStatus } from '../lib/hostApi';
+import { addDays, dayOfMonth, daysBetween, monthShort, shortDate, timeRange, todayLondon, weekday } from '../lib/dates';
+import { SIGN_IN_URL, hostApi, type Frequency, type HostRecord, type HostSession, type HostUser, type SessionStatus } from '../lib/hostApi';
 import { toast } from '../lib/toast';
 import { useTitle } from '../lib/title';
 
@@ -15,14 +15,32 @@ const STATUS: Record<SessionStatus, { chip: ChipKind; label: string; note: strin
   withdrawn: { chip: 'completed', label: 'Withdrawn', note: '' },
 };
 
-type Gate = { state: 'loading' } | { state: 'signed-out' | 'not-host' | 'error'; message: string } | { state: 'ok'; user: HostUser; canReview: boolean };
+const ACTIVE: SessionStatus[] = ['submitted', 'approved', 'published'];
 
-/** /organise: the host organiser, behind Cloudflare Access. */
+/** "12 Oct": for weekly sessions, where "Every Monday" already names the day. */
+const dayMonth = (iso: string) => `${dayOfMonth(iso)} ${monthShort(iso)}`;
+
+/** The date a session next runs: a weekly one moves on a week at a time. */
+function nextDate(s: HostSession, today: string): string {
+  if (s.frequency !== 'weekly' || s.event_date >= today || !ACTIVE.includes(s.status)) return s.event_date;
+  return addDays(s.event_date, Math.ceil(daysBetween(s.event_date, today) / 7) * 7);
+}
+
+type SignedOut = { state: 'signed-out' | 'not-host' | 'error'; message: string; reason?: string };
+type Gate = { state: 'loading' } | SignedOut | { state: 'ok'; user: HostUser; canReview: boolean };
+
+/** /organise: the host organiser. Signing in goes through Cloudflare Access (SIGN_IN_URL). */
 export function Organise() {
   useTitle('Host organiser');
   const [gate, setGate] = useState<Gate>({ state: 'loading' });
   const [sessions, setSessions] = useState<HostSession[] | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  // Just back from signing in? Remember it (so a failure is explained, not
+  // looped), then tidy the address bar.
+  const [justSignedIn] = useState(() => new URLSearchParams(location.search).has('signed-in'));
+  useEffect(() => {
+    if (justSignedIn) history.replaceState(history.state, '', location.pathname);
+  }, [justSignedIn]);
 
   const loadSessions = useCallback(async () => {
     const res = await hostApi<{ sessions: HostSession[] }>('/api/host/sessions');
@@ -34,7 +52,7 @@ export function Organise() {
       if (res.ok) {
         setGate({ state: 'ok', user: res.data.user, canReview: res.data.can_review });
         loadSessions();
-      } else setGate({ state: res.kind === 'invalid' ? 'error' : res.kind, message: res.error });
+      } else setGate({ state: res.kind === 'invalid' ? 'error' : res.kind, message: res.error, reason: res.reason });
     });
   }, [loadSessions]);
 
@@ -43,11 +61,10 @@ export function Organise() {
   }, [sessions]);
 
   if (gate.state === 'loading') return <DiceLoader label="Opening the organiser..." />;
-  if (gate.state !== 'ok') return <Gatekeeper gate={gate} />;
+  if (gate.state !== 'ok') return <Gatekeeper gate={gate} justSignedIn={justSignedIn} />;
 
   const today = todayLondon();
-  const upcoming = (sessions ?? []).filter(s => s.event_date >= today && ['submitted', 'approved', 'published'].includes(s.status));
-  const next = upcoming.slice().sort((a, b) => (a.event_date + a.start_time).localeCompare(b.event_date + b.start_time))[0];
+  const next = sortForHost(sessions ?? [], today).find(s => ACTIVE.includes(s.status) && nextDate(s, today) >= today);
 
   return (
     <div class="container organiser" data-surface="host">
@@ -110,15 +127,15 @@ export function Organise() {
   );
 }
 
-/** Soonest upcoming first, then past sessions, most recent first. */
+/** Soonest upcoming first (weekly ones by their next week), then past sessions, most recent first. */
 function sortForHost(list: HostSession[], today: string): HostSession[] {
-  const key = (s: HostSession) => s.event_date + s.start_time;
-  const upcoming = list.filter(s => s.event_date >= today).sort((a, b) => key(a).localeCompare(key(b)));
-  const past = list.filter(s => s.event_date < today).sort((a, b) => key(b).localeCompare(key(a)));
+  const key = (s: HostSession) => nextDate(s, today) + s.start_time;
+  const upcoming = list.filter(s => nextDate(s, today) >= today).sort((a, b) => key(a).localeCompare(key(b)));
+  const past = list.filter(s => nextDate(s, today) < today).sort((a, b) => key(b).localeCompare(key(a)));
   return [...upcoming, ...past];
 }
 
-function Gatekeeper({ gate }: { gate: { state: 'signed-out' | 'not-host' | 'error'; message: string } }) {
+function Gatekeeper({ gate, justSignedIn }: { gate: SignedOut; justSignedIn: boolean }) {
   if (gate.state === 'not-host') {
     return (
       <div class="container" data-surface="host">
@@ -131,24 +148,49 @@ function Gatekeeper({ gate }: { gate: { state: 'signed-out' | 'not-host' | 'erro
       </div>
     );
   }
+  if (gate.state === 'signed-out') {
+    // Straight back from signing in yet still signed out: say so rather than
+    // send them round the same loop.
+    const stuck = justSignedIn;
+    return (
+      <div class="container" data-surface="host">
+        <EmptyState
+          title={stuck ? "We couldn't finish signing you in." : 'Please sign in to the organiser.'}
+          text={
+            stuck
+              ? `Your sign-in didn't reach the organiser. Try once more; if it happens again, tell the café team it said "${gate.reason ?? 'no reason'}".`
+              : 'The organiser is for Roll The Dice hosts. Sign in with the email the café has on file, and we will email you a code.'
+          }
+        >
+          <div class="cluster" style={{ justifyContent: 'center' }}>
+            <a class="btn btn--primary" href={SIGN_IN_URL}>{stuck ? 'Try again' : 'Sign in'}</a>
+            {stuck && <a class="btn btn--text" href="/cdn-cgi/access/logout">Sign out</a>}
+          </div>
+        </EmptyState>
+      </div>
+    );
+  }
   return (
     <div class="container" data-surface="host">
-      <EmptyState
-        title={gate.state === 'signed-out' ? 'Please sign in to the organiser.' : "That didn't load properly."}
-        text={gate.state === 'signed-out' ? 'The organiser is for Roll The Dice hosts. Sign in with the email the café has on file.' : gate.message}
-      >
-        <button type="button" class="btn btn--primary" onClick={() => location.reload()}>
-          {gate.state === 'signed-out' ? 'Sign in' : 'Try again'}
-        </button>
+      <EmptyState title="That didn't load properly." text={gate.message}>
+        <button type="button" class="btn btn--primary" onClick={() => location.reload()}>Try again</button>
       </EmptyState>
     </div>
   );
 }
 
 function SessionFacts({ s }: { s: HostSession }) {
+  const next = nextDate(s, todayLondon());
   return (
     <p class="session-facts">
-      <span><CalendarDays size={16} aria-hidden="true" />{shortDate(s.event_date)}</span>
+      {s.frequency === 'weekly' ? (
+        <>
+          <span><Repeat size={16} aria-hidden="true" />Every {weekday(s.event_date)}</span>
+          <span><CalendarDays size={16} aria-hidden="true" />{next > s.event_date ? 'Next' : 'From'} {dayMonth(next)}</span>
+        </>
+      ) : (
+        <span><CalendarDays size={16} aria-hidden="true" />{shortDate(s.event_date)}</span>
+      )}
       <span><Clock size={16} aria-hidden="true" />{timeRange(s.start_time, s.end_time)}</span>
       <span><PoundSterling size={16} aria-hidden="true" />{s.price_label}</span>
       <span><UsersRound size={16} aria-hidden="true" />Up to {s.max_players}</span>
@@ -159,9 +201,12 @@ function SessionFacts({ s }: { s: HostSession }) {
 function SessionCard({ s, onChange }: { s: HostSession; onChange: () => void }) {
   const [busy, setBusy] = useState(false);
   const status = STATUS[s.status];
-  const past = s.event_date < todayLondon();
+  // A weekly session keeps going until it's stopped, so only one-offs finish.
+  const past = s.frequency === 'one-off' && s.event_date < todayLondon();
+  const finished = past && (s.status === 'approved' || s.status === 'published');
   const withdraw = async () => {
-    if (!confirm(`Withdraw "${s.name}" on ${shortDate(s.event_date)}?`)) return;
+    const ask = s.frequency === 'weekly' ? `Withdraw the weekly "${s.name}"? This stops every week of it.` : `Withdraw "${s.name}" on ${shortDate(s.event_date)}?`;
+    if (!confirm(ask)) return;
     setBusy(true);
     const res = await hostApi(`/api/host/sessions/${s.session_id}/withdraw`, {});
     setBusy(false);
@@ -177,7 +222,7 @@ function SessionCard({ s, onChange }: { s: HostSession; onChange: () => void }) 
         {status.note && !past && <p class="meta">{status.note}</p>}
       </div>
       <div class="host-event__side">
-        <Chip kind={past && s.status === 'published' ? 'completed' : status.chip}>{past && s.status === 'published' ? 'Completed' : status.label}</Chip>
+        <Chip kind={finished ? 'completed' : status.chip}>{finished ? 'Completed' : status.label}</Chip>
         {(s.status === 'submitted' || s.status === 'approved') && !past && (
           <button type="button" class="btn btn--destructive-quiet btn--sm" onClick={withdraw} disabled={busy}>
             Withdraw
@@ -188,7 +233,17 @@ function SessionCard({ s, onChange }: { s: HostSession; onChange: () => void }) 
   );
 }
 
-const EMPTY = { name: '', event_date: '', start_time: '', end_time: '', paid: false, price: '', max_players: 6, description: '' };
+const EMPTY = {
+  name: '',
+  frequency: 'one-off' as Frequency,
+  event_date: '',
+  start_time: '',
+  end_time: '',
+  paid: false,
+  price: '',
+  max_players: 6,
+  description: '',
+};
 
 function SessionForm({ onDone }: { onDone: (created: boolean) => void }) {
   const [f, setF] = useState(EMPTY);
@@ -222,6 +277,7 @@ function SessionForm({ onDone }: { onDone: (created: boolean) => void }) {
     setBusy(true);
     const res = await hostApi<{ session: HostSession }>('/api/host/sessions', {
       name: f.name,
+      frequency: f.frequency,
       description: f.description,
       event_date: f.event_date,
       start_time: f.start_time,
@@ -247,7 +303,9 @@ function SessionForm({ onDone }: { onDone: (created: boolean) => void }) {
     error: errors[key] ? <p id={`${key}-error`} class="field__error">{errors[key]}</p> : null,
   });
   const name = field('name');
+  const freq = field('frequency');
   const date = field('event_date');
+  const weekly = f.frequency === 'weekly';
   const start = field('start_time');
   const end = field('end_time');
   const price = field('price_pence');
@@ -270,9 +328,25 @@ function SessionForm({ onDone }: { onDone: (created: boolean) => void }) {
           {name.error}
         </div>
 
+        <fieldset class={freq.class}>
+          <legend>How often?</legend>
+          <div class="segmented segmented--inline" role="group" aria-label="How often" aria-describedby="s-freq-hint">
+            <button type="button" aria-pressed={!weekly} onClick={() => set('frequency', 'one-off')}>One-off</button>
+            <button type="button" aria-pressed={weekly} onClick={() => set('frequency', 'weekly')}>Weekly</button>
+          </div>
+          <p id="s-freq-hint" class="field__hint">
+            {!weekly
+              ? "A single session. The day after, we'll email you to see if you'd like to run it again."
+              : f.event_date
+                ? `Every ${weekday(f.event_date)}, starting ${dayMonth(f.event_date)}, until you or the café stop it.`
+                : 'Every week on the same day, from the date you pick, until you or the café stop it.'}
+          </p>
+          {freq.error}
+        </fieldset>
+
         <div class="field-row">
           <div class={date.class}>
-            <label for="s-date">Date</label>
+            <label for="s-date">{weekly ? 'First date' : 'Date'}</label>
             <input id="s-date" class="input" type="date" value={f.event_date} min={addDays(today, 1)} max={addDays(today, 365)} required
               aria-invalid={!!errors.event_date} aria-describedby={date.describedBy} onInput={e => set('event_date', e.currentTarget.value)} />
             {date.error}

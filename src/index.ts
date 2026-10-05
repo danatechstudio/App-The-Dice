@@ -37,6 +37,14 @@ app.get('/images/:imageId', async c => {
   });
 });
 
+// The organiser's "Sign in" button. Cloudflare Access guards /api/staff, so a
+// visitor only reaches this after signing in; Access's cookie covers the whole
+// site, so we just send them back. It checks no role: hosts come this way too.
+app.get('/api/staff/sign-in', c => {
+  c.header('Cache-Control', 'no-store');
+  return c.redirect('/organise?signed-in=1', 302);
+});
+
 app.route('/api', publicRoutes);
 app.route('/api/staff', staffRoutes);
 app.route('/api/host', hostRoutes);

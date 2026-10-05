@@ -77,10 +77,13 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | POST | `/internal/images/sync` | bearer | Each event's chosen Drive files. Removes the rest and answers with the uploads still needed. |
 | PUT | `/internal/images/:eventId/:fileId` | bearer | One resized photo (JPEG/PNG/WebP/GIF/AVIF, max 5 MB), only for a file the sync listed |
 | POST | `/internal/sync/logic-engine` | bearer `INTERNAL_SYNC_TOKEN` | n8n snapshot of the sheet tabs |
+| GET | `/internal/host-sessions/followups` | bearer | One-off host sessions due the follow-up email |
+| POST | `/internal/host-sessions/:id/followup-sent` | bearer | Records that the follow-up email went out |
 | GET | `/api/staff/me` | Access + staff/admin | Who am I |
 | GET | `/api/staff/sync-runs` | Access + staff/admin | Last 50 sync runs with warnings |
 | GET | `/api/staff/audit?entity_id&before&limit` | Access + staff/admin | Audit history |
-| GET / POST | `/api/host/me`, `/api/host/sessions`, `/api/host/sessions/:id/withdraw` | Access + host/staff/admin | Host organiser ([RTD_HOST_PORTAL.md](RTD_HOST_PORTAL.md)) |
+| GET | `/api/staff/sign-in` | Access (anyone it lets in) | The organiser's Sign in button: redirects to `/organise` |
+| GET / POST | `/api/host/me`, `/api/host/sessions`, `/api/host/sessions/:id/withdraw` | Access cookie + host/staff/admin | Host organiser ([RTD_HOST_PORTAL.md](RTD_HOST_PORTAL.md)) |
 | GET / POST | `/api/staff/host-sessions`, `/api/staff/host-sessions/:id/decision`, `/api/staff/hosts` | Access + staff/admin | Approvals and hosts |
 
 ## App pages

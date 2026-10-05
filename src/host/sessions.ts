@@ -6,9 +6,12 @@ import type { AuthUser } from '../lib/auth';
 import { addDays, londonDate, parseSheetDate } from '../lib/time';
 
 export type SessionStatus = 'submitted' | 'approved' | 'declined' | 'withdrawn' | 'published';
+/** The Logic Engine's own Frequency words, so a session maps straight onto Event Index. */
+export type SessionFrequency = 'one-off' | 'weekly';
 
 export interface SessionInput {
   name: string;
+  frequency: SessionFrequency;
   description: string | null;
   event_date: string;
   start_time: string;
@@ -32,6 +35,9 @@ export function parseSessionInput(
   const name = clean(b.name, 80);
   if (name.length < 3) errors.name = 'Give the session a name (at least 3 characters).';
   else if (name.length > 80) errors.name = 'Keep the name to 80 characters.';
+
+  const frequency = b.frequency ?? 'one-off';
+  if (frequency !== 'one-off' && frequency !== 'weekly') errors.frequency = 'Choose one-off or weekly.';
 
   const description = typeof b.description === 'string' ? b.description.trim() : '';
   if (description.length > 500) errors.description = 'Keep the description to 500 characters.';
@@ -58,6 +64,7 @@ export function parseSessionInput(
     ok: true,
     value: {
       name,
+      frequency: frequency as SessionFrequency,
       description: description || null,
       event_date: date as string,
       start_time: start,
@@ -75,8 +82,8 @@ export function priceLabel(pence: number): string {
 }
 
 const FIELDS = `s.session_id, s.host_user_id, u.display_name AS host_name, u.email AS host_email, s.name, s.description,
-  s.event_date, s.start_time, s.end_time, s.price_pence, s.max_players, s.status, s.decision_note, s.decided_at,
-  s.event_id, s.created_at, s.updated_at`;
+  s.event_date, s.start_time, s.end_time, s.price_pence, s.max_players, s.frequency, s.status, s.decision_note, s.decided_at,
+  s.event_id, s.followup_sent_at, s.created_at, s.updated_at`;
 
 export type SessionRow = Record<string, unknown> & { session_id: string; status: SessionStatus; host_user_id: string };
 
@@ -124,14 +131,14 @@ export async function createSession(db: D1Database, host: AuthUser, input: Sessi
   const inserted = await db
     .prepare(
       `INSERT INTO host_sessions (session_id, host_user_id, name, description, event_date, start_time, end_time,
-         price_pence, max_players, status, created_at, updated_at)
+         price_pence, max_players, frequency, status, created_at, updated_at)
        SELECT printf('RTD-HS-%05d', COALESCE(MAX(CAST(substr(session_id, 8) AS INTEGER)), 0) + 1),
-         ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'submitted', ?9, ?9
+         ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?10, 'submitted', ?9, ?9
        FROM host_sessions
        RETURNING session_id`,
     )
     .bind(host.user_id, input.name, input.description, input.event_date, input.start_time, input.end_time,
-      input.price_pence, input.max_players, now)
+      input.price_pence, input.max_players, now, input.frequency)
     .first<{ session_id: string }>();
   const id = inserted!.session_id;
   await audit(db, id, host, 'host', 'host_session.submitted', null, JSON.stringify(input), now).run();
@@ -179,6 +186,52 @@ export async function decideSession(
   if (!res.meta.changes) return { ok: false, status: 409, error: 'Someone else has just decided this session.' };
   await audit(db, id, staff, 'staff', `host_session.${status}`, 'submitted', note, now).run();
   return { ok: true, session: (await getSession(db, id))! };
+}
+
+// After a one-off session, n8n emails its host (docs/RTD_HOST_PORTAL.md). It
+// only looks back a fortnight, so a long n8n outage can't email about old ones.
+const FOLLOWUP_WINDOW_DAYS = 14;
+
+const longDate = (iso: string) =>
+  new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${iso}T12:00:00Z`));
+
+/** One-off sessions that went ahead (approved or live), whose day has passed and whose host hasn't been emailed yet. */
+export async function dueFollowups(db: D1Database, today: string) {
+  const { results } = await db
+    .prepare(
+      `SELECT s.session_id, s.name, s.event_date, u.email AS host_email, u.display_name AS host_name
+       FROM host_sessions s JOIN users u ON u.user_id = s.host_user_id
+       WHERE s.frequency = 'one-off' AND s.status IN ('approved', 'published') AND s.followup_sent_at IS NULL
+         AND s.event_date < ?1 AND s.event_date >= ?2 AND u.active = 1
+       ORDER BY s.event_date, s.session_id LIMIT 50`,
+    )
+    .bind(today, addDays(today, -FOLLOWUP_WINDOW_DAYS))
+    .all<{ session_id: string; name: string; event_date: string; host_email: string; host_name: string | null }>();
+  return results.map(r => ({
+    ...r,
+    host_first_name: r.host_name?.trim().split(/\s+/)[0] || 'there',
+    date_label: longDate(r.event_date),
+  }));
+}
+
+/** n8n records that the email went out, so each host gets it once. */
+export async function markFollowupSent(db: D1Database, id: string, now: string): Promise<'ok' | 'not_found' | 'already_sent'> {
+  const res = await db
+    .prepare("UPDATE host_sessions SET followup_sent_at = ?2 WHERE session_id = ?1 AND frequency = 'one-off' AND followup_sent_at IS NULL")
+    .bind(id, now)
+    .run();
+  if (!res.meta.changes) {
+    const row = await db.prepare("SELECT 1 FROM host_sessions WHERE session_id = ?1 AND frequency = 'one-off'").bind(id).first();
+    return row ? 'already_sent' : 'not_found';
+  }
+  await db
+    .prepare(
+      `INSERT INTO audit_log (entity_type, entity_id, actor_type, actor_id, action, source, created_at)
+       VALUES ('host_session', ?1, 'n8n', 'n8n', 'host_session.followup_sent', 'n8n', ?2)`,
+    )
+    .bind(id, now)
+    .run();
+  return 'ok';
 }
 
 /** Hosts, newest first, for the staff section of the organiser. */

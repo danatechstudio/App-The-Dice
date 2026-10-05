@@ -1,5 +1,14 @@
 # RTD App Changelog
 
+## 2026-10-05 (organiser sign-in, weekly sessions, host follow-up)
+- **Sign-in fixed:** the organiser's Sign in button looped, because `/organise` and `/api/host` weren't behind Access. It now goes through `/api/staff/sign-in`, which is behind the RTD Staff application; Access's cookie then covers the organiser. No dashboard change is needed.
+  - **Failed sign-ins are explained:** if a sign-in still doesn't stick, the page explains, with a reason (`missing` or `invalid`), instead of looping.
+  - **Sign out fixed:** the Sign out link opened the app's not-found page. It now reaches Cloudflare.
+- **One-off or weekly:** a new "How often?" choice on the session form. Weekly sessions show "Every Tuesday" and their next date.
+- **After a one-off:** n8n **RTD Host Follow-up** emails the host the day after an approved one-off session. Endpoints: `/internal/host-sessions/followups` and `/internal/host-sessions/:id/followup-sent`.
+- **Database:** migration `0004_host_session_frequency.sql` (`frequency`, `followup_sent_at`), applied to the live database.
+- **Tests:** 150 (was 145).
+
 ## 2026-10-05 (host organiser)
 - **`/organise`, the host organiser, is built** (behind Cloudflare Access; the `users` table decides roles).
   - **Hosts** create sessions (event name, date, start and end time, cost per player, max players, description), see their status, and withdraw them.

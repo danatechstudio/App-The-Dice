@@ -1,4 +1,5 @@
 import { CalendarDays, ChessKnight, UsersRound } from 'lucide-preact';
+import { SIGN_IN_URL } from '../lib/hostApi';
 import { useTitle } from '../lib/title';
 
 export function Host() {
@@ -44,7 +45,7 @@ export function Host() {
         <p>
           <strong>Already a host?</strong> Plan your sessions in the organiser.
         </p>
-        <a class="btn btn--primary" href="/organise" target="_self">
+        <a class="btn btn--primary" href={SIGN_IN_URL}>
           Open the organiser
         </a>
       </div>

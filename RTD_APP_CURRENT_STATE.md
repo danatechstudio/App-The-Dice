@@ -48,8 +48,11 @@ _Last updated: 2026-10-05_
 - **Events without photos keep the navy panel.** Home Education's folder is empty, and Standard Diary groups have no folder.
 
 ## Host organiser (started 2026-10-05)
-- **`/organise`:** hosts create sessions (event name, date, start and end time, cost per player, max players, description), see their status, and withdraw them. Staff see an approvals queue (approve, or decline with a note) and can add hosts.
-- **Waiting on you:** add paths `organise` and `api/host` to the **RTD Staff** Access application (details in [docs/RTD_HOST_PORTAL.md](docs/RTD_HOST_PORTAL.md#turning-sign-in-on)). Until then, nobody can sign in to it.
+- **`/organise`:** hosts create sessions, see their status, and withdraw them.
+  - **Session fields:** event name, one-off or weekly, date, start and end time, cost per player, max players, description.
+  - **Staff:** an approvals queue (approve, or decline with a note), plus adding hosts.
+- **Sign-in:** works through the existing RTD Staff Access application. No dashboard change is needed for staff. For hosts, its policy must let them in (Include → Everyone recommended); see [docs/RTD_HOST_PORTAL.md](docs/RTD_HOST_PORTAL.md#signing-in).
+- **After a one-off:** n8n **RTD Host Follow-up** emails the host the day after, inviting them to run it again.
 - **Next:**
   - n8n adds approved sessions to Event Index (new columns App Price, App Capacity and App Host Session), so they reach the diary through the normal sync.
   - n8n emails the café about each new submission.
@@ -66,7 +69,7 @@ _Last updated: 2026-10-05_
 - **Blood on the Clocktower:** auto-rolled from 4 Oct to **4 Nov** before the monthly change, and a poster was generated for that date. Please confirm the date with Michelle.
 
 ## Next actions
-0. You: add the two Access paths above, then open `/organise` and add your first host.
+0. You: sign in at `/organise` (Book → Become a game host → Open the organiser), create a trial session, and approve it. For hosts to sign in, set the RTD Staff policy to Include → Everyone, then add them under **Add a host**.
 1. You: open https://rtd-app.dan-289.workers.dev on your phone (and `/styleguide`) and tell me what to change. Add it to your home screen to try the installed app.
 2. You: check which Standard Diary groups should appear publicly. They all default to Public (e.g. GirlsGetOut Ladies Night, National Coastguard Institute). Set private bookings to `Hidden` in the sheet's `App Visibility` column.
 3. You: push `rtd-poster-automation` to GitHub, so I can fold in the Guard and poster fixes.

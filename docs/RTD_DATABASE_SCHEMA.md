@@ -96,6 +96,8 @@ Added in `0003_host_sessions.sql`. These are sessions proposed by hosts in the o
 | `event_date`, `start_time`, `end_time` | London date and wall-clock times. `end_time` is optional. |
 | `price_pence` | 0 = free; otherwise paid at the café, up to £100 |
 | `max_players` | 1–100 |
+| `frequency` | `one-off` (default) or `weekly`, the Logic Engine's Frequency words. Added in `0004_host_session_frequency.sql`. |
+| `followup_sent_at` | When n8n emailed the host after a one-off session (0004) |
 | `status` | `submitted` → `approved` / `declined`; `withdrawn` by the host; `published` once it's in the Logic Engine |
 | `decision_note`, `decided_by`, `decided_at` | The staff decision |
 | `event_id` | The Logic Engine event, once published |

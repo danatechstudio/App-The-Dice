@@ -52,8 +52,9 @@ export function installLinkInterception(): void {
     const a = (e.target as Element | null)?.closest?.('a');
     if (!a || a.target || a.hasAttribute('download')) return;
     const url = new URL(a.href, location.href);
-    // Calendar files and other API links are real downloads, not screens.
-    if (url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
+    // Calendar files and other API links are real downloads, not screens;
+    // /cdn-cgi/ is Cloudflare's own (Access sign-out).
+    if (url.origin !== location.origin || url.pathname.startsWith('/api/') || url.pathname.startsWith('/cdn-cgi/')) return;
     e.preventDefault();
     navigate(url.pathname + url.search + url.hash);
   });

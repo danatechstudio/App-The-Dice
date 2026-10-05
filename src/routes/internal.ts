@@ -2,8 +2,10 @@
 // n8n credential and the INTERNAL_SYNC_TOKEN Worker secret.
 
 import { Hono } from 'hono';
+import { dueFollowups, markFollowupSent } from '../host/sessions';
 import { MAX_IMAGE_BYTES, imagePlan, parseImageSync, storeImage, syncImages } from '../images/store';
 import { checkBearer } from '../lib/auth';
+import { londonDate } from '../lib/time';
 import { applySync, parsePayload } from '../sync/apply';
 
 const MAX_BODY_BYTES = 1_000_000;
@@ -81,4 +83,18 @@ internalRoutes.put('/images/:eventId/:sourceId', async c => {
   });
   if (!result.ok) return c.json({ error: result.error }, result.status);
   return c.json({ image_id: result.image_id, url: result.url });
+});
+
+/** One-off host sessions whose day has passed: n8n emails each host, then marks it sent. */
+internalRoutes.get('/host-sessions/followups', async c => {
+  const organiserUrl = `${new URL(c.req.url).origin}/organise`;
+  const due = await dueFollowups(c.env.DB, londonDate(new Date()));
+  return c.json({ followups: due.map(f => ({ ...f, organiser_url: organiserUrl })) });
+});
+
+internalRoutes.post('/host-sessions/:id/followup-sent', async c => {
+  const result = await markFollowupSent(c.env.DB, c.req.param('id'), new Date().toISOString());
+  if (result === 'not_found') return c.json({ error: 'No one-off session with that ID' }, 404);
+  if (result === 'already_sent') return c.json({ error: 'Already marked as sent' }, 409);
+  return c.json({ ok: true });
 });
