@@ -176,6 +176,18 @@ Only real data produces chips: there are no capacity chips until bookings exist.
 
 Sticky date dividers in the diary sit just under the top bar.
 
+**Install banner.** A slim white strip at the very top of every page. It shows the app icon, "Roll The Dice app", **Install** and a close button.
+
+| Browser | What Install does |
+| --- | --- |
+| Chrome, Edge, Samsung Internet | Opens the browser's own install dialog |
+| iPhone and iPad | Opens a sheet with the steps: Share, Add to Home Screen, Add |
+| Facebook / Instagram in-app browsers | Explains how to open the page in a real browser first (they can't install) |
+
+- **Hidden** once the app is installed, and on browsers that can't install it (desktop Firefox).
+- **"Not now"** hides it for 14 days. The footer keeps an "Install the app" button.
+- **Splash first:** on a fresh visit the event splash still shows on top.
+
 ## 9. Motion
 
 [`motion.ts`](../web/src/theme/motion.ts):

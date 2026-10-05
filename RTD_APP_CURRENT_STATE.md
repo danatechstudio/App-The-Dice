@@ -31,9 +31,10 @@ _Last updated: 2026-10-05_
     - Roll Me a Game: 3D dice, filters, Chaos Roll.
     - Games, Book, Become a Host, and not found.
   - **App plumbing:** installable (manifest, icons, service worker with an offline diary), and shared links get event-specific previews.
+  - **Install banner** at the top of every page: Install on Android/Chrome, step-by-step help on iPhone, and "open in your browser" in Facebook/Instagram. "Not now" hides it for 14 days.
 - **Logo assets** cut from the reference without redrawing: logo, dice mark, app/maskable/Apple icons, favicon, share image (`npm run brand:assets`).
 - **Checked:**
-  - **Tests:** 120 passing, including WCAG contrast for 24 colour pairings.
+  - **Tests:** 125 passing, including WCAG contrast for 24 colour pairings.
   - **Screens:** screenshots at 320 / 375 / 430 / 768 / 1280px, no horizontal scroll or console errors.
   - **Accessibility:** reduced motion makes the roll instant, keyboard skip link, no tap target under 40px.
 

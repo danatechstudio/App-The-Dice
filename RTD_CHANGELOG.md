@@ -1,5 +1,14 @@
 # RTD App Changelog
 
+## 2026-10-05 (install banner)
+- **"Install the app" now sits at the top of every page.**
+  - It opens the install dialog on Android/Chrome.
+  - It shows Add to Home Screen steps on iPhone.
+  - In Facebook/Instagram's built-in browser, it says to open the page in a real browser.
+- **When it hides:** once installed, and for 14 days after "Not now". The footer keeps an Install button.
+- **Home's install card removed:** the banner replaces it.
+- **Tests:** 125 (was 120).
+
 ## 2026-10-05 (theme and Phase 2 app)
 - **Visual theme from the café's logo:** extracted from `RTDLogo.jpg`, documented in `docs/RTD_APP_THEME.md`.
   - Navy `#123F68` measured from the image; orange accent from existing RTD posters.

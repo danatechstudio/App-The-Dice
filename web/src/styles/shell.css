@@ -376,3 +376,140 @@
     gap: var(--rtd-space-5);
   }
 }
+
+/* ---------- Install banner and help sheet ---------- */
+
+.install-banner {
+  position: relative;
+  z-index: 45;
+  border-bottom: 1px solid var(--rtd-border);
+  background: var(--rtd-surface-elevated);
+  box-shadow: var(--rtd-shadow-sm);
+}
+
+.install-banner__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--rtd-space-3);
+  min-height: 64px;
+  padding-block: var(--rtd-space-2);
+  padding-right: var(--rtd-space-2);
+}
+
+.install-banner__icon {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+}
+
+.install-banner__text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.install-banner__text strong {
+  font-weight: 700;
+}
+
+.install-banner__text span {
+  color: var(--rtd-text-muted);
+  font-size: var(--rtd-size-meta);
+}
+
+.install-banner .btn--sm {
+  flex: none;
+}
+
+.install-banner__close {
+  flex: none;
+  margin-left: calc(var(--rtd-space-2) * -1);
+  color: var(--rtd-text-muted);
+}
+
+@media (max-width: 359.98px) {
+  .install-banner__text span {
+    display: none;
+  }
+}
+
+.sheet-backdrop {
+  position: fixed;
+  z-index: 120;
+  inset: 0;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  background: rgb(11 42 71 / 0.55);
+}
+
+.sheet {
+  display: grid;
+  gap: var(--rtd-space-4);
+  width: min(100%, 480px);
+  padding: var(--rtd-space-5) var(--rtd-space-5) calc(env(safe-area-inset-bottom) + var(--rtd-space-5));
+  border-radius: var(--rtd-radius-feature) var(--rtd-radius-feature) 0 0;
+  background: var(--rtd-surface-elevated);
+  box-shadow: var(--rtd-shadow-feature);
+}
+
+.sheet__icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+}
+
+.sheet h2 {
+  font-size: var(--rtd-size-h3);
+}
+
+.steps {
+  display: grid;
+  gap: var(--rtd-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  align-items: center;
+  gap: var(--rtd-space-3);
+}
+
+.steps__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--rtd-radius-sm);
+  background: var(--rtd-primary-light);
+  color: var(--rtd-primary);
+  font-weight: 800;
+}
+
+@media (min-width: 768px) {
+  .sheet-backdrop {
+    align-items: center;
+  }
+
+  .sheet {
+    border-radius: var(--rtd-radius-feature);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion='reduce']) .sheet {
+    animation: sheet-up var(--rtd-duration-normal) var(--rtd-ease-standard);
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}

@@ -118,18 +118,6 @@
   color: var(--rtd-accent);
 }
 
-.install-card {
-  display: flex;
-  align-items: center;
-  gap: var(--rtd-space-4);
-}
-
-.install-card img {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-}
-
 /* ---------- Diary ---------- */
 
 .diary-controls {

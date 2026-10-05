@@ -103,7 +103,7 @@ The **service worker** caches the app shell and the last diary it saw, so the di
 | `src/routes/*` | Public, internal, staff endpoints and app pages (link previews) |
 | `web/` | The PWA: `src/theme` (tokens), `src/styles`, `src/components`, `src/pages`, `public` (icons, manifest, service worker). See [RTD_APP_THEME.md](RTD_APP_THEME.md). |
 | `migrations/` | D1 schema |
-| `test/` | 120 tests, run inside the Workers runtime against a real local D1 |
+| `test/` | 125 tests, run inside the Workers runtime against a real local D1 |
 
 ## Future compatibility
 

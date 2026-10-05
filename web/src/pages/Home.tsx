@@ -1,8 +1,7 @@
-import { ArrowRight, ChevronRight, Dices, Download, Star, Ticket } from 'lucide-preact';
+import { ArrowRight, ChevronRight, Dices, Star, Ticket } from 'lucide-preact';
 import { DiceMark, Logo } from '../components/Brand';
 import { Chip } from '../components/Chips';
 import { EventCard } from '../components/EventCard';
-import { useInstall } from '../components/Footer';
 import { DiceLoader, EmptyState, ErrorState } from '../components/States';
 import { PREVIEW_GAMES, PREVIEW_GAME_OF_THE_WEEK, minutesLabel, playersLabel } from '../data/preview-games';
 import { addDays } from '../lib/dates';
@@ -71,7 +70,6 @@ export function Home() {
           <RollPromo />
           <GameOfTheWeekMini />
           <BookPromo />
-          <InstallPromo />
         </aside>
       </div>
     </>
@@ -130,24 +128,6 @@ function BookPromo() {
       <a class="btn btn--secondary" href="/book">
         <Ticket size={18} aria-hidden="true" /> Booking & hosting
       </a>
-    </section>
-  );
-}
-
-function InstallPromo() {
-  const { canInstall, install } = useInstall();
-  if (!canInstall) return null;
-  return (
-    <section class="section card promo install-card">
-      <img src="/icons/icon-192.png" alt="" width={56} height={56} />
-      <div class="stack" style={{ '--gap': '8px' }}>
-        <p>
-          <strong>Keep RTD on your home screen</strong>
-        </p>
-        <button type="button" class="btn btn--primary btn--sm" onClick={install}>
-          <Download size={16} aria-hidden="true" /> Install the app
-        </button>
-      </div>
     </section>
   );
 }

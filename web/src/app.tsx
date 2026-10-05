@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { Footer } from './components/Footer';
+import { InstallBanner, InstallHelp } from './components/Install';
 import { BottomNav, TopBar } from './components/Nav';
 import { Splash, markSplashShown, pickSplash, splashSeenThisSession } from './components/Splash';
 import { Toaster } from './components/Toaster';
@@ -47,6 +48,7 @@ export function App() {
   return (
     <>
       <a class="skip-link" href="#main">Skip to content</a>
+      <InstallBanner />
       <TopBar path={path} />
       <main id="main" ref={main} tabIndex={-1} class={path === '/roll' ? 'main--flush' : undefined}>
         {route(path)}
@@ -54,6 +56,7 @@ export function App() {
       {path !== '/roll' && <Footer />}
       <BottomNav path={path} />
       <Toaster />
+      <InstallHelp />
       <LaunchSplash path={path} />
     </>
   );
