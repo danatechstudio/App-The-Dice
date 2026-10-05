@@ -24,7 +24,7 @@ _Last updated: 2026-10-05_
 - **Blood on the Clocktower:** auto-rolled from 4 Oct to **4 Nov** before the monthly change, and a poster was generated for that date. Please confirm the date with Michelle.
 
 ## Next actions
-1. You: deploy, steps 1–6 in [docs/RTD_DEPLOYMENT.md](docs/RTD_DEPLOYMENT.md), then send me the app URL.
+1. Deploy: run `./scripts/cloudflare-setup.sh`, either on your own machine or by Claude once this cloud environment can reach `api.cloudflare.com` with a `CLOUDFLARE_API_TOKEN`. Then set up Access ([docs/RTD_DEPLOYMENT.md](docs/RTD_DEPLOYMENT.md) §4).
 2. Me: build and test RTD Event Sync; then start Phase 2 (PWA and diary).
 3. You: push `rtd-poster-automation` to GitHub, so I can fold in the Guard and poster fixes.
 

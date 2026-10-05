@@ -2,6 +2,20 @@
 
 Everything runs in the existing Cloudflare account. These are one-off steps; they need your Cloudflare login, so they can't be run from Claude's environment.
 
+## Quick path
+
+Steps 1–3 and 5 are one command. It is safe to re-run, because it skips whatever already exists:
+
+```sh
+./scripts/cloudflare-setup.sh you@example.com
+```
+
+1. **Sign in.** Run `npx wrangler login` first, or set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+2. **Commit the database id.** The script writes it into `wrangler.jsonc`; commit that change.
+3. **Copy the sync token.** The script creates it in `.rtd-sync-token`, which is git-ignored. Copy it into n8n (step 6), then delete the file.
+
+Then do step 4 (Access) and step 6 (n8n). The manual equivalents of every step are below.
+
 ## Prerequisites
 
 - Node 22, then `npm ci` in this repo.
