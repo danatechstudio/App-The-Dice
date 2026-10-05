@@ -8,8 +8,8 @@
     {
       "binding": "DB",
       "database_name": "rtd-app",
-      // Set to the id printed by `npx wrangler d1 create rtd-app` (see docs/RTD_DEPLOYMENT.md).
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // rtd-app, created 2026-10-05 in WEUR; 0001_foundation applied.
+      "database_id": "6c948ad3-0311-459b-895d-facb14d5697d",
       "migrations_dir": "migrations"
     }
   ],

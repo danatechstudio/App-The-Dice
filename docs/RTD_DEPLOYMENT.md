@@ -2,7 +2,42 @@
 
 Everything runs in the existing Cloudflare account. These are one-off steps. They need either your Cloudflare login (on your own machine), or a `CLOUDFLARE_API_TOKEN` in an environment that can reach `api.cloudflare.com`.
 
-## Quick path
+## Status (2026-10-05)
+
+Done through the Cloudflare connector:
+- **Database:** D1 `rtd-app` created in Western Europe (id `6c948ad3-0311-459b-895d-facb14d5697d`, now in `wrangler.jsonc`).
+- **Schema:** `0001_foundation.sql` applied and recorded in `d1_migrations`, so `wrangler d1 migrations apply` will skip it. All 7 tables, 4 indexes and both audit triggers are present.
+- **First admin:** Dan's account added (role `admin`).
+
+The connector can't deploy code, set secrets or configure Access, so three dashboard steps remain.
+
+### A. Deploy from GitHub (Workers Builds)
+1. Go to Workers & Pages → **Create application** → **Import a repository**.
+2. Choose GitHub, allow access to `danatechstudio/App-The-Dice`, and select it.
+3. Set the project name to **`rtd-app`** (it must match `name` in `wrangler.jsonc`).
+4. Leave the deploy command as `npx wrangler deploy`. Set the build command to `npm test`, so a failing test blocks the deploy.
+5. Select **Save and Deploy**.
+
+From then on, every push to `main` deploys automatically. The address will be `https://rtd-app.<your-subdomain>.workers.dev`.
+
+### B. Sync token secret
+1. Go to Worker `rtd-app` → **Settings → Variables and Secrets** → Add.
+2. Choose type **Secret**, name `INTERNAL_SYNC_TOKEN`, and a long random value (e.g. 40+ characters from a password manager).
+3. Keep the value for the n8n credential `RTD App Sync` (step 6 below). Deploys from Git keep secrets.
+
+### C. Staff sign-in (Access on `/api/staff` only)
+Don't use the one-click "Enable Cloudflare Access" button. It protects the whole Worker, including the public diary.
+
+1. Go to Zero Trust → Access → Applications → **Add an application → Self-hosted**.
+2. Name it `RTD Staff`. Domain: `rtd-app.<your-subdomain>.workers.dev`, path `api/staff`.
+3. Login method: **One-time PIN**. Policy: **Allow**. For Include, use specific emails, or Everyone (the app's `users` table still decides roles).
+4. Save, then copy the application's **AUD tag** and your **team domain** (`https://<team>.cloudflareaccess.com`).
+5. Send Claude the AUD tag, the team domain and the `workers.dev` address. These are identifiers, not secrets. Claude puts them in `wrangler.jsonc` and pushes, which redeploys.
+
+### Future migrations
+Claude applies new files in `migrations/` through the connector and records them in `d1_migrations`. Alternatively, change the Workers Builds deploy command to `npx wrangler d1 migrations apply rtd-app --remote && npx wrangler deploy`.
+
+## Quick path (alternative: from your own machine)
 
 Steps 1–3 and 5 are one command. It is safe to re-run, because it skips whatever already exists:
 

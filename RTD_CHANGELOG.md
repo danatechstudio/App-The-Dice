@@ -1,5 +1,12 @@
 # RTD App Changelog
 
+## 2026-10-05 (Cloudflare)
+- **D1 database `rtd-app` created** (WEUR) through the Cloudflare connector.
+  - `0001_foundation.sql` applied and recorded in `d1_migrations`.
+  - First admin user added.
+- **`wrangler.jsonc`** now points at the real database id.
+- **Added `scripts/cloudflare-setup.sh`,** a one-command setup for running it from your own machine.
+
 ## 2026-10-05 (later)
 
 ### n8n / Logic Engine (live)

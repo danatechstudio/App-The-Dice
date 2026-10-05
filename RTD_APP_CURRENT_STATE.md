@@ -7,6 +7,10 @@ _Last updated: 2026-10-05_
 - **Monthly events:** no longer auto-rolled. When one passes, Michelle gets the date-picker email.
 - **`rtd_config`** n8n data table holds the café notification email.
 
+## Cloudflare
+- D1 database `rtd-app` created, schema applied, Dan added as admin.
+- Remaining dashboard steps A–C in [docs/RTD_DEPLOYMENT.md](docs/RTD_DEPLOYMENT.md#status-2026-10-05): deploy from GitHub, sync token, Access on `/api/staff`.
+
 ## Built, not deployed
 - **Phase 1 Worker:** Cloudflare Worker + D1.
   - Schema, idempotent Logic Engine sync with occurrence history, public diary API, staff API behind Cloudflare Access, append-only audit log.
@@ -24,7 +28,7 @@ _Last updated: 2026-10-05_
 - **Blood on the Clocktower:** auto-rolled from 4 Oct to **4 Nov** before the monthly change, and a poster was generated for that date. Please confirm the date with Michelle.
 
 ## Next actions
-1. Deploy: run `./scripts/cloudflare-setup.sh`, either on your own machine or by Claude once this cloud environment can reach `api.cloudflare.com` with a `CLOUDFLARE_API_TOKEN`. Then set up Access ([docs/RTD_DEPLOYMENT.md](docs/RTD_DEPLOYMENT.md) §4).
+1. You: dashboard steps A–C in [docs/RTD_DEPLOYMENT.md](docs/RTD_DEPLOYMENT.md#status-2026-10-05), then send me the `workers.dev` address, the Access AUD tag and the team domain.
 2. Me: build and test RTD Event Sync; then start Phase 2 (PWA and diary).
 3. You: push `rtd-poster-automation` to GitHub, so I can fold in the Guard and poster fixes.
 
