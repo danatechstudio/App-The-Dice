@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { internalRoutes } from './routes/internal';
+import { pageRoutes } from './routes/pages';
 import { publicRoutes } from './routes/public';
 import { staffRoutes } from './routes/staff';
 
@@ -23,8 +24,15 @@ app.get('/api/health', async c => {
 app.route('/api', publicRoutes);
 app.route('/api/staff', staffRoutes);
 app.route('/internal', internalRoutes);
+// App pages the Worker answers first (wrangler.jsonc run_worker_first): link previews.
+app.route('/', pageRoutes);
 
-app.notFound(c => c.json({ error: 'Not found' }, 404));
+app.notFound(c => {
+  const path = new URL(c.req.url).pathname;
+  // Anything else that reaches the Worker and isn't API gets the app shell.
+  if (!path.startsWith('/api/') && !path.startsWith('/internal/') && c.env.ASSETS) return c.env.ASSETS.fetch(c.req.raw);
+  return c.json({ error: 'Not found' }, 404);
+});
 app.onError((err, c) => {
   console.error(err);
   return c.json({ error: 'Something went wrong' }, 500);

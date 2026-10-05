@@ -34,6 +34,11 @@ Don't use the one-click "Enable Cloudflare Access" button. It protects the whole
 4. Save, then copy the application's **AUD tag** and your **team domain** (`https://<team>.cloudflareaccess.com`).
 5. Send Claude the AUD tag, the team domain and the `workers.dev` address. These are identifiers, not secrets. Claude puts them in `wrangler.jsonc` and pushes, which redeploys.
 
+### The app (Phase 2): no extra steps
+- **Build:** `wrangler.jsonc` builds the PWA (`npm run build:web`) before every deploy, and `npm test` builds it too. The existing Workers Builds settings (build `npm test`, deploy `npx wrangler deploy`) carry on unchanged.
+- **Node:** the build image's default Node 24 works.
+- **New variable:** `VENUE_LOCATION` (calendar location) is set in `wrangler.jsonc`. Change it there, not in the dashboard.
+
 ### Future migrations
 Claude applies new files in `migrations/` through the connector and records them in `d1_migrations`. Alternatively, change the Workers Builds deploy command to `npx wrangler d1 migrations apply rtd-app --remote && npx wrangler deploy`.
 
@@ -126,8 +131,11 @@ If a run fails, n8n's error gives the app's reason:
 ```sh
 printf 'INTERNAL_SYNC_TOKEN=local-dev-token\nENVIRONMENT=development\nDEV_AUTH_EMAIL=you@example.com\n' > .dev.vars
 npm run db:migrate:local
-npm run dev                   # http://localhost:8787
+npm run dev                   # builds the app; everything on http://localhost:8787
+npm run dev:web               # optional: live-reloading app on :5173, using the Worker on :8787 for /api
 ```
+
+`npm run dev` serves the app as built. After changing files in `web/`, restart it, or use `dev:web` alongside it.
 
 `DEV_AUTH_EMAIL` only works when `ENVIRONMENT=development`. Never set either in production. `.dev.vars` is git-ignored.
 

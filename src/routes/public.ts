@@ -2,29 +2,13 @@
 // App Bookable visibility are ever returned; Hidden and Private never appear.
 
 import { Hono } from 'hono';
+import { calendarFile, googleCalendarUrl } from '../lib/calendar';
+import { EVENT_ID, OCCURRENCE_FIELDS, VISIBLE, findOccurrence, shape, type Row } from '../lib/queries';
 import { addDays, londonDate, parseSheetDate } from '../lib/time';
 import { CATEGORIES } from '../sync/normalise';
 
 const isDate = (s: string | undefined): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && parseSheetDate(s) === s;
-const OCCURRENCE_ID = /^RTD-OCC-\d{5,}-\d{8}$/;
-const EVENT_ID = /^RTD-EVT-\d{5,}$/;
 const MAX_RANGE_DAYS = 120;
-
-// Visible = event active, effective visibility public/app_bookable.
-const VISIBLE = `e.active = 1 AND COALESCE(o.visibility, e.visibility) IN ('public', 'app_bookable')`;
-
-const OCCURRENCE_FIELDS = `
-  o.occurrence_id, o.event_id, e.display_name AS name, e.category,
-  COALESCE(o.description_override, e.description) AS description,
-  o.event_date AS date, o.start_time, o.end_time, o.starts_at, o.ends_at, o.all_day, o.projected,
-  o.status, o.rescheduled_to, COALESCE(o.visibility, e.visibility) AS visibility,
-  COALESCE(o.image_override, e.default_image) AS image, o.price_display`;
-
-type Row = Record<string, unknown>;
-
-function shape(r: Row) {
-  return { ...r, all_day: r.all_day === 1, projected: r.projected === 1 };
-}
 
 // Short public caching on successful reads only. Set per handler, never as
 // path middleware: this router is mounted at /api, so a '*' middleware here
@@ -32,7 +16,6 @@ function shape(r: Row) {
 const CACHE = { 'Cache-Control': 'public, max-age=60' };
 
 export const publicRoutes = new Hono<{ Bindings: Env }>();
-
 
 /** Upcoming occurrences for the diary. ?from=&to= (YYYY-MM-DD, London), ?category= */
 publicRoutes.get('/events', async c => {
@@ -92,16 +75,27 @@ publicRoutes.get('/events/:eventId', async c => {
  * link can say what happened instead of breaking.
  */
 publicRoutes.get('/occurrences/:occurrenceId', async c => {
-  const id = c.req.param('occurrenceId');
-  if (!OCCURRENCE_ID.test(id)) return c.json({ error: 'Not found' }, 404);
-  const row = await c.env.DB
-    .prepare(
-      `SELECT ${OCCURRENCE_FIELDS}
-       FROM occurrences o JOIN events e ON e.event_id = o.event_id
-       WHERE o.occurrence_id = ?1 AND ${VISIBLE}`,
-    )
-    .bind(id)
-    .first<Row>();
-  if (!row) return c.json({ error: 'Not found' }, 404);
-  return c.json({ occurrence: shape(row) }, 200, CACHE);
+  const occurrence = await findOccurrence(c.env.DB, c.req.param('occurrenceId'));
+  if (!occurrence) return c.json({ error: 'Not found' }, 404);
+  return c.json({ occurrence }, 200, CACHE);
+});
+
+/** Add to Calendar (spec §39): an .ics file for Apple, Outlook and most others. */
+publicRoutes.get('/occurrences/:occurrenceId/calendar.ics', async c => {
+  const o = await findOccurrence(c.env.DB, c.req.param('occurrenceId'));
+  if (!o || o.status !== 'scheduled') return c.json({ error: 'Not found' }, 404);
+  const origin = new URL(c.req.url).origin;
+  const slug = o.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'event';
+  return c.body(calendarFile(o, { origin, location: c.env.VENUE_LOCATION, now: new Date() }), 200, {
+    'Content-Type': 'text/calendar; charset=utf-8',
+    'Content-Disposition': `attachment; filename="rtd-${slug}-${o.date}.ics"`,
+    ...CACHE,
+  });
+});
+
+/** Add to Calendar, Google flavour: a redirect to Google's prefilled form. */
+publicRoutes.get('/occurrences/:occurrenceId/google-calendar', async c => {
+  const o = await findOccurrence(c.env.DB, c.req.param('occurrenceId'));
+  if (!o || o.status !== 'scheduled') return c.json({ error: 'Not found' }, 404);
+  return c.redirect(googleCalendarUrl(o, { origin: new URL(c.req.url).origin, location: c.env.VENUE_LOCATION }), 302);
 });

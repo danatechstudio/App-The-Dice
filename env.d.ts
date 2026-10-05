@@ -1,6 +1,10 @@
 declare namespace Cloudflare {
   interface Env {
     DB: D1Database;
+    /** The built web app (web/dist). */
+    ASSETS: Fetcher;
+    /** Where events happen, for calendar files. */
+    VENUE_LOCATION: string;
     ENVIRONMENT: string;
     ACCESS_TEAM_DOMAIN: string;
     ACCESS_AUD: string;

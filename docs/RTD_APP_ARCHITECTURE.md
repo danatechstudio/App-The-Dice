@@ -11,7 +11,7 @@ _Updated 2026-10-05 (Phase 1)._
 | Staff / Host sign-in | **Cloudflare Access**, email one-time PIN | No passwords to store or reset. Access proves the email; the app's `users` table decides the role, so a Host can never act as Staff. |
 | Automation | **Existing n8n on the Pi** | Sync, emails, digests and reminders. Accepted Pi dependency: if the Pi is down, sync and emails pause but the app keeps serving. |
 | Master data | **RTD Logic Engine sheet** stays authoritative | No second calendar. The app keeps occurrence history the sheet can't hold. |
-| PWA | Served as static assets from the same Worker (Phase 2) | One deploy, same origin, no CORS. |
+| PWA | Preact + Vite in `web/`, served as static assets from the same Worker | One deploy, same origin, no CORS. Small (about 31 KB of gzipped script). |
 
 The Pi is still needed for n8n. Nothing public-facing depends on it.
 
@@ -62,7 +62,7 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
   - Staff responses, including refusals: `no-store`.
 - **Security headers** on every response: `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`.
 
-## API (Phase 1)
+## API
 
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
@@ -70,10 +70,23 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | GET | `/api/events?from&to&category` | none | Diary listing: upcoming occurrences, max 120-day range |
 | GET | `/api/events/:eventId` | none | Event page with upcoming occurrences |
 | GET | `/api/occurrences/:occurrenceId` | none | Deep link. Still returns cancelled/rescheduled status so old links explain themselves |
+| GET | `/api/occurrences/:occurrenceId/calendar.ics` | none | Add to Calendar file (scheduled occurrences only) |
+| GET | `/api/occurrences/:occurrenceId/google-calendar` | none | Redirect to a prefilled Google Calendar event |
 | POST | `/internal/sync/logic-engine` | bearer `INTERNAL_SYNC_TOKEN` | n8n snapshot of the sheet tabs |
 | GET | `/api/staff/me` | Access + staff/admin | Who am I |
 | GET | `/api/staff/sync-runs` | Access + staff/admin | Last 50 sync runs with warnings |
 | GET | `/api/staff/audit?entity_id&before&limit` | Access + staff/admin | Audit history |
+
+## App pages
+
+Static files in `web/dist` are served directly; unknown paths fall back to the app (single-page app). These paths reach the Worker first (`run_worker_first`):
+
+| Path | What the Worker does |
+| --- | --- |
+| `/`, `/event/:occurrenceId`, `/events/:eventId` | Serves the app shell with link-preview tags (title, description, image, URL) for that event, so shared links show the event. Unknown or hidden events get the shell with a 404 status. |
+| `/api/*`, `/internal/*` | API, as above |
+
+The **service worker** caches the app shell and the last diary it saw, so the diary opens offline. It never touches `/api/staff` or `/internal`.
 
 ## Code map
 
@@ -85,9 +98,12 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | `src/sync/normalise.ts` | Sheet rows → clean events (pure) |
 | `src/sync/plan.ts` | Occurrence history rules (pure) |
 | `src/sync/apply.ts` | Payload validation, circuit breaker, atomic write |
-| `src/routes/*` | Public, internal and staff endpoints |
+| `src/lib/queries.ts` | Shared public-read SQL (visibility rules) |
+| `src/lib/calendar.ts` | `.ics` and Google Calendar links |
+| `src/routes/*` | Public, internal, staff endpoints and app pages (link previews) |
+| `web/` | The PWA: `src/theme` (tokens), `src/styles`, `src/components`, `src/pages`, `public` (icons, manifest, service worker). See [RTD_APP_THEME.md](RTD_APP_THEME.md). |
 | `migrations/` | D1 schema |
-| `test/` | 82 tests, run inside the Workers runtime against a real local D1 |
+| `test/` | 120 tests, run inside the Workers runtime against a real local D1 |
 
 ## Future compatibility
 

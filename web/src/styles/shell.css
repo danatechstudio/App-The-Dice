@@ -1,0 +1,378 @@
+/* App shell: top bar, desktop navigation, bottom navigation, footer, splash. */
+
+/* ---------- Mobile top bar ---------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding-top: env(safe-area-inset-top);
+  background: var(--rtd-primary);
+  color: var(--rtd-text-inverse);
+  box-shadow: 0 1px 0 rgb(0 0 0 / 0.15);
+}
+
+.topbar__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--rtd-space-3);
+  height: var(--rtd-top-bar);
+}
+
+.topbar__logo {
+  display: block;
+  padding: 4px 0;
+}
+
+.topbar__logo img {
+  width: auto;
+  height: 40px;
+}
+
+/* Home shows the full logo in its header, so the bar doesn't repeat it. */
+.topbar--home {
+  position: static;
+  box-shadow: none;
+}
+
+.topbar--home .topbar__logo {
+  visibility: hidden;
+}
+
+@media (max-width: 1023.98px) {
+  .topbar--home .topbar__inner {
+    height: 0;
+  }
+}
+
+/* The desktop navigation replaces the bar's links at 1024px. */
+.topnav {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .topbar__inner {
+    height: 72px;
+  }
+
+  .topbar__logo img {
+    height: 50px;
+  }
+
+  .topnav {
+    display: flex;
+    align-items: center;
+    gap: var(--rtd-space-1);
+  }
+
+  .topnav a {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: var(--rtd-touch-target);
+    padding: 0 var(--rtd-space-3);
+    border-radius: var(--rtd-radius-sm);
+    color: rgb(255 255 255 / 0.85);
+    font-weight: 600;
+    text-decoration: none;
+    transition: color var(--rtd-duration-fast) var(--rtd-ease-standard);
+  }
+
+  .topnav a:hover {
+    color: var(--rtd-text-inverse);
+    background: rgb(255 255 255 / 0.08);
+  }
+
+  .topnav a[aria-current='page'] {
+    color: var(--rtd-text-inverse);
+  }
+
+  .topnav a[aria-current='page']::after {
+    content: '';
+    position: absolute;
+    left: var(--rtd-space-3);
+    right: var(--rtd-space-3);
+    bottom: 2px;
+    height: 3px;
+    border-radius: 3px;
+    background: var(--rtd-accent);
+  }
+
+  .topnav .btn--roll {
+    margin-left: var(--rtd-space-3);
+    color: var(--rtd-primary-dark);
+  }
+
+  .topnav .btn--roll:hover {
+    color: var(--rtd-primary-dark);
+    background: var(--rtd-accent-hover);
+  }
+
+  .topnav .btn--roll[aria-current='page']::after {
+    display: none;
+  }
+}
+
+/* ---------- Mobile bottom navigation ---------- */
+
+.bottomnav {
+  position: fixed;
+  z-index: 50;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  border-top: 1px solid var(--rtd-border);
+  background: var(--rtd-surface-elevated);
+  box-shadow: 0 -6px 20px -12px rgb(11 42 71 / 0.35);
+}
+
+.bottomnav ul {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  max-width: 560px;
+  height: var(--rtd-bottom-nav);
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.bottomnav a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 100%;
+  color: var(--rtd-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.bottomnav__icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 30px;
+  border-radius: var(--rtd-radius-round);
+  transition: background-color var(--rtd-duration-normal) var(--rtd-ease-standard);
+}
+
+.bottomnav a[aria-current='page'] {
+  color: var(--rtd-primary);
+}
+
+.bottomnav a[aria-current='page'] .bottomnav__icon {
+  background: var(--rtd-primary-light);
+}
+
+/* ROLL: the signature feature sits raised in the middle, as a die-cut
+   sticker like the dice in the logo. */
+.bottomnav__roll {
+  position: relative;
+}
+
+.bottomnav__roll .bottomnav__icon {
+  width: 60px;
+  height: 60px;
+  margin-top: -26px;
+  border-radius: 18px;
+  background: var(--rtd-primary);
+  color: var(--rtd-text-inverse);
+  box-shadow:
+    0 0 0 4px var(--rtd-surface-elevated),
+    var(--rtd-shadow-float);
+  transform: rotate(-6deg);
+  transition: transform var(--rtd-duration-normal) var(--rtd-ease-bounce);
+}
+
+.bottomnav a.bottomnav__roll[aria-current='page'] .bottomnav__icon {
+  background: var(--rtd-primary);
+  box-shadow:
+    0 0 0 4px var(--rtd-surface-elevated),
+    0 0 0 7px var(--rtd-accent),
+    var(--rtd-shadow-float);
+}
+
+.bottomnav__roll:active .bottomnav__icon {
+  transform: rotate(-6deg) translateY(2px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion='reduce']) .bottomnav__roll:hover .bottomnav__icon svg {
+    animation: wiggle var(--rtd-duration-feature) var(--rtd-ease-standard);
+  }
+}
+
+@media (min-width: 1024px) {
+  .bottomnav {
+    display: none;
+  }
+}
+
+/* ---------- Footer ---------- */
+
+.footer {
+  margin-top: var(--rtd-space-7);
+  padding-block: var(--rtd-space-6);
+  border-top: 1px solid var(--rtd-border);
+  color: var(--rtd-text-muted);
+  font-size: var(--rtd-size-meta);
+}
+
+.footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--rtd-space-3);
+}
+
+.footer__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--rtd-space-3);
+}
+
+.footer__brand img {
+  width: 44px;
+  height: auto;
+  padding: 6px;
+  border-radius: var(--rtd-radius-sm);
+  background: var(--rtd-primary);
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rtd-space-2);
+  min-height: var(--rtd-touch-target);
+  border: 0;
+  background: none;
+  color: var(--rtd-text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.switch__track {
+  position: relative;
+  width: 40px;
+  height: 24px;
+  border-radius: var(--rtd-radius-round);
+  background: var(--rtd-border-strong);
+  transition: background-color var(--rtd-duration-fast) var(--rtd-ease-standard);
+}
+
+.switch__track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--rtd-surface-elevated);
+  transition: transform var(--rtd-duration-fast) var(--rtd-ease-standard);
+}
+
+.switch[aria-checked='true'] .switch__track {
+  background: var(--rtd-primary);
+}
+
+.switch[aria-checked='true'] .switch__track::after {
+  transform: translateX(16px);
+}
+
+/* ---------- Event splash ---------- */
+
+.splash {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 18% 22%, rgb(255 255 255 / 0.06) 0 3px, transparent 4px) 0 0 / 30px 30px,
+    radial-gradient(120% 80% at 50% 0%, #1a4f80 0%, var(--rtd-primary) 50%, var(--rtd-primary-dark) 100%);
+  color: var(--rtd-text-inverse);
+}
+
+.splash__inner {
+  display: grid;
+  align-content: center;
+  gap: var(--rtd-space-4);
+  width: min(100%, 460px);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: calc(env(safe-area-inset-top) + var(--rtd-space-6)) var(--rtd-space-5) calc(env(safe-area-inset-bottom) + var(--rtd-space-5));
+  text-align: center;
+}
+
+.splash__close {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + var(--rtd-space-3));
+  right: var(--rtd-space-3);
+}
+
+.splash__logo {
+  width: min(64%, 240px);
+  height: auto;
+  margin: 0 auto;
+}
+
+.splash .art {
+  border-radius: var(--rtd-radius-feature);
+  box-shadow:
+    0 0 0 4px var(--rtd-surface-elevated),
+    0 24px 48px -16px rgb(0 0 0 / 0.6);
+  transform: rotate(-1.5deg);
+}
+
+.splash__kicker {
+  color: var(--rtd-accent);
+}
+
+.splash__date {
+  font-size: 1.0625rem;
+  font-weight: 800;
+  letter-spacing: var(--rtd-tracking-label);
+  text-transform: uppercase;
+}
+
+.splash__desc {
+  color: rgb(255 255 255 / 0.88);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion='reduce']) .splash {
+    animation: splash-in var(--rtd-duration-feature) var(--rtd-ease-standard);
+  }
+
+  :root:not([data-motion='reduce']) .splash .art {
+    animation: splash-card var(--rtd-duration-feature) var(--rtd-ease-bounce) both;
+    animation-delay: 80ms;
+  }
+}
+
+@keyframes splash-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes splash-card {
+  from {
+    opacity: 0;
+    transform: translateY(18px) rotate(-5deg) scale(0.96);
+  }
+}
+
+@media (min-height: 760px) {
+  .splash__inner {
+    gap: var(--rtd-space-5);
+  }
+}

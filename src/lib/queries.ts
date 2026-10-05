@@ -1,0 +1,64 @@
+// Shared public-read SQL. Visible = event active and effective visibility
+// public/app_bookable; Hidden and Private never leave the database.
+
+export const OCCURRENCE_ID = /^RTD-OCC-\d{5,}-\d{8}$/;
+export const EVENT_ID = /^RTD-EVT-\d{5,}$/;
+
+export const VISIBLE = `e.active = 1 AND COALESCE(o.visibility, e.visibility) IN ('public', 'app_bookable')`;
+
+export const OCCURRENCE_FIELDS = `
+  o.occurrence_id, o.event_id, e.display_name AS name, e.category,
+  COALESCE(o.description_override, e.description) AS description,
+  o.event_date AS date, o.start_time, o.end_time, o.starts_at, o.ends_at, o.all_day, o.projected,
+  o.status, o.rescheduled_to, COALESCE(o.visibility, e.visibility) AS visibility,
+  COALESCE(o.image_override, e.default_image) AS image, o.price_display`;
+
+export type Row = Record<string, unknown>;
+
+export interface PublicOccurrence {
+  occurrence_id: string;
+  event_id: string;
+  name: string;
+  category: string;
+  description: string | null;
+  date: string;
+  start_time: string | null;
+  end_time: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  all_day: boolean;
+  projected: boolean;
+  status: 'scheduled' | 'completed' | 'cancelled' | 'rescheduled';
+  rescheduled_to: string | null;
+  visibility: string;
+  image: string | null;
+  price_display: string | null;
+}
+
+export function shape(r: Row): PublicOccurrence {
+  return { ...r, all_day: r.all_day === 1, projected: r.projected === 1 } as unknown as PublicOccurrence;
+}
+
+/** One visible occurrence (any status, so old links can explain what happened). */
+export async function findOccurrence(db: D1Database, id: string): Promise<PublicOccurrence | null> {
+  if (!OCCURRENCE_ID.test(id)) return null;
+  const row = await db
+    .prepare(`SELECT ${OCCURRENCE_FIELDS} FROM occurrences o JOIN events e ON e.event_id = o.event_id WHERE o.occurrence_id = ?1 AND ${VISIBLE}`)
+    .bind(id)
+    .first<Row>();
+  return row ? shape(row) : null;
+}
+
+/** The next scheduled, visible occurrence of an event. */
+export async function nextOccurrence(db: D1Database, eventId: string, today: string): Promise<PublicOccurrence | null> {
+  if (!EVENT_ID.test(eventId)) return null;
+  const row = await db
+    .prepare(
+      `SELECT ${OCCURRENCE_FIELDS} FROM occurrences o JOIN events e ON e.event_id = o.event_id
+       WHERE o.event_id = ?1 AND ${VISIBLE} AND o.status = 'scheduled' AND o.event_date >= ?2
+       ORDER BY o.event_date LIMIT 1`,
+    )
+    .bind(eventId, today)
+    .first<Row>();
+  return row ? shape(row) : null;
+}

@@ -19,14 +19,20 @@ App Database / API ──► Customer App
 
 ## Status
 
-**Phase 0 (Audit): complete.** **Phase 1 (Data foundation): built and tested, waiting to be deployed.** See [`RTD_APP_CURRENT_STATE.md`](RTD_APP_CURRENT_STATE.md).
+**Phases 0–1:** complete and live at https://rtd-app.dan-289.workers.dev.
 
-Stack: Cloudflare Workers + D1, with Cloudflare Access for staff sign-in. The existing n8n on the Pi handles automation.
+**Phase 2 (branded PWA and theme):** built. See [`RTD_APP_CURRENT_STATE.md`](RTD_APP_CURRENT_STATE.md).
+
+Stack:
+- **API and sync:** a Cloudflare Worker and D1, with Cloudflare Access for staff sign-in.
+- **App:** a Preact + Vite PWA, served by the same Worker.
+- **Automation:** the existing n8n on the Pi.
 
 ```sh
 npm ci
-npm test          # 82 tests, run in the Workers runtime against a local D1
-npm run typecheck
+npm test            # builds the app, then 120 tests in the Workers runtime against a local D1
+npm run typecheck   # Worker and web app
+npm run dev         # builds the app and serves everything on http://localhost:8787
 ```
 
 ## Documents
@@ -37,6 +43,7 @@ npm run typecheck
 | [`docs/RTD_AUDIT.md`](docs/RTD_AUDIT.md) | Phase 0 audit of the existing RTD / n8n environment, with migration plan |
 | [`docs/RTD_APP_ARCHITECTURE.md`](docs/RTD_APP_ARCHITECTURE.md) | Hosting decision, data flow, occurrence rules, API |
 | [`docs/RTD_DATABASE_SCHEMA.md`](docs/RTD_DATABASE_SCHEMA.md) | Tables and columns |
+| [`docs/RTD_APP_THEME.md`](docs/RTD_APP_THEME.md) | Visual theme: brand reference, colours, type, components, accessibility |
 | [`docs/RTD_N8N_WORKFLOWS.md`](docs/RTD_N8N_WORKFLOWS.md) | n8n changes made, rollback points, planned sync workflow |
 | [`docs/RTD_DEPLOYMENT.md`](docs/RTD_DEPLOYMENT.md) | One-off Cloudflare setup |
 | [`docs/RTD_RECOVERY.md`](docs/RTD_RECOVERY.md) | Rollback and recovery |

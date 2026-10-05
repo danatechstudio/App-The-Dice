@@ -1,0 +1,221 @@
+/* Roll Me a Game: the most playful screen. A navy games table, a dice tray,
+   two 3D dice styled like the logo's (navy faces, white pips, white outline). */
+
+.roll-page {
+  min-height: 100dvh;
+  padding-bottom: calc(var(--rtd-bottom-nav) + env(safe-area-inset-bottom) + var(--rtd-space-6));
+}
+
+.roll-stage {
+  display: grid;
+  gap: var(--rtd-space-5);
+  max-width: 560px;
+  margin: 0 auto;
+  padding-top: var(--rtd-space-5);
+  text-align: center;
+}
+
+.roll-stage .label {
+  color: var(--rtd-accent);
+}
+
+/* While the dice are moving, everything else steps back. */
+.roll-stage[data-rolling='true'] .roll-calm {
+  opacity: 0.35;
+  pointer-events: none;
+  transition: opacity var(--rtd-duration-normal) var(--rtd-ease-standard);
+}
+
+.roll-actions {
+  display: grid;
+  gap: var(--rtd-space-3);
+}
+
+.dice-tray {
+  position: relative;
+  height: 190px;
+  overflow: hidden;
+  border-radius: var(--rtd-radius-feature);
+  background:
+    radial-gradient(circle at 14% 30%, rgb(255 255 255 / 0.05) 0 2px, transparent 3px) 0 0 / 22px 22px,
+    radial-gradient(120% 100% at 50% 20%, #164a78 0%, var(--rtd-primary-dark) 75%);
+  box-shadow:
+    var(--rtd-shadow-inset),
+    0 0 0 3px rgb(255 255 255 / 0.9);
+  perspective: 800px;
+}
+
+@media (min-width: 768px) {
+  .dice-tray {
+    height: 230px;
+  }
+}
+
+.die-slot {
+  --size: 66px;
+  position: absolute;
+  top: calc(50% - var(--size) / 2 + 6px);
+  width: var(--size);
+  height: var(--size);
+  transform-style: preserve-3d;
+}
+
+.die-slot:nth-child(1) {
+  left: calc(50% - var(--size) - 18px);
+}
+
+.die-slot:nth-child(2) {
+  left: calc(50% + 18px);
+}
+
+.die-shadow {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: -14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.45);
+  filter: blur(5px);
+}
+
+.die {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+
+.die__face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  padding: 9px;
+  border: 3px solid var(--rtd-surface-elevated);
+  border-radius: 13px;
+  background: var(--rtd-primary);
+  backface-visibility: hidden;
+}
+
+.die__face[data-face='1'] {
+  transform: translateZ(calc(var(--size) / 2));
+}
+.die__face[data-face='6'] {
+  transform: rotateY(180deg) translateZ(calc(var(--size) / 2));
+}
+.die__face[data-face='3'] {
+  transform: rotateY(90deg) translateZ(calc(var(--size) / 2));
+}
+.die__face[data-face='4'] {
+  transform: rotateY(-90deg) translateZ(calc(var(--size) / 2));
+}
+.die__face[data-face='2'] {
+  transform: rotateX(90deg) translateZ(calc(var(--size) / 2));
+}
+.die__face[data-face='5'] {
+  transform: rotateX(-90deg) translateZ(calc(var(--size) / 2));
+}
+
+.pip {
+  width: 72%;
+  height: 72%;
+  margin: auto;
+  border-radius: 50%;
+  background: var(--rtd-surface-elevated);
+}
+
+/* ---------- Reveal ---------- */
+
+.reveal {
+  text-align: left;
+  color: var(--rtd-text);
+}
+
+.reveal__band {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--rtd-space-2);
+  padding: var(--rtd-space-3);
+  background: var(--rtd-accent);
+  color: var(--rtd-primary-dark);
+  font-weight: 800;
+  letter-spacing: var(--rtd-tracking-label);
+  text-transform: uppercase;
+  font-size: var(--rtd-size-label);
+}
+
+.reveal--chaos .reveal__band {
+  background: repeating-linear-gradient(-45deg, var(--rtd-accent) 0 14px, var(--rtd-accent-hover) 14px 28px);
+}
+
+.reveal__body {
+  display: grid;
+  gap: var(--rtd-space-4);
+  padding: var(--rtd-space-5);
+}
+
+.reveal__blurb p {
+  font-size: 1.0625rem;
+}
+
+.reveal__buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--rtd-space-3);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion='reduce']) .reveal {
+    animation: card-reveal var(--rtd-duration-feature) var(--rtd-ease-bounce) both;
+    transform-origin: 50% 100%;
+  }
+}
+
+@keyframes card-reveal {
+  from {
+    opacity: 0;
+    transform: perspective(900px) translateY(28px) rotateX(24deg) scale(0.95);
+  }
+}
+
+.roll-empty {
+  padding: var(--rtd-space-4);
+  border-radius: var(--rtd-radius-card);
+  background: rgb(255 255 255 / 0.1);
+}
+
+.roll-filters {
+  text-align: left;
+}
+
+.roll-filters summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--rtd-space-2);
+  min-height: var(--rtd-touch-target);
+  border-radius: var(--rtd-radius-button);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.roll-filters summary::-webkit-details-marker {
+  display: none;
+}
+
+.roll-filters[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.roll-filters fieldset {
+  margin: var(--rtd-space-4) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.roll-filters legend {
+  margin-bottom: var(--rtd-space-2);
+  padding: 0;
+}

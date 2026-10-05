@@ -4,6 +4,16 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-15",
   "observability": { "enabled": true },
+  // The PWA (web/) is built before every deploy and `wrangler dev`.
+  "build": { "command": "npm run build:web" },
+  "assets": {
+    "directory": "./web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // These reach the Worker before static files: the API, n8n's sync, and
+    // pages whose link previews name the event (src/routes/pages.ts).
+    "run_worker_first": ["/", "/api/*", "/internal/*", "/event/*", "/events/*"]
+  },
   // Don't delete variables set in the dashboard when deploying from Git.
   "keep_vars": true,
   "d1_databases": [
@@ -17,6 +27,8 @@
   ],
   "vars": {
     "ENVIRONMENT": "production",
+    // Calendar files use this as the event location. Add the street address when confirmed.
+    "VENUE_LOCATION": "Roll The Dice Board Game Café, Cleethorpes",
     // Cloudflare Access team domain and the Access application's AUD tag (docs/RTD_DEPLOYMENT.md).
     "ACCESS_TEAM_DOMAIN": "https://solitary-thunder-9de0.cloudflareaccess.com",
     // Access application "RTD Staff" protecting rtd-app.dan-289.workers.dev/api/staff

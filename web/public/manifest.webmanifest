@@ -1,0 +1,24 @@
+{
+  "name": "Roll The Dice · Board Game Café",
+  "short_name": "Roll The Dice",
+  "description": "What's on at Roll The Dice, and something to play.",
+  "id": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#123F68",
+  "theme_color": "#123F68",
+  "lang": "en-GB",
+  "categories": ["entertainment", "lifestyle", "games"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "What's on", "url": "/diary?source=shortcut", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Roll Me a Game", "url": "/roll?source=shortcut", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
