@@ -79,13 +79,23 @@ export function requireRole(...roles: Role[]): MiddlewareHandler<{ Bindings: Env
   };
 }
 
-/** Constant-time check of the n8n bearer token (compares SHA-256 digests). */
-export async function bearerMatches(header: string | null | undefined, secret: string): Promise<boolean> {
-  if (!secret || !header?.startsWith('Bearer ')) return false;
+export type BearerCheck = 'ok' | 'not_configured' | 'missing' | 'malformed' | 'mismatch';
+
+/**
+ * Checks the n8n bearer token in constant time (compares SHA-256 digests).
+ * Surrounding whitespace on either side is ignored: pasted secrets often carry
+ * a stray newline. The result names the problem without revealing the token.
+ */
+export async function checkBearer(header: string | null | undefined, secret: string | undefined): Promise<BearerCheck> {
+  const expected = (secret ?? '').trim();
+  if (!expected) return 'not_configured';
+  if (!header) return 'missing';
+  const m = header.match(/^\s*Bearer\s+(.+?)\s*$/i);
+  if (!m) return 'malformed';
   const enc = new TextEncoder();
   const [a, b] = await Promise.all([
-    crypto.subtle.digest('SHA-256', enc.encode(header.slice(7))),
-    crypto.subtle.digest('SHA-256', enc.encode(secret)),
+    crypto.subtle.digest('SHA-256', enc.encode(m[1])),
+    crypto.subtle.digest('SHA-256', enc.encode(expected)),
   ]);
-  return crypto.subtle.timingSafeEqual(a, b);
+  return crypto.subtle.timingSafeEqual(a, b) ? 'ok' : 'mismatch';
 }

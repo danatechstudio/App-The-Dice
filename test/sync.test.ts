@@ -18,10 +18,35 @@ beforeEach(async () => {
 afterEach(() => vi.useRealTimers());
 
 describe('POST /internal/sync/logic-engine', () => {
-  it('rejects a missing or wrong bearer token', async () => {
-    expect((await sync({ run_id: 'a', sources: {} }, 'wrong')).status).toBe(401);
-    const res = await request('/internal/sync/logic-engine', { method: 'POST', body: '{}' });
-    expect(res.status).toBe(401);
+  it('rejects a missing, malformed or wrong bearer token, saying which', async () => {
+    const wrong = await sync({ run_id: 'a', sources: {} }, 'wrong');
+    expect(wrong.status).toBe(401);
+    expect(await wrong.json()).toEqual({ error: 'Token does not match INTERNAL_SYNC_TOKEN' });
+    const missing = await request('/internal/sync/logic-engine', { method: 'POST', body: '{}' });
+    expect(missing.status).toBe(401);
+    expect(await missing.json()).toEqual({ error: 'Missing Authorization header' });
+    const bare = await request('/internal/sync/logic-engine', { method: 'POST', body: '{}', headers: { Authorization: 'test-sync-token' } });
+    expect(bare.status).toBe(401);
+    expect(await bare.json()).toEqual({ error: "Authorization header must be 'Bearer <token>'" });
+  });
+
+  it('ignores stray whitespace around the token and secret', async () => {
+    const res = await request(
+      '/internal/sync/logic-engine',
+      { method: 'POST', body: '{}', headers: { Authorization: '  bearer   test-sync-token \n' } },
+      { INTERNAL_SYNC_TOKEN: 'test-sync-token\n' },
+    );
+    expect(res.status).toBe(400); // past auth; the empty body is what fails
+  });
+
+  it('reports a missing server secret as a configuration problem', async () => {
+    const res = await request(
+      '/internal/sync/logic-engine',
+      { method: 'POST', body: '{}', headers: { Authorization: 'Bearer anything' } },
+      { INTERNAL_SYNC_TOKEN: '' },
+    );
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as { error: string }).error).toMatch(/no INTERNAL_SYNC_TOKEN secret/);
   });
 
   it('rejects malformed payloads', async () => {

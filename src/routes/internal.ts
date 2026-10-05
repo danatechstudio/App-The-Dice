@@ -2,16 +2,26 @@
 // n8n credential and the INTERNAL_SYNC_TOKEN Worker secret.
 
 import { Hono } from 'hono';
-import { bearerMatches } from '../lib/auth';
+import { checkBearer } from '../lib/auth';
 import { applySync, parsePayload } from '../sync/apply';
 
 const MAX_BODY_BYTES = 1_000_000;
 
 export const internalRoutes = new Hono<{ Bindings: Env }>();
 
+// Refusals say what is wrong (never the token itself), so n8n's error shows the fix.
+const REFUSALS = {
+  not_configured: [503, 'The app has no INTERNAL_SYNC_TOKEN secret set (Cloudflare: Worker rtd-app → Settings → Variables and Secrets, type Secret)'],
+  missing: [401, 'Missing Authorization header'],
+  malformed: [401, "Authorization header must be 'Bearer <token>'"],
+  mismatch: [401, 'Token does not match INTERNAL_SYNC_TOKEN'],
+} as const;
+
 internalRoutes.use('*', async (c, next) => {
-  if (!(await bearerMatches(c.req.header('Authorization'), c.env.INTERNAL_SYNC_TOKEN))) {
-    return c.json({ error: 'Unauthorised' }, 401);
+  const result = await checkBearer(c.req.header('Authorization'), c.env.INTERNAL_SYNC_TOKEN);
+  if (result !== 'ok') {
+    const [status, error] = REFUSALS[result];
+    return c.json({ error }, status);
   }
   await next();
 });
