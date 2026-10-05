@@ -16,8 +16,9 @@
   "vars": {
     "ENVIRONMENT": "production",
     // Cloudflare Access team domain and the Access application's AUD tag (docs/RTD_DEPLOYMENT.md).
-    "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": ""
+    "ACCESS_TEAM_DOMAIN": "https://solitary-thunder-9de0.cloudflareaccess.com",
+    // Access application "RTD Staff" protecting rtd-app.dan-289.workers.dev/api/staff
+    "ACCESS_AUD": "cbfa359b69a7d601121b191410544cbe56057fa8bfe97298540028a5d16bd49c"
   }
   // Secret, set with `npx wrangler secret put INTERNAL_SYNC_TOKEN`: bearer token n8n uses for /internal/*.
 }

@@ -7,17 +7,17 @@ _Last updated: 2026-10-05_
 - **Monthly events:** no longer auto-rolled. When one passes, Michelle gets the date-picker email.
 - **`rtd_config`** n8n data table holds the café notification email.
 
-## Cloudflare
-- D1 database `rtd-app` created, schema applied, Dan added as admin.
-- Remaining dashboard steps A–C in [docs/RTD_DEPLOYMENT.md](docs/RTD_DEPLOYMENT.md#status-2026-10-05): deploy from GitHub, sync token, Access on `/api/staff`.
+## Cloudflare (deployed)
+- **App:** https://rtd-app.dan-289.workers.dev, deployed from GitHub `main` on every push (Workers Builds).
+- **Database:** D1 `rtd-app` with the schema applied; Dan is admin.
+- **Staff sign-in:** Access application "RTD Staff" protects `/api/staff` only (team `solitary-thunder-9de0`).
 
-## Built, not deployed
-- **Phase 1 Worker:** Cloudflare Worker + D1.
+## Phase 1 Worker
+- Cloudflare Worker + D1.
   - Schema, idempotent Logic Engine sync with occurrence history, public diary API, staff API behind Cloudflare Access, append-only audit log.
   - 82 tests passing. Smoke-tested locally with today's real event data.
 
 ## Incomplete
-- Deployment (needs your Cloudflare login: [docs/RTD_DEPLOYMENT.md](docs/RTD_DEPLOYMENT.md)).
 - RTD Event Sync n8n workflow, built once the Worker URL and token exist.
 - Phases 2–9.
 
