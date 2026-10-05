@@ -1,6 +1,6 @@
 # RTD Deployment
 
-Everything runs in the existing Cloudflare account. These are one-off steps; they need your Cloudflare login, so they can't be run from Claude's environment.
+Everything runs in the existing Cloudflare account. These are one-off steps. They need either your Cloudflare login (on your own machine), or a `CLOUDFLARE_API_TOKEN` in an environment that can reach `api.cloudflare.com`.
 
 ## Quick path
 
