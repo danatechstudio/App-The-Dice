@@ -93,6 +93,17 @@ describe('image sync (n8n)', () => {
     expect(audit?.n).toBe(2);
   });
 
+  it('sweeps stored bytes nothing uses, after an hour\'s grace', async () => {
+    await env.IMAGES.put('img:' + 'a'.repeat(32), jpeg(1), { metadata: { type: 'image/jpeg', stored: Date.parse('2026-10-05T08:00:00Z') } });
+    await env.IMAGES.put('img:' + 'b'.repeat(32), jpeg(2), { metadata: { type: 'image/jpeg', stored: Date.parse('2026-10-05T09:30:00Z') } });
+    await imgSync([{ event_id: QUIZ, files: [file(1)] }]);
+    const kept = (await (await upload(QUIZ, file(1).id, jpeg(3))).json<{ image_id: string }>()).image_id;
+    await imgSync([{ event_id: QUIZ, files: [file(1)] }], 'n8n-2');
+    expect(await env.IMAGES.get('img:' + 'a'.repeat(32))).toBeNull(); // orphan, two hours old
+    expect(await env.IMAGES.get('img:' + 'b'.repeat(32))).not.toBeNull(); // orphan, but only 30 minutes old
+    expect(await env.IMAGES.get('img:' + kept)).not.toBeNull(); // in use
+  });
+
   it('refuses a snapshot with no eligible events, so a failed Drive read changes nothing', async () => {
     const res = await imgSync([]);
     expect(res.status).toBe(409);

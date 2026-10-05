@@ -136,6 +136,7 @@ export async function syncImages(db: D1Database, kv: KVNamespace, payload: SyncP
   }
   if (writes.length) await db.batch(writes);
   await deleteOrphans(db, kv, removals.map(r => r.image_id));
+  await sweepStore(db, kv, Date.parse(now));
 
   const have = new Set(existing.filter(r => r.image_id).map(r => `${r.event_id}|${r.source_id}`));
   const missing = upserts.filter(u => !have.has(`${u.event_id}|${u.source_id}`)).map(u => ({ event_id: u.event_id, source_id: u.source_id }));
@@ -154,6 +155,28 @@ async function deleteOrphans(db: D1Database, kv: KVNamespace, imageIds: (string 
     .bind(JSON.stringify(candidates))
     .all<{ image_id: string }>();
   await Promise.all(results.map(r => kv.delete(kvKey(r.image_id))));
+}
+
+const SWEEP_GRACE_MS = 60 * 60 * 1000;
+
+/**
+ * Self-healing: delete stored bytes that no event references, e.g. after an
+ * interrupted upload or a replaced rendition. Only objects older than an
+ * hour, so an upload in flight is never swept.
+ */
+async function sweepStore(db: D1Database, kv: KVNamespace, now: number): Promise<void> {
+  const { results } = await db
+    .prepare('SELECT DISTINCT image_id FROM event_images WHERE image_id IS NOT NULL')
+    .all<{ image_id: string }>();
+  const used = new Set(results.map(r => r.image_id));
+  let cursor: string | undefined;
+  for (let page = 0; page < 5; page++) {
+    const list = await kv.list<{ type?: string; stored?: number }>({ prefix: 'img:', cursor });
+    const stale = list.keys.filter(k => !used.has(k.name.slice(4)) && now - (k.metadata?.stored ?? 0) > SWEEP_GRACE_MS);
+    await Promise.all(stale.map(k => kv.delete(k.name)));
+    if (list.list_complete) break;
+    cursor = list.cursor;
+  }
 }
 
 /** The real type, from the file's first bytes (never trust the header). */
@@ -194,7 +217,7 @@ export async function storeImage(
 
   const imageId = await imageIdFor(bytes);
   const shared = await db.prepare('SELECT 1 FROM event_images WHERE image_id = ?1 LIMIT 1').bind(imageId).first();
-  if (!shared) await kv.put(kvKey(imageId), bytes, { metadata: { type } });
+  if (!shared) await kv.put(kvKey(imageId), bytes, { metadata: { type, stored: Date.parse(now) } });
 
   await db.batch([
     db

@@ -80,6 +80,7 @@ Added in `0002_event_images.sql`. These are event photos copied from each event'
 **Rules:**
 - **Up to 8 photos per event.**
 - **Shared photos:** two events sharing a folder share stored bytes. Bytes are deleted only when no event uses them.
+- **Self-cleaning:** each image sync also sweeps stored bytes that nothing references once they are over an hour old (for example after an interrupted upload).
 - **Visibility:** photos of hidden or inactive events are removed at the next image sync. They are never served meanwhile.
 - **Audit:** additions and removals are written to `audit_log` (`image.added`, `image.removed`, source `drive_images`).
 

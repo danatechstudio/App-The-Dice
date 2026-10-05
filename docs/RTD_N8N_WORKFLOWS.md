@@ -95,9 +95,10 @@ This workflow copies event photos from Drive into the app. Each Event Index row'
   4. **Choose Photos:** the newest 8 per event. Files with **`noapp`** or **`private`** in their name are skipped.
   5. `POST /internal/images/sync` with each event's chosen files. The app drops photos no longer chosen, and answers with the ones it hasn't got yet.
   6. **Fetch and upload the missing photos:**
-     - It fetches each missing photo through Drive's own thumbnail link at `=s1400-rw`, so Google resizes it to 1400px WebP (about 150–250 KB, against 2–5 MB originals).
+     - It fetches each missing photo through Drive's own thumbnail link, so Google resizes it to 1400px: WebP for photos (`=s1400-rw`, about 100–210 KB against 2–5 MB originals), JPEG for PNG posters (`=s1400-rj`), because WebP from a PNG is lossless and several MB.
      - It uploads each one with `PUT /internal/images/:eventId/:fileId`.
 - **Repeat runs:** a run with no folder changes uploads nothing.
+- **First run** (`18869`, 2026-10-05): 10 folders searched, 65 photos stored. Quiz, Bingo, Blood on the Clocktower, Kids Chess Club, D&D, Cleeples, Magic: The Gathering and Wednesdays got 8 each; Spooky Market got its poster.
 - **Errors:**
   - HTTP steps retry 3 times, then failures go to `Studio: Error Handler`.
   - The app refuses (409) a photo list with no eligible events, so a failed Drive read never wipes the photos.
