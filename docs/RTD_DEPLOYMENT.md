@@ -6,7 +6,7 @@ Everything runs in the existing Cloudflare account. These are one-off steps. The
 
 Done through the Cloudflare connector:
 - **Database:** D1 `rtd-app` created in Western Europe (id `6c948ad3-0311-459b-895d-facb14d5697d`, now in `wrangler.jsonc`).
-- **Schema:** `0001_foundation.sql` applied and recorded in `d1_migrations`, so `wrangler d1 migrations apply` will skip it. All 7 tables, 4 indexes and both audit triggers are present.
+- **Schema:** `0001_foundation.sql` and `0002_event_images.sql` applied and recorded in `d1_migrations`, so `wrangler d1 migrations apply` will skip them. All 7 tables, 4 indexes and both audit triggers are present.
 - **First admin:** Dan's account added (role `admin`).
 
 The connector can't deploy code, set secrets or configure Access, so three dashboard steps remain.
@@ -38,6 +38,10 @@ Don't use the one-click "Enable Cloudflare Access" button. It protects the whole
 - **Build:** `wrangler.jsonc` builds the PWA (`npm run build:web`) before every deploy, and `npm test` builds it too. The existing Workers Builds settings (build `npm test`, deploy `npx wrangler deploy`) carry on unchanged.
 - **Node:** the build image's default Node 24 works.
 - **New variable:** `VENUE_LOCATION` (calendar location) is set in `wrangler.jsonc`. Change it there, not in the dashboard.
+
+### Event photos: done through the connector
+- **KV namespace:** `rtd-app-images` (id `0a23bcba51b84a749f7c64935fa53335`), bound as `IMAGES` in `wrangler.jsonc`.
+- **Migration:** `0002_event_images.sql` applied and recorded in `d1_migrations`.
 
 ### Future migrations
 Claude applies new files in `migrations/` through the connector and records them in `d1_migrations`. Alternatively, change the Workers Builds deploy command to `npx wrangler d1 migrations apply rtd-app --remote && npx wrangler deploy`.

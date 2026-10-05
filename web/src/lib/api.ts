@@ -20,6 +20,8 @@ export interface Occurrence {
   visibility: 'public' | 'app_bookable';
   image: string | null;
   price_display: string | null;
+  /** All of the event's photos (single-occurrence endpoint only). */
+  images?: string[];
 }
 
 export interface EventSummary {
@@ -29,6 +31,7 @@ export interface EventSummary {
   description: string | null;
   frequency: string;
   image: string | null;
+  images: string[];
 }
 
 export class ApiError extends Error {

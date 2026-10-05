@@ -83,6 +83,31 @@ Payload shape:
 }
 ```
 
+## RTD Event Images (`GeafnErtRe5ZMbiD`)
+
+This workflow copies event photos from Drive into the app. Each Event Index row's **Photo Folder ID** (the folders the poster automation already uses) is the source.
+
+- **Triggers:** every 6 hours (Europe/London), plus **Run By Hand**.
+- **Steps:**
+  1. Read `RTD_APP_BASE_URL` from `rtd_config`.
+  2. `GET /internal/images/plan`. The app lists the events that want photos: active, Public or App Bookable, and with a folder.
+  3. **One Drive search** across all those folders (images only, not in the bin). This uses the existing `ATECHGoogleDrive` credential.
+  4. **Choose Photos:** the newest 8 per event. Files with **`noapp`** or **`private`** in their name are skipped.
+  5. `POST /internal/images/sync` with each event's chosen files. The app drops photos no longer chosen, and answers with the ones it hasn't got yet.
+  6. **Fetch and upload the missing photos:**
+     - It fetches each missing photo through Drive's own thumbnail link at `=s1400-rw`, so Google resizes it to 1400px WebP (about 150–250 KB, against 2–5 MB originals).
+     - It uploads each one with `PUT /internal/images/:eventId/:fileId`.
+- **Repeat runs:** a run with no folder changes uploads nothing.
+- **Errors:**
+  - HTTP steps retry 3 times, then failures go to `Studio: Error Handler`.
+  - The app refuses (409) a photo list with no eligible events, so a failed Drive read never wipes the photos.
+- **Execution data:** successful runs aren't stored, which avoids keeping photo bytes in n8n.
+
+**For the café team:**
+- **New photos:** drop them in the event's photo folder. The 8 newest appear within 6 hours.
+- **Keep a photo out of the app:** rename it to include `noapp`, or move it out of the folder.
+- **Hidden events never show photos:** Food, Drinks and Cafe Vibes are Hidden, so their folders aren't read.
+
 ## Spec §46 workflow map
 
 | Spec workflow | Covered by |

@@ -2,6 +2,7 @@
 // App Bookable visibility are ever returned; Hidden and Private never appear.
 
 import { Hono } from 'hono';
+import { imagesByEvent, withImages } from '../images/store';
 import { calendarFile, googleCalendarUrl } from '../lib/calendar';
 import { EVENT_ID, OCCURRENCE_FIELDS, VISIBLE, findOccurrence, shape, type Row } from '../lib/queries';
 import { addDays, londonDate, parseSheetDate } from '../lib/time';
@@ -40,7 +41,7 @@ publicRoutes.get('/events', async c => {
     )
     .bind(start, to, category ?? null)
     .all<Row>();
-  return c.json({ from: start, to, occurrences: results.map(shape) }, 200, CACHE);
+  return c.json({ from: start, to, occurrences: await withImages(c.env.DB, results.map(shape)) }, 200, CACHE);
 });
 
 /** One event and its upcoming occurrences. */
@@ -64,9 +65,11 @@ publicRoutes.get('/events/:eventId', async c => {
       )
       .bind(eventId, today),
   ]);
-  const event = eventRes?.results[0];
+  const event = eventRes?.results[0] as Row | undefined;
   if (!event) return c.json({ error: 'Not found' }, 404);
-  return c.json({ event, occurrences: (occRes?.results ?? []).map(r => shape(r as Row)) }, 200, CACHE);
+  const images = (await imagesByEvent(c.env.DB, [eventId])).get(eventId) ?? [];
+  const occurrences = await withImages(c.env.DB, (occRes?.results ?? []).map(r => shape(r as Row)));
+  return c.json({ event: { ...event, image: event.image ?? images[0] ?? null, images }, occurrences }, 200, CACHE);
 });
 
 /**
@@ -75,9 +78,11 @@ publicRoutes.get('/events/:eventId', async c => {
  * link can say what happened instead of breaking.
  */
 publicRoutes.get('/occurrences/:occurrenceId', async c => {
-  const occurrence = await findOccurrence(c.env.DB, c.req.param('occurrenceId'));
-  if (!occurrence) return c.json({ error: 'Not found' }, 404);
-  return c.json({ occurrence }, 200, CACHE);
+  const found = await findOccurrence(c.env.DB, c.req.param('occurrenceId'));
+  if (!found) return c.json({ error: 'Not found' }, 404);
+  const [occurrence] = await withImages(c.env.DB, [found]);
+  const images = (await imagesByEvent(c.env.DB, [found.event_id])).get(found.event_id) ?? [];
+  return c.json({ occurrence: { ...occurrence, images } }, 200, CACHE);
 });
 
 /** Add to Calendar (spec §39): an .ics file for Apple, Outlook and most others. */

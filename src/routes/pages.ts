@@ -3,6 +3,7 @@
 // picture (spec §40). Everything else is served straight from static assets.
 
 import { Hono, type Context } from 'hono';
+import { withImages } from '../images/store';
 import { findOccurrence, nextOccurrence, type PublicOccurrence } from '../lib/queries';
 import { londonDate } from '../lib/time';
 
@@ -34,7 +35,8 @@ function clock(hhmm: string | null): string | null {
 export function eventMeta(o: PublicOccurrence, origin: string): Meta {
   const when = [DAY.format(new Date(`${o.date}T12:00:00Z`)), clock(o.start_time)].filter(Boolean).join(', ');
   const status = o.status === 'cancelled' ? 'Cancelled: ' : '';
-  const image = o.image && /^https:\/\//.test(o.image) ? o.image : `${origin}/brand/og-default.png`;
+  // Our own photos are relative (/images/…); previews need absolute URLs.
+  const image = o.image && /^(https:\/\/|\/images\/)/.test(o.image) ? new URL(o.image, origin).href : `${origin}/brand/og-default.png`;
   return {
     title: `${status}${o.name} · ${when}`,
     description: o.description ? `${o.description} At Roll The Dice.` : `${when} at Roll The Dice Board Game Café.`,
@@ -81,11 +83,13 @@ async function shell(c: Context<{ Bindings: Env }>, meta: Meta | null, status: 2
 pageRoutes.get('/', c => shell(c, null));
 
 pageRoutes.get('/event/:occurrenceId', async c => {
-  const o = await findOccurrence(c.env.DB, c.req.param('occurrenceId'));
+  const found = await findOccurrence(c.env.DB, c.req.param('occurrenceId'));
+  const [o] = found ? await withImages(c.env.DB, [found]) : [];
   return shell(c, o ? eventMeta(o, new URL(c.req.url).origin) : null, o ? 200 : 404);
 });
 
 pageRoutes.get('/events/:eventId', async c => {
-  const o = await nextOccurrence(c.env.DB, c.req.param('eventId'), londonDate(new Date()));
+  const next = await nextOccurrence(c.env.DB, c.req.param('eventId'), londonDate(new Date()));
+  const [o] = next ? await withImages(c.env.DB, [next]) : [];
   return shell(c, o ? { ...eventMeta(o, new URL(c.req.url).origin), url: new URL(c.req.url).href } : null, o ? 200 : 404);
 });

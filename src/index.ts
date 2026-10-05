@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { readImage } from './images/store';
 import { internalRoutes } from './routes/internal';
 import { pageRoutes } from './routes/pages';
 import { publicRoutes } from './routes/public';
@@ -19,6 +20,20 @@ app.get('/api/health', async c => {
     .first<{ received_at: string }>();
   c.header('Cache-Control', 'no-store');
   return c.json({ ok: true, last_sync: last?.received_at ?? null });
+});
+
+// Event photos. Content-addressed, so they can be cached for a year.
+app.get('/images/:imageId', async c => {
+  const image = await readImage(c.env.DB, c.env.IMAGES, c.req.param('imageId'));
+  if (!image) return c.json({ error: 'Not found' }, 404);
+  return new Response(image.body, {
+    headers: {
+      'Content-Type': image.type,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      ETag: `"${c.req.param('imageId')}"`,
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
 });
 
 app.route('/api', publicRoutes);

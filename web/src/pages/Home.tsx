@@ -13,9 +13,11 @@ export function Home() {
   const { occurrences, error, loading, reload, today } = useUpcoming();
   const upcoming = (occurrences ?? []).filter(o => notOver(o, today));
   const tonight = upcoming.filter(o => o.date === today);
-  // Lead with tonight; otherwise the next event that has a time (a proper event,
-  // rather than a regular room booking).
-  const feature = tonight.find(o => o.start_time) ?? tonight[0] ?? upcoming.find(o => o.start_time) ?? upcoming[0];
+  // Lead with tonight (one with a photo, if any); otherwise the next event that
+  // has a time (a proper event, rather than a regular room booking).
+  const feature =
+    tonight.find(o => o.start_time && o.image) ?? tonight.find(o => o.start_time) ?? tonight.find(o => o.image) ?? tonight[0] ??
+    upcoming.find(o => o.start_time) ?? upcoming[0];
   const comingUp = firstPerEvent(upcoming.filter(o => o.date <= addDays(today, 14)), feature ? [feature] : []).slice(0, 8);
   const heading = tonight.length ? 'Tonight at Roll The Dice' : 'Next up at Roll The Dice';
 

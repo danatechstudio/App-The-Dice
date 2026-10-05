@@ -1,5 +1,16 @@
 # RTD App Changelog
 
+## 2026-10-05 (event photos)
+- **Event photos from Drive:** the new n8n workflow **RTD Event Images** (`GeafnErtRe5ZMbiD`, every 6 hours) copies the newest 8 photos from each visible event's Photo Folder ID into the app.
+  - Google resizes them to 1400px WebP first.
+  - Files with `noapp` or `private` in their name are skipped.
+- **App:**
+  - **New endpoints:** `/internal/images/plan`, `/sync` and `PUT /internal/images/:event/:file` (bearer token); `/images/:id` serves the photos.
+  - **Storage:** photos are kept in Workers KV (`rtd-app-images`). Migration `0002_event_images.sql` adds the `event_images` table.
+  - **Where photos appear:** event cards, event pages (new "From past sessions" gallery with a full-screen viewer), the splash and link previews.
+  - **Variety:** each date of a weekly event shows a different photo.
+- **Tests:** 136 (was 125).
+
 ## 2026-10-05 (install banner)
 - **"Install the app" now sits at the top of every page.**
   - It opens the install dialog on Android/Chrome.

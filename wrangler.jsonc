@@ -12,7 +12,7 @@
     "not_found_handling": "single-page-application",
     // These reach the Worker before static files: the API, n8n's sync, and
     // pages whose link previews name the event (src/routes/pages.ts).
-    "run_worker_first": ["/", "/api/*", "/internal/*", "/event/*", "/events/*"]
+    "run_worker_first": ["/", "/api/*", "/internal/*", "/event/*", "/events/*", "/images/*"]
   },
   // Don't delete variables set in the dashboard when deploying from Git.
   "keep_vars": true,
@@ -23,6 +23,13 @@
       // rtd-app, created 2026-10-05 in WEUR; 0001_foundation applied.
       "database_id": "6c948ad3-0311-459b-895d-facb14d5697d",
       "migrations_dir": "migrations"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      // Event photos copied from Drive by n8n "RTD Event Images" (created 2026-10-05).
+      "binding": "IMAGES",
+      "id": "0a23bcba51b84a749f7c64935fa53335"
     }
   ],
   "vars": {

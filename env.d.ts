@@ -1,6 +1,8 @@
 declare namespace Cloudflare {
   interface Env {
     DB: D1Database;
+    /** Event photo bytes (src/images/store.ts). */
+    IMAGES: KVNamespace;
     /** The built web app (web/dist). */
     ASSETS: Fetcher;
     /** Where events happen, for calendar files. */

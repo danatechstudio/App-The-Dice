@@ -63,6 +63,26 @@ Key/value pairs for the app:
 
 n8n's own settings (café email) live in the n8n data table `rtd_config`.
 
+## event_images
+
+Added in `0002_event_images.sql`. These are event photos copied from each event's Google Drive photo folder by the n8n workflow **RTD Event Images**.
+- **Where things live:** the bytes are in Workers KV (binding `IMAGES`, key `img:<image_id>`); this table links photos to events.
+
+| Column | Notes |
+| --- | --- |
+| `event_id` | The event the photo belongs to |
+| `source`, `source_id` | `drive` and the Drive file id. Together with `event_id`, this is the primary key. |
+| `source_name` | The Drive file name, for people reading the table |
+| `sort` | Display order: newest first |
+| `image_id` | The first 32 hex characters of the SHA-256 of the stored bytes. It is NULL while the photo is listed but not yet uploaded. |
+| `content_type`, `bytes` | What was stored (sniffed from the bytes, not trusted from headers) |
+
+**Rules:**
+- **Up to 8 photos per event.**
+- **Shared photos:** two events sharing a folder share stored bytes. Bytes are deleted only when no event uses them.
+- **Visibility:** photos of hidden or inactive events are removed at the next image sync. They are never served meanwhile.
+- **Audit:** additions and removals are written to `audit_log` (`image.added`, `image.removed`, source `drive_images`).
+
 ## Coming in later phases
 
 `bookings`, `waitlist`, `hosts` profile fields, `host_applications`, `event_requests` (host submissions before approval), `games`, `game_of_week`, `push_subscriptions`, `notifications`. They are designed in the spec (§15, §18, §24, §29, §47) and will be added as new numbered migrations.

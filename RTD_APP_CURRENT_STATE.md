@@ -34,9 +34,17 @@ _Last updated: 2026-10-05_
   - **Install banner** at the top of every page: Install on Android/Chrome, step-by-step help on iPhone, and "open in your browser" in Facebook/Instagram. "Not now" hides it for 14 days.
 - **Logo assets** cut from the reference without redrawing: logo, dice mark, app/maskable/Apple icons, favicon, share image (`npm run brand:assets`).
 - **Checked:**
-  - **Tests:** 125 passing, including WCAG contrast for 24 colour pairings.
+  - **Tests:** 136 passing, including WCAG contrast for 24 colour pairings.
   - **Screens:** screenshots at 320 / 375 / 430 / 768 / 1280px, no horizontal scroll or console errors.
   - **Accessibility:** reduced motion makes the roll instant, keyboard skip link, no tap target under 40px.
+
+## Event photos (added 2026-10-05)
+- **What it does:** **RTD Event Images** (n8n, every 6 hours) copies the newest 8 photos from each visible event's Drive **Photo Folder ID** into the app, resized by Google to 1400px WebP.
+- **Where they show:** cards, event pages (with a "From past sessions" gallery), the splash and shared-link previews.
+- **Storage:** Workers KV (`rtd-app-images`).
+- **Photos from previous runs** are removed when they leave the folder, or when the event is hidden.
+- **To keep a photo out:** put `noapp` (or `private`) in its file name.
+- **Events without photos keep the navy panel.** Home Education's folder is empty, and Standard Diary groups have no folder.
 
 ## Incomplete
 - **Phase 2 leftovers:** privacy-friendly analytics (needs a Cloudflare Web Analytics token, or we use our own counts).
@@ -44,7 +52,6 @@ _Last updated: 2026-10-05_
 - **Roll Me a Game and Game of the Week** use a labelled *preview shelf* of sample games until Phase 4 brings the café's inventory.
 
 ## Known issues
-- **Event artwork:** events have no images in the app yet, so each shows the branded navy panel. RTD Master V1's posters (on ImageKit) can feed in once their URLs are in the sheet.
 - **Secrets in RTD Master V1:** the ImageKit private key and the Meta page access token are hard-coded. Rotate both (S1).
 - **Website webhook:** `RTD Cafe Website Requests` is public and unvalidated (S3).
 - **Event Guard local edit:** the new Monthly node must be mirrored in `rtd-poster-automation`, or its next build will undo it.

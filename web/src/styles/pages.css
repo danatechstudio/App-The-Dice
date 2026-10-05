@@ -438,3 +438,110 @@
   flex: none;
   margin-top: 2px;
 }
+
+/* ---------- Event photo gallery ---------- */
+
+.gallery {
+  display: grid;
+  gap: var(--rtd-space-3);
+  margin-top: var(--rtd-space-6);
+}
+
+.gallery .label {
+  color: var(--rtd-accent-strong);
+}
+
+.gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--rtd-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 768px) {
+  .gallery__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.gallery__thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--rtd-radius-sm);
+  background: var(--rtd-primary);
+  cursor: zoom-in;
+  transition: transform var(--rtd-duration-fast) var(--rtd-ease-standard);
+}
+
+.gallery__thumb:hover {
+  transform: translateY(-2px);
+}
+
+.gallery__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 35%;
+}
+
+.lightbox {
+  position: fixed;
+  z-index: 130;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--rtd-space-7) var(--rtd-space-3);
+  background: rgb(6 22 38 / 0.94);
+  color: var(--rtd-text-inverse);
+}
+
+.lightbox__img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--rtd-radius-sm);
+  object-fit: contain;
+  box-shadow: 0 0 0 3px var(--rtd-surface-elevated);
+}
+
+.lightbox__close {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + var(--rtd-space-3));
+  right: var(--rtd-space-3);
+}
+
+.lightbox__prev,
+.lightbox__next {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgb(6 22 38 / 0.6);
+}
+
+.lightbox__prev {
+  left: var(--rtd-space-3);
+}
+
+.lightbox__next {
+  right: var(--rtd-space-3);
+}
+
+.lightbox__count {
+  position: absolute;
+  bottom: calc(env(safe-area-inset-bottom) + var(--rtd-space-4));
+  left: 0;
+  right: 0;
+  font-size: var(--rtd-size-meta);
+  font-weight: 700;
+  text-align: center;
+}
+
+.lightbox:focus-visible,
+.lightbox :focus-visible {
+  outline-color: var(--rtd-focus-inverse);
+}

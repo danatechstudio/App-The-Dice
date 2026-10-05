@@ -72,6 +72,10 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | GET | `/api/occurrences/:occurrenceId` | none | Deep link. Still returns cancelled/rescheduled status so old links explain themselves |
 | GET | `/api/occurrences/:occurrenceId/calendar.ics` | none | Add to Calendar file (scheduled occurrences only) |
 | GET | `/api/occurrences/:occurrenceId/google-calendar` | none | Redirect to a prefilled Google Calendar event |
+| GET | `/images/:imageId` | none | An event photo from KV. Served only while its event is visible; cached for a year (content-addressed). |
+| GET | `/internal/images/plan` | bearer | Events that want photos, with their Drive folder |
+| POST | `/internal/images/sync` | bearer | Each event's chosen Drive files. Removes the rest and answers with the uploads still needed. |
+| PUT | `/internal/images/:eventId/:fileId` | bearer | One resized photo (JPEG/PNG/WebP/GIF/AVIF, max 5 MB), only for a file the sync listed |
 | POST | `/internal/sync/logic-engine` | bearer `INTERNAL_SYNC_TOKEN` | n8n snapshot of the sheet tabs |
 | GET | `/api/staff/me` | Access + staff/admin | Who am I |
 | GET | `/api/staff/sync-runs` | Access + staff/admin | Last 50 sync runs with warnings |
@@ -84,9 +88,18 @@ Static files in `web/dist` are served directly; unknown paths fall back to the a
 | Path | What the Worker does |
 | --- | --- |
 | `/`, `/event/:occurrenceId`, `/events/:eventId` | Serves the app shell with link-preview tags (title, description, image, URL) for that event, so shared links show the event. Unknown or hidden events get the shell with a 404 status. |
-| `/api/*`, `/internal/*` | API, as above |
+| `/api/*`, `/internal/*`, `/images/*` | API and photos, as above |
 
 The **service worker** caches the app shell and the last diary it saw, so the diary opens offline. It never touches `/api/staff` or `/internal`.
+
+## Event photos
+
+- **Where they live:** photos are copied into the app, not linked to Drive. This means they load fast and nothing in Drive has to be shared publicly. The bytes are in Workers KV.
+- **How they are chosen and shown:**
+  - Each occurrence shows one of its event's photos, picked by a hash of the occurrence id, so different dates of a weekly club show different photos.
+  - Event pages show the whole set in a gallery.
+  - A manual `image_override` / `default_image` always wins.
+- **Why KV, not R2:** R2 isn't enabled on the account. KV's free tier (1 GB, 1,000 writes and 100,000 reads a day) is ample, because photos are only written when folders change, and browsers cache them for a year.
 
 ## Code map
 
@@ -100,10 +113,11 @@ The **service worker** caches the app shell and the last diary it saw, so the di
 | `src/sync/apply.ts` | Payload validation, circuit breaker, atomic write |
 | `src/lib/queries.ts` | Shared public-read SQL (visibility rules) |
 | `src/lib/calendar.ts` | `.ics` and Google Calendar links |
+| `src/images/store.ts` | Event photos: plan, sync, upload (type sniffing, content hashing), serving, per-date picking |
 | `src/routes/*` | Public, internal, staff endpoints and app pages (link previews) |
 | `web/` | The PWA: `src/theme` (tokens), `src/styles`, `src/components`, `src/pages`, `public` (icons, manifest, service worker). See [RTD_APP_THEME.md](RTD_APP_THEME.md). |
 | `migrations/` | D1 schema |
-| `test/` | 125 tests, run inside the Workers runtime against a real local D1 |
+| `test/` | 136 tests, run inside the Workers runtime against a real local D1 and KV |
 
 ## Future compatibility
 

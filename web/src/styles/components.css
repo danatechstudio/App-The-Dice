@@ -434,6 +434,8 @@ a.card:active {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* Most café photos are portrait, with people in the upper half. */
+  object-position: 50% 35%;
 }
 
 /* Keeps chips and titles readable over busy posters. */

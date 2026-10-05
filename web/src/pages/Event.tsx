@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { Chip, ChipRow, occurrenceChips } from '../components/Chips';
 import { eventHref } from '../components/EventCard';
 import { EventArt } from '../components/EventArt';
+import { Gallery } from '../components/Gallery';
 import { DiceLoader, EmptyState, ErrorState } from '../components/States';
 import { useApi, type EventSummary, type Occurrence } from '../lib/api';
 import { CATEGORY } from '../lib/categories';
@@ -22,7 +23,13 @@ export function EventPage({ occurrenceId }: { occurrenceId: string }) {
   if (res.loading && !o) return <DiceLoader label="Finding that event..." />;
   if (res.error?.status === 404) return <MissingEvent />;
   if (!o) return <ErrorState error={res.error} onRetry={res.reload} />;
-  return <EventDetail o={o} others={(series.data?.occurrences ?? []).filter(x => x.occurrence_id !== o.occurrence_id)} />;
+  return (
+    <EventDetail
+      o={o}
+      others={(series.data?.occurrences ?? []).filter(x => x.occurrence_id !== o.occurrence_id)}
+      images={o.images ?? series.data?.event.images ?? []}
+    />
+  );
 }
 
 /** /events/:eventId — an evergreen link to an event: shows its next date. */
@@ -42,7 +49,7 @@ export function SeriesPage({ eventId }: { eventId: string }) {
       </div>
     );
   }
-  return <EventDetail o={next} others={others} />;
+  return <EventDetail o={next} others={others} images={res.data.event.images ?? []} />;
 }
 
 function MissingEvent() {
@@ -55,7 +62,7 @@ function MissingEvent() {
   );
 }
 
-function EventDetail({ o, others }: { o: Occurrence; others: Occurrence[] }) {
+function EventDetail({ o, others, images }: { o: Occurrence; others: Occurrence[]; images: string[] }) {
   const today = todayLondon();
   const cancelled = o.status === 'cancelled';
   const moved = o.status === 'rescheduled';
@@ -115,6 +122,7 @@ function EventDetail({ o, others }: { o: Occurrence; others: Occurrence[] }) {
             )}
             {o.description && <p class="event-page__desc reading">{o.description}</p>}
           </div>
+          <Gallery images={images} name={o.name} />
         </article>
 
         <aside class="event-page__side">

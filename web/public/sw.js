@@ -6,6 +6,7 @@
 
 const SHELL = 'rtd-shell-v1';
 const RUNTIME = 'rtd-runtime-v1';
+// Event photos (/images/<hash>) never change at a URL, so they are cached for good.
 const PRECACHE = ['/', '/manifest.webmanifest', '/brand/rtd-logo.webp', '/brand/rtd-dice-mark.webp', '/icons/icon-192.png'];
 
 self.addEventListener('install', event => {
@@ -61,7 +62,7 @@ self.addEventListener('fetch', event => {
     event.respondWith(cacheFirst(request));
   } else if (isPublicApi(url.pathname) && !url.pathname.endsWith('.ics')) {
     event.respondWith(networkFirst(request));
-  } else if (url.pathname.startsWith('/brand/') || url.pathname.startsWith('/icons/')) {
+  } else if (url.pathname.startsWith('/brand/') || url.pathname.startsWith('/icons/') || url.pathname.startsWith('/images/')) {
     event.respondWith(cacheFirst(request));
   }
 });

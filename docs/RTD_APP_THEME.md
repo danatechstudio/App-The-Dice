@@ -143,6 +143,7 @@ Staff Control swaps headings to the interface font (`--rtd-heading-font`).
 | **Event card** | Artwork (16:9) with status chips over it, an Arvo title clamped to 2 lines, a "when" line with a calendar icon, a 2-line description and "VIEW →". The whole card is one link, and lifts 2px on hover. |
 | **Feature event** | Same card at a larger size: 3:2 art, with art and text side by side from tablet up. |
 | **Diary ticket** | A navy tear-off stub holding the start time ("6:30 PM", or "TBC"), punched notches, and a body with chips, title, category, time range and description. Cancelled tickets turn the stub red and strike through the title. |
+| **Event photos** | Café photos from each event's Drive folder fill the artwork, cropped to keep people in the upper half in view (`object-position: 50% 35%`). The event page adds a **"From past sessions"** gallery that opens a full-screen viewer (arrows, swipe, Escape). |
 | **Event art fallback** | A navy panel with faint pips, and the category icon on a die-cut sticker. The sticker's angle varies by event, like dice that have just landed. Real posters replace it, with a navy gradient keeping chips and titles readable. |
 | **Game cards** | The reveal card has an orange "THE DICE HAVE SPOKEN" band (striped for Chaos). Game of the Week has a navy band with orange stars, a "WHY WE PICKED IT" panel and roll-again. Shelf rows show a knight tile. |
 | **Promo cards (Home)** | Roll (navy feature card), Game of the Week, Book a session. |
@@ -262,6 +263,7 @@ Mobile-first. Checked with automated screenshots at **320, 375, 430, 768 and 128
 | Screen | Data |
 | --- | --- |
 | Home, Diary, Event pages, Splash | **Live**, from the Logic Engine sync |
+| Event photos | **Live**, from each event's Drive photo folder (n8n "RTD Event Images", every 6 hours) |
 | Roll Me a Game, Games, Game of the Week | **Preview shelf** of 10 well-known games (`web/src/data/preview-games.ts`), labelled "Preview" on screen. Replaced by the café's own inventory in Phase 4. |
 | Book | An honest "online booking is on its way" notice and the next timed events |
 | Become a Host | Landing page ("RUN THE TABLE"). The application form arrives in Phase 7. |
