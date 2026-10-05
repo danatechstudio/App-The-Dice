@@ -57,9 +57,9 @@ _Last updated: 2026-10-05_
   - **Open sessions** show in full, with price and max players.
   - **Private sessions** show as "Private session" only.
 - **Advertising:** open sessions appear in the evening and weekly round-up posts. Private ones never appear in posts or get posters: RTD Master V1 and Event Guard were changed to skip `App Visibility = Private`.
-- **Next:**
-  - n8n adds approved sessions to Event Index (new columns App Price, App Capacity and App Host Session), so they reach the diary through the normal sync.
-  - n8n emails the café about each new submission.
+- **Tested live:** Dan signed in, created a session and withdrew it (5 Oct). A real approval through to the diary hasn't happened yet.
+
+**What's left for production:** see [docs/RTD_PRODUCTION_READINESS.md](docs/RTD_PRODUCTION_READINESS.md).
 
 ## Incomplete
 - **Phase 2 leftovers:** privacy-friendly analytics (needs a Cloudflare Web Analytics token, or we use our own counts).

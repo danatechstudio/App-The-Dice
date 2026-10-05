@@ -44,6 +44,7 @@ npm run dev         # builds the app and serves everything on http://localhost:8
 | [`docs/RTD_APP_ARCHITECTURE.md`](docs/RTD_APP_ARCHITECTURE.md) | Hosting decision, data flow, occurrence rules, API |
 | [`docs/RTD_DATABASE_SCHEMA.md`](docs/RTD_DATABASE_SCHEMA.md) | Tables and columns |
 | [`docs/RTD_HOST_PORTAL.md`](docs/RTD_HOST_PORTAL.md) | Host organiser: sessions, approvals, sign-in |
+| [`docs/RTD_PRODUCTION_READINESS.md`](docs/RTD_PRODUCTION_READINESS.md) | Feature status and what's needed to go into production |
 | [`docs/RTD_APP_THEME.md`](docs/RTD_APP_THEME.md) | Visual theme: brand reference, colours, type, components, accessibility |
 | [`docs/RTD_N8N_WORKFLOWS.md`](docs/RTD_N8N_WORKFLOWS.md) | n8n changes made, rollback points, planned sync workflow |
 | [`docs/RTD_DEPLOYMENT.md`](docs/RTD_DEPLOYMENT.md) | One-off Cloudflare setup |
