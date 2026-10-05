@@ -39,7 +39,8 @@ _Last updated: 2026-10-05_
   - **Accessibility:** reduced motion makes the roll instant, keyboard skip link, no tap target under 40px.
 
 ## Event photos (added 2026-10-05)
-- **What it does:** **RTD Event Images** (n8n, every 6 hours) copies the newest 8 photos from each visible event's Drive **Photo Folder ID** into the app, resized by Google to 1400px WebP.
+- **What it does:** **RTD Event Images** (n8n, every 6 hours, live) copies the newest 8 photos from each visible event's Drive **Photo Folder ID** into the app, resized by Google to 1400px (WebP; PNG posters as JPEG).
+  - **Live now:** 65 photos across 9 events, about 10.6 MB.
 - **Where they show:** cards, event pages (with a "From past sessions" gallery), the splash and shared-link previews.
 - **Storage:** Workers KV (`rtd-app-images`).
 - **Photos from previous runs** are removed when they leave the folder, or when the event is hidden.
