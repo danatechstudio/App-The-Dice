@@ -80,6 +80,9 @@ describe('POST /internal/sync/logic-engine', () => {
     expect(active?.n).toBe(5); // unchanged
     const empty = await sync({ run_id: 'empty', sources: { event_index: [] } });
     expect(empty.status).toBe(409);
+    // n8n retrying the same run must not turn a refusal into a success
+    const retry = await sync({ run_id: 'broken-read', sources: { event_index: rows().slice(0, 2) } });
+    expect(retry.status).toBe(409);
   });
 
   it('records occurrence history across days', async () => {

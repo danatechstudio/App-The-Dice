@@ -66,7 +66,9 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
     .bind(payload.run_id)
     .first<Omit<SyncResult, 'warnings'> & { warnings: string | null }>();
   if (prior) {
-    return { ...prior, status: 'duplicate', warnings: prior.warnings ? JSON.parse(prior.warnings) : [] };
+    // A retried run gets its original outcome; a refused snapshot must stay refused.
+    const status = prior.status === 'rejected' ? 'rejected' : 'duplicate';
+    return { ...prior, status, warnings: prior.warnings ? JSON.parse(prior.warnings) : [] };
   }
 
   // --- normalise ---
