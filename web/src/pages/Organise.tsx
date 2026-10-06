@@ -1,10 +1,11 @@
-import { CalendarDays, Check, Clock, Lock, LogOut, Minus, Plus, PoundSterling, Repeat, Send, UserPlus, UsersRound, X } from 'lucide-preact';
+import { CalendarDays, Check, Clock, Lock, LogOut, Minus, Plus, PoundSterling, Repeat, Send, UserMinus, UserPlus, UsersRound, X } from 'lucide-preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { Chip, type ChipKind } from '../components/Chips';
 import { DiceLoader, EmptyState } from '../components/States';
 import { addDays, dayOfMonth, daysBetween, monthShort, shortDate, timeRange, todayLondon, weekday } from '../lib/dates';
 import { SIGN_IN_URL, hostApi, type Access, type Frequency, type HostRecord, type HostSession, type HostUser, type SessionStatus } from '../lib/hostApi';
 import { toast } from '../lib/toast';
+import { JoinRequests, JoinScreen, TeamPanel, removeAccess } from './OrganiseTeam';
 import { useTitle } from '../lib/title';
 
 const STATUS: Record<SessionStatus, { chip: ChipKind; label: string; note: string }> = {
@@ -27,7 +28,7 @@ function nextDate(s: HostSession, today: string): string {
 }
 
 type SignedOut = { state: 'signed-out' | 'not-host' | 'error'; message: string; reason?: string };
-type Gate = { state: 'loading' } | SignedOut | { state: 'ok'; user: HostUser; canReview: boolean };
+type Gate = { state: 'loading' } | SignedOut | { state: 'ok'; user: HostUser; canReview: boolean; isAdmin: boolean };
 
 /** /organise: the host organiser. Signing in goes through Cloudflare Access (SIGN_IN_URL). */
 export function Organise() {
@@ -48,9 +49,9 @@ export function Organise() {
   }, []);
 
   useEffect(() => {
-    hostApi<{ user: HostUser; can_review: boolean }>('/api/host/me').then(res => {
+    hostApi<{ user: HostUser; can_review: boolean; is_admin: boolean }>('/api/host/me').then(res => {
       if (res.ok) {
-        setGate({ state: 'ok', user: res.data.user, canReview: res.data.can_review });
+        setGate({ state: 'ok', user: res.data.user, canReview: res.data.can_review, isAdmin: res.data.is_admin });
         loadSessions();
       } else setGate({ state: res.kind === 'invalid' ? 'error' : res.kind, message: res.error, reason: res.reason });
     });
@@ -61,6 +62,8 @@ export function Organise() {
   }, [sessions]);
 
   if (gate.state === 'loading') return <DiceLoader label="Opening the organiser..." />;
+  // Signed in, but no access yet: onboarding (ask to host or join the café team).
+  if (gate.state === 'not-host') return <JoinScreen />;
   if (gate.state !== 'ok') return <Gatekeeper gate={gate} justSignedIn={justSignedIn} />;
 
   const today = todayLondon();
@@ -70,7 +73,7 @@ export function Organise() {
     <div class="container organiser" data-surface="host">
       <header class="page-head organiser__head">
         <div>
-          <p class="label">Host dashboard</p>
+          <p class="label">{gate.user.role === 'host' ? 'Host dashboard' : 'Café team'}</p>
           <h1>Welcome back{gate.user.display_name ? `, ${gate.user.display_name}` : ''}</h1>
         </div>
         <a class="btn btn--text btn--sm" href="/cdn-cgi/access/logout">
@@ -122,7 +125,7 @@ export function Organise() {
         )}
       </div>
 
-      {gate.canReview && <StaffDesk onDecided={loadSessions} />}
+      {gate.canReview && <StaffDesk onDecided={loadSessions} me={gate.user} isAdmin={gate.isAdmin} />}
     </div>
   );
 }
@@ -136,18 +139,6 @@ function sortForHost(list: HostSession[], today: string): HostSession[] {
 }
 
 function Gatekeeper({ gate, justSignedIn }: { gate: SignedOut; justSignedIn: boolean }) {
-  if (gate.state === 'not-host') {
-    return (
-      <div class="container" data-surface="host">
-        <EmptyState title="You're not set up as a host yet." text="Ask the café team to add you, using the email address you signed in with.">
-          <div class="cluster" style={{ justifyContent: 'center' }}>
-            <a class="btn btn--primary" href="/host">Become a game host</a>
-            <a class="btn btn--text" href="/cdn-cgi/access/logout">Sign in with another email</a>
-          </div>
-        </EmptyState>
-      </div>
-    );
-  }
   if (gate.state === 'signed-out') {
     // Straight back from signing in yet still signed out: say so rather than
     // send them round the same loop.
@@ -436,8 +427,8 @@ function SessionForm({ onDone }: { onDone: (created: boolean) => void }) {
   );
 }
 
-/** Staff only: sessions waiting for a decision, and the host list. */
-function StaffDesk({ onDecided }: { onDecided: () => void }) {
+/** Staff only: join requests, sessions waiting for a decision, hosts; admins also see the café team. */
+function StaffDesk({ onDecided, me, isAdmin }: { onDecided: () => void; me: HostUser; isAdmin: boolean }) {
   const [pending, setPending] = useState<HostSession[] | null>(null);
   const [hosts, setHosts] = useState<HostRecord[] | null>(null);
   const load = useCallback(async () => {
@@ -452,9 +443,10 @@ function StaffDesk({ onDecided }: { onDecided: () => void }) {
 
   return (
     <div data-surface="staff" class="staff-desk">
+      <JoinRequests onDecided={load} />
       <section class="section" aria-labelledby="awaiting">
         <div class="section-head">
-          <h2 id="awaiting">Awaiting approval {pending && pending.length > 0 && <span class="count-badge">{pending.length}</span>}</h2>
+          <h2 id="awaiting">Sessions awaiting approval {pending && pending.length > 0 && <span class="count-badge">{pending.length}</span>}</h2>
         </div>
         {pending === null && <DiceLoader label="Loading submissions..." />}
         {pending && !pending.length && <p class="meta">Nothing waiting. New submissions from hosts appear here.</p>}
@@ -472,6 +464,7 @@ function StaffDesk({ onDecided }: { onDecided: () => void }) {
         </div>
       </section>
       <HostsPanel hosts={hosts} onAdded={load} />
+      {isAdmin && <TeamPanel me={me} />}
     </div>
   );
 }
@@ -545,23 +538,29 @@ function HostsPanel({ hosts, onAdded }: { hosts: HostRecord[] | null; onAdded: (
       </div>
       <div class="hosts-grid">
         <div class="table-wrap">
-          <table class="table">
+          <table class="table table--stack">
             <thead>
               <tr>
                 <th>Name</th>
                 <th>Email</th>
+                <th><span class="visually-hidden">Actions</span></th>
               </tr>
             </thead>
             <tbody>
-              {hosts?.map(h => (
+              {hosts?.filter(h => h.active).map(h => (
                 <tr key={h.user_id}>
                   <td>{h.display_name ?? '—'}</td>
                   <td>{h.email}</td>
+                  <td class="table__action">
+                    <button type="button" class="btn btn--text btn--sm" onClick={async () => (await removeAccess(h, 'a host')) && onAdded()}>
+                      <UserMinus size={16} aria-hidden="true" /> Remove
+                    </button>
+                  </td>
                 </tr>
               ))}
-              {hosts && !hosts.length && (
+              {hosts && !hosts.some(h => h.active) && (
                 <tr>
-                  <td colSpan={2}>No hosts yet.</td>
+                  <td colSpan={3}>No hosts yet.</td>
                 </tr>
               )}
             </tbody>

@@ -37,6 +37,32 @@ export interface HostSession {
   event_id: string | null;
 }
 
+/** A request to host games or join the café team (docs/RTD_ONBOARDING.md). */
+export interface Application {
+  application_id: string;
+  email: string;
+  display_name: string;
+  role: 'host' | 'staff';
+  about: string;
+  status: 'pending' | 'approved' | 'declined' | 'withdrawn';
+  decision_note: string | null;
+  decided_at: string | null;
+  created_at: string;
+}
+
+export interface JoinMe {
+  email: string;
+  has_access: boolean;
+  application: Application | null;
+}
+
+export interface TeamMember {
+  user_id: string;
+  email: string;
+  display_name: string | null;
+  role: HostRole;
+}
+
 export interface HostRecord {
   user_id: string;
   email: string;

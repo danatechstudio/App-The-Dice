@@ -16,7 +16,7 @@ hostRoutes.use('*', requireRole('host', 'staff'));
 
 hostRoutes.get('/me', c => {
   const user = c.get('user');
-  return c.json({ user, can_review: user.role === 'staff' || user.role === 'admin' });
+  return c.json({ user, can_review: user.role === 'staff' || user.role === 'admin', is_admin: user.role === 'admin' });
 });
 
 hostRoutes.get('/sessions', async c => c.json({ sessions: await listSessions(c.env.DB, { hostUserId: c.get('user').user_id }) }));

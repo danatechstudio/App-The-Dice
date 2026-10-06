@@ -85,6 +85,17 @@ export function requireRole(...roles: Role[]): MiddlewareHandler<{ Bindings: Env
   };
 }
 
+/**
+ * Requires only a valid Access sign-in, whether or not the person has access
+ * yet: onboarding (/api/join) is for people asking for it.
+ */
+export const requireSignedIn: MiddlewareHandler<{ Bindings: Env; Variables: { email: string } }> = async (c, next) => {
+  const who = await signedIn(c.req.raw, c.env);
+  if (who.email === null) return c.json({ error: 'Sign-in required', reason: who.reason }, 401);
+  c.set('email', who.email);
+  await next();
+};
+
 export type BearerCheck = 'ok' | 'not_configured' | 'missing' | 'malformed' | 'mismatch';
 
 /**

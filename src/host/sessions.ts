@@ -367,6 +367,45 @@ export async function markCafeNotified(db: D1Database, id: string, now: string):
   return row ? 'already' : 'not_found';
 }
 
+/**
+ * Sessions the café decided on in the last fortnight whose host hasn't been
+ * emailed yet. An approved session may already be Live by the time n8n looks.
+ */
+export async function decidedSessionsForHosts(db: D1Database, today: string) {
+  const { results } = await db
+    .prepare(
+      `SELECT s.session_id, s.name, s.event_date, s.start_time, s.end_time, s.frequency, s.access, s.status,
+         s.decision_note, u.email AS host_email, u.display_name AS host_name
+       FROM host_sessions s JOIN users u ON u.user_id = s.host_user_id
+       WHERE s.decided_at IS NOT NULL AND s.host_notified_at IS NULL AND s.decided_at >= ?1
+         AND s.status IN ('approved', 'published', 'declined') AND u.active = 1
+       ORDER BY s.decided_at, s.session_id LIMIT 50`,
+    )
+    .bind(addDays(today, -14))
+    .all<PublishRow & { status: SessionStatus; decision_note: string | null; host_name: string | null }>();
+  return results.map(s => ({
+    session_id: s.session_id,
+    name: s.name,
+    approved: s.status !== 'declined',
+    private: s.access === 'private',
+    when: sessionWhen(s),
+    time: s.end_time ? `${s.start_time}–${s.end_time}` : s.start_time,
+    decision_note: s.decision_note,
+    host_email: s.host_email,
+    host_first_name: s.host_name?.trim().split(/\s+/)[0] || 'there',
+  }));
+}
+
+export async function markHostNotified(db: D1Database, id: string, now: string): Promise<'ok' | 'already' | 'not_found'> {
+  const res = await db
+    .prepare('UPDATE host_sessions SET host_notified_at = ?2 WHERE session_id = ?1 AND host_notified_at IS NULL')
+    .bind(id, now)
+    .run();
+  if (res.meta.changes) return 'ok';
+  const row = await db.prepare('SELECT 1 FROM host_sessions WHERE session_id = ?1').bind(id).first();
+  return row ? 'already' : 'not_found';
+}
+
 /** Hosts, newest first, for the staff section of the organiser. */
 export async function listHosts(db: D1Database) {
   const { results } = await db

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { readImage } from './images/store';
 import { hostRoutes } from './routes/host';
 import { internalRoutes } from './routes/internal';
+import { joinRoutes } from './routes/join';
 import { pageRoutes } from './routes/pages';
 import { publicRoutes } from './routes/public';
 import { staffRoutes } from './routes/staff';
@@ -48,6 +49,7 @@ app.get('/api/staff/sign-in', c => {
 app.route('/api', publicRoutes);
 app.route('/api/staff', staffRoutes);
 app.route('/api/host', hostRoutes);
+app.route('/api/join', joinRoutes);
 app.route('/internal', internalRoutes);
 // App pages the Worker answers first (wrangler.jsonc run_worker_first): link previews.
 app.route('/', pageRoutes);

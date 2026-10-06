@@ -3,6 +3,7 @@
 import { Hono } from 'hono';
 import { addHost, decideSession, listHosts, listSessions, type SessionStatus } from '../host/sessions';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
+import { decideApplication, listApplications, listTeam, removeAccess, type ApplicationStatus } from '../team/applications';
 
 export const staffRoutes = new Hono<{ Bindings: Env; Variables: { user: AuthUser } }>();
 
@@ -73,4 +74,34 @@ staffRoutes.get('/hosts', async c => c.json({ hosts: await listHosts(c.env.DB) }
 staffRoutes.post('/hosts', async c => {
   const result = await addHost(c.env.DB, c.get('user'), await c.req.json().catch(() => null), new Date().toISOString());
   return result.ok ? c.json({ host: result.host }, 201) : c.json({ error: 'Please check the form', errors: result.errors }, result.status);
+});
+
+// --- Onboarding: join requests, the café team, removing access (docs/RTD_ONBOARDING.md) ---
+
+/** Join requests this reviewer may decide: staff see host requests; admins also see café team requests. */
+staffRoutes.get('/applications', async c => {
+  const status = c.req.query('status') ?? 'pending';
+  if (!['pending', 'approved', 'declined', 'withdrawn'].includes(status)) return c.json({ error: 'Unknown status' }, 400);
+  return c.json({ applications: await listApplications(c.env.DB, c.get('user'), status as ApplicationStatus) });
+});
+
+/** Approve or decline a join request. Body: { decision: 'approve' | 'decline', note? } */
+staffRoutes.post('/applications/:id/decision', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { decision?: string; note?: unknown };
+  if (body.decision !== 'approve' && body.decision !== 'decline') return c.json({ error: "decision must be 'approve' or 'decline'" }, 400);
+  const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim().slice(0, 500) : null;
+  const result = await decideApplication(c.env.DB, c.get('user'), c.req.param('id'), body.decision, note, new Date().toISOString());
+  return result.ok ? c.json({ application: result.application }) : c.json({ error: result.error }, result.status);
+});
+
+/** The café team (staff and admins): admins only. */
+staffRoutes.get('/team', async c => {
+  if (c.get('user').role !== 'admin') return c.json({ error: 'Admins only' }, 403);
+  return c.json({ team: await listTeam(c.env.DB) });
+});
+
+/** Remove someone's access: staff remove hosts, admins also remove staff. */
+staffRoutes.post('/users/:id/remove', async c => {
+  const result = await removeAccess(c.env.DB, c.get('user'), c.req.param('id'), new Date().toISOString());
+  return result.ok ? c.json({ ok: true }) : c.json({ error: result.error }, result.status);
 });

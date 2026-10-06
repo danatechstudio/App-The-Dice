@@ -36,16 +36,20 @@ export function Host() {
           <p class="meta">One-off or regular. The café team checks each session before it goes live.</p>
         </div>
       </div>
-      <div class="section notice notice--info">
-        <p>
-          <strong>Host applications open soon.</strong> Until then, have a chat with the café team next time you're in.
-        </p>
+      <div class="section card card--pad cluster host-apply" style={{ justifyContent: 'space-between' }}>
+        <div>
+          <h2 class="display" style={{ fontSize: 'var(--rtd-size-h3)' }}>Want to host?</h2>
+          <p class="meta">Sign in with your email, tell us what you'd like to run, and the café team will get back to you.</p>
+        </div>
+        <a class="btn btn--primary" href={SIGN_IN_URL}>
+          Apply to host
+        </a>
       </div>
       <div class="section card card--pad cluster" style={{ justifyContent: 'space-between' }}>
         <p>
-          <strong>Already a host?</strong> Plan your sessions in the organiser.
+          <strong>Already a host, or on the café team?</strong> Plan sessions and approvals in the organiser.
         </p>
-        <a class="btn btn--primary" href={SIGN_IN_URL}>
+        <a class="btn btn--secondary" href={SIGN_IN_URL}>
           Open the organiser
         </a>
       </div>

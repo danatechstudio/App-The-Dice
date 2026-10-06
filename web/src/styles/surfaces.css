@@ -394,12 +394,78 @@
 
 .hosts-grid {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--rtd-space-4);
   align-items: start;
+}
+
+/* People tables (hosts, café team). On phones each row becomes a small card:
+   name, then email and role, with its Remove button beside them. */
+@media (max-width: 639px) {
+  .table--stack thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .table--stack,
+  .table--stack tbody {
+    display: block;
+  }
+
+  .table--stack tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--rtd-space-3);
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--rtd-border);
+  }
+
+  .table--stack tr:last-child {
+    border-bottom: 0;
+  }
+
+  .table--stack td {
+    grid-column: 1;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .table--stack td:first-child {
+    font-weight: 700;
+  }
+
+  .table--stack td + td {
+    color: var(--rtd-text-muted);
+    font-size: var(--rtd-size-meta);
+  }
+
+  .table--stack td.table__action {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    align-self: center;
+  }
 }
 
 @media (min-width: 900px) {
   .hosts-grid {
     grid-template-columns: minmax(0, 1fr) 340px;
   }
+}
+
+/* ---------- Onboarding: join screen (/organise, signed in without access) ---------- */
+
+.join__body {
+  display: grid;
+  gap: var(--rtd-space-5);
+  max-width: 640px;
+}
+
+.host-apply h2 + p {
+  margin-top: 4px;
 }

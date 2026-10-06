@@ -2,10 +2,20 @@
 // n8n credential and the INTERNAL_SYNC_TOKEN Worker secret.
 
 import { Hono } from 'hono';
-import { dueFollowups, markCafeNotified, markFollowupSent, markPublished, newSubmissions, sessionsToPublish } from '../host/sessions';
+import {
+  decidedSessionsForHosts,
+  dueFollowups,
+  markCafeNotified,
+  markFollowupSent,
+  markHostNotified,
+  markPublished,
+  newSubmissions,
+  sessionsToPublish,
+} from '../host/sessions';
 import { MAX_IMAGE_BYTES, imagePlan, parseImageSync, storeImage, syncImages } from '../images/store';
 import { checkBearer } from '../lib/auth';
 import { londonDate } from '../lib/time';
+import { decidedApplicationsForApplicants, markApplicationNotified, newApplicationsForApprovers } from '../team/applications';
 import { applySync, parsePayload } from '../sync/apply';
 
 const MAX_BODY_BYTES = 1_000_000;
@@ -119,6 +129,40 @@ internalRoutes.get('/host-sessions/new-submissions', async c => {
 
 internalRoutes.post('/host-sessions/:id/cafe-notified', async c => {
   const result = await markCafeNotified(c.env.DB, c.req.param('id'), new Date().toISOString());
+  if (result === 'not_found') return c.json({ error: 'No session with that ID' }, 404);
+  return c.json({ ok: true, already: result === 'already' });
+});
+
+// --- Onboarding and decision emails (n8n RTD Team Notices) ---
+
+/** New join requests for their approver: café team → the admins; host → the café address. */
+internalRoutes.get('/applications/new', async c => {
+  const organiserUrl = `${new URL(c.req.url).origin}/organise`;
+  return c.json({ organiser_url: organiserUrl, applications: await newApplicationsForApprovers(c.env.DB) });
+});
+
+/** Decided join requests whose applicant hasn't been told. */
+internalRoutes.get('/applications/decided', async c => {
+  const organiserUrl = `${new URL(c.req.url).origin}/organise`;
+  return c.json({ organiser_url: organiserUrl, applications: await decidedApplicationsForApplicants(c.env.DB, londonDate(new Date())) });
+});
+
+for (const who of ['approver', 'applicant'] as const) {
+  internalRoutes.post(`/applications/:id/${who}-notified`, async c => {
+    const result = await markApplicationNotified(c.env.DB, c.req.param('id'), who, new Date().toISOString());
+    if (result === 'not_found') return c.json({ error: 'No request with that ID' }, 404);
+    return c.json({ ok: true, already: result === 'already' });
+  });
+}
+
+/** Host sessions the café has decided on, for an email to the host. */
+internalRoutes.get('/host-sessions/decided', async c => {
+  const organiserUrl = `${new URL(c.req.url).origin}/organise`;
+  return c.json({ organiser_url: organiserUrl, sessions: await decidedSessionsForHosts(c.env.DB, londonDate(new Date())) });
+});
+
+internalRoutes.post('/host-sessions/:id/host-notified', async c => {
+  const result = await markHostNotified(c.env.DB, c.req.param('id'), new Date().toISOString());
   if (result === 'not_found') return c.json({ error: 'No session with that ID' }, 404);
   return c.json({ ok: true, already: result === 'already' });
 });
