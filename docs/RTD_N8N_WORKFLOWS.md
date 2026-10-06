@@ -4,6 +4,25 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### 2026-10-06 (later): bookings and cancelled dates
+
+Dan's decisions: hosts and café staff join the same way; "email the event host whenever a person books… 2 days before the event to confirm numbers… option to cancel… email any attendees".
+
+| Workflow | Change | New active version | Roll back to |
+| --- | --- | --- | --- |
+| **New:** RTD Outbox (`dJU9NJOh7aisAiFF`) | See [below](#rtd-outbox-dju9njoh7aisaiff). Sends every booking email the app queues. | `a5990c68-8523-4393-bf71-6a225f39da09` | Unpublish it (emails wait in the outbox until it's back) |
+| RTD Host Sessions To Diary (`rdS8LF56B9k170BY`) | **New branch C:** takes cancelled host dates out of Event Index (`GET /internal/host-sessions/sheet-fixes` → update the row matched on `App Host Session` → `POST …/sheet-fixed`). Branches A and B unchanged. | `f7a6d7b7-8077-4b67-a5a0-24a53a16104c` | `58fb14a4-db75-4973-bc8c-efae1b210ff7` |
+| RTD Team Notices (`diKojCurHeRWQjAR`) | No change. Every join request is now a host request, so they all go to the café address. | — | — |
+
+**How it was verified:**
+- **RTD Outbox:**
+  - **First live run** (`20675`): the app answered, and nothing was queued.
+  - **Simulated run** (`20676`): an email meant for the café got the café's address from `rtd_config`, and each email was marked sent.
+- **Branch C:**
+  - **Live run** (`20682`): nothing to fix.
+  - **Simulated run** (`20684`): a one-off went Inactive and a weekly row moved to its next date.
+  - **Not yet run against the real sheet:** the sheet-update node passed n8n's validator. If it ever fails, the error handler emails Dan, and the app offers the same change again on the next run.
+
 ### 2026-10-06: onboarding and decision emails
 
 Dan's decision: "I will be the approving party for staff, Michelle for game hosts and booking requests."
@@ -188,6 +207,14 @@ This workflow does two jobs for the host organiser ([RTD_HOST_PORTAL.md](RTD_HOS
   - **One-offs:** they go Inactive after their date. Event Guard doesn't send the "pick a new date" email for host sessions; the host gets RTD Host Follow-up instead.
   - **Open sessions:** they appear in the evening and weekly round-up posts.
   - **Private sessions:** they never appear in posts. The diary shows them only as "Private session".
+- **C. Cancelled host dates out of Event Index** (added 2026-10-06):
+  1. `GET /internal/host-sessions/sheet-fixes`. The app works out the change for each cancelled date still in the sheet:
+     - **A one-off:** Status `Inactive`.
+     - **A weekly session whose next date is cancelled:** Event Date moves on to the next date that isn't.
+  2. **Update Event Index Row:** updates `Status` and `Event Date` (RAW text) on the row whose `App Host Session` matches.
+  3. `POST /internal/host-sessions/:id/sheet-fixed` with the change's key, so it's made once.
+  - **Why:** RTD Master V1's posts read the sheet, so a cancelled date must leave it.
+  - **Timing:** if Master V1 rolls a weekly row onto a date that's already cancelled, this moves it on again within 15 minutes.
 - **Individual promotion:** a session gets its own hourly Facebook post or a poster only if Michelle adds a prompt (and a photo folder) to its row, as for any other event.
 - **Live since 2026-10-05 22:15** (published).
 - **Errors:** HTTP steps retry 3 times; failures go to `Studio: Error Handler`.
@@ -201,18 +228,15 @@ This workflow sends the onboarding emails and tells hosts what the café decided
 
 - **Triggers:** every 15 minutes (Europe/London), plus **Run By Hand**.
 - **Setup:** reads `RTD_APP_BASE_URL` and `RTD_CAFE_NOTIFICATION_EMAIL` from `rtd_config`, then runs three branches.
-- **A. New join requests, to the approver:**
-  1. `GET /internal/applications/new`. The app says who to email for each request.
-  2. **Who gets it:**
-     - **Host requests:** go to the café address.
-     - **Café team requests:** go to every active admin.
-     - **No recipient:** a request with nobody to email is skipped, and stays unsent until there is one.
+- **A. New join requests, to the approvers:**
+  1. `GET /internal/applications/new`.
+  2. **Who gets it:** the café address. Since 2026-10-06 every request is a request to host, café staff included. The code still handles the old "café team" requests, which went to the admins.
   3. **The email:** subject "New host request: …" or "New café team request: …", with a link to `/organise`. It's sent as "Roll The Dice app", and replies go to the applicant.
   4. `POST /internal/applications/:id/approver-notified`.
 - **B. Outcomes, to the applicant:**
   1. `GET /internal/applications/decided`: approved or declined in the last 14 days, and not yet emailed.
   2. **The email:**
-     - **Subject:** "You are now a Roll The Dice host", "Welcome to the Roll The Dice café team", or "Your Roll The Dice request" (declined, with the note).
+     - **Subject:** "You are now a Roll The Dice host", or "Your Roll The Dice request" (declined, with the note).
      - **Sender and replies:** sent as "Roll The Dice"; replies go to the café.
   3. `POST /internal/applications/:id/applicant-notified`.
 - **C. Session decisions, to the host:**
@@ -235,6 +259,25 @@ This workflow sends the onboarding emails and tells hosts what the café decided
     - **Content:** the outcome and session emails had the right wording for approved, declined and private.
     - **Escaping:** HTML in names and notes was escaped.
 
+## RTD Outbox (`dJU9NJOh7aisAiFF`)
+
+This workflow sends the emails the app writes for bookings ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#emails-the-outbox)). The app decides who gets what and writes each email; this workflow only delivers them.
+
+- **Triggers:** every 5 minutes (Europe/London), plus **Run By Hand**.
+- **Steps:**
+  1. Read `RTD_APP_BASE_URL` and `RTD_CAFE_NOTIFICATION_EMAIL` from `rtd_config`.
+  2. `POST /internal/outbox/collect`. The app first queues any two-day numbers emails now due (from 09:00), then returns up to 50 unsent emails.
+  3. **Split Emails:** an empty `to` or `reply_to` means the café, so it gets the café address.
+  4. **Send Email:** Gmail (`ATech GMAIL`), sent as "Roll The Dice". If one email fails, the rest still go.
+  5. `POST /internal/outbox/:id/sent` for each one sent.
+  6. **Email Not Sent:** if any email failed, the run then stops with an error naming it, so `Studio: Error Handler` emails Dan. The email stays queued and is tried again in 5 minutes.
+- **What it sends:**
+  - **To the person who booked:** the booking confirmation.
+  - **To the host:** each new booking and cancellation, and the numbers two days before each date.
+  - **When a date is cancelled:** an email to everyone booked, plus one to the café or the host.
+- **Live since 2026-10-06 08:55** (published).
+- **Errors:** collecting and marking retry 3 times; Gmail retries twice.
+
 ## Spec §46 workflow map
 
 | Spec workflow | Covered by |
@@ -242,7 +285,7 @@ This workflow sends the onboarding emails and tells hosts what the café decided
 | RTD – Event Sync | **RTD Event Sync** (above) |
 | RTD – Event Approval | Approval happens in the app's organiser. **RTD Host Sessions To Diary** emails the café; **RTD Team Notices** emails the host the decision. |
 | RTD – Event Expiry & Redating | **Existing** Event Guard + Event Date Change |
-| RTD – Booking Daily Digest | New (Phase 5), reads `rtd_config` |
+| RTD – Booking Daily Digest | Not built yet. Booking emails to hosts and customers go through **RTD Outbox** |
 | RTD – Push Reminder Scheduler | New (Phase 3) |
 | RTD – Game of the Week | New (Phase 4) |
 | RTD – Host Application Notification | **RTD Team Notices** (join requests for hosts and café staff) |

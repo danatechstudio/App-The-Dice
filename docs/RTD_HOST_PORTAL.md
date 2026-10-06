@@ -15,8 +15,9 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 | Approved sessions into the Logic Engine, and so into the diary | **Built** (n8n **RTD Host Sessions To Diary**, see [From approval to the diary](#from-approval-to-the-diary)) |
 | Email the café when a session is submitted | **Built** (same workflow) |
 | Email the host when the café approves or declines | **Built** (n8n **RTD Team Notices**) |
-| Hosts and café staff ask for access themselves | **Built**: see [RTD_ONBOARDING.md](RTD_ONBOARDING.md) |
-| Bookings and attendee lists for hosts | Phase 5 (bookings) |
+| Hosts and café staff ask for access themselves, the same way | **Built**: see [RTD_ONBOARDING.md](RTD_ONBOARDING.md) |
+| Bookings on open sessions, who's coming, and cancelling a date | **Built**: see [RTD_BOOKINGS.md](RTD_BOOKINGS.md) |
+| Host emailed for each booking, and the numbers two days before | **Built** (n8n **RTD Outbox**) |
 
 ## The session form
 
@@ -60,9 +61,9 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 
 | Role | Can |
 | --- | --- |
-| Host | Use `/organise`; create, see and withdraw **their own** sessions |
-| Staff | Everything a host can, plus approve or decline any session, approve host requests, and add or remove hosts |
-| Admin | As staff, plus approve café team requests and remove café team members |
+| Host (everyone who joins, café staff included) | Use `/organise`; create, see and withdraw **their own** sessions; see who's booked; cancel a date. Nothing else. |
+| Approver (role `staff`: Michelle) | Everything a host can, plus approve or decline join requests and sessions, remove hosts, and cancel any hosted date |
+| Admin (Dan) | As an approver, plus choose approvers and remove them |
 
 The `users` table decides roles. Cloudflare Access only proves the email address.
 
@@ -82,9 +83,7 @@ The organiser's **Sign in** button goes to `/api/staff/sign-in`. That path is be
 - **The RTD Staff application's policy decides who may sign in at all.** For hosts to get in, it must include them:
   - **Include → Everyone** (recommended): Access proves the email, and the app's `users` table decides who is a host.
   - **Include → specific emails:** add each host's email to the policy as well.
-- **New hosts:**
-  - **Asking themselves:** they sign in at `/organise` and ask to host, and staff approve them under **Join requests** ([RTD_ONBOARDING.md](RTD_ONBOARDING.md)).
-  - **Added directly:** staff can still use **Add a host** (their name, and the email they'll sign in with).
+- **New hosts:** they sign in at `/organise` and ask to host, and an approver approves them under **Join requests** ([RTD_ONBOARDING.md](RTD_ONBOARDING.md)). There's no way to add someone directly.
 
 **Optional extra layer:** you can also add `organise` and `api/host` as destinations on the same RTD Staff application. It isn't needed.
 
@@ -111,7 +110,9 @@ The n8n workflow **RTD Host Follow-up** (`FFy0lBTZCm4A5p08`, daily at 10:00) ema
 | POST | `/api/host/sessions/:id/withdraw` | the session's host | Withdraw before it's live |
 | GET | `/api/staff/host-sessions?status=` | staff, admin | Sessions by status (default `submitted`) |
 | POST | `/api/staff/host-sessions/:id/decision` | staff, admin | `{ decision: "approve" \| "decline", note? }` |
-| GET / POST | `/api/staff/hosts` | staff, admin | List hosts / add a host `{ email, display_name }` |
+| GET | `/api/staff/hosts` | approver, admin | List hosts |
+| GET | `/api/staff/hosted-dates` | approver, admin | Hosted dates in the next 3 weeks, with bookings ([RTD_BOOKINGS.md](RTD_BOOKINGS.md)) |
+| POST | `/api/host/occurrences/:id/cancel` | the session's host, approver, admin | Cancel one date; everyone booked is emailed |
 | GET | `/api/staff/sign-in` | anyone Access lets in | Redirects to `/organise` after Access sign-in |
 | GET | `/internal/host-sessions/followups` | n8n (bearer token) | One-off sessions due the follow-up email |
 | POST | `/internal/host-sessions/:id/followup-sent` | n8n (bearer token) | Record that the email went out (409 if already) |
@@ -142,4 +143,4 @@ The Logic Engine stays the one master calendar (audit §6). n8n **RTD Host Sessi
    - **Weekly sessions** roll forward each week.
    - **One-offs** go Inactive after their date, without the café's "pick a new date" email: the host gets the follow-up email instead.
 
-**To change a live session:** edit its Event Index row (for example, set Status to `Inactive` to stop it). Hosts can't withdraw a session once it's live.
+**To change a live session:** edit its Event Index row (for example, set Status to `Inactive` to stop it). Hosts can't withdraw a session once it's live, but they can cancel any of its dates in the organiser; people booked are emailed and the date is taken out of the Logic Engine ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#for-hosts-numbers-and-cancelling)).

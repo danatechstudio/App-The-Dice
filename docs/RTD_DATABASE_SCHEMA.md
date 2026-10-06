@@ -119,6 +119,7 @@ Added in `0003_host_sessions.sql`. These are sessions proposed by hosts in the o
 | `decision_note`, `decided_by`, `decided_at` | The staff decision |
 | `event_id` | The Logic Engine event, once published |
 | `host_notified_at` | When n8n emailed the host the café's decision. Added in `0007_onboarding.sql`. |
+| `sheet_fix_sent`, `sheet_fix_sent_at` | The last Event Index change n8n made for a cancelled date (`inactive` or `date:YYYY-MM-DD`), so it's made once (0008) |
 
 ## applications
 
@@ -129,14 +130,48 @@ Added in `0007_onboarding.sql`. These are requests to host games or join the caf
 | `application_id` | `RTD-APP-00001` upwards, assigned in one statement |
 | `email` | The signed-in email address (case-insensitive) |
 | `display_name`, `about` | As entered: 2–60 and 3–500 characters |
-| `role` | `host` or `staff` (the café team) |
+| `role` | Always `host` since 2026-10-06 (`staff` = an old "café team" request) |
 | `status` | `pending` → `approved` / `declined`; `withdrawn` by the applicant |
-| `decision_note`, `decided_by`, `decided_at` | The decision. Staff decide host requests; only admins decide café team requests. |
+| `decision_note`, `decided_by`, `decided_at` | The decision, by an approver or admin |
 | `approver_notified_at`, `applicant_notified_at` | When n8n emailed the approver about the request, and the applicant about the outcome |
 | `created_at`, `updated_at` | |
 
 **Indexes:** `(email, created_at)` for "my latest request" and the 3-a-day limit, and `(status, role)` for the approval queue.
 
+## bookings
+
+Added in `0008_bookings.sql`: places booked on open host sessions ([RTD_BOOKINGS.md](RTD_BOOKINGS.md)). Never deleted.
+
+| Column | Notes |
+| --- | --- |
+| `booking_id` | `RTD-BK-00001` upwards, assigned in the same statement that checks capacity |
+| `occurrence_id` | The date booked |
+| `lead_name`, `email`, `mobile` | Who booked. `mobile` is optional. The host sees only the name; approvers see all three. |
+| `party_size` | 1–10 places. Capacity is the sum of `party_size` over confirmed bookings. |
+| `notes` | Optional note for the host (300 characters) |
+| `status` | `confirmed` or `cancelled` |
+| `cancelled_by`, `cancel_message`, `cancelled_at` | `customer`, `host` or `staff`, and the host's or café's message when they cancelled the date |
+| `cancellation_token_hash` | SHA-256 of the secret in the Manage / Cancel link. The secret itself is never stored. |
+| `ip_hash` | First 32 hex characters of SHA-256 of the requester's IP and the day, only for the 10-an-hour limit |
+| `source` | `app` |
+
+**Indexes:** `(occurrence_id, status)` for capacity, `(email, created_at)` and `(ip_hash, created_at)` for the limits.
+
+## outbox
+
+Added in `0008_bookings.sql`: emails the app has written, waiting for n8n **RTD Outbox** to send them.
+
+| Column | Notes |
+| --- | --- |
+| `message_id` | Order of sending |
+| `dedupe_key` | Unique: each email is queued once (e.g. `booking-confirmed:RTD-BK-00001`, `host-numbers:RTD-OCC-…`) |
+| `kind` | `booking_confirmed`, `host_new_booking`, `host_booking_cancelled`, `host_numbers`, `attendee_date_cancelled`, `cafe_date_cancelled`, `host_date_cancelled` |
+| `to_email`, `reply_to` | NULL means the café address, which only n8n holds (`rtd_config`) |
+| `subject`, `html` | The finished email |
+| `sent_at` | Set by n8n. Sent emails are deleted after 90 days. |
+
+**Also in 0008:** `occurrences.cancelled_by` (`host` or `staff`) for a date cancelled in the organiser. A cancelled occurrence keeps its status through every sync.
+
 ## Coming in later phases
 
-`bookings`, `waitlist`, `hosts` profile fields, `games`, `game_of_week`, `push_subscriptions`, `notifications`. They are designed in the spec (§15, §18, §24, §29, §47) and will be added as new numbered migrations.
+`waitlist`, `hosts` profile fields, `games`, `game_of_week`, `push_subscriptions`, `notifications`. They are designed in the spec (§15, §18, §24, §29, §47) and will be added as new numbered migrations.

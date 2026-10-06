@@ -1,5 +1,29 @@
 # RTD App Changelog
 
+## 2026-10-06 (bookings for hosted sessions; one way in)
+- **Hosts and café staff join the same way.**
+  - **What they can do:** one form, "Ask to host games". Everyone approved is a host, so they can only plan sessions.
+  - **Approvers:** Michelle (an "approver") approves join requests and every session. Dan, as admin, chooses approvers (**Make approver** / **Stop approving**).
+  - **No direct adding:** the "Add a host" form is gone.
+- **Booking open host sessions** on their event page, without an account:
+  - **The form:** name, email, optional mobile, how many places, and a note for the host.
+  - **Capacity:** counted in people, checked inside the database insert, so the last places can't be double-booked. There are per-email and per-network limits.
+  - **Confirmation email:** includes a Manage / Cancel link (`/booking/:id`). Only a hash of its secret is stored.
+  - **Where it shows:** a **Book in the app** chip on cards. The Book page now lists hosted sessions to book.
+- **Hosts:**
+  - **In the organiser:** they see who's booked on each upcoming date.
+  - **Emails:** one for every booking and cancellation, plus "N of M places booked" **two days before** each date.
+  - **Cancelling a date:** a host can cancel one date, with a message. Everyone booked is emailed, and so is the café.
+  - **Approvers:** they see every hosted date for the next three weeks, with contact details, and can cancel too.
+- **Cancelled dates:**
+  - **In the app:** they leave the diary, stay cancelled through syncs, and are taken out of the Logic Engine (one-off → Inactive; weekly → its next date), so they're never advertised.
+- **Emails:**
+  - **How they're sent:** the app writes booking emails to an outbox in the same transaction as the change. The new n8n **RTD Outbox** sends them every 5 minutes.
+  - **The sheet:** **RTD Host Sessions To Diary** gained the sheet branch for cancelled dates.
+- **Database:** migration `0008_bookings.sql` (`bookings`, `outbox`, `occurrences.cancelled_by`, `host_sessions.sheet_fix_*`), applied to the live database.
+- **Tests:** 192 (was 171).
+- **Docs:** new [`docs/RTD_BOOKINGS.md`](docs/RTD_BOOKINGS.md); [`docs/RTD_ONBOARDING.md`](docs/RTD_ONBOARDING.md) rewritten.
+
 ## 2026-10-06 (onboarding for hosts and café staff)
 - **People ask for access themselves:** anyone who signs in at `/organise` without access sees **Join Roll The Dice**, where they ask to **Host games** or join the **Café team**. They can see where their request is, and withdraw it.
 - **Approvals, in the organiser under Join requests:**
