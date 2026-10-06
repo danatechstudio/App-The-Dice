@@ -4,6 +4,8 @@
 
 import { Hono } from 'hono';
 import { requireSignedIn, sameOriginJson } from '../lib/auth';
+import { afterResponse } from '../lib/background';
+import { joinRequestToApprove, notifyApprovers } from '../notify/push';
 import { latestApplication, submitApplication, withdrawApplication } from '../team/applications';
 
 export const joinRoutes = new Hono<{ Bindings: Env; Variables: { email: string } }>();
@@ -24,6 +26,9 @@ joinRoutes.get('/me', async c => {
 joinRoutes.post('/apply', async c => {
   const result = await submitApplication(c.env.DB, c.get('email'), await c.req.json().catch(() => null), new Date().toISOString());
   if (!result.ok) return c.json({ error: result.error, errors: result.errors }, result.status);
+  // A push to the approvers' devices, as well as the email n8n sends.
+  const ctx = { subject: new URL(c.req.url).origin, now: new Date() };
+  await afterResponse(c, () => notifyApprovers(c.env.DB, joinRequestToApprove(result.application), ctx));
   return c.json({ application: result.application }, 201);
 });
 

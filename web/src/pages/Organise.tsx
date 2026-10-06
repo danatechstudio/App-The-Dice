@@ -6,6 +6,7 @@ import { addDays, dayOfMonth, daysBetween, monthShort, shortDate, timeRange, tod
 import { SIGN_IN_URL, hostApi, type Access, type Frequency, type HostRecord, type HostSession, type HostUser, type SessionStatus } from '../lib/hostApi';
 import { toast } from '../lib/toast';
 import { HostedDatesPanel, SessionDates } from './OrganiseDates';
+import { PushCard } from './OrganisePush';
 import { ApproversPanel, JoinRequests, JoinScreen, removeAccess, setApprover } from './OrganiseTeam';
 import { useTitle } from '../lib/title';
 
@@ -446,6 +447,7 @@ function StaffDesk({ onDecided, me, isAdmin }: { onDecided: () => void; me: Host
 
   return (
     <div data-surface="staff" class="staff-desk">
+      <PushCard />
       <JoinRequests onDecided={load} />
       <section class="section" aria-labelledby="awaiting">
         <div class="section-head">

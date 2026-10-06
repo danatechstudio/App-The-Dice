@@ -5,6 +5,8 @@ import { Hono } from 'hono';
 import { cancelDate, datesForSessions } from '../bookings/bookings';
 import { createSession, listSessions, parseSessionInput, withdrawSession } from '../host/sessions';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
+import { afterResponse } from '../lib/background';
+import { notifyApprovers, sessionToApprove } from '../notify/push';
 import { londonDate } from '../lib/time';
 
 export const hostRoutes = new Hono<{ Bindings: Env; Variables: { user: AuthUser } }>();
@@ -32,7 +34,11 @@ hostRoutes.get('/sessions', async c => {
 hostRoutes.post('/sessions', async c => {
   const parsed = parseSessionInput(await c.req.json().catch(() => null));
   if (!parsed.ok) return c.json({ error: 'Please check the form', errors: parsed.errors }, 400);
-  const session = await createSession(c.env.DB, c.get('user'), parsed.value, new Date().toISOString());
+  const user = c.get('user');
+  const session = await createSession(c.env.DB, user, parsed.value, new Date().toISOString());
+  // A push to the approvers' devices (not the person who sent it), as well as the email n8n sends.
+  const ctx = { subject: new URL(c.req.url).origin, now: new Date(), exceptUserId: user.user_id };
+  await afterResponse(c, () => notifyApprovers(c.env.DB, sessionToApprove(session as unknown as Parameters<typeof sessionToApprove>[0]), ctx));
   return c.json({ session }, 201);
 });
 

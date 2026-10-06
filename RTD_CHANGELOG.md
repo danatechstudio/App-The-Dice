@@ -1,5 +1,18 @@
 # RTD App Changelog
 
+## 2026-10-06 (push notifications for approvals)
+- **Approvers and admins can get push notifications** on their phone or computer, as well as the email:
+  - **What triggers one:** a host sending a session to approve, or someone asking to host.
+  - **Where to turn them on:** **Notifications on this device** in the organiser, with **Send a test** and **Turn off**.
+  - **On iPhone:** the card explains adding the app to the Home Screen first.
+- **Sent by the Worker itself:**
+  - **Security:** each message is encrypted for its device (RFC 8291) and signed with the app's own key (RFC 8292), made on first use and kept in D1.
+  - **No setup:** there's no third-party service and no secret to set.
+- **Service worker:** shows the notification, and opens the organiser at the right place when it's tapped.
+- **Database:** migration `0009_push.sql` (`push_subscriptions`, `push_keys`), applied to the live database.
+- **Tests:** 203 (was 192), including decrypting each push the way a browser does.
+- **Docs:** new [`docs/RTD_PUSH.md`](docs/RTD_PUSH.md).
+
 ## 2026-10-06 (bookings for hosted sessions; one way in)
 - **Hosts and café staff join the same way.**
   - **What they can do:** one form, "Ask to host games". Everyone approved is a host, so they can only plan sessions.

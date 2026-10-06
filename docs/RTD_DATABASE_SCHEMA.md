@@ -172,6 +172,15 @@ Added in `0008_bookings.sql`: emails the app has written, waiting for n8n **RTD 
 
 **Also in 0008:** `occurrences.cancelled_by` (`host` or `staff`) for a date cancelled in the organiser. A cancelled occurrence keeps its status through every sync.
 
+## push_subscriptions and push_keys
+
+Added in `0009_push.sql`: push notifications for approvers ([RTD_PUSH.md](RTD_PUSH.md)).
+
+| Table | Columns |
+| --- | --- |
+| `push_subscriptions` | `endpoint` (primary key: the push service address for one device; only its owner sees it), `user_id`, `p256dh` and `auth` (the browser's key and secret for encryption), `device_label`, `created_at`, `last_sent_at`, `failures` (5 in a row and the device is dropped) |
+| `push_keys` | One row: the app's VAPID `public_key` and `private_jwk`, made by the Worker on first use |
+
 ## Coming in later phases
 
-`waitlist`, `hosts` profile fields, `games`, `game_of_week`, `push_subscriptions`, `notifications`. They are designed in the spec (§15, §18, §24, §29, §47) and will be added as new numbered migrations.
+`waitlist`, `hosts` profile fields, `games`, `game_of_week`, `notifications` (customer push). They are designed in the spec (§15, §18, §24, §29, §47) and will be added as new numbered migrations.

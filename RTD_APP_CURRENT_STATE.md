@@ -65,6 +65,11 @@ _Last updated: 2026-10-06_
 - **Emails:** n8n **RTD Team Notices** (every 15 minutes, live): join requests to the café, outcomes to applicants, and session decisions to hosts.
 - **Not yet tried with a real request.**
 
+## Push notifications for approvals (2026-10-06)
+- **What they are:** approvers and admins turn on **Notifications on this device** in the organiser. They then get a push for every session and join request to approve, as well as the email. See [docs/RTD_PUSH.md](docs/RTD_PUSH.md).
+- **On iPhone:** the app must be added to the Home Screen first (Apple's rule).
+- **Not yet tried on a real phone.**
+
 ## Bookings for hosted sessions (2026-10-06)
 - **Booking:** people book places on open host sessions from the event page, with no account and a Manage / Cancel link by email. See [docs/RTD_BOOKINGS.md](docs/RTD_BOOKINGS.md).
 - **Hosts:**
@@ -73,7 +78,7 @@ _Last updated: 2026-10-06_
 - **Approvers:** see every hosted date for three weeks, with contact details.
 - **Emails:** n8n **RTD Outbox** (every 5 minutes, live) sends what the app queues.
 - **Tested:**
-  - **Automated:** 192 tests.
+  - **Automated:** 203 tests (with push).
   - **Screens:** checked at 320, 375 and 1280px.
   - **Workflows:** live and simulated n8n runs.
   - **Not yet:** a real booking, and a real cancelled date changing the sheet.
@@ -92,7 +97,7 @@ _Last updated: 2026-10-06_
 - **Blood on the Clocktower:** auto-rolled from 4 Oct to **4 Nov** before the monthly change, and a poster was generated for that date. Please confirm the date with Michelle.
 
 ## Next actions
-0. You: set the RTD Staff Access policy to **Include → Everyone**, so new hosts and café staff can sign in and ask. Then have Michelle sign in at `/organise` and ask to host. Approve the request under **Join requests**, then press **Make approver** next to Michelle. Then try one open session end to end: approve it, book a place, check the emails, cancel the date.
+0. You: set the RTD Staff Access policy to **Include → Everyone**, so new hosts and café staff can sign in and ask. Then have Michelle sign in at `/organise` and ask to host. Approve the request under **Join requests**, then press **Make approver** next to Michelle. Then try one open session end to end: approve it, book a place, check the emails, cancel the date. Turn on **Notifications on this device** (on iPhone, from the Home Screen app) and press **Send a test**.
 1. You: open https://rtd-app.dan-289.workers.dev on your phone (and `/styleguide`) and tell me what to change. Add it to your home screen to try the installed app.
 2. You: check which Standard Diary groups should appear publicly. They all default to Public (e.g. GirlsGetOut Ladies Night, National Coastguard Institute). Set private group bookings to `Private` in the sheet's `App Visibility` column: the diary then shows "Private session" at that time, so the café still looks busy. Use `Hidden` to leave a row out entirely.
 3. You: push `rtd-poster-automation` to GitHub, so I can fold in the Guard and poster fixes.

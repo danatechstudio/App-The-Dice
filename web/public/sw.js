@@ -66,3 +66,62 @@ self.addEventListener('fetch', event => {
     event.respondWith(cacheFirst(request));
   }
 });
+
+// ---------- Push notifications for approvers (docs/RTD_PUSH.md) ----------
+// The browser decrypts each message before this runs. Tapping one opens the
+// organiser at the right place; only ever one of our own pages.
+
+self.addEventListener('push', event => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = {};
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Roll The Dice', {
+      body: data.body || 'Something needs approving in the organiser.',
+      tag: data.tag || 'rtd-approval',
+      icon: '/icons/icon-192.png',
+      data: { url: data.url || '/organise' },
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const target = new URL((event.notification.data && event.notification.data.url) || '/organise', self.location.origin);
+  if (target.origin !== self.location.origin) return;
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const open = windows.find(w => new URL(w.url).origin === self.location.origin);
+      if (open) {
+        await open.focus();
+        if ('navigate' in open) await open.navigate(target.href).catch(() => undefined);
+        return;
+      }
+      await self.clients.openWindow(target.href);
+    })(),
+  );
+});
+
+// Browsers occasionally renew a subscription: send the new one to the app.
+self.addEventListener('pushsubscriptionchange', event => {
+  event.waitUntil(
+    (async () => {
+      const res = await fetch('/api/staff/push/key', { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+      if (!res.ok) return;
+      const { public_key } = await res.json();
+      const b64 = public_key.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((public_key.length + 3) % 4);
+      const key = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const sub = await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+      await fetch('/api/staff/push/subscribe', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub),
+      });
+    })().catch(() => undefined),
+  );
+});

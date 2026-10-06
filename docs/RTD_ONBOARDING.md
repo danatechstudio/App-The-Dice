@@ -96,6 +96,7 @@ Workflow `diKojCurHeRWQjAR`, every 15 minutes. Details are in [RTD_N8N_WORKFLOWS
 - **Two-week window:** outcomes and session decisions older than 14 days aren't emailed, so an outage doesn't send a burst of stale emails.
 - **Safe to show:** everything people typed is escaped before it goes into the HTML.
 - **Booking emails** (bookings, the two-day numbers email, cancellations) are separate: see [RTD_BOOKINGS.md](RTD_BOOKINGS.md).
+- **Push notifications:** approvers and admins can also get a push on their phone or computer for each join request and session to approve. See [RTD_PUSH.md](RTD_PUSH.md).
 
 ## Before anyone can apply
 

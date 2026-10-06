@@ -50,6 +50,7 @@ Status words below: **Live** (built and running), **Partial** (some of it works)
 | Create a session | Live | Name, one-off or weekly, open or private, date, times, cost, max players, description |
 | Café email on each submission | Live | n8n RTD Host Sessions To Diary; replies go to the host |
 | Michelle approves or declines | Live | On the same page; a decline can include a note for the host. Only approvers (Michelle) and admins can |
+| Push notifications for approvals | Live | Approvers and admins turn them on per device; a push for each session and join request to approve, as well as the email ([RTD_PUSH.md](RTD_PUSH.md)). Not yet tried on a real phone |
 | Approved session into the Logic Engine, then the diary | Live | Appended to Event Index within 15 minutes, then synced. The full path hasn't had a real approval yet |
 | Private sessions never advertised | Live | Master V1 round-ups and hourly posts, and Event Guard posters, skip `App Visibility = Private` |
 | Follow-up email after a one-off | Live | Daily at 10:00; test email sent to Dan on 5 Oct |
@@ -157,7 +158,7 @@ Who: **You** = Dan; **Michelle** = café; **Claude** = me.
 
 ## 5. Already in place
 
-- **Tests:** 192 automated tests, covering sync, the API, sign-in, host sessions, onboarding, bookings (capacity, limits, cancelling, emails), privacy redaction, calendar files, photos and colour contrast.
+- **Tests:** 203 automated tests, covering sync, the API, sign-in, host sessions, onboarding, bookings (capacity, limits, cancelling, emails), push encryption and signing, privacy redaction, calendar files, photos and colour contrast.
 - **Safe sync:** each sync lands completely or not at all. The app keeps serving the last good data if the sheet or the Pi breaks, and refuses a snapshot that loses half the events.
 - **Private sessions:** the server strips their details, so the name, description, photo, price and size never reach the public. They have no page, preview or calendar file.
 - **Security:**

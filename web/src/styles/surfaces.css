@@ -623,3 +623,32 @@
 .manage-booking {
   max-width: 640px;
 }
+
+/* ---------- Push notifications (approvers) ---------- */
+
+.push-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--rtd-space-3);
+  margin-top: var(--rtd-space-5);
+  border-left: 5px solid var(--rtd-secondary);
+}
+
+.push-card__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--rtd-info-light);
+  color: var(--rtd-secondary);
+}
+
+.push-card__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--rtd-heading-font);
+  font-size: var(--rtd-size-h3);
+}

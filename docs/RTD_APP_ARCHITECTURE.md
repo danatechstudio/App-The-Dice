@@ -101,6 +101,7 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | GET / POST | `/api/staff/applications`, `/api/staff/applications/:id/decision` | Access + approver/admin | Join requests |
 | GET / POST | `/api/staff/approvers`, `/api/staff/users/:id/approver`, `/api/staff/users/:id/remove` | Access + approver/admin | Approvers (admins only), and removing access |
 | GET | `/api/staff/hosted-dates` | Access + approver/admin | Hosted dates with bookings |
+| GET / POST | `/api/staff/push/key`, `/devices`, `/subscribe`, `/unsubscribe`, `/test` | Access + approver/admin | Push notifications on this device ([RTD_PUSH.md](RTD_PUSH.md)) |
 | POST | `/api/host/occurrences/:id/cancel` | Access cookie + the session's host, approver or admin | Cancel a date |
 
 ## App pages
@@ -112,7 +113,7 @@ Static files in `web/dist` are served directly; unknown paths fall back to the a
 | `/`, `/event/:occurrenceId`, `/events/:eventId` | Serves the app shell with link-preview tags (title, description, image, URL) for that event, so shared links show the event. Unknown or hidden events get the shell with a 404 status. |
 | `/api/*`, `/internal/*`, `/images/*` | API and photos, as above |
 
-The **service worker** caches the app shell and the last diary it saw, so the diary opens offline. It never touches `/api/staff` or `/internal`.
+The **service worker** caches the app shell and the last diary it saw, so the diary opens offline. It never touches `/api/staff` or `/internal`. It also shows approvers' push notifications and opens the organiser when one is tapped ([RTD_PUSH.md](RTD_PUSH.md)).
 
 ## Event photos
 
@@ -139,12 +140,14 @@ The **service worker** caches the app shell and the last diary it saw, so the di
 | `src/team/applications.ts` | Onboarding: join requests, approvers, granting and removing access, email feeds |
 | `src/bookings/bookings.ts` | Bookings: availability, capacity-safe booking, the cancel link, host and approver views, cancelling a date, two-day emails, Event Index fixes |
 | `src/notify/emails.ts`, `src/notify/outbox.ts` | Booking email wording, and the outbox n8n sends from |
+| `src/notify/push.ts` | Web Push for approvers: VAPID keys, RFC 8291 encryption, devices, sending |
+| `src/lib/background.ts` | Work after the response (`waitUntil`), such as pushes |
 | `src/lib/format.ts` | Dates, times and escaping for emails |
 | `src/images/store.ts` | Event photos: plan, sync, upload (type sniffing, content hashing), serving, per-date picking |
 | `src/routes/*` | Public, internal, staff endpoints and app pages (link previews) |
 | `web/` | The PWA: `src/theme` (tokens), `src/styles`, `src/components`, `src/pages`, `public` (icons, manifest, service worker). See [RTD_APP_THEME.md](RTD_APP_THEME.md). |
 | `migrations/` | D1 schema |
-| `test/` | 192 tests, run inside the Workers runtime against a real local D1 and KV |
+| `test/` | 203 tests, run inside the Workers runtime against a real local D1 and KV |
 
 ## Future compatibility
 

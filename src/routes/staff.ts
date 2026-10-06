@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { upcomingHostedDates } from '../bookings/bookings';
 import { decideSession, listHosts, listSessions, type SessionStatus } from '../host/sessions';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
+import { deviceLabel, myDevices, notifyUser, parseSubscription, removeSubscription, saveSubscription, vapidKeys } from '../notify/push';
 import { londonDate } from '../lib/time';
 import { decideApplication, listApplications, listApprovers, removeAccess, setApprover, type ApplicationStatus } from '../team/applications';
 
@@ -112,4 +113,37 @@ staffRoutes.post('/users/:id/approver', async c => {
 staffRoutes.post('/users/:id/remove', async c => {
   const result = await removeAccess(c.env.DB, c.get('user'), c.req.param('id'), new Date().toISOString());
   return result.ok ? c.json({ ok: true }) : c.json({ error: result.error }, result.status);
+});
+
+// --- Push notifications on this device (approvers and admins; docs/RTD_PUSH.md) ---
+
+/** The app's public key, for the browser's pushManager.subscribe(). */
+staffRoutes.get('/push/key', async c => c.json({ public_key: (await vapidKeys(c.env.DB)).publicKey }));
+
+/** This person's devices with notifications on. */
+staffRoutes.get('/push/devices', async c => c.json({ devices: await myDevices(c.env.DB, c.get('user').user_id) }));
+
+/** Turn notifications on for this device. Body: the browser's PushSubscription as JSON. */
+staffRoutes.post('/push/subscribe', async c => {
+  const sub = parseSubscription(await c.req.json().catch(() => null));
+  if (!sub) return c.json({ error: "That browser's notification details weren't valid." }, 400);
+  await saveSubscription(c.env.DB, c.get('user').user_id, sub, deviceLabel(c.req.header('User-Agent')), new Date().toISOString());
+  return c.json({ ok: true });
+});
+
+/** Turn them off for one device. Body: { endpoint } */
+staffRoutes.post('/push/unsubscribe', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { endpoint?: unknown };
+  return c.json({ ok: true, removed: await removeSubscription(c.env.DB, c.get('user').user_id, body.endpoint) });
+});
+
+/** Send a test to this person's own devices. */
+staffRoutes.post('/push/test', async c => {
+  const result = await notifyUser(
+    c.env.DB,
+    c.get('user').user_id,
+    { title: 'Notifications are on', body: "You'll get one like this whenever a session or a join request needs approving.", url: '/organise', tag: 'test' },
+    { subject: new URL(c.req.url).origin, now: new Date() },
+  );
+  return c.json(result);
 });
