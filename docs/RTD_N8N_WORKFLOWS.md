@@ -4,6 +4,14 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### 2026-10-06: onboarding and decision emails
+
+Dan's decision: "I will be the approving party for staff, Michelle for game hosts and booking requests."
+
+| Workflow | Change | New active version | Roll back to |
+| --- | --- | --- | --- |
+| **New:** RTD Team Notices (`diKojCurHeRWQjAR`) | See [below](#rtd-team-notices-dikojcurherwqjar). No existing workflow was changed. | `383adf40-39d4-4990-b024-c7f6c10dcd81` | Unpublish it (it only sends emails) |
+
 ### 2026-10-05 (evening): host sessions into the diary; private sessions never advertised
 
 Dan's decision: "Private sessions don't advertise, public yes please."
@@ -187,15 +195,55 @@ This workflow does two jobs for the host organiser ([RTD_HOST_PORTAL.md](RTD_HOS
   - **First live run** (`19322`): nothing pending, so nothing was sent or written.
   - **Simulated run with sample data** (`19323`): a clashing "Quiz" became "Quiz (hosted 2)", a session already in the sheet was only marked Live, and the café email escaped host-typed text.
 
+## RTD Team Notices (`diKojCurHeRWQjAR`)
+
+This workflow sends the onboarding emails and tells hosts what the café decided about their sessions ([RTD_ONBOARDING.md](RTD_ONBOARDING.md)).
+
+- **Triggers:** every 15 minutes (Europe/London), plus **Run By Hand**.
+- **Setup:** reads `RTD_APP_BASE_URL` and `RTD_CAFE_NOTIFICATION_EMAIL` from `rtd_config`, then runs three branches.
+- **A. New join requests, to the approver:**
+  1. `GET /internal/applications/new`. The app says who to email for each request.
+  2. **Who gets it:**
+     - **Host requests:** go to the café address.
+     - **Café team requests:** go to every active admin.
+     - **No recipient:** a request with nobody to email is skipped, and stays unsent until there is one.
+  3. **The email:** subject "New host request: …" or "New café team request: …", with a link to `/organise`. It's sent as "Roll The Dice app", and replies go to the applicant.
+  4. `POST /internal/applications/:id/approver-notified`.
+- **B. Outcomes, to the applicant:**
+  1. `GET /internal/applications/decided`: approved or declined in the last 14 days, and not yet emailed.
+  2. **The email:**
+     - **Subject:** "You are now a Roll The Dice host", "Welcome to the Roll The Dice café team", or "Your Roll The Dice request" (declined, with the note).
+     - **Sender and replies:** sent as "Roll The Dice"; replies go to the café.
+  3. `POST /internal/applications/:id/applicant-notified`.
+- **C. Session decisions, to the host:**
+  1. `GET /internal/host-sessions/decided`: approved, live or declined in the last 14 days, and not yet emailed. Withdrawn sessions are never emailed.
+  2. **The email:**
+     - **Subject:** "Approved: …" or "Not approved: …", with the café's note.
+     - **Approved and private:** says the diary shows it only as "Private session" and it won't be advertised.
+     - **Approved and open:** says it will be in the diary within 15 minutes.
+     - **Replies:** they go to the café.
+  3. `POST /internal/host-sessions/:id/host-notified`.
+- **Shared behaviour:**
+  - **Escaping:** text people typed is HTML-escaped in every email.
+  - **Credentials:** HTTP steps use the `rtd-app` credential; Gmail uses `ATech GMAIL`.
+- **Live since 2026-10-06 07:23** (published).
+- **Errors:** HTTP steps retry 3 times and Gmail twice; failures go to `Studio: Error Handler`. If Gmail fails partway through a run, someone already emailed in that run may get the email again on the next run, because it wasn't marked sent.
+- **Checks:**
+  - **First live run** (`20485`): all three app feeds answered and were empty, so nothing was sent.
+  - **Simulated run with sample data** (`20486`):
+    - **Routing:** a host request went to the café address and a café team request to the admin; a café team request with no admin was skipped.
+    - **Content:** the outcome and session emails had the right wording for approved, declined and private.
+    - **Escaping:** HTML in names and notes was escaped.
+
 ## Spec §46 workflow map
 
 | Spec workflow | Covered by |
 | --- | --- |
 | RTD – Event Sync | **RTD Event Sync** (above) |
-| RTD – Event Approval | New with the Host Portal (Phase 6), reusing the inactive Master Booking decision model |
+| RTD – Event Approval | Approval happens in the app's organiser. **RTD Host Sessions To Diary** emails the café; **RTD Team Notices** emails the host the decision. |
 | RTD – Event Expiry & Redating | **Existing** Event Guard + Event Date Change |
 | RTD – Booking Daily Digest | New (Phase 5), reads `rtd_config` |
 | RTD – Push Reminder Scheduler | New (Phase 3) |
 | RTD – Game of the Week | New (Phase 4) |
-| RTD – Host Application Notification | New (Phase 7) |
+| RTD – Host Application Notification | **RTD Team Notices** (join requests for hosts and café staff) |
 | RTD – Event / Booking Audit Logger | Not needed as workflows: the app writes `audit_log` itself; n8n actions are recorded via the API |

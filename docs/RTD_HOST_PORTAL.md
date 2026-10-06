@@ -2,7 +2,7 @@
 
 The host organiser lives at **`/organise`**. Hosts propose sessions there; the café approves or declines them on the same page.
 
-## Status (2026-10-05)
+## Status (2026-10-06)
 
 | Part | State |
 | --- | --- |
@@ -14,6 +14,8 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 | Email the host the day after a one-off session | **Built** (n8n **RTD Host Follow-up**, see [After a one-off session](#after-a-one-off-session)) |
 | Approved sessions into the Logic Engine, and so into the diary | **Built** (n8n **RTD Host Sessions To Diary**, see [From approval to the diary](#from-approval-to-the-diary)) |
 | Email the café when a session is submitted | **Built** (same workflow) |
+| Email the host when the café approves or declines | **Built** (n8n **RTD Team Notices**) |
+| Hosts and café staff ask for access themselves | **Built**: see [RTD_ONBOARDING.md](RTD_ONBOARDING.md) |
 | Bookings and attendee lists for hosts | Phase 5 (bookings) |
 
 ## The session form
@@ -59,8 +61,8 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 | Role | Can |
 | --- | --- |
 | Host | Use `/organise`; create, see and withdraw **their own** sessions |
-| Staff | Everything a host can, plus approve or decline any session, and add hosts |
-| Admin | As staff |
+| Staff | Everything a host can, plus approve or decline any session, approve host requests, and add or remove hosts |
+| Admin | As staff, plus approve café team requests and remove café team members |
 
 The `users` table decides roles. Cloudflare Access only proves the email address.
 
@@ -80,7 +82,9 @@ The organiser's **Sign in** button goes to `/api/staff/sign-in`. That path is be
 - **The RTD Staff application's policy decides who may sign in at all.** For hosts to get in, it must include them:
   - **Include → Everyone** (recommended): Access proves the email, and the app's `users` table decides who is a host.
   - **Include → specific emails:** add each host's email to the policy as well.
-- **Adding hosts:** sign in at `/organise` as staff and use **Add a host** (their name, and the email they'll sign in with).
+- **New hosts:**
+  - **Asking themselves:** they sign in at `/organise` and ask to host, and staff approve them under **Join requests** ([RTD_ONBOARDING.md](RTD_ONBOARDING.md)).
+  - **Added directly:** staff can still use **Add a host** (their name, and the email they'll sign in with).
 
 **Optional extra layer:** you can also add `organise` and `api/host` as destinations on the same RTD Staff application. It isn't needed.
 
@@ -126,6 +130,7 @@ The Logic Engine stays the one master calendar (audit §6). n8n **RTD Host Sessi
      - **Values:** Event Name, Frequency (`One-off` or `Weekly`), Day, Event Date, Event Time, End Time, Base Details (the description), Status `Active` and Organiser Email.
      - **App columns:** App Visibility `Public` (open) or `Private`, App Category `Gaming`, **App Price**, **App Capacity** and **App Host Session** (the `RTD-HS` number).
    - **Marked Live:** the session shows as **Live** for its host.
+   - **Host emailed:** within 15 minutes the host gets "Approved: …" (or "Not approved: …" with the café's note), from n8n **RTD Team Notices**.
 3. **In the diary:** the next Event Sync gives the row an Event ID and links it back to the session.
    - **Open sessions** show in full, with "£5 per player, paid at the café" and "Up to 6 players" on the event page.
    - **Private sessions** show only as "Private session" and their time.

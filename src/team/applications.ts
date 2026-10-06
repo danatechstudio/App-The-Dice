@@ -155,10 +155,12 @@ export async function decideApplication(
 
   const writes = [audit(db, 'application', id, 'staff', reviewer.email, `application.${status}`, 'pending', note, now)];
   if (status === 'approved') {
-    // Never downgrade someone who already holds a higher role.
+    // Never downgrade someone who already holds a higher role. Someone whose
+    // access was removed keeps their old users row (and ID), now re-activated.
     const existing = await activeUser(db, app.email);
     const role: Role = existing && RANK[existing.role] > RANK[app.role] ? existing.role : app.role;
-    const userId = existing?.user_id ?? `${app.role}-${crypto.randomUUID()}`;
+    const previous = await db.prepare('SELECT user_id FROM users WHERE email = ?1').bind(app.email).first<{ user_id: string }>();
+    const userId = previous?.user_id ?? `${app.role}-${crypto.randomUUID()}`;
     writes.push(
       db
         .prepare(

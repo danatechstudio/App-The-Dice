@@ -2,11 +2,11 @@
 
 Everything runs in the existing Cloudflare account. These are one-off steps. They need either your Cloudflare login (on your own machine), or a `CLOUDFLARE_API_TOKEN` in an environment that can reach `api.cloudflare.com`.
 
-## Status (2026-10-05)
+## Status (2026-10-06)
 
 Done through the Cloudflare connector:
 - **Database:** D1 `rtd-app` created in Western Europe (id `6c948ad3-0311-459b-895d-facb14d5697d`, now in `wrangler.jsonc`).
-- **Schema:** `0001_foundation.sql`, `0002_event_images.sql`, `0003_host_sessions.sql`, `0004_host_session_frequency.sql`, `0005_host_session_access.sql` and `0006_host_publishing.sql` applied and recorded in `d1_migrations`, so `wrangler d1 migrations apply` will skip them. All tables, indexes and both audit triggers are present.
+- **Schema:** `0001_foundation.sql`, `0002_event_images.sql`, `0003_host_sessions.sql`, `0004_host_session_frequency.sql`, `0005_host_session_access.sql`, `0006_host_publishing.sql` and `0007_onboarding.sql` applied and recorded in `d1_migrations`, so `wrangler d1 migrations apply` will skip them. All tables, indexes and both audit triggers are present.
 - **First admin:** Dan's account added (role `admin`).
 
 The connector can't deploy code, set secrets or configure Access, so three dashboard steps remain.
@@ -45,6 +45,8 @@ Don't use the one-click "Enable Cloudflare Access" button. It protects the whole
 
 ### Host organiser sign-in
 Sign-in goes through the RTD Staff Access application at `/api/staff/sign-in`, so no extra Access paths are needed. For hosts to sign in, the application's policy must include them (Include → Everyone recommended). Details: [RTD_HOST_PORTAL.md](RTD_HOST_PORTAL.md#signing-in).
+
+**Onboarding needs Include → Everyone.** New hosts and café staff ask for access from the join screen, so they must be able to sign in before anyone approves them. With a list of specific emails, nobody new can reach the join screen. Details: [RTD_ONBOARDING.md](RTD_ONBOARDING.md#before-anyone-can-apply).
 
 ### Future migrations
 Claude applies new files in `migrations/` through the connector and records them in `d1_migrations`. Alternatively, change the Workers Builds deploy command to `npx wrangler d1 migrations apply rtd-app --remote && npx wrangler deploy`.

@@ -47,6 +47,11 @@ One row per dated occurrence. **Never re-dated, never deleted.** `UNIQUE (event_
 Triggers abort any `UPDATE` or `DELETE`. Actions so far:
 - `event.created`, `event.updated`, `event.activated`, `event.deactivated`, `event.missing_from_source`
 - `occurrence.created`, `occurrence.time_changed`, `occurrence.completed`, `occurrence.rescheduled`, `occurrence.reinstated`
+- **Host sessions:** `host_session.*` (source `organiser`)
+- **Onboarding:**
+  - **Requests:** `application.host.submitted`, `application.staff.submitted`, `application.withdrawn`, `application.approved`, `application.declined`
+  - **Access:** `user.granted_host`, `user.granted_staff`, `user.removed_host`, `user.removed_staff`
+  - **Source:** `organiser` (see [RTD_ONBOARDING.md](RTD_ONBOARDING.md#audit))
 
 ## sync_runs
 
@@ -54,7 +59,14 @@ One row per sync attempt: `run_id` (idempotency key, the n8n execution id), `sta
 
 ## users
 
-`user_id, email (unique, case-insensitive), display_name, role (host|staff|admin), active`. Rows are added by an admin (see [RTD_DEPLOYMENT.md](RTD_DEPLOYMENT.md)).
+`user_id, email (unique, case-insensitive), display_name, role (host|staff|admin), active`.
+
+**How rows get here:**
+- **Approved join requests:** approving a request (see [RTD_ONBOARDING.md](RTD_ONBOARDING.md)) adds the row, or re-activates an old one.
+- **Staff adding a host directly:** also adds the row.
+- **Admins:** added in the database (see [RTD_DEPLOYMENT.md](RTD_DEPLOYMENT.md)).
+
+**Removing access:** sets `active = 0`. Rows are never deleted.
 
 ## settings
 
@@ -106,7 +118,25 @@ Added in `0003_host_sessions.sql`. These are sessions proposed by hosts in the o
 | `status` | `submitted` → `approved` / `declined`; `withdrawn` by the host; `published` once it's in the Logic Engine |
 | `decision_note`, `decided_by`, `decided_at` | The staff decision |
 | `event_id` | The Logic Engine event, once published |
+| `host_notified_at` | When n8n emailed the host the café's decision. Added in `0007_onboarding.sql`. |
+
+## applications
+
+Added in `0007_onboarding.sql`. These are requests to host games or join the café team; see [RTD_ONBOARDING.md](RTD_ONBOARDING.md).
+
+| Column | Notes |
+| --- | --- |
+| `application_id` | `RTD-APP-00001` upwards, assigned in one statement |
+| `email` | The signed-in email address (case-insensitive) |
+| `display_name`, `about` | As entered: 2–60 and 3–500 characters |
+| `role` | `host` or `staff` (the café team) |
+| `status` | `pending` → `approved` / `declined`; `withdrawn` by the applicant |
+| `decision_note`, `decided_by`, `decided_at` | The decision. Staff decide host requests; only admins decide café team requests. |
+| `approver_notified_at`, `applicant_notified_at` | When n8n emailed the approver about the request, and the applicant about the outcome |
+| `created_at`, `updated_at` | |
+
+**Indexes:** `(email, created_at)` for "my latest request" and the 3-a-day limit, and `(status, role)` for the approval queue.
 
 ## Coming in later phases
 
-`bookings`, `waitlist`, `hosts` profile fields, `host_applications`, `event_requests` (host submissions before approval), `games`, `game_of_week`, `push_subscriptions`, `notifications`. They are designed in the spec (§15, §18, §24, §29, §47) and will be added as new numbered migrations.
+`bookings`, `waitlist`, `hosts` profile fields, `games`, `game_of_week`, `push_subscriptions`, `notifications`. They are designed in the spec (§15, §18, §24, §29, §47) and will be added as new numbered migrations.

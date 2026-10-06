@@ -84,12 +84,17 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | POST | `/internal/host-sessions/:id/followup-sent` | bearer | Records that the follow-up email went out |
 | GET / POST | `/internal/host-sessions/new-submissions`, `/internal/host-sessions/:id/cafe-notified` | bearer | New submissions to email the café about, and recording that email |
 | GET / POST | `/internal/host-sessions/to-publish`, `/internal/host-sessions/:id/published` | bearer | Approved sessions with their Event Index row, and marking them Live |
+| GET / POST | `/internal/applications/new`, `/internal/applications/decided`, `…/:id/approver-notified`, `…/:id/applicant-notified` | bearer | Join request emails ([RTD_ONBOARDING.md](RTD_ONBOARDING.md)) |
+| GET / POST | `/internal/host-sessions/decided`, `/internal/host-sessions/:id/host-notified` | bearer | Emailing hosts the café's decision |
 | GET | `/api/staff/me` | Access + staff/admin | Who am I |
 | GET | `/api/staff/sync-runs` | Access + staff/admin | Last 50 sync runs with warnings |
 | GET | `/api/staff/audit?entity_id&before&limit` | Access + staff/admin | Audit history |
 | GET | `/api/staff/sign-in` | Access (anyone it lets in) | The organiser's Sign in button: redirects to `/organise` |
 | GET / POST | `/api/host/me`, `/api/host/sessions`, `/api/host/sessions/:id/withdraw` | Access cookie + host/staff/admin | Host organiser ([RTD_HOST_PORTAL.md](RTD_HOST_PORTAL.md)) |
 | GET / POST | `/api/staff/host-sessions`, `/api/staff/host-sessions/:id/decision`, `/api/staff/hosts` | Access + staff/admin | Approvals and hosts |
+| GET / POST | `/api/join/me`, `/api/join/apply`, `/api/join/withdraw` | Access cookie (any signed-in email) | Asking to host or join the café team ([RTD_ONBOARDING.md](RTD_ONBOARDING.md)) |
+| GET / POST | `/api/staff/applications`, `/api/staff/applications/:id/decision` | Access + staff/admin | Join requests: staff decide host requests, admins also café team requests |
+| GET / POST | `/api/staff/team`, `/api/staff/users/:id/remove` | Access + staff/admin | The café team (admins only), and removing access |
 
 ## App pages
 
@@ -124,11 +129,12 @@ The **service worker** caches the app shell and the last diary it saw, so the di
 | `src/lib/queries.ts` | Shared public-read SQL (visibility rules) |
 | `src/lib/calendar.ts` | `.ics` and Google Calendar links |
 | `src/host/sessions.ts` | Host sessions: validation, numbering, withdraw, staff decisions, adding hosts |
+| `src/team/applications.ts` | Onboarding: join requests, who may approve what, granting and removing access, email feeds |
 | `src/images/store.ts` | Event photos: plan, sync, upload (type sniffing, content hashing), serving, per-date picking |
 | `src/routes/*` | Public, internal, staff endpoints and app pages (link previews) |
 | `web/` | The PWA: `src/theme` (tokens), `src/styles`, `src/components`, `src/pages`, `public` (icons, manifest, service worker). See [RTD_APP_THEME.md](RTD_APP_THEME.md). |
 | `migrations/` | D1 schema |
-| `test/` | 145 tests, run inside the Workers runtime against a real local D1 and KV |
+| `test/` | 171 tests, run inside the Workers runtime against a real local D1 and KV |
 
 ## Future compatibility
 

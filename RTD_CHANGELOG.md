@@ -1,5 +1,26 @@
 # RTD App Changelog
 
+## 2026-10-06 (onboarding for hosts and café staff)
+- **People ask for access themselves:** anyone who signs in at `/organise` without access sees **Join Roll The Dice**, where they ask to **Host games** or join the **Café team**. They can see where their request is, and withdraw it.
+- **Approvals, in the organiser under Join requests:**
+  - **Host requests:** staff (Michelle) or an admin.
+  - **Café team requests:** admins only (Dan). Staff never see them.
+  - **What approval does:** it gives access immediately. Declining can include a note the applicant sees.
+- **Removing access:**
+  - **Hosts:** staff remove them from the Hosts table.
+  - **Café team:** admins remove them from the new Café team table.
+  - **Limits:** nobody can remove themselves or an admin.
+  - **Coming back:** someone removed can ask again, and keeps the same user record.
+- **Emails,** by the new n8n **RTD Team Notices** (every 15 minutes):
+  - **To the approver:** about each new request (host requests to the café address, café team requests to the admins).
+  - **To the applicant:** the outcome.
+  - **To hosts:** whether the café approved their session.
+- **Become a Host page:** now has **Apply to host** and **Open the organiser**.
+- **Audit:** requests, decisions, access granted and access removed are all in `audit_log`.
+- **Database:** migration `0007_onboarding.sql` (`applications`, `host_sessions.host_notified_at`), applied to the live database.
+- **Tests:** 171 (was 157).
+- **Docs:** new [`docs/RTD_ONBOARDING.md`](docs/RTD_ONBOARDING.md).
+
 ## 2026-10-05 (host sessions into the diary)
 - **Approved host sessions reach the diary:**
   - **How:** n8n **RTD Host Sessions To Diary** (every 15 minutes) adds them to Event Index, and the sync links each row back to its session, which then shows as Live.

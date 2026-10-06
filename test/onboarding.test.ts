@@ -123,7 +123,7 @@ describe('the café team and removing access', () => {
   it('lets staff remove hosts, and only admins remove staff', async () => {
     expect((await request('/api/staff/users/u-sam/remove', json({}), MICHELLE)).status).toBe(200);
     expect((await request('/api/host/me', {}, SAM)).status).toBe(403);
-    expect((await request('/api/staff/users/u-mich/remove', json({}), MICHELLE)).status).toBe(403); // herself
+    expect((await request('/api/staff/users/u-mich/remove', json({}), MICHELLE)).status).toBe(403); // their own access
     expect((await request('/api/staff/users/u-dan/remove', json({}), MICHELLE)).status).toBe(403); // an admin
     expect((await request('/api/staff/users/u-mich/remove', json({}), DAN)).status).toBe(200);
     expect((await request('/api/host/me', {}, MICHELLE)).status).toBe(403);
@@ -133,7 +133,16 @@ describe('the café team and removing access', () => {
   it('lets someone who was removed ask again', async () => {
     await request('/api/staff/users/u-sam/remove', json({}), MICHELLE);
     expect((await (await request('/api/join/me', {}, SAM)).json<{ has_access: boolean }>()).has_access).toBe(false);
-    expect((await apply(SAM, { role: 'host', display_name: 'Sam', about: 'Back for more Root' })).status).toBe(201);
+    const res = await apply(SAM, { role: 'host', display_name: 'Sam', about: 'Back for more Root' });
+    expect(res.status).toBe(201);
+    const { application } = await res.json<{ application: App }>();
+    expect((await decide(MICHELLE, application.application_id, 'approve')).status).toBe(200);
+    expect((await request('/api/host/me', {}, SAM)).status).toBe(200);
+    // Same users row as before, so the audit trail follows one person.
+    const users = await env.DB.prepare("SELECT user_id, active FROM users WHERE email = 'sam@example.com'").all();
+    expect(users.results).toEqual([{ user_id: 'u-sam', active: 1 }]);
+    const granted = await env.DB.prepare("SELECT entity_id FROM audit_log WHERE action = 'user.granted_host'").first();
+    expect(granted).toEqual({ entity_id: 'u-sam' });
   });
 });
 

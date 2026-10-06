@@ -1,6 +1,6 @@
 # RTD App: Current State
 
-_Last updated: 2026-10-05_
+_Last updated: 2026-10-06_
 
 ## Live
 - **Logic Engine:** every event row now has a permanent `Event ID`, plus `App Visibility` and `App Category` (backup taken first).
@@ -34,7 +34,7 @@ _Last updated: 2026-10-05_
   - **Install banner** at the top of every page: Install on Android/Chrome, step-by-step help on iPhone, and "open in your browser" in Facebook/Instagram. "Not now" hides it for 14 days.
 - **Logo assets** cut from the reference without redrawing: logo, dice mark, app/maskable/Apple icons, favicon, share image (`npm run brand:assets`).
 - **Checked:**
-  - **Tests:** 145 passing, including WCAG contrast for 24 colour pairings.
+  - **Tests:** 145 passing at the time (171 now), including WCAG contrast for 24 colour pairings.
   - **Screens:** screenshots at 320 / 375 / 430 / 768 / 1280px, no horizontal scroll or console errors.
   - **Accessibility:** reduced motion makes the roll instant, keyboard skip link, no tap target under 40px.
 
@@ -59,6 +59,19 @@ _Last updated: 2026-10-05_
 - **Advertising:** open sessions appear in the evening and weekly round-up posts. Private ones never appear in posts or get posters: RTD Master V1 and Event Guard were changed to skip `App Visibility = Private`.
 - **Tested live:** Dan signed in, created a session and withdrew it (5 Oct). A real approval through to the diary hasn't happened yet.
 
+## Onboarding (added 2026-10-06)
+- **Asking for access:** people sign in at `/organise` and ask to **Host games** or join the **Café team**. See [docs/RTD_ONBOARDING.md](docs/RTD_ONBOARDING.md).
+- **Who approves:**
+  - **Host requests:** staff (Michelle), alongside host sessions.
+  - **Café team requests:** admins only (Dan).
+  - **What approval does:** it grants access straight away.
+- **Removing access:** staff remove hosts; admins also remove café team members.
+- **Emails:** n8n **RTD Team Notices** (every 15 minutes, live) emails the approver about each request and the applicant about the outcome. It also emails hosts the café's decision on each session.
+- **Tested:**
+  - **Automated:** 171 tests.
+  - **The workflow:** a live run (feeds answered, nothing to send) and a simulated run with sample requests.
+  - **Not yet:** a real end-to-end request hasn't been tried.
+
 **What's left for production:** see [docs/RTD_PRODUCTION_READINESS.md](docs/RTD_PRODUCTION_READINESS.md).
 
 ## Incomplete
@@ -73,7 +86,7 @@ _Last updated: 2026-10-05_
 - **Blood on the Clocktower:** auto-rolled from 4 Oct to **4 Nov** before the monthly change, and a poster was generated for that date. Please confirm the date with Michelle.
 
 ## Next actions
-0. You: sign in at `/organise` (Book → Become a game host → Open the organiser), create a trial session, and approve it. For hosts to sign in, set the RTD Staff policy to Include → Everyone, then add them under **Add a host**.
+0. You: set the RTD Staff Access policy to **Include → Everyone**, so new hosts and café staff can sign in and ask. Then have Michelle sign in at `/organise`, choose **Café team**, and approve the request under **Join requests**.
 1. You: open https://rtd-app.dan-289.workers.dev on your phone (and `/styleguide`) and tell me what to change. Add it to your home screen to try the installed app.
 2. You: check which Standard Diary groups should appear publicly. They all default to Public (e.g. GirlsGetOut Ladies Night, National Coastguard Institute). Set private group bookings to `Private` in the sheet's `App Visibility` column: the diary then shows "Private session" at that time, so the café still looks busy. Use `Hidden` to leave a row out entirely.
 3. You: push `rtd-poster-automation` to GitHub, so I can fold in the Guard and poster fixes.

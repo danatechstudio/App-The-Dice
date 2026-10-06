@@ -1,16 +1,17 @@
 # RTD App: Feature Status and Production Readiness
 
-_As of 5 October 2026. Live app: https://rtd-app.dan-289.workers.dev_
+_As of 6 October 2026. Live app: https://rtd-app.dan-289.workers.dev_
 
 ## Summary
 
 - **What works today:**
   - **Public app:** an installable diary app with event pages and photos.
   - **Host organiser:** hosts propose sessions and the café approves them.
+  - **Onboarding:** hosts and café staff ask for access themselves. Michelle approves hosts, and Dan approves café staff.
   - **Automations:** they put approved sessions in the diary, keep private sessions out of social posts, and follow up with hosts after one-off sessions.
 - **What "production" means here.** There are two sensible milestones:
   - **Launch A, soft launch:** the public diary app and the host organiser, as they are now. This needs about a dozen jobs, mostly decisions, security tidy-ups and real-phone testing (§3.1). No big new features.
-  - **Launch B, the full specification:** online booking, push reminders, the real game library, host applications and a staff dashboard (Phases 3–9). This is the bulk of the remaining build, and booking is the largest part.
+  - **Launch B, the full specification:** online booking, push reminders, the real game library, and a full staff dashboard (Phases 3–9). This is the bulk of the remaining build, and booking is the largest part.
 
 Status words below: **Live** (built and running), **Partial** (some of it works), **Not started**.
 
@@ -22,9 +23,9 @@ Status words below: **Live** (built and running), **Partial** (some of it works)
 | --- | --- | --- |
 | Permanent event IDs in the Logic Engine | Live | `Event ID`, `App Visibility` and `App Category` columns, backfilled |
 | Event / occurrence split, with history | Live | A date roll-forward never erases a past occurrence |
-| App database (Cloudflare D1) | Live | Migrations 0001–0006 applied |
+| App database (Cloudflare D1) | Live | Migrations 0001–0007 applied |
 | Logic Engine sync (n8n, every 15 min) | Live | It's all-or-nothing and safe to repeat, and it refuses a snapshot that loses half the events. 36 runs OK, 0 refused |
-| Audit log | Live | Every sync change, host-session change and decision is recorded |
+| Audit log | Live | Every sync change, host-session change, join request, decision and change of access is recorded |
 | Staff and host sign-in | Live | Cloudflare Access email code. The app's `users` table decides roles. Dan's sign-in tested on 5 Oct |
 
 ### Public app (spec Phase 2): Live, except analytics
@@ -52,7 +53,9 @@ Status words below: **Live** (built and running), **Partial** (some of it works)
 | Private sessions never advertised | Live | Master V1 round-ups and hourly posts, and Event Guard posters, skip `App Visibility = Private` |
 | Follow-up email after a one-off | Live | Daily at 10:00; test email sent to Dan on 5 Oct |
 | Staff add hosts | Live | Name and sign-in email |
-| Host notified of approve / decline | **Not started** | Hosts only see it in the organiser |
+| Host notified of approve / decline | Live | n8n RTD Team Notices emails the host within 15 minutes, with the café's note |
+| Join requests (hosts and café staff) | Live | See [RTD_ONBOARDING.md](RTD_ONBOARDING.md). Staff approve hosts; only admins approve café staff. Approver and applicant are emailed |
+| Removing access | Live | Staff remove hosts; admins also remove café staff |
 | Host edits a session | **Not started** | Hosts can withdraw before it goes live; after that the café edits the sheet |
 | Host sees bookings | **Not started** | Needs booking (Phase 5) |
 
@@ -63,8 +66,8 @@ Status words below: **Live** (built and running), **Partial** (some of it works)
 | Notifications (Phase 3) | **Not started** | Push opt-in and 4-hour reminders. On iPhone, push only works once the app is installed to the Home Screen |
 | Games (Phase 4) | **Partial** | Roll Me a Game (3D dice, filters, Chaos Roll), the game library and Game of the Week work on a labelled *preview shelf* of sample games. Needs the café's real inventory, staff editing and the weekly automation |
 | Booking (Phase 5) | **Not started** | Multi-person bookings, capacity, confirmation email, secure cancellation, waiting list, daily digest. Decisions needed first (§4) |
-| Become a Host (Phase 7) | **Not started** | The page explains hosting; staff add hosts by hand today |
-| Staff Control (Phase 8) | **Partial** | Approvals and hosts are in `/organise`. Sync history and audit exist as an API but have no screen. No event, booking or settings controls, and no way to add staff in the app |
+| Become a Host (Phase 7) | **Partial** | **Apply to host** signs people in and takes their request, which the café approves in the organiser ([RTD_ONBOARDING.md](RTD_ONBOARDING.md)). Not built: a form for people without an email sign-in, and a richer host profile |
+| Staff Control (Phase 8) | **Partial** | In `/organise`: approvals, join requests, hosts and the café team (admins add staff by approving their request). Sync history and audit exist as an API but have no screen. No event, booking or settings controls |
 | Hardening (Phase 9) | **Partial** | See §5 for what's already covered, and §3 for what's left |
 
 ## 2. What's running where
@@ -96,8 +99,8 @@ Who: **You** = Dan; **Michelle** = café; **Claude** = me.
 | 3 | **Lock down or switch off the website-requests webhook** (S3) | It's public, with no checks, and it writes unescaped input into an email | Your decision; Claude makes the change |
 | 4 | **Confirm the n8n editor isn't public** (S6) | Only `/webhook/*` and `/form/*` should be reachable from the internet | You (or Claude, with access to the Pi's proxy settings) |
 | 5 | **Privacy notice and data retention** (S7, spec §49) | The app holds host names and emails. The sheet holds organiser emails. Photos may show customers. Add a privacy page, set retention rules, and check whether the café already pays the ICO data protection fee | You for the wording and legal checks; Claude adds the page |
-| 6 | **Give café staff accounts** | Only Dan has an account today. Michelle needs a staff account to approve sessions. There's no "add staff" screen yet | Claude (database row now, or a small admin screen) |
-| 7 | **Let hosts through sign-in** | The RTD Staff Access policy must include them: **Include → Everyone** is recommended, since the app decides who is a host | You, in the Cloudflare dashboard |
+| 6 | **Give café staff accounts** | Only Dan has an account today. Michelle signs in at `/organise`, asks for **Café team**, and Dan approves it under **Join requests** | Michelle, then you |
+| 7 | **Let hosts and staff through sign-in** | The RTD Staff Access policy must let new people sign in so they can ask for access: **Include → Everyone**, since the app decides who gets in | You, in the Cloudflare dashboard |
 | 8 | **One real host session end to end** | Sign-in and submitting are tested. Approve → sheet row → diary → follow-up hasn't run on a real session. Use a **Private** session, so nothing gets posted | You, then Claude checks each step |
 | 9 | **Copy the Event Guard edits into `rtd-poster-automation`** | The next build of that project would silently undo "no posters for private sessions" and "no date request for host sessions" | You push the project to GitHub; Claude makes the change |
 | 10 | **Real-phone testing** | So far only automated Chromium screenshots. Test iPhone Safari (browser and installed), Android Chrome, the Facebook/Instagram in-app browser, and host sign-in on a phone | You and Michelle, with a checklist from Claude |
@@ -111,8 +114,7 @@ Who: **You** = Dan; **Michelle** = café; **Claude** = me.
 | **Analytics** (Cloudflare Web Analytics) | Spec Phase 2; cookieless, so no consent banner needed for it | You create the token; Claude adds it |
 | **Alert if the sync stops** | The n8n error handler covers failed runs, but not "the Pi is off". An uptime check on `/api/health` that also checks the last-sync time would catch it | Claude adds a "stale" flag; you pick the alert channel |
 | **Weekly database export** | Time Travel only goes back 7 days on the free plan. A weekly export to Drive, or the paid plan (30 days), covers longer | Claude |
-| **Send emails from the café, not Dan's Gmail** | Café notices and host follow-ups currently come from ATech Gmail. A café address or a transactional provider looks right, and booking needs one anyway | Decision (§4); Claude wires it |
-| **Email hosts when a session is approved or declined** | Today they have to check the organiser | Claude (n8n) |
+| **Send emails from the café, not Dan's Gmail** | Café notices, host follow-ups and the onboarding and decision emails currently come from ATech Gmail. A café address or a transactional provider looks right, and booking needs one anyway | Decision (§4); Claude wires it |
 | **Decide on the games preview** | Roll Me a Game and Game of the Week use sample games (labelled Preview). Either keep that label or hide them until the inventory arrives | You |
 | **Rate limiting** | A Cloudflare rate-limiting rule on the public API, once on the custom domain. Essential before booking | Claude |
 | **Hide `/styleguide`** | It's an internal design page, reachable by anyone who knows the address | Claude |
@@ -127,8 +129,8 @@ Who: **You** = Dan; **Michelle** = café; **Claude** = me.
    - **Before building:** the email provider and sending domain, how capacity and booking cut-off are set (new sheet columns or app-only), and which events to pilot.
 2. **Push reminders (Phase 3):** opt-in, a reminder 4 hours before, no duplicates, and an audit trail.
 3. **Games (Phase 4):** the café's inventory, staff editing, and Game of the Week rotating automatically.
-4. **Become a Host (Phase 7):** a public application form, staff review and an invite into the organiser.
-5. **Staff Control (Phase 8):** one dashboard for events, bookings, hosts, applications, approvals, waitlists, games, audit and settings, including managing staff.
+4. **Become a Host (Phase 7) extras:** request and approval are built; still to come is a richer host profile (games, experience, availability).
+5. **Staff Control (Phase 8):** one dashboard for events, bookings, waitlists, games, audit and settings. Approvals, join requests, hosts and the café team are already in `/organise`.
 6. **Host portal extras:** editing a session, change notifications, booking lists for hosts.
 7. **Hardening (Phase 9):** security and permissions review, booking race-condition tests, n8n failure tests, a backup and restore drill, an accessibility review with a screen reader, a performance review, and a data-protection review.
 8. **Reliability work from the audit:**
@@ -171,8 +173,8 @@ Who: **You** = Dan; **Michelle** = café; **Claude** = me.
 1. **Decide:** domain, email sender, webhook, key rotation (§4 items 1–4).
 2. **Security tidy-up:** rotate the keys, lock the webhook, confirm n8n isn't public, and push `rtd-poster-automation`.
 3. **Move to the domain,** before anyone is asked to install the app.
-4. **Staff and hosts:** Michelle's staff account, the Access policy, one Private trial session end to end.
-5. **Polish:** privacy page, analytics, sync alert, weekly export, host decision emails, café sender address.
+4. **Staff and hosts:** the Access policy, then Michelle asks for a café team account and Dan approves it, then one Private trial session end to end.
+5. **Polish:** privacy page, analytics, sync alert, weekly export, café sender address.
 6. **Phones:** real-device test round with Michelle; fix what it finds.
 7. **Soft launch (Launch A):** tell regulars and hosts; watch the sync, analytics and the café inbox for a couple of weeks.
-8. **Phase 5 booking,** then push reminders, games, applications and the staff dashboard (Launch B).
+8. **Phase 5 booking,** then push reminders, games and the staff dashboard (Launch B).
