@@ -1,9 +1,11 @@
 // Staff Control API (Phase 1: identity, sync health and audit history).
 
 import { Hono } from 'hono';
-import { addHost, decideSession, listHosts, listSessions, type SessionStatus } from '../host/sessions';
+import { upcomingHostedDates } from '../bookings/bookings';
+import { decideSession, listHosts, listSessions, type SessionStatus } from '../host/sessions';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
-import { decideApplication, listApplications, listTeam, removeAccess, type ApplicationStatus } from '../team/applications';
+import { londonDate } from '../lib/time';
+import { decideApplication, listApplications, listApprovers, removeAccess, setApprover, type ApplicationStatus } from '../team/applications';
 
 export const staffRoutes = new Hono<{ Bindings: Env; Variables: { user: AuthUser } }>();
 
@@ -68,21 +70,19 @@ staffRoutes.post('/host-sessions/:id/decision', async c => {
   return result.ok ? c.json({ session: result.session }) : c.json({ error: result.error }, result.status);
 });
 
+/** Every hosted date in the next three weeks, with who's booked (and how to reach them). */
+staffRoutes.get('/hosted-dates', async c => c.json({ dates: await upcomingHostedDates(c.env.DB, londonDate(new Date())) }));
+
+/** Hosts. Everyone joins through a join request; there's no adding people directly. */
 staffRoutes.get('/hosts', async c => c.json({ hosts: await listHosts(c.env.DB) }));
 
-/** Add a host by the email they'll sign in with. Body: { email, display_name } */
-staffRoutes.post('/hosts', async c => {
-  const result = await addHost(c.env.DB, c.get('user'), await c.req.json().catch(() => null), new Date().toISOString());
-  return result.ok ? c.json({ host: result.host }, 201) : c.json({ error: 'Please check the form', errors: result.errors }, result.status);
-});
+// --- Onboarding: join requests, approvers, removing access (docs/RTD_ONBOARDING.md) ---
 
-// --- Onboarding: join requests, the café team, removing access (docs/RTD_ONBOARDING.md) ---
-
-/** Join requests this reviewer may decide: staff see host requests; admins also see café team requests. */
+/** Join requests, for approvers and admins. */
 staffRoutes.get('/applications', async c => {
   const status = c.req.query('status') ?? 'pending';
   if (!['pending', 'approved', 'declined', 'withdrawn'].includes(status)) return c.json({ error: 'Unknown status' }, 400);
-  return c.json({ applications: await listApplications(c.env.DB, c.get('user'), status as ApplicationStatus) });
+  return c.json({ applications: await listApplications(c.env.DB, status as ApplicationStatus) });
 });
 
 /** Approve or decline a join request. Body: { decision: 'approve' | 'decline', note? } */
@@ -94,13 +94,21 @@ staffRoutes.post('/applications/:id/decision', async c => {
   return result.ok ? c.json({ application: result.application }) : c.json({ error: result.error }, result.status);
 });
 
-/** The café team (staff and admins): admins only. */
-staffRoutes.get('/team', async c => {
+/** Approvers and admins: admins only. */
+staffRoutes.get('/approvers', async c => {
   if (c.get('user').role !== 'admin') return c.json({ error: 'Admins only' }, 403);
-  return c.json({ team: await listTeam(c.env.DB) });
+  return c.json({ approvers: await listApprovers(c.env.DB) });
 });
 
-/** Remove someone's access: staff remove hosts, admins also remove staff. */
+/** Admins: make a host an approver, or back. Body: { approver: true | false } */
+staffRoutes.post('/users/:id/approver', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { approver?: unknown };
+  if (typeof body.approver !== 'boolean') return c.json({ error: 'approver must be true or false' }, 400);
+  const result = await setApprover(c.env.DB, c.get('user'), c.req.param('id'), body.approver, new Date().toISOString());
+  return result.ok ? c.json({ ok: true }) : c.json({ error: result.error }, result.status);
+});
+
+/** Remove someone's access: approvers remove hosts, admins also remove approvers. */
 staffRoutes.post('/users/:id/remove', async c => {
   const result = await removeAccess(c.env.DB, c.get('user'), c.req.param('id'), new Date().toISOString());
   return result.ok ? c.json({ ok: true }) : c.json({ error: result.error }, result.status);

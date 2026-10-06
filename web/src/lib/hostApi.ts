@@ -35,6 +35,37 @@ export interface HostSession {
   decision_note: string | null;
   decided_at: string | null;
   event_id: string | null;
+  /** Live sessions: upcoming dates, with who's booked. */
+  dates?: SessionDate[];
+}
+
+export interface DateBooking {
+  booking_id: string;
+  lead_name: string;
+  party_size: number;
+  notes: string | null;
+  /** Approvers only. */
+  email?: string;
+  mobile?: string | null;
+}
+
+/** One date of a live session (docs/RTD_BOOKINGS.md). */
+export interface SessionDate {
+  occurrence_id: string;
+  host_session_id: string;
+  event_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  status: 'scheduled' | 'cancelled';
+  cancelled_by: 'host' | 'staff' | null;
+  capacity: number | null;
+  booked: number;
+  bookings: DateBooking[];
+}
+
+/** For approvers: a date with its session and host. */
+export interface HostedDate extends SessionDate {
+  session: { session_id: string; name: string; access: Access; max_players: number; host_name: string | null; host_email: string };
 }
 
 /** A request to host games or join the café team (docs/RTD_ONBOARDING.md). */

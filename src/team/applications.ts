@@ -1,13 +1,13 @@
-// Onboarding for hosts and café staff (docs/RTD_ONBOARDING.md).
-//
-// Someone signs in with Cloudflare Access (which proves their email), then
-// asks to host games or to join the café team. Staff approve host requests;
-// only an admin approves café team requests. Approving creates (or re-activates)
-// their users row, which is what actually grants access.
+// Onboarding (docs/RTD_ONBOARDING.md). Hosts and café staff join the same way:
+// sign in with Cloudflare Access (which proves their email), then ask to host.
+// An approver (role `staff`, shown as "Approver": Michelle) or an admin says
+// yes or no. Approving creates (or re-activates) their users row as a host,
+// which only lets them plan sessions; every session still needs an approver.
 
 import type { AuthUser, Role } from '../lib/auth';
 import { addDays } from '../lib/time';
 
+/** Always 'host' now; 'staff' only on requests made before 2026-10-06. */
 export type ApplicationRole = 'host' | 'staff';
 export type ApplicationStatus = 'pending' | 'approved' | 'declined' | 'withdrawn';
 
@@ -31,18 +31,16 @@ const clean = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\
 
 export function parseApplication(
   body: unknown,
-): { ok: true; value: { role: ApplicationRole; display_name: string; about: string } } | { ok: false; errors: Record<string, string> } {
+): { ok: true; value: { display_name: string; about: string } } | { ok: false; errors: Record<string, string> } {
   const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
   const errors: Record<string, string> = {};
-  const role = b.role;
-  if (role !== 'host' && role !== 'staff') errors.role = 'Choose hosting games or the café team.';
   const name = clean(b.display_name, 60);
   if (name.length < 2 || name.length > 60) errors.display_name = 'Enter your name (2–60 characters).';
   const about = typeof b.about === 'string' ? b.about.trim() : '';
-  if (about.length < 3) errors.about = role === 'staff' ? 'Tell us your role at the café.' : 'Tell the café what you would like to run.';
+  if (about.length < 3) errors.about = 'Tell the café what you would like to run.';
   else if (about.length > 500) errors.about = 'Keep it to 500 characters.';
   if (Object.keys(errors).length) return { ok: false, errors };
-  return { ok: true, value: { role: role as ApplicationRole, display_name: name, about } };
+  return { ok: true, value: { display_name: name, about } };
 }
 
 const FIELDS = `application_id, email, display_name, role, about, status, decision_note, decided_by, decided_at, created_at`;
@@ -81,19 +79,19 @@ export async function submitApplication(db: D1Database, email: string, body: unk
   if ((recent?.n ?? 0) >= MAX_REQUESTS_PER_DAY) return { ok: false, status: 429, error: 'Too many requests today. Please try again tomorrow.' };
   const parsed = parseApplication(body);
   if (!parsed.ok) return { ok: false, status: 400, error: 'Please check the form', errors: parsed.errors };
-  const { role, display_name, about } = parsed.value;
+  const { display_name, about } = parsed.value;
   const row = await db
     .prepare(
       `INSERT INTO applications (application_id, email, display_name, role, about, status, created_at, updated_at)
        SELECT printf('RTD-APP-%05d', COALESCE(MAX(CAST(substr(application_id, 9) AS INTEGER)), 0) + 1),
-         ?1, ?2, ?3, ?4, 'pending', ?5, ?5
+         ?1, ?2, 'host', ?3, 'pending', ?4, ?4
        FROM applications
        RETURNING application_id`,
     )
-    .bind(email, display_name, role, about, now)
+    .bind(email, display_name, about, now)
     .first<{ application_id: string }>();
   const id = row!.application_id;
-  await audit(db, 'application', id, 'customer', email, `application.${role}.submitted`, null, JSON.stringify(parsed.value), now).run();
+  await audit(db, 'application', id, 'customer', email, 'application.host.submitted', null, JSON.stringify(parsed.value), now).run();
   return { ok: true, application: (await latestApplication(db, email))! };
 }
 
@@ -109,27 +107,20 @@ export async function withdrawApplication(db: D1Database, email: string, now: st
   return true;
 }
 
-/** Roles a reviewer may approve: staff approve hosts; admins approve hosts and café team. */
-export const reviewableRoles = (reviewer: AuthUser): ApplicationRole[] => (reviewer.role === 'admin' ? ['host', 'staff'] : ['host']);
-
-export async function listApplications(db: D1Database, reviewer: AuthUser, status: ApplicationStatus = 'pending'): Promise<Application[]> {
-  const roles = reviewableRoles(reviewer);
+/** Join requests for approvers and admins (the staff routes check the role). */
+export async function listApplications(db: D1Database, status: ApplicationStatus = 'pending'): Promise<Application[]> {
   const { results } = await db
-    .prepare(
-      `SELECT ${FIELDS} FROM applications
-       WHERE status = ?1 AND role IN (SELECT value FROM json_each(?2))
-       ORDER BY created_at, application_id LIMIT 100`,
-    )
-    .bind(status, JSON.stringify(roles))
+    .prepare(`SELECT ${FIELDS} FROM applications WHERE status = ?1 ORDER BY created_at, application_id LIMIT 100`)
+    .bind(status)
     .all<Application>();
   return results;
 }
 
 const RANK: Record<Role, number> = { host: 1, staff: 2, admin: 3 };
 
-export type Decision = { ok: true; application: Application } | { ok: false; status: 403 | 404 | 409; error: string };
+export type Decision = { ok: true; application: Application } | { ok: false; status: 404 | 409; error: string };
 
-/** Approve or decline once. Approval grants the requested access straight away. */
+/** Approve or decline once. Approval makes them a host straight away. */
 export async function decideApplication(
   db: D1Database,
   reviewer: AuthUser,
@@ -140,7 +131,6 @@ export async function decideApplication(
 ): Promise<Decision> {
   const app = await db.prepare(`SELECT ${FIELDS} FROM applications WHERE application_id = ?1`).bind(id).first<Application>();
   if (!app) return { ok: false, status: 404, error: 'Request not found' };
-  if (!reviewableRoles(reviewer).includes(app.role)) return { ok: false, status: 403, error: 'Only an admin can approve café team requests.' };
   if (app.status !== 'pending') return { ok: false, status: 409, error: `This request is already ${app.status}.` };
   const status = decision === 'approve' ? 'approved' : 'declined';
   // Only move if still pending, so two reviewers deciding at once can't both win.
@@ -155,12 +145,12 @@ export async function decideApplication(
 
   const writes = [audit(db, 'application', id, 'staff', reviewer.email, `application.${status}`, 'pending', note, now)];
   if (status === 'approved') {
-    // Never downgrade someone who already holds a higher role. Someone whose
-    // access was removed keeps their old users row (and ID), now re-activated.
+    // Everyone joins as a host. Never downgrade an approver or admin. Someone
+    // whose access was removed keeps their old users row (and ID), re-activated.
     const existing = await activeUser(db, app.email);
-    const role: Role = existing && RANK[existing.role] > RANK[app.role] ? existing.role : app.role;
+    const role: Role = existing && RANK[existing.role] > RANK.host ? existing.role : 'host';
     const previous = await db.prepare('SELECT user_id FROM users WHERE email = ?1').bind(app.email).first<{ user_id: string }>();
-    const userId = previous?.user_id ?? `${app.role}-${crypto.randomUUID()}`;
+    const userId = previous?.user_id ?? `host-${crypto.randomUUID()}`;
     writes.push(
       db
         .prepare(
@@ -177,8 +167,8 @@ export async function decideApplication(
   return { ok: true, application: (await db.prepare(`SELECT ${FIELDS} FROM applications WHERE application_id = ?1`).bind(id).first<Application>())! };
 }
 
-/** Café team (staff and admins), for admins. */
-export async function listTeam(db: D1Database) {
+/** Approvers (role staff) and admins, for admins. */
+export async function listApprovers(db: D1Database) {
   const { results } = await db
     .prepare("SELECT user_id, email, display_name, role, created_at FROM users WHERE role IN ('staff', 'admin') AND active = 1 ORDER BY role, display_name")
     .all<Record<string, unknown>>();
@@ -186,8 +176,8 @@ export async function listTeam(db: D1Database) {
 }
 
 /**
- * Offboarding: staff can remove hosts; admins can also remove staff. Nobody
- * removes an admin or themselves here, so the café can't lock itself out.
+ * Offboarding: approvers can remove hosts; admins can also remove approvers.
+ * Nobody removes an admin or themselves here, so the café can't lock itself out.
  */
 export async function removeAccess(
   db: D1Database,
@@ -199,10 +189,34 @@ export async function removeAccess(
   if (!target) return { ok: false, status: 404, error: 'No one with access by that ID' };
   if (target.user_id === actor.user_id) return { ok: false, status: 403, error: "You can't remove your own access." };
   if (target.role === 'admin') return { ok: false, status: 403, error: 'Admins can only be removed in the database.' };
-  if (target.role === 'staff' && actor.role !== 'admin') return { ok: false, status: 403, error: 'Only an admin can remove café team members.' };
+  if (target.role === 'staff' && actor.role !== 'admin') return { ok: false, status: 403, error: 'Only an admin can remove an approver.' };
   await db.batch([
     db.prepare('UPDATE users SET active = 0, updated_at = ?2 WHERE user_id = ?1').bind(userId, now),
     audit(db, 'user', target.user_id, 'staff', actor.email, `user.removed_${target.role}`, target.email, null, now),
+  ]);
+  return { ok: true };
+}
+
+/**
+ * Admins only: make a host an approver (role `staff`: approves join requests and
+ * sessions, and can remove hosts), or turn an approver back into a host.
+ */
+export async function setApprover(
+  db: D1Database,
+  actor: AuthUser,
+  userId: string,
+  approver: boolean,
+  now: string,
+): Promise<{ ok: true } | { ok: false; status: 403 | 404 | 409; error: string }> {
+  if (actor.role !== 'admin') return { ok: false, status: 403, error: 'Only an admin can choose approvers.' };
+  const target = await db.prepare('SELECT user_id, email, role FROM users WHERE user_id = ?1 AND active = 1').bind(userId).first<{ user_id: string; email: string; role: Role }>();
+  if (!target) return { ok: false, status: 404, error: 'No one with access by that ID' };
+  if (target.role === 'admin' || target.user_id === actor.user_id) return { ok: false, status: 403, error: "Admins can't be changed here." };
+  const role: Role = approver ? 'staff' : 'host';
+  if (target.role === role) return { ok: false, status: 409, error: approver ? 'Already an approver.' : 'Already a host.' };
+  await db.batch([
+    db.prepare('UPDATE users SET role = ?2, updated_at = ?3 WHERE user_id = ?1').bind(userId, role, now),
+    audit(db, 'user', userId, 'staff', actor.email, approver ? 'user.made_approver' : 'user.approver_removed', target.role, role, now),
   ]);
   return { ok: true };
 }
@@ -211,23 +225,16 @@ export async function removeAccess(
 
 const NOTICE_WINDOW_DAYS = 14;
 
-/** New requests the approver hasn't been emailed about. Café team requests go to the admins. */
+/** New requests the approvers haven't been emailed about: they go to the café address (rtd_config in n8n). */
 export async function newApplicationsForApprovers(db: D1Database) {
-  const [apps, admins] = await db.batch([
-    db.prepare(
+  const { results } = await db
+    .prepare(
       `SELECT ${FIELDS} FROM applications WHERE status = 'pending' AND approver_notified_at IS NULL
        ORDER BY created_at, application_id LIMIT 50`,
-    ),
-    db.prepare("SELECT email FROM users WHERE role = 'admin' AND active = 1 ORDER BY email"),
-  ]);
-  const adminEmails = ((admins?.results ?? []) as { email: string }[]).map(a => a.email);
-  return ((apps?.results ?? []) as unknown as Application[]).map(a => ({
-    ...a,
-    role_label: a.role === 'staff' ? 'café team' : 'host',
-    // Café team requests: the admins. Host requests: the café address (n8n reads it from rtd_config).
-    notify: a.role === 'staff' ? adminEmails : [],
-    notify_cafe: a.role === 'host',
-  }));
+    )
+    .all<Application>();
+  // notify / notify_cafe keep the shape n8n RTD Team Notices reads.
+  return results.map(a => ({ ...a, role: 'host' as const, role_label: 'host', notify: [] as string[], notify_cafe: true }));
 }
 
 /** Requests decided in the last fortnight whose applicant hasn't been told. */
@@ -242,8 +249,9 @@ export async function decidedApplicationsForApplicants(db: D1Database, today: st
     .all<Application>();
   return results.map(a => ({
     ...a,
+    role: 'host' as const,
     first_name: a.display_name.trim().split(/\s+/)[0] || 'there',
-    role_label: a.role === 'staff' ? 'café team' : 'host',
+    role_label: 'host',
   }));
 }
 

@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { env, freshDb, request } from './helpers';
 
 const as = (email: string) => ({ ENVIRONMENT: 'development', DEV_AUTH_EMAIL: email });
-const DAN = as('dan@example.com'); // admin: approves café team requests
-const MICHELLE = as('michelle@example.com'); // staff: approves hosts and sessions
+const DAN = as('dan@example.com'); // admin: chooses approvers
+const MICHELLE = as('michelle@example.com'); // approver (role staff): approves join requests and sessions
 const SAM = as('sam@example.com'); // already a host
 const NEWBIE = as('newbie@example.com'); // signed in, no access yet
 const json = (body: unknown) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -32,68 +32,78 @@ describe('asking to join', () => {
     expect((await request('/api/join/me')).status).toBe(401);
     expect(await (await request('/api/join/me', {}, NEWBIE)).json()).toEqual({ email: 'newbie@example.com', has_access: false, application: null });
     expect((await (await request('/api/join/me', {}, SAM)).json<{ has_access: boolean }>()).has_access).toBe(true);
-    expect((await apply(SAM, { role: 'staff', display_name: 'Sam', about: 'Front of house' })).status).toBe(409);
+    expect((await apply(SAM, { display_name: 'Sam', about: 'More Root' })).status).toBe(409);
   });
 
   it('checks the form and takes one request at a time', async () => {
-    const bad = await apply(NEWBIE, { role: 'boss', display_name: 'N', about: '' });
+    const bad = await apply(NEWBIE, { display_name: 'N', about: '' });
     expect(bad.status).toBe(400);
-    expect(Object.keys((await bad.json<{ errors: object }>()).errors).sort()).toEqual(['about', 'display_name', 'role']);
+    expect(Object.keys((await bad.json<{ errors: object }>()).errors).sort()).toEqual(['about', 'display_name']);
 
-    const ok = await apply(NEWBIE, { role: 'host', display_name: 'Nina Newbie', about: 'Beginner D&D one-shots' });
+    const ok = await apply(NEWBIE, { display_name: 'Nina Newbie', about: 'Beginner D&D one-shots' });
     expect(ok.status).toBe(201);
     expect((await ok.json<{ application: App }>()).application).toMatchObject({ application_id: 'RTD-APP-00001', status: 'pending', role: 'host' });
-    expect((await apply(NEWBIE, { role: 'host', display_name: 'Nina', about: 'Again' })).status).toBe(409);
+    expect((await apply(NEWBIE, { display_name: 'Nina', about: 'Again' })).status).toBe(409);
 
     expect((await request('/api/join/withdraw', json({}), NEWBIE)).status).toBe(200);
     expect((await request('/api/join/withdraw', json({}), NEWBIE)).status).toBe(409);
-    expect((await apply(NEWBIE, { role: 'staff', display_name: 'Nina Newbie', about: 'Front of house' })).status).toBe(201);
+    expect((await apply(NEWBIE, { display_name: 'Nina Newbie', about: 'Catan nights' })).status).toBe(201);
+  });
+
+  it('treats café staff exactly like hosts: there is no other kind of request', async () => {
+    const res = await apply(NEWBIE, { role: 'staff', display_name: 'Bea Barista', about: 'I work front of house; a Catan night' });
+    expect((await res.json<{ application: App }>()).application.role).toBe('host');
   });
 
   it('limits requests to three a day', async () => {
     for (let i = 0; i < 3; i++) {
-      expect((await apply(NEWBIE, { role: 'host', display_name: 'Nina', about: 'Catan nights' })).status).toBe(201);
+      expect((await apply(NEWBIE, { display_name: 'Nina', about: 'Catan nights' })).status).toBe(201);
       await request('/api/join/withdraw', json({}), NEWBIE);
     }
-    expect((await apply(NEWBIE, { role: 'host', display_name: 'Nina', about: 'Catan nights' })).status).toBe(429);
+    expect((await apply(NEWBIE, { display_name: 'Nina', about: 'Catan nights' })).status).toBe(429);
   });
 });
 
 describe('approving join requests', () => {
   beforeEach(async () => {
-    await apply(NEWBIE, { role: 'host', display_name: 'Nina Newbie', about: 'Beginner D&D one-shots' }); // RTD-APP-00001
-    await apply(as('barista@example.com'), { role: 'staff', display_name: 'Bea Barista', about: 'Front of house' }); // 00002
+    await apply(NEWBIE, { display_name: 'Nina Newbie', about: 'Beginner D&D one-shots' }); // RTD-APP-00001
+    await apply(as('barista@example.com'), { display_name: 'Bea Barista', about: 'Front of house; Catan nights' }); // 00002
   });
 
-  it('shows staff the host requests, and admins the café team requests too', async () => {
-    const staffView = await (await request('/api/staff/applications', {}, MICHELLE)).json<{ applications: App[] }>();
-    expect(staffView.applications.map(a => a.application_id)).toEqual(['RTD-APP-00001']);
-    const adminView = await (await request('/api/staff/applications', {}, DAN)).json<{ applications: App[] }>();
-    expect(adminView.applications.map(a => a.application_id)).toEqual(['RTD-APP-00001', 'RTD-APP-00002']);
+  it('shows every request to approvers and admins, and to nobody else', async () => {
+    for (const who of [MICHELLE, DAN]) {
+      const view = await (await request('/api/staff/applications', {}, who)).json<{ applications: App[] }>();
+      expect(view.applications.map(a => a.application_id)).toEqual(['RTD-APP-00001', 'RTD-APP-00002']);
+    }
     expect((await request('/api/staff/applications', {}, SAM)).status).toBe(403);
   });
 
-  it('lets staff approve a host, who can then use the organiser', async () => {
+  it('makes everyone approved a host, who can only plan sessions', async () => {
     expect((await request('/api/host/me', {}, NEWBIE)).status).toBe(403);
     const res = await decide(MICHELLE, 'RTD-APP-00001', 'approve');
     expect((await res.json<{ application: App }>()).application).toMatchObject({ status: 'approved', decided_by: 'michelle@example.com' });
-    const me = await (await request('/api/host/me', {}, NEWBIE)).json<{ user: { role: string; display_name: string }; can_review: boolean }>();
-    expect(me).toMatchObject({ user: { role: 'host', display_name: 'Nina Newbie' }, can_review: false });
+    expect((await decide(DAN, 'RTD-APP-00002', 'approve')).status).toBe(200);
+    for (const email of ['newbie@example.com', 'barista@example.com']) {
+      const me = await (await request('/api/host/me', {}, as(email))).json<{ user: { role: string }; can_review: boolean }>();
+      expect(me).toMatchObject({ user: { role: 'host' }, can_review: false });
+      expect((await request('/api/staff/host-sessions', {}, as(email))).status).toBe(403);
+      expect((await request('/api/staff/applications', {}, as(email))).status).toBe(403);
+    }
     expect((await decide(MICHELLE, 'RTD-APP-00001', 'decline')).status).toBe(409);
   });
 
-  it('keeps café team approval for admins', async () => {
-    expect((await decide(MICHELLE, 'RTD-APP-00002', 'approve')).status).toBe(403);
-    expect((await decide(DAN, 'RTD-APP-00002', 'approve')).status).toBe(200);
-    const me = await (await request('/api/host/me', {}, as('barista@example.com'))).json<{ user: { role: string }; can_review: boolean; is_admin: boolean }>();
-    expect(me).toMatchObject({ user: { role: 'staff' }, can_review: true, is_admin: false });
+  it('never downgrades an approver or admin who asks', async () => {
+    // An approver can't reach the join form, but a request could predate their promotion.
+    await env.DB.prepare("INSERT INTO applications (application_id, email, display_name, role, about, status, created_at, updated_at) VALUES ('RTD-APP-00003', 'michelle@example.com', 'Michelle', 'host', 'Quiz', 'pending', '2026-10-06T09:00:00Z', '2026-10-06T09:00:00Z')").run();
+    await decide(DAN, 'RTD-APP-00003', 'approve');
+    expect(await env.DB.prepare("SELECT role FROM users WHERE user_id = 'u-mich'").first()).toEqual({ role: 'staff' });
   });
 
   it('tells the applicant when a request is declined, and lets them ask again', async () => {
     await decide(MICHELLE, 'RTD-APP-00001', 'decline', 'We have a D&D host already. Fancy a board game night?');
     const me = await (await request('/api/join/me', {}, NEWBIE)).json<{ application: App }>();
     expect(me.application).toMatchObject({ status: 'declined', decision_note: 'We have a D&D host already. Fancy a board game night?' });
-    expect((await apply(NEWBIE, { role: 'host', display_name: 'Nina Newbie', about: 'Catan nights' })).status).toBe(201);
+    expect((await apply(NEWBIE, { display_name: 'Nina Newbie', about: 'Catan nights' })).status).toBe(201);
   });
 
   it('records every step in the audit log', async () => {
@@ -102,7 +112,7 @@ describe('approving join requests', () => {
     const { results } = await env.DB.prepare("SELECT action, actor_id FROM audit_log WHERE entity_type IN ('application', 'user') ORDER BY audit_id").all();
     expect(results).toEqual([
       { action: 'application.host.submitted', actor_id: 'newbie@example.com' },
-      { action: 'application.staff.submitted', actor_id: 'barista@example.com' },
+      { action: 'application.host.submitted', actor_id: 'barista@example.com' },
       { action: 'application.approved', actor_id: 'michelle@example.com' },
       { action: 'user.granted_host', actor_id: 'michelle@example.com' },
       { action: 'application.declined', actor_id: 'dan@example.com' },
@@ -110,17 +120,31 @@ describe('approving join requests', () => {
   });
 });
 
-describe('the café team and removing access', () => {
-  it('lists the team for admins only', async () => {
-    expect((await request('/api/staff/team', {}, MICHELLE)).status).toBe(403);
-    const { team } = await (await request('/api/staff/team', {}, DAN)).json<{ team: { email: string; role: string }[] }>();
-    expect(team.map(t => [t.email, t.role])).toEqual([
+describe('approvers and removing access', () => {
+  it('lists approvers for admins only', async () => {
+    expect((await request('/api/staff/approvers', {}, MICHELLE)).status).toBe(403);
+    const { approvers } = await (await request('/api/staff/approvers', {}, DAN)).json<{ approvers: { email: string; role: string }[] }>();
+    expect(approvers.map(t => [t.email, t.role])).toEqual([
       ['dan@example.com', 'admin'],
       ['michelle@example.com', 'staff'],
     ]);
   });
 
-  it('lets staff remove hosts, and only admins remove staff', async () => {
+  it('lets only an admin make a host an approver, and back', async () => {
+    const make = (who: Record<string, string>, id: string, approver: boolean) => request(`/api/staff/users/${id}/approver`, json({ approver }), who);
+    expect((await make(MICHELLE, 'u-sam', true)).status).toBe(403);
+    expect((await make(DAN, 'u-sam', true)).status).toBe(200);
+    expect(await (await request('/api/host/me', {}, SAM)).json()).toMatchObject({ user: { role: 'staff' }, can_review: true, is_admin: false });
+    expect((await make(DAN, 'u-sam', true)).status).toBe(409);
+    expect((await make(DAN, 'u-sam', false)).status).toBe(200);
+    expect((await request('/api/staff/host-sessions', {}, SAM)).status).toBe(403);
+    expect((await make(DAN, 'u-dan', false)).status).toBe(403); // admins aren't changed here
+    expect((await make(DAN, 'u-sam', 'yes' as unknown as boolean)).status).toBe(400);
+    const { results } = await env.DB.prepare("SELECT action FROM audit_log WHERE entity_id = 'u-sam' ORDER BY audit_id").all();
+    expect(results.map(r => r.action)).toEqual(['user.made_approver', 'user.approver_removed']);
+  });
+
+  it('lets approvers remove hosts, and only admins remove approvers', async () => {
     expect((await request('/api/staff/users/u-sam/remove', json({}), MICHELLE)).status).toBe(200);
     expect((await request('/api/host/me', {}, SAM)).status).toBe(403);
     expect((await request('/api/staff/users/u-mich/remove', json({}), MICHELLE)).status).toBe(403); // their own access
@@ -133,7 +157,7 @@ describe('the café team and removing access', () => {
   it('lets someone who was removed ask again', async () => {
     await request('/api/staff/users/u-sam/remove', json({}), MICHELLE);
     expect((await (await request('/api/join/me', {}, SAM)).json<{ has_access: boolean }>()).has_access).toBe(false);
-    const res = await apply(SAM, { role: 'host', display_name: 'Sam', about: 'Back for more Root' });
+    const res = await apply(SAM, { display_name: 'Sam', about: 'Back for more Root' });
     expect(res.status).toBe(201);
     const { application } = await res.json<{ application: App }>();
     expect((await decide(MICHELLE, application.application_id, 'approve')).status).toBe(200);
@@ -148,17 +172,17 @@ describe('the café team and removing access', () => {
 
 describe('emails for n8n', () => {
   beforeEach(async () => {
-    await apply(NEWBIE, { role: 'host', display_name: 'Nina Newbie', about: 'Beginner D&D one-shots' });
-    await apply(as('barista@example.com'), { role: 'staff', display_name: 'Bea Barista', about: 'Front of house' });
+    await apply(NEWBIE, { display_name: 'Nina Newbie', about: 'Beginner D&D one-shots' });
+    await apply(as('barista@example.com'), { display_name: 'Bea Barista', about: 'Front of house; Catan nights' });
   });
 
-  it('sends host requests to the café and café team requests to the admins, once', async () => {
+  it('sends every join request to the café address (the approvers), once', async () => {
     expect((await request('/internal/applications/new')).status).toBe(401);
     const body = await (await request('/internal/applications/new', { headers: AUTH })).json<{ organiser_url: string; applications: App[] }>();
     expect(body.organiser_url).toBe('http://localhost/organise');
     expect(body.applications.map(a => [a.application_id, a.role_label, a.notify, a.notify_cafe])).toEqual([
       ['RTD-APP-00001', 'host', [], true],
-      ['RTD-APP-00002', 'café team', ['dan@example.com'], false],
+      ['RTD-APP-00002', 'host', [], true],
     ]);
     const mark = (id: string) => request(`/internal/applications/${id}/approver-notified`, { method: 'POST', headers: AUTH });
     expect(await (await mark('RTD-APP-00001')).json()).toEqual({ ok: true, already: false });

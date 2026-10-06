@@ -3,6 +3,7 @@
 // sessions to the Logic Engine, the one master calendar (docs/RTD_HOST_PORTAL.md).
 
 import type { AuthUser } from '../lib/auth';
+import { longDate, ukDate, weekdayOf } from '../lib/format';
 import { addDays, londonDate, parseSheetDate } from '../lib/time';
 
 export type SessionStatus = 'submitted' | 'approved' | 'declined' | 'withdrawn' | 'published';
@@ -200,9 +201,6 @@ export async function decideSession(
 // only looks back a fortnight, so a long n8n outage can't email about old ones.
 const FOLLOWUP_WINDOW_DAYS = 14;
 
-const longDate = (iso: string) =>
-  new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${iso}T12:00:00Z`));
-
 /** One-off sessions that went ahead (approved or live), whose day has passed and whose host hasn't been emailed yet. */
 export async function dueFollowups(db: D1Database, today: string) {
   const { results } = await db
@@ -244,9 +242,6 @@ export async function markFollowupSent(db: D1Database, id: string, now: string):
 
 // ---- Into the Logic Engine, and telling the café (n8n, docs/RTD_HOST_PORTAL.md) ----
 
-const weekdayOf = (iso: string) =>
-  new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'long' }).format(new Date(`${iso}T12:00:00Z`));
-const ukDate = (iso: string) => iso.split('-').reverse().join('/');
 const sessionWhen = (s: { frequency: string; event_date: string }) =>
   s.frequency === 'weekly' ? `Every ${weekdayOf(s.event_date)}, from ${longDate(s.event_date)}` : longDate(s.event_date);
 
@@ -412,43 +407,4 @@ export async function listHosts(db: D1Database) {
     .prepare("SELECT user_id, email, display_name, role, active, created_at FROM users WHERE role = 'host' ORDER BY created_at DESC")
     .all<Record<string, unknown>>();
   return results;
-}
-
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/** Staff add a host (or reactivate one). Staff and admins can already host. */
-export async function addHost(
-  db: D1Database,
-  staff: AuthUser,
-  body: unknown,
-  now: string,
-): Promise<{ ok: true; host: Record<string, unknown> } | { ok: false; status: 400 | 409; errors: Record<string, string> }> {
-  const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
-  const email = typeof b.email === 'string' ? b.email.trim().toLowerCase() : '';
-  const name = clean(b.display_name, 60);
-  const errors: Record<string, string> = {};
-  if (!EMAIL.test(email) || email.length > 200) errors.email = 'Enter the email address they will sign in with.';
-  if (name.length < 2 || name.length > 60) errors.display_name = 'Enter their name (2–60 characters).';
-  if (Object.keys(errors).length) return { ok: false, status: 400, errors };
-
-  const existing = await db.prepare('SELECT user_id, role, active FROM users WHERE email = ?1').bind(email).first<{ user_id: string; role: string; active: number }>();
-  if (existing && existing.role !== 'host') return { ok: false, status: 409, errors: { email: `That address is already ${existing.role}, which can host anyway.` } };
-  const userId = existing?.user_id ?? `host-${crypto.randomUUID()}`;
-  await db.batch([
-    db
-      .prepare(
-        `INSERT INTO users (user_id, email, display_name, role, active, created_at, updated_at)
-         VALUES (?1, ?2, ?3, 'host', 1, ?4, ?4)
-         ON CONFLICT (email) DO UPDATE SET display_name = excluded.display_name, active = 1, updated_at = excluded.updated_at`,
-      )
-      .bind(userId, email, name, now),
-    db
-      .prepare(
-        `INSERT INTO audit_log (entity_type, entity_id, actor_type, actor_id, action, new_value, source, created_at)
-         VALUES ('user', ?1, 'staff', ?2, ?3, ?4, 'organiser', ?5)`,
-      )
-      .bind(userId, staff.email, existing ? 'host.reactivated' : 'host.added', email, now),
-  ]);
-  const host = await db.prepare('SELECT user_id, email, display_name, role, active, created_at FROM users WHERE email = ?1').bind(email).first<Record<string, unknown>>();
-  return { ok: true, host: host! };
 }

@@ -27,6 +27,12 @@ export function londonDate(instant: Date): string {
   return dateFormat.format(instant);
 }
 
+/** The hour (0–23) on a London clock at the given instant. */
+export function londonHour(instant: Date): number {
+  const hour = partsFormat.formatToParts(instant).find(p => p.type === 'hour')?.value;
+  return Number(hour);
+}
+
 export function addDays(dateIso: string, days: number): string {
   const [y, m, d] = dateIso.split('-').map(Number) as [number, number, number];
   return new Date(Date.UTC(y, m - 1, d) + days * DAY_MS).toISOString().slice(0, 10);

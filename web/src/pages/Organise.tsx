@@ -1,11 +1,12 @@
-import { CalendarDays, Check, Clock, Lock, LogOut, Minus, Plus, PoundSterling, Repeat, Send, UserMinus, UserPlus, UsersRound, X } from 'lucide-preact';
+import { CalendarDays, Check, Clock, Lock, LogOut, Minus, Plus, PoundSterling, Repeat, Send, ShieldCheck, UserMinus, UsersRound, X } from 'lucide-preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { Chip, type ChipKind } from '../components/Chips';
 import { DiceLoader, EmptyState } from '../components/States';
 import { addDays, dayOfMonth, daysBetween, monthShort, shortDate, timeRange, todayLondon, weekday } from '../lib/dates';
 import { SIGN_IN_URL, hostApi, type Access, type Frequency, type HostRecord, type HostSession, type HostUser, type SessionStatus } from '../lib/hostApi';
 import { toast } from '../lib/toast';
-import { JoinRequests, JoinScreen, TeamPanel, removeAccess } from './OrganiseTeam';
+import { HostedDatesPanel, SessionDates } from './OrganiseDates';
+import { ApproversPanel, JoinRequests, JoinScreen, removeAccess, setApprover } from './OrganiseTeam';
 import { useTitle } from '../lib/title';
 
 const STATUS: Record<SessionStatus, { chip: ChipKind; label: string; note: string }> = {
@@ -62,7 +63,7 @@ export function Organise() {
   }, [sessions]);
 
   if (gate.state === 'loading') return <DiceLoader label="Opening the organiser..." />;
-  // Signed in, but no access yet: onboarding (ask to host or join the café team).
+  // Signed in, but no access yet: onboarding (ask to host; café staff join the same way).
   if (gate.state === 'not-host') return <JoinScreen />;
   if (gate.state !== 'ok') return <Gatekeeper gate={gate} justSignedIn={justSignedIn} />;
 
@@ -73,7 +74,7 @@ export function Organise() {
     <div class="container organiser" data-surface="host">
       <header class="page-head organiser__head">
         <div>
-          <p class="label">{gate.user.role === 'host' ? 'Host dashboard' : 'Café team'}</p>
+          <p class="label">{gate.user.role === 'host' ? 'Host dashboard' : gate.user.role === 'admin' ? 'Admin' : 'Approver'}</p>
           <h1>Welcome back{gate.user.display_name ? `, ${gate.user.display_name}` : ''}</h1>
         </div>
         <a class="btn btn--text btn--sm" href="/cdn-cgi/access/logout">
@@ -212,6 +213,7 @@ function SessionCard({ s, onChange }: { s: HostSession; onChange: () => void }) 
         <SessionFacts s={s} />
         {s.status === 'declined' && s.decision_note && <p class="meta">Café note: {s.decision_note}</p>}
         {status.note && !past && <p class="meta">{status.note}</p>}
+        {s.dates && <SessionDates dates={s.dates} onChanged={onChange} />}
       </div>
       <div class="host-event__side">
         <Chip kind={finished ? 'completed' : status.chip}>{finished ? 'Completed' : status.label}</Chip>
@@ -427,10 +429,11 @@ function SessionForm({ onDone }: { onDone: (created: boolean) => void }) {
   );
 }
 
-/** Staff only: join requests, sessions waiting for a decision, hosts; admins also see the café team. */
+/** Approvers and admins: join requests, sessions waiting for a decision, hosts; admins also choose approvers. */
 function StaffDesk({ onDecided, me, isAdmin }: { onDecided: () => void; me: HostUser; isAdmin: boolean }) {
   const [pending, setPending] = useState<HostSession[] | null>(null);
   const [hosts, setHosts] = useState<HostRecord[] | null>(null);
+  const [refresh, setRefresh] = useState(0);
   const load = useCallback(async () => {
     const [p, h] = await Promise.all([
       hostApi<{ sessions: HostSession[] }>('/api/staff/host-sessions?status=submitted'),
@@ -463,8 +466,9 @@ function StaffDesk({ onDecided, me, isAdmin }: { onDecided: () => void; me: Host
           ))}
         </div>
       </section>
-      <HostsPanel hosts={hosts} onAdded={load} />
-      {isAdmin && <TeamPanel me={me} />}
+      <HostedDatesPanel refresh={refresh} />
+      <HostsPanel hosts={hosts} isAdmin={isAdmin} onChanged={() => (load(), setRefresh(n => n + 1))} />
+      {isAdmin && <ApproversPanel me={me} refresh={refresh} />}
     </div>
   );
 }
@@ -512,76 +516,52 @@ function ReviewCard({ s, onDone }: { s: HostSession; onDone: () => void }) {
   );
 }
 
-function HostsPanel({ hosts, onAdded }: { hosts: HostRecord[] | null; onAdded: () => void }) {
-  const [email, setEmail] = useState('');
-  const [name, setName] = useState('');
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState(false);
-  const add = async (e: Event) => {
-    e.preventDefault();
-    setBusy(true);
-    const res = await hostApi<{ host: HostRecord }>('/api/staff/hosts', { email, display_name: name });
-    setBusy(false);
-    if (res.ok) {
-      toast(`${name} can now sign in to the organiser.`);
-      setEmail('');
-      setName('');
-      setErrors({});
-      onAdded();
-    } else if (res.kind === 'invalid') setErrors(res.errors ?? {});
-    else toast(res.error);
-  };
+/** Everyone who can plan sessions. People join through Join requests; admins can make one an approver. */
+function HostsPanel({ hosts, isAdmin, onChanged }: { hosts: HostRecord[] | null; isAdmin: boolean; onChanged: () => void }) {
+  const active = hosts?.filter(h => h.active) ?? null;
   return (
     <section class="section" aria-labelledby="hosts">
       <div class="section-head">
         <h2 id="hosts">Hosts</h2>
       </div>
-      <div class="hosts-grid">
-        <div class="table-wrap">
-          <table class="table table--stack">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th><span class="visually-hidden">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {hosts?.filter(h => h.active).map(h => (
-                <tr key={h.user_id}>
-                  <td>{h.display_name ?? '—'}</td>
-                  <td>{h.email}</td>
-                  <td class="table__action">
-                    <button type="button" class="btn btn--text btn--sm" onClick={async () => (await removeAccess(h, 'a host')) && onAdded()}>
+      <p class="meta" style={{ marginBottom: '12px' }}>
+        Hosts and café staff join by signing in at /organise and asking to host; their request appears under Join requests.
+      </p>
+      <div class="table-wrap">
+        <table class="table table--stack">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {active?.map(h => (
+              <tr key={h.user_id}>
+                <td>{h.display_name ?? '—'}</td>
+                <td>{h.email}</td>
+                <td class={isAdmin ? 'table__action table__action--wide' : 'table__action'}>
+                  <div class="table__buttons">
+                    {isAdmin && (
+                      <button type="button" class="btn btn--text btn--sm" onClick={async () => (await setApprover(h, true)) && onChanged()}>
+                        <ShieldCheck size={16} aria-hidden="true" /> Make approver
+                      </button>
+                    )}
+                    <button type="button" class="btn btn--text btn--sm" onClick={async () => (await removeAccess(h, 'a host')) && onChanged()}>
                       <UserMinus size={16} aria-hidden="true" /> Remove
                     </button>
-                  </td>
-                </tr>
-              ))}
-              {hosts && !hosts.some(h => h.active) && (
-                <tr>
-                  <td colSpan={3}>No hosts yet.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        <form class="card card--pad stack" style={{ '--gap': '12px' }} onSubmit={add} noValidate>
-          <p class="label">Add a host</p>
-          <div class={`field${errors.display_name ? ' field--error' : ''}`}>
-            <label for="h-name">Name</label>
-            <input id="h-name" class="input" value={name} maxLength={60} onInput={e => setName(e.currentTarget.value)} aria-invalid={!!errors.display_name} />
-            {errors.display_name && <p class="field__error">{errors.display_name}</p>}
-          </div>
-          <div class={`field${errors.email ? ' field--error' : ''}`}>
-            <label for="h-email">Email they sign in with</label>
-            <input id="h-email" class="input" type="email" autoComplete="off" value={email} onInput={e => setEmail(e.currentTarget.value)} aria-invalid={!!errors.email} />
-            {errors.email && <p class="field__error">{errors.email}</p>}
-          </div>
-          <button type="submit" class="btn btn--secondary" disabled={busy}>
-            <UserPlus size={18} aria-hidden="true" /> Add host
-          </button>
-        </form>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {active && !active.length && (
+              <tr>
+                <td colSpan={3}>No hosts yet.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </section>
   );

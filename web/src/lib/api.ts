@@ -23,6 +23,8 @@ export interface Occurrence {
   price_display: string | null;
   /** Max players, when known (host sessions set it). */
   capacity: number | null;
+  /** Open host sessions take bookings in the app. */
+  bookable?: boolean;
   /** All of the event's photos (single-occurrence endpoint only). */
   images?: string[];
 }

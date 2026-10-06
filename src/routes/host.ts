@@ -2,8 +2,10 @@
 // users table decides who is a host. Staff and admins can host too.
 
 import { Hono } from 'hono';
+import { cancelDate, datesForSessions } from '../bookings/bookings';
 import { createSession, listSessions, parseSessionInput, withdrawSession } from '../host/sessions';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
+import { londonDate } from '../lib/time';
 
 export const hostRoutes = new Hono<{ Bindings: Env; Variables: { user: AuthUser } }>();
 
@@ -19,7 +21,13 @@ hostRoutes.get('/me', c => {
   return c.json({ user, can_review: user.role === 'staff' || user.role === 'admin', is_admin: user.role === 'admin' });
 });
 
-hostRoutes.get('/sessions', async c => c.json({ sessions: await listSessions(c.env.DB, { hostUserId: c.get('user').user_id }) }));
+/** My sessions; live ones carry their upcoming dates, with who's booked (names and party sizes). */
+hostRoutes.get('/sessions', async c => {
+  const sessions = await listSessions(c.env.DB, { hostUserId: c.get('user').user_id });
+  const live = sessions.filter(s => s.status === 'published').map(s => s.session_id);
+  const dates = await datesForSessions(c.env.DB, live, londonDate(new Date()));
+  return c.json({ sessions: sessions.map(s => ({ ...s, dates: dates.filter(d => d.host_session_id === s.session_id) })) });
+});
 
 hostRoutes.post('/sessions', async c => {
   const parsed = parseSessionInput(await c.req.json().catch(() => null));
@@ -31,4 +39,17 @@ hostRoutes.post('/sessions', async c => {
 hostRoutes.post('/sessions/:id/withdraw', async c => {
   const result = await withdrawSession(c.env.DB, c.get('user'), c.req.param('id'), new Date().toISOString());
   return result.ok ? c.json({ session: result.session }) : c.json({ error: result.error }, result.status);
+});
+
+/**
+ * Cancel one date: the host of the session, or an approver. Everyone booked is
+ * emailed, and the café (or the host) is told. Body: { message? } for the people booked.
+ */
+hostRoutes.post('/occurrences/:id/cancel', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { message?: unknown };
+  const result = await cancelDate(c.env.DB, c.get('user'), c.req.param('id'), body.message, {
+    now: new Date().toISOString(),
+    origin: new URL(c.req.url).origin,
+  });
+  return result.ok ? c.json({ ok: true, cancelled_bookings: result.cancelled_bookings }) : c.json({ error: result.error }, result.status);
 });

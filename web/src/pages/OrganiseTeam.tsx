@@ -1,7 +1,7 @@
-// Onboarding in the organiser (docs/RTD_ONBOARDING.md):
-// - JoinScreen: someone signed in without access asks to host games or join the café team;
-// - JoinRequests: staff approve host requests, admins also approve café team requests;
-// - TeamPanel: admins see the café team and can remove staff.
+// Onboarding in the organiser (docs/RTD_ONBOARDING.md). Hosts and café staff join the same way:
+// - JoinScreen: someone signed in without access asks to host;
+// - JoinRequests: approvers (Michelle) and admins approve or decline;
+// - ApproversPanel: admins see who approves, and can turn an approver back into a host.
 
 import { Check, Info, LogOut, Send, UserMinus } from 'lucide-preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
@@ -11,7 +11,6 @@ import { longDate } from '../lib/dates';
 import { hostApi, type Application, type HostUser, type JoinMe, type TeamMember } from '../lib/hostApi';
 import { toast } from '../lib/toast';
 
-const ROLE_LABEL = { host: 'Host games', staff: 'Café team' } as const;
 const dateOf = (iso: string) => longDate(iso.slice(0, 10));
 
 /** Signed in, but no access yet: ask for it, or see where the request is. */
@@ -90,11 +89,11 @@ function PendingRequest({ app, email, onWithdrawn }: { app: Application; email: 
         <Chip kind="awaiting">Awaiting approval</Chip>
       </div>
       <h2 id="request" class="display" style={{ fontSize: 'var(--rtd-size-h3)' }}>
-        {app.role === 'staff' ? 'Your café team request is with an admin.' : 'Your request to host is with the café team.'}
+        Your request is with the café.
       </h2>
       <p>We'll email {email} when it's been looked at.</p>
       <p class="meta">
-        Sent {dateOf(app.created_at)} · {app.role === 'staff' ? 'Role' : 'What you would like to run'}: {app.about}
+        Sent {dateOf(app.created_at)} · What you would like to run: {app.about}
       </p>
       <div>
         <button type="button" class="btn btn--destructive-quiet btn--sm" onClick={withdraw} disabled={busy}>
@@ -106,17 +105,15 @@ function PendingRequest({ app, email, onWithdrawn }: { app: Application; email: 
 }
 
 function JoinForm({ onSent }: { onSent: () => void }) {
-  const [role, setRole] = useState<'host' | 'staff'>('host');
   const [name, setName] = useState('');
   const [about, setAbout] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const staff = role === 'staff';
 
   const send = async (e: Event) => {
     e.preventDefault();
     setBusy(true);
-    const res = await hostApi<{ application: Application }>('/api/join/apply', { role, display_name: name, about });
+    const res = await hostApi<{ application: Application }>('/api/join/apply', { display_name: name, about });
     setBusy(false);
     if (res.ok) {
       toast('Request sent.');
@@ -131,25 +128,12 @@ function JoinForm({ onSent }: { onSent: () => void }) {
   return (
     <section class="card card--pad" aria-labelledby="join-form">
       <h2 id="join-form" class="display" style={{ fontSize: 'var(--rtd-size-h3)' }}>
-        What would you like to do?
+        Ask to host games
       </h2>
+      <p class="meta" style={{ marginTop: '4px' }}>
+        For hosts and café staff alike. Once the café approves you, you can plan sessions. The café checks each session before it goes on the app.
+      </p>
       <form class="stack" style={{ '--gap': '18px', marginTop: '16px' }} onSubmit={send} noValidate>
-        <fieldset class={`field${errors.role ? ' field--error' : ''}`}>
-          <legend class="visually-hidden">I would like to</legend>
-          <div class="segmented segmented--inline" role="group" aria-label="I would like to" aria-describedby="j-role-hint">
-            {(['host', 'staff'] as const).map(r => (
-              <button key={r} type="button" aria-pressed={role === r} onClick={() => setRole(r)}>
-                {ROLE_LABEL[r]}
-              </button>
-            ))}
-          </div>
-          <p id="j-role-hint" class="field__hint">
-            {staff
-              ? 'For people who work at the café. An admin checks café team requests.'
-              : 'Run games for other people at the café. The café team checks every request.'}
-          </p>
-          {err('role')}
-        </fieldset>
         <div class={`field${errors.display_name ? ' field--error' : ''}`}>
           <label for="j-name">Your name</label>
           <input id="j-name" class="input" value={name} maxLength={60} autoComplete="name" aria-invalid={!!errors.display_name}
@@ -157,10 +141,10 @@ function JoinForm({ onSent }: { onSent: () => void }) {
           {err('display_name')}
         </div>
         <div class={`field${errors.about ? ' field--error' : ''}`}>
-          <label for="j-about">{staff ? 'Your role at the café' : 'What would you like to run?'}</label>
-          <textarea id="j-about" class="input" rows={staff ? 2 : 4} maxLength={500} value={about} aria-invalid={!!errors.about}
+          <label for="j-about">What would you like to run?</label>
+          <textarea id="j-about" class="input" rows={4} maxLength={500} value={about} aria-invalid={!!errors.about}
             aria-describedby={errors.about ? 'about-error' : undefined}
-            placeholder={staff ? 'e.g. front of house, kitchen, events' : 'e.g. beginner-friendly D&D one-shots, or a monthly Catan night'}
+            placeholder="e.g. beginner-friendly D&D one-shots, or a monthly Catan night. If you work at the café, say so."
             onInput={e => setAbout(e.currentTarget.value)} />
           {err('about')}
         </div>
@@ -172,7 +156,7 @@ function JoinForm({ onSent }: { onSent: () => void }) {
   );
 }
 
-/** Staff: host requests. Admins: café team requests too. */
+/** Approvers and admins: everyone asking to host. */
 export function JoinRequests({ onDecided }: { onDecided?: () => void }) {
   const [apps, setApps] = useState<Application[] | null>(null);
   const load = useCallback(async () => {
@@ -187,7 +171,7 @@ export function JoinRequests({ onDecided }: { onDecided?: () => void }) {
         <h2 id="join-requests">Join requests {apps && apps.length > 0 && <span class="count-badge">{apps.length}</span>}</h2>
       </div>
       {apps === null && <DiceLoader label="Loading requests..." />}
-      {apps && !apps.length && <p class="meta">No one waiting. People asking to host or join the café team appear here.</p>}
+      {apps && !apps.length && <p class="meta">No one waiting. People asking to host, café staff included, appear here.</p>}
       <div class="list">
         {apps?.map(a => (
           <ApplicationCard
@@ -208,7 +192,6 @@ function ApplicationCard({ app, onDone }: { app: Application; onDone: () => void
   const [declining, setDeclining] = useState(false);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
-  const staff = app.role === 'staff';
   const decide = async (decision: 'approve' | 'decline') => {
     setBusy(true);
     const res = await hostApi(`/api/staff/applications/${app.application_id}/decision`, { decision, note });
@@ -219,22 +202,19 @@ function ApplicationCard({ app, onDone }: { app: Application; onDone: () => void
   return (
     <article class="card review-card">
       <div class="stack" style={{ '--gap': '6px' }}>
-        <div class="cluster" style={{ '--gap': '8px' }}>
-          <h3>{app.display_name}</h3>
-          <Chip kind={staff ? 'approved' : 'category'}>{staff ? 'Café team' : 'Host'}</Chip>
-        </div>
+        <h3>{app.display_name}</h3>
         <p class="meta">
           {app.email} · asked {dateOf(app.created_at)} · {app.application_id}
         </p>
         <p>
-          <strong>{staff ? 'Role:' : 'Would like to run:'}</strong> {app.about}
+          <strong>Would like to run:</strong> {app.about}
         </p>
       </div>
       {declining ? (
         <div class="stack" style={{ '--gap': '8px' }}>
           <label class="label" for={`app-note-${app.application_id}`}>Note for {app.display_name} (optional)</label>
           <textarea id={`app-note-${app.application_id}`} class="input" rows={2} maxLength={500} value={note} onInput={e => setNote(e.currentTarget.value)}
-            placeholder={staff ? "e.g. Sorry, we couldn't find you on the rota." : 'e.g. We already run D&D on Fridays. Fancy a board game night instead?'} />
+            placeholder="e.g. We already run D&D on Fridays. Fancy a board game night instead?" />
           <div class="cluster">
             <button type="button" class="btn btn--destructive btn--sm" disabled={busy} onClick={() => decide('decline')}>Decline</button>
             <button type="button" class="btn btn--text btn--sm" onClick={() => setDeclining(false)}>Back</button>
@@ -243,7 +223,7 @@ function ApplicationCard({ app, onDone }: { app: Application; onDone: () => void
       ) : (
         <div class="cluster">
           <button type="button" class="btn btn--primary btn--sm" disabled={busy} onClick={() => decide('approve')}>
-            <Check size={16} aria-hidden="true" /> {staff ? 'Approve for café team' : 'Approve host'}
+            <Check size={16} aria-hidden="true" /> Approve
           </button>
           <button type="button" class="btn btn--destructive-quiet btn--sm" disabled={busy} onClick={() => setDeclining(true)}>Decline</button>
         </div>
@@ -261,22 +241,34 @@ export async function removeAccess(person: { user_id: string; display_name: stri
   return res.ok;
 }
 
-/** Admins only: who is on the café team. Staff are added by approving their join request. */
-export function TeamPanel({ me }: { me: HostUser }) {
-  const [team, setTeam] = useState<TeamMember[] | null>(null);
+/** Admins: make a host an approver (they approve join requests and sessions), or back. */
+export async function setApprover(person: { user_id: string; display_name: string | null; email: string }, approver: boolean): Promise<boolean> {
+  const who = person.display_name ?? person.email;
+  const ask = approver
+    ? `Make ${who} an approver? They'll approve join requests and sessions, and can remove hosts.`
+    : `Stop ${who} approving? They'll stay on as a host.`;
+  if (!confirm(ask)) return false;
+  const res = await hostApi(`/api/staff/users/${person.user_id}/approver`, { approver });
+  toast(res.ok ? (approver ? `${who} is now an approver.` : `${who} is a host again.`) : res.error);
+  return res.ok;
+}
+
+/** Admins only: who approves. Approvers are chosen from the hosts (Make approver). */
+export function ApproversPanel({ me, refresh }: { me: HostUser; refresh: number }) {
+  const [list, setList] = useState<TeamMember[] | null>(null);
   const load = useCallback(async () => {
-    const res = await hostApi<{ team: TeamMember[] }>('/api/staff/team');
-    if (res.ok) setTeam(res.data.team);
+    const res = await hostApi<{ approvers: TeamMember[] }>('/api/staff/approvers');
+    if (res.ok) setList(res.data.approvers);
   }, []);
-  useEffect(() => void load(), [load]);
+  useEffect(() => void load(), [load, refresh]);
 
   return (
-    <section class="section" aria-labelledby="team">
+    <section class="section" aria-labelledby="approvers">
       <div class="section-head">
-        <h2 id="team">Café team</h2>
+        <h2 id="approvers">Approvers</h2>
       </div>
       <p class="meta" style={{ marginBottom: '12px' }}>
-        New team members sign in at /organise and choose "Café team"; their request appears under Join requests for an admin to approve.
+        Approvers say yes or no to join requests and sessions. Everyone else can only plan sessions. To add one, use Make approver in the Hosts table.
       </p>
       <div class="table-wrap">
         <table class="table table--stack">
@@ -289,20 +281,20 @@ export function TeamPanel({ me }: { me: HostUser }) {
             </tr>
           </thead>
           <tbody>
-            {team === null && (
+            {list === null && (
               <tr>
                 <td colSpan={4}>Loading...</td>
               </tr>
             )}
-            {team?.map(t => (
+            {list?.map(t => (
               <tr key={t.user_id}>
                 <td>{t.display_name ?? '—'}</td>
                 <td>{t.email}</td>
-                <td>{t.role === 'admin' ? 'Admin' : 'Staff'}</td>
+                <td>{t.role === 'admin' ? 'Admin' : 'Approver'}</td>
                 <td class="table__action">
                   {t.role === 'staff' && t.user_id !== me.user_id && (
-                    <button type="button" class="btn btn--text btn--sm" onClick={async () => (await removeAccess(t, 'café team')) && load()}>
-                      <UserMinus size={16} aria-hidden="true" /> Remove
+                    <button type="button" class="btn btn--text btn--sm" onClick={async () => (await setApprover(t, false)) && load()}>
+                      <UserMinus size={16} aria-hidden="true" /> Stop approving
                     </button>
                   )}
                 </td>

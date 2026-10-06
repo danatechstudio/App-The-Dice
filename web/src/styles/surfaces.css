@@ -450,6 +450,24 @@
     grid-row: 1 / span 3;
     align-self: center;
   }
+
+  /* Two or more buttons: their own line under the name and email. */
+  .table--stack td.table__action--wide {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    margin-top: 4px;
+  }
+
+  .table--stack .table__buttons {
+    justify-content: flex-start;
+  }
+}
+
+.table__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
 }
 
 @media (min-width: 900px) {
@@ -468,4 +486,140 @@
 
 .host-apply h2 + p {
   margin-top: 4px;
+}
+
+/* ---------- Dates and bookings in the organiser ---------- */
+
+.date-list {
+  display: grid;
+  gap: var(--rtd-space-2);
+  margin-top: var(--rtd-space-2);
+}
+
+.date-row {
+  display: grid;
+  gap: var(--rtd-space-2);
+  padding: var(--rtd-space-3);
+  border: 1px solid var(--rtd-border);
+  border-radius: var(--rtd-radius-sm);
+  background: var(--rtd-surface);
+}
+
+.date-row--cancelled {
+  background: transparent;
+  border-style: dashed;
+}
+
+.date-row__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--rtd-space-2);
+}
+
+.date-row__when {
+  display: grid;
+  gap: 2px;
+  font-weight: 700;
+}
+
+.date-row__title {
+  font-family: var(--rtd-heading-font);
+}
+
+.date-row__when span {
+  color: var(--rtd-text-muted);
+  font-size: var(--rtd-size-meta);
+}
+
+.date-row__count {
+  font-weight: 700;
+  font-size: var(--rtd-size-meta);
+}
+
+.date-row__people summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  color: var(--rtd-secondary);
+  font-weight: 700;
+  font-size: var(--rtd-size-meta);
+  cursor: pointer;
+  list-style: none;
+}
+
+.date-row__people summary::-webkit-details-marker {
+  display: none;
+}
+
+.date-row__people[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.date-row__people ul {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.date-row__contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  font-size: var(--rtd-size-meta);
+}
+
+.date-row__contact a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Booking on the event page ---------- */
+
+.booking {
+  display: grid;
+  gap: var(--rtd-space-3);
+  padding-top: var(--rtd-space-4);
+  border-top: 2px dashed var(--rtd-border);
+}
+
+.booking__head {
+  display: grid;
+  gap: 2px;
+}
+
+.booking__head h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--rtd-size-h3);
+}
+
+.booking__head svg {
+  color: var(--rtd-accent);
+}
+
+.booking__small {
+  font-size: 0.8125rem;
+}
+
+.booking--done {
+  justify-items: start;
+}
+
+.booking--done > svg {
+  color: var(--rtd-success);
+}
+
+.booking--done h2 {
+  font-size: var(--rtd-size-h3);
+}
+
+.manage-booking {
+  max-width: 640px;
 }

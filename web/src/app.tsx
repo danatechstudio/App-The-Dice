@@ -13,6 +13,7 @@ import { EventPage, SeriesPage } from './pages/Event';
 import { Games } from './pages/Games';
 import { Home } from './pages/Home';
 import { Host } from './pages/Host';
+import { ManageBooking } from './pages/ManageBooking';
 import { NotFound } from './pages/NotFound';
 import { Organise } from './pages/Organise';
 import { Roll } from './pages/Roll';
@@ -30,6 +31,7 @@ function route(path: string) {
   if (path === '/styleguide') return <StyleGuide />;
   if ((p = match('/event/:id', path))) return <EventPage key={p.id} occurrenceId={p.id!} />;
   if ((p = match('/events/:id', path))) return <SeriesPage key={p.id} eventId={p.id!} />;
+  if ((p = match('/booking/:id', path))) return <ManageBooking key={p.id} bookingId={p.id!} />;
   return <NotFound />;
 }
 

@@ -116,16 +116,11 @@ describe('staff review', () => {
     ]);
   });
 
-  it('adds hosts, who can then sign in', async () => {
+  it('lists hosts, but has no way to add one directly: everyone joins through a join request', async () => {
+    expect((await request('/api/staff/hosts', json({ email: 'jo@example.com', display_name: 'Jo' }), STAFF)).status).toBe(404);
     expect((await request('/api/host/me', {}, as('jo@example.com'))).status).toBe(403);
-    const bad = await request('/api/staff/hosts', json({ email: 'not-an-email', display_name: 'J' }), STAFF);
-    expect(Object.keys((await bad.json<{ errors: object }>()).errors).sort()).toEqual(['display_name', 'email']);
-    const res = await request('/api/staff/hosts', json({ email: 'Jo@Example.com', display_name: 'Jo' }), STAFF);
-    expect(res.status).toBe(201);
-    expect((await request('/api/host/me', {}, as('jo@example.com'))).status).toBe(200);
-    expect((await request('/api/staff/hosts', json({ email: 'michelle@example.com', display_name: 'Michelle' }), STAFF)).status).toBe(409);
     const { hosts } = await (await request('/api/staff/hosts', {}, STAFF)).json<{ hosts: { email: string }[] }>();
-    expect(hosts.map(h => h.email)).toContain('jo@example.com');
+    expect(hosts.map(h => h.email)).toContain('sam@example.com');
   });
 });
 

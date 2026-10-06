@@ -2,6 +2,7 @@
 // n8n credential and the INTERNAL_SYNC_TOKEN Worker secret.
 
 import { Hono } from 'hono';
+import { markSheetFixed, queueHostNumbers, sheetFixes } from '../bookings/bookings';
 import {
   decidedSessionsForHosts,
   dueFollowups,
@@ -15,6 +16,7 @@ import {
 import { MAX_IMAGE_BYTES, imagePlan, parseImageSync, storeImage, syncImages } from '../images/store';
 import { checkBearer } from '../lib/auth';
 import { londonDate } from '../lib/time';
+import { markSent, unsent } from '../notify/outbox';
 import { decidedApplicationsForApplicants, markApplicationNotified, newApplicationsForApprovers } from '../team/applications';
 import { applySync, parsePayload } from '../sync/apply';
 
@@ -165,4 +167,34 @@ internalRoutes.post('/host-sessions/:id/host-notified', async c => {
   const result = await markHostNotified(c.env.DB, c.req.param('id'), new Date().toISOString());
   if (result === 'not_found') return c.json({ error: 'No session with that ID' }, 404);
   return c.json({ ok: true, already: result === 'already' });
+});
+
+// --- Booking emails and cancelled dates (n8n RTD Outbox, RTD Host Sessions To Diary) ---
+
+/**
+ * Emails waiting to go. Collecting also queues any two-day numbers emails now
+ * due, so n8n only needs this call. to / reply_to null = the café address.
+ */
+internalRoutes.post('/outbox/collect', async c => {
+  const now = new Date().toISOString();
+  const queued = await queueHostNumbers(c.env.DB, { now, origin: new URL(c.req.url).origin });
+  return c.json({ queued_numbers: queued, messages: await unsent(c.env.DB, now) });
+});
+
+internalRoutes.post('/outbox/:id/sent', async c => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isInteger(id) || id < 1) return c.json({ error: 'No email with that ID' }, 404);
+  const result = await markSent(c.env.DB, id, new Date().toISOString());
+  if (result === 'not_found') return c.json({ error: 'No email with that ID' }, 404);
+  return c.json({ ok: true, already: result === 'already' });
+});
+
+/** Event Index changes for cancelled dates (Status, or a weekly row's next Event Date), matched on App Host Session. */
+internalRoutes.get('/host-sessions/sheet-fixes', async c => c.json({ fixes: await sheetFixes(c.env.DB, londonDate(new Date())) }));
+
+internalRoutes.post('/host-sessions/:id/sheet-fixed', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { key?: unknown };
+  if (typeof body.key !== 'string' || !body.key) return c.json({ error: 'key is required' }, 400);
+  const done = await markSheetFixed(c.env.DB, c.req.param('id'), body.key, new Date().toISOString());
+  return done ? c.json({ ok: true }) : c.json({ error: 'No session with that ID' }, 404);
 });

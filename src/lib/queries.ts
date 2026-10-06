@@ -16,7 +16,8 @@ export const OCCURRENCE_FIELDS = `
   o.event_date AS date, o.start_time, o.end_time, o.starts_at, o.ends_at, o.all_day, o.projected,
   o.status, o.rescheduled_to, COALESCE(o.visibility, e.visibility) AS visibility,
   COALESCE(o.image_override, e.default_image) AS image,
-  COALESCE(o.price_display, e.price_display) AS price_display, COALESCE(o.capacity, e.default_capacity) AS capacity`;
+  COALESCE(o.price_display, e.price_display) AS price_display, COALESCE(o.capacity, e.default_capacity) AS capacity,
+  CASE WHEN e.host_session_id IS NOT NULL AND COALESCE(o.capacity, e.default_capacity) IS NOT NULL THEN 1 ELSE 0 END AS bookable`;
 
 export type Row = Record<string, unknown>;
 
@@ -40,10 +41,12 @@ export interface PublicOccurrence {
   price_display: string | null;
   /** Max players, when known (host sessions set it). */
   capacity: number | null;
+  /** Open host sessions take bookings in the app (docs/RTD_BOOKINGS.md). */
+  bookable: boolean;
 }
 
 export function shape(r: Row): PublicOccurrence {
-  return { ...r, all_day: r.all_day === 1, projected: r.projected === 1 } as unknown as PublicOccurrence;
+  return { ...r, all_day: r.all_day === 1, projected: r.projected === 1, bookable: r.bookable === 1 } as unknown as PublicOccurrence;
 }
 
 /** One visible occurrence (any status, so old links can explain what happened). */
@@ -76,5 +79,5 @@ export async function nextOccurrence(db: D1Database, eventId: string, today: str
  */
 export function redactPrivate(o: PublicOccurrence): PublicOccurrence {
   if (o.visibility !== 'private') return o;
-  return { ...o, name: 'Private session', description: null, image: null, price_display: null, capacity: null };
+  return { ...o, name: 'Private session', description: null, image: null, price_display: null, capacity: null, bookable: false };
 }

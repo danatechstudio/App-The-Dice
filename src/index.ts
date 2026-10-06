@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { readImage } from './images/store';
+import { bookingRoutes } from './routes/bookings';
 import { hostRoutes } from './routes/host';
 import { internalRoutes } from './routes/internal';
 import { joinRoutes } from './routes/join';
@@ -46,6 +47,7 @@ app.get('/api/staff/sign-in', c => {
   return c.redirect('/organise?signed-in=1', 302);
 });
 
+app.route('/api/bookings', bookingRoutes);
 app.route('/api', publicRoutes);
 app.route('/api/staff', staffRoutes);
 app.route('/api/host', hostRoutes);
