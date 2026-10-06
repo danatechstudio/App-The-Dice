@@ -269,8 +269,9 @@ export const sessionToApprove = (s: {
   access: string;
   host_name: string | null;
   host_email: string;
+  resubmissions?: number;
 }): PushMessage => ({
-  title: 'Session to approve',
+  title: s.resubmissions ? 'Session sent again' : 'Session to approve',
   body: `${s.host_name ?? s.host_email}: ${s.name}, ${s.frequency === 'weekly' ? `every ${weekdayOf(s.event_date)} from ${shortDate(s.event_date)}` : shortDate(s.event_date)}${s.access === 'private' ? ' (private)' : ''}`,
   url: '/organise#awaiting',
   tag: `session-${s.session_id}`,

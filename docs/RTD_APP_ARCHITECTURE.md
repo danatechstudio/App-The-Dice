@@ -94,7 +94,7 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | GET | `/api/staff/sync-runs` | Access + staff/admin | Last 50 sync runs with warnings |
 | GET | `/api/staff/audit?entity_id&before&limit` | Access + staff/admin | Audit history |
 | GET | `/api/staff/sign-in` | Access (anyone it lets in) | The organiser's Sign in button: redirects to `/organise` |
-| GET / POST | `/api/host/me`, `/api/host/sessions`, `/api/host/sessions/:id/withdraw` | Access cookie + host/staff/admin | Host organiser ([RTD_HOST_PORTAL.md](RTD_HOST_PORTAL.md)) |
+| GET / POST | `/api/host/me`, `/api/host/sessions`, `/api/host/sessions/:id/withdraw`, `…/resubmit`, `…/delete` | Access cookie + host/staff/admin | Host organiser ([RTD_HOST_PORTAL.md](RTD_HOST_PORTAL.md)) |
 | GET / POST | `/api/staff/host-sessions`, `/api/staff/host-sessions/:id/decision` | Access + approver/admin | Session approvals |
 | GET | `/api/staff/hosts` | Access + approver/admin | Hosts |
 | GET / POST | `/api/join/me`, `/api/join/apply`, `/api/join/withdraw` | Access cookie (any signed-in email) | Asking to host or join the café team ([RTD_ONBOARDING.md](RTD_ONBOARDING.md)) |
@@ -136,7 +136,7 @@ The **service worker** caches the app shell and the last diary it saw, so the di
 | `src/sync/apply.ts` | Payload validation, circuit breaker, atomic write |
 | `src/lib/queries.ts` | Shared public-read SQL (visibility rules) |
 | `src/lib/calendar.ts` | `.ics` and Google Calendar links |
-| `src/host/sessions.ts` | Host sessions: validation, numbering, withdraw, staff decisions, adding hosts |
+| `src/host/sessions.ts` | Host sessions: validation, numbering, withdraw, send again, delete, approver decisions, n8n feeds |
 | `src/team/applications.ts` | Onboarding: join requests, approvers, granting and removing access, email feeds |
 | `src/bookings/bookings.ts` | Bookings: availability, capacity-safe booking, the cancel link, host and approver views, cancelling a date, two-day emails, Event Index fixes |
 | `src/notify/emails.ts`, `src/notify/outbox.ts` | Booking email wording, and the outbox n8n sends from |
@@ -147,7 +147,7 @@ The **service worker** caches the app shell and the last diary it saw, so the di
 | `src/routes/*` | Public, internal, staff endpoints and app pages (link previews) |
 | `web/` | The PWA: `src/theme` (tokens), `src/styles`, `src/components`, `src/pages`, `public` (icons, manifest, service worker). See [RTD_APP_THEME.md](RTD_APP_THEME.md). |
 | `migrations/` | D1 schema |
-| `test/` | 203 tests, run inside the Workers runtime against a real local D1 and KV |
+| `test/` | 208 tests, run inside the Workers runtime against a real local D1 and KV |
 
 ## Future compatibility
 

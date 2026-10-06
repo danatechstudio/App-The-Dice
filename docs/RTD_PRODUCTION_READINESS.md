@@ -58,7 +58,7 @@ Status words below: **Live** (built and running), **Partial** (some of it works)
 | Host notified of approve / decline | Live | n8n RTD Team Notices emails the host within 15 minutes, with the café's note |
 | Join requests (hosts and café staff, the same way) | Live | See [RTD_ONBOARDING.md](RTD_ONBOARDING.md). Everyone approved is a host; admins choose approvers. Approvers and applicant are emailed |
 | Removing access | Live | Staff remove hosts; admins also remove café staff |
-| Host edits a session | **Not started** | Hosts can withdraw before it goes live; after that the café edits the sheet |
+| Host edits a session | **Partial** | A declined or withdrawn session can be edited and sent again, or deleted. Live sessions: hosts cancel dates; other changes are made by the café in the sheet |
 | Host sees bookings, emails per booking and two days before, cancels a date | Live | See [RTD_BOOKINGS.md](RTD_BOOKINGS.md). Not yet tried with a real booking |
 
 ### Everything else in the specification
@@ -158,7 +158,7 @@ Who: **You** = Dan; **Michelle** = café; **Claude** = me.
 
 ## 5. Already in place
 
-- **Tests:** 203 automated tests, covering sync, the API, sign-in, host sessions, onboarding, bookings (capacity, limits, cancelling, emails), push encryption and signing, privacy redaction, calendar files, photos and colour contrast.
+- **Tests:** 208 automated tests, covering sync, the API, sign-in, host sessions, onboarding, bookings (capacity, limits, cancelling, emails), push encryption and signing, privacy redaction, calendar files, photos and colour contrast.
 - **Safe sync:** each sync lands completely or not at all. The app keeps serving the last good data if the sheet or the Pi breaks, and refuses a snapshot that loses half the events.
 - **Private sessions:** the server strips their details, so the name, description, photo, price and size never reach the public. They have no page, preview or calendar file.
 - **Security:**

@@ -1,4 +1,4 @@
-import { CalendarDays, Check, Clock, Lock, LogOut, Minus, Plus, PoundSterling, Repeat, Send, ShieldCheck, UserMinus, UsersRound, X } from 'lucide-preact';
+import { CalendarDays, Check, Clock, Info, Lock, LogOut, Minus, Plus, PoundSterling, Repeat, RotateCcw, Send, ShieldCheck, Trash2, UserMinus, UsersRound, X } from 'lucide-preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { Chip, type ChipKind } from '../components/Chips';
 import { DiceLoader, EmptyState } from '../components/States';
@@ -37,7 +37,8 @@ export function Organise() {
   useTitle('Host organiser');
   const [gate, setGate] = useState<Gate>({ state: 'loading' });
   const [sessions, setSessions] = useState<HostSession[] | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
+  // The form: closed, a new session, or a declined / withdrawn one being sent again.
+  const [form, setForm] = useState<null | 'new' | HostSession>(null);
   // Just back from signing in? Remember it (so a failure is explained, not
   // looped), then tidy the address bar.
   const [justSignedIn] = useState(() => new URLSearchParams(location.search).has('signed-in'));
@@ -60,7 +61,7 @@ export function Organise() {
   }, [loadSessions]);
 
   useEffect(() => {
-    if (sessions && !sessions.length) setFormOpen(true);
+    if (sessions && !sessions.length) setForm('new');
   }, [sessions]);
 
   if (gate.state === 'loading') return <DiceLoader label="Opening the organiser..." />;
@@ -101,8 +102,8 @@ export function Organise() {
           <section aria-labelledby="your-sessions">
             <div class="section-head">
               <h2 id="your-sessions">Your sessions</h2>
-              {!formOpen && (
-                <button type="button" class="btn btn--primary btn--sm" onClick={() => setFormOpen(true)}>
+              {!form && (
+                <button type="button" class="btn btn--primary btn--sm" onClick={() => setForm('new')}>
                   <Plus size={16} aria-hidden="true" /> Create session
                 </button>
               )}
@@ -111,16 +112,18 @@ export function Organise() {
             {sessions && !sessions.length && <EmptyState title="No sessions yet." text="Create your first one and the café will take a look." />}
             <div class="list">
               {sessions && sortForHost(sessions, today).map(s => (
-                <SessionCard key={s.session_id} s={s} onChange={loadSessions} />
+                <SessionCard key={s.session_id} s={s} onChange={loadSessions} onSendAgain={() => setForm(s)} />
               ))}
             </div>
           </section>
         </div>
 
-        {formOpen && (
+        {form && (
           <SessionForm
+            key={form === 'new' ? 'new' : form.session_id}
+            again={form === 'new' ? undefined : form}
             onDone={created => {
-              setFormOpen(false);
+              setForm(null);
               if (created) loadSessions();
             }}
           />
@@ -192,7 +195,7 @@ function SessionFacts({ s }: { s: HostSession }) {
   );
 }
 
-function SessionCard({ s, onChange }: { s: HostSession; onChange: () => void }) {
+function SessionCard({ s, onChange, onSendAgain }: { s: HostSession; onChange: () => void; onSendAgain: () => void }) {
   const [busy, setBusy] = useState(false);
   const status = STATUS[s.status];
   // A weekly session keeps going until it's stopped, so only one-offs finish.
@@ -207,6 +210,15 @@ function SessionCard({ s, onChange }: { s: HostSession; onChange: () => void }) 
     toast(res.ok ? 'Session withdrawn.' : res.error);
     onChange();
   };
+  const remove = async () => {
+    if (!confirm(`Delete "${s.name}"? It goes from your list. (The café keeps a record.)`)) return;
+    setBusy(true);
+    const res = await hostApi(`/api/host/sessions/${s.session_id}/delete`, {});
+    setBusy(false);
+    toast(res.ok ? 'Session deleted.' : res.error);
+    onChange();
+  };
+  const finishedRequest = s.status === 'declined' || s.status === 'withdrawn';
   return (
     <article class="card host-event">
       <div class="stack" style={{ '--gap': '6px' }}>
@@ -222,6 +234,16 @@ function SessionCard({ s, onChange }: { s: HostSession; onChange: () => void }) 
           <button type="button" class="btn btn--destructive-quiet btn--sm" onClick={withdraw} disabled={busy}>
             Withdraw
           </button>
+        )}
+        {finishedRequest && (
+          <div class="host-event__actions">
+            <button type="button" class="btn btn--secondary btn--sm" onClick={onSendAgain} disabled={busy}>
+              <RotateCcw size={16} aria-hidden="true" /> Edit and send again
+            </button>
+            <button type="button" class="btn btn--destructive-quiet btn--sm" onClick={remove} disabled={busy}>
+              <Trash2 size={16} aria-hidden="true" /> Delete
+            </button>
+          </div>
         )}
       </div>
     </article>
@@ -241,8 +263,25 @@ const EMPTY = {
   description: '',
 };
 
-function SessionForm({ onDone }: { onDone: (created: boolean) => void }) {
-  const [f, setF] = useState(EMPTY);
+/** The form, filled in from a declined or withdrawn session (a date that's gone is left blank). */
+function fromSession(s: HostSession, today: string): typeof EMPTY {
+  return {
+    name: s.name,
+    frequency: s.frequency,
+    access: s.access,
+    event_date: s.event_date > today ? s.event_date : '',
+    start_time: s.start_time,
+    end_time: s.end_time ?? '',
+    paid: s.price_pence > 0,
+    price: s.price_pence ? (s.price_pence % 100 ? (s.price_pence / 100).toFixed(2) : String(s.price_pence / 100)) : '',
+    max_players: s.max_players,
+    description: s.description ?? '',
+  };
+}
+
+/** Create a session, or (with `again`) edit a declined or withdrawn one and send it again. */
+function SessionForm({ again, onDone }: { again?: HostSession; onDone: (created: boolean) => void }) {
+  const [f, setF] = useState(() => (again ? fromSession(again, todayLondon()) : EMPTY));
   // On phones the form sits below the list: bring it into view when opened.
   useEffect(() => {
     const form = document.querySelector('.session-form');
@@ -271,7 +310,7 @@ function SessionForm({ onDone }: { onDone: (created: boolean) => void }) {
       return;
     }
     setBusy(true);
-    const res = await hostApi<{ session: HostSession }>('/api/host/sessions', {
+    const res = await hostApi<{ session: HostSession }>(again ? `/api/host/sessions/${again.session_id}/resubmit` : '/api/host/sessions', {
       name: f.name,
       frequency: f.frequency,
       access: f.access,
@@ -284,7 +323,7 @@ function SessionForm({ onDone }: { onDone: (created: boolean) => void }) {
     });
     setBusy(false);
     if (res.ok) {
-      toast('Sent to the café for approval.');
+      toast(again ? 'Sent to the café again.' : 'Sent to the café for approval.');
       setF(EMPTY);
       setErrors({});
       onDone(true);
@@ -314,11 +353,21 @@ function SessionForm({ onDone }: { onDone: (created: boolean) => void }) {
   return (
     <section class="card card--pad session-form" aria-labelledby="create-session">
       <div class="section-head" style={{ marginBottom: 0 }}>
-        <h2 id="create-session">Create a session</h2>
+        <h2 id="create-session">{again ? 'Send it again' : 'Create a session'}</h2>
         <button type="button" class="btn btn--icon btn--text" onClick={() => onDone(false)} aria-label="Close the form">
           <X size={20} aria-hidden="true" />
         </button>
       </div>
+      {again && (
+        <div class="notice notice--info">
+          <Info size={20} aria-hidden="true" />
+          <div>
+            <strong>{again.status === 'declined' ? `The café didn't approve "${again.name}".` : `You withdrew "${again.name}".`}</strong>
+            {again.status === 'declined' && again.decision_note && <p>Café note: "{again.decision_note}"</p>}
+            <p>Change anything you need, then send it again. It keeps its number, {again.session_id}.</p>
+          </div>
+        </div>
+      )}
       <form class="stack" style={{ '--gap': '18px' }} onSubmit={submit} noValidate>
         <div class={name.class}>
           <label for="s-name">Event name</label>
@@ -423,7 +472,7 @@ function SessionForm({ onDone }: { onDone: (created: boolean) => void }) {
         </div>
 
         <button type="submit" class="btn btn--primary btn--lg btn--block" disabled={busy}>
-          <Send size={18} aria-hidden="true" /> {busy ? 'Sending...' : 'Send to the café for approval'}
+          <Send size={18} aria-hidden="true" /> {busy ? 'Sending...' : again ? 'Send to the café again' : 'Send to the café for approval'}
         </button>
       </form>
     </section>
@@ -489,7 +538,10 @@ function ReviewCard({ s, onDone }: { s: HostSession; onDone: () => void }) {
   return (
     <article class="card review-card">
       <div class="stack" style={{ '--gap': '6px' }}>
-        <h3>{s.name}</h3>
+        <div class="cluster" style={{ '--gap': '8px' }}>
+          <h3>{s.name}</h3>
+          {!!s.resubmissions && <Chip kind="awaiting">Sent again</Chip>}
+        </div>
         <SessionFacts s={s} />
         <p class="meta">
           From {s.host_name ?? s.host_email} · {s.session_id}

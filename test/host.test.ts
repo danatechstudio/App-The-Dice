@@ -297,3 +297,70 @@ describe('into the diary', () => {
     expect((await list()).submissions).toEqual([]);
   });
 });
+
+describe('after a decline or a withdrawal', () => {
+  const AUTH_HEADERS = { Authorization: 'Bearer test-sync-token' };
+  const decide = (id: string, decision: string, note?: string) => request(`/api/staff/host-sessions/${id}/decision`, json({ decision, note }), STAFF);
+  beforeEach(async () => {
+    await request('/api/host/sessions', json(session()), HOST); // RTD-HS-00001
+    await request('/api/host/sessions', json(session({ name: 'Wingspan' })), HOST); // RTD-HS-00002
+  });
+
+  it('lets the host edit a declined session and send it again, as a fresh request', async () => {
+    await request('/internal/host-sessions/RTD-HS-00001/cafe-notified', { method: 'POST', headers: AUTH_HEADERS });
+    await decide('RTD-HS-00001', 'decline', 'That clashes with Quiz night. The week after?');
+    const res = await request('/api/host/sessions/RTD-HS-00001/resubmit', json(session({ event_date: '2026-10-31', max_players: 5 })), HOST);
+    expect(res.status).toBe(200);
+    const { session: s } = await res.json<{ session: Record<string, unknown> }>();
+    expect(s).toMatchObject({ session_id: 'RTD-HS-00001', status: 'submitted', event_date: '2026-10-31', max_players: 5, decision_note: null, decided_at: null, resubmissions: 1 });
+
+    // The café is emailed about it again, and it's back in the approvals queue.
+    const feed = await (await request('/internal/host-sessions/new-submissions', { headers: AUTH_HEADERS })).json<{ submissions: { session_id: string }[] }>();
+    expect(feed.submissions.map(x => x.session_id)).toContain('RTD-HS-00001');
+    const queue = await (await request('/api/staff/host-sessions', {}, STAFF)).json<{ sessions: { session_id: string; resubmissions: number }[] }>();
+    expect(queue.sessions.find(x => x.session_id === 'RTD-HS-00001')).toMatchObject({ resubmissions: 1 });
+    expect((await decide('RTD-HS-00001', 'approve')).status).toBe(200);
+
+    const trail = await env.DB.prepare("SELECT action, previous_value FROM audit_log WHERE entity_id = 'RTD-HS-00001' ORDER BY audit_id").all();
+    expect(trail.results.map(r => r.action)).toEqual(['host_session.submitted', 'host_session.declined', 'host_session.resubmitted', 'host_session.approved']);
+    expect(JSON.parse(String(trail.results[2]!.previous_value))).toEqual({ status: 'declined', decision_note: 'That clashes with Quiz night. The week after?' });
+  });
+
+  it('lets the host send a withdrawn session again', async () => {
+    await request('/api/host/sessions/RTD-HS-00002/withdraw', json({}), HOST);
+    expect((await request('/api/host/sessions/RTD-HS-00002/resubmit', json(session({ name: 'Wingspan' })), HOST)).status).toBe(200);
+  });
+
+  it('only sends again a finished session of your own, and checks the form', async () => {
+    expect((await request('/api/host/sessions/RTD-HS-00001/resubmit', json(session()), HOST)).status).toBe(409); // still waiting
+    await decide('RTD-HS-00001', 'decline');
+    expect((await request('/api/host/sessions/RTD-HS-00001/resubmit', json(session()), OTHER)).status).toBe(404);
+    const bad = await request('/api/host/sessions/RTD-HS-00001/resubmit', json(session({ event_date: '2026-10-01' })), HOST);
+    expect(bad.status).toBe(400);
+    expect(Object.keys((await bad.json<{ errors: object }>()).errors)).toEqual(['event_date']);
+  });
+
+  it('lets the host delete a declined or withdrawn session: gone from every list, kept for the record', async () => {
+    expect((await request('/api/host/sessions/RTD-HS-00001/delete', json({}), HOST)).status).toBe(409); // withdraw it first
+    await decide('RTD-HS-00001', 'decline');
+    await request('/api/host/sessions/RTD-HS-00002/withdraw', json({}), HOST);
+    expect((await request('/api/host/sessions/RTD-HS-00001/delete', json({}), OTHER)).status).toBe(404);
+    expect((await request('/api/host/sessions/RTD-HS-00001/delete', json({}), HOST)).status).toBe(200);
+    expect((await request('/api/host/sessions/RTD-HS-00002/delete', json({}), HOST)).status).toBe(200);
+    expect((await request('/api/host/sessions/RTD-HS-00001/delete', json({}), HOST)).status).toBe(404); // already gone
+    expect((await request('/api/host/sessions/RTD-HS-00001/resubmit', json(session()), HOST)).status).toBe(404);
+
+    const mine = await (await request('/api/host/sessions', {}, HOST)).json<{ sessions: unknown[] }>();
+    expect(mine.sessions).toEqual([]);
+    const declined = await (await request('/api/staff/host-sessions?status=declined', {}, STAFF)).json<{ sessions: unknown[] }>();
+    expect(declined.sessions).toEqual([]);
+    const rows = await env.DB.prepare('SELECT session_id, deleted_at IS NOT NULL AS deleted FROM host_sessions ORDER BY session_id').all();
+    expect(rows.results).toEqual([{ session_id: 'RTD-HS-00001', deleted: 1 }, { session_id: 'RTD-HS-00002', deleted: 1 }]);
+    const actions = await env.DB.prepare("SELECT action FROM audit_log WHERE action = 'host_session.deleted'").all();
+    expect(actions.results).toHaveLength(2);
+
+    // Numbers are never reused.
+    const next = await (await request('/api/host/sessions', json(session({ name: 'Catan' })), HOST)).json<{ session: { session_id: string } }>();
+    expect(next.session.session_id).toBe('RTD-HS-00003');
+  });
+});

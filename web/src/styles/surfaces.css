@@ -652,3 +652,16 @@
   font-family: var(--rtd-heading-font);
   font-size: var(--rtd-size-h3);
 }
+
+.host-event__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+@media (max-width: 479.98px) {
+  .host-event__actions {
+    justify-content: flex-start;
+  }
+}

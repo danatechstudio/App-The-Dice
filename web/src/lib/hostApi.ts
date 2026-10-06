@@ -35,6 +35,8 @@ export interface HostSession {
   decision_note: string | null;
   decided_at: string | null;
   event_id: string | null;
+  /** Times it was sent again after a decline or withdrawal. */
+  resubmissions?: number;
   /** Live sessions: upcoming dates, with who's booked. */
   dates?: SessionDate[];
 }

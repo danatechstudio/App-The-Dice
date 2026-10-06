@@ -177,6 +177,17 @@ describe('when something needs approving', () => {
     expect(JSON.parse(await decrypt(sent[0]!.body, dan)).body).toBe('Michelle: Root Night, every Thursday from Thu 8 Oct (private)');
   });
 
+  it('says when a declined session is sent again', async () => {
+    await request('/api/host/sessions', json(session), SAM);
+    await request('/api/staff/host-sessions/RTD-HS-00001/decision', json({ decision: 'decline' }), MICHELLE);
+    sent = [];
+    expect((await request('/api/host/sessions/RTD-HS-00001/resubmit', json({ ...session, event_date: '2026-10-15' }), SAM)).status).toBe(200);
+    expect(JSON.parse(await decrypt(sent.find(s => s.url === michelle.subscription.endpoint)!.body, michelle))).toMatchObject({
+      title: 'Session sent again',
+      body: 'Sam Host: Root Night, Thu 15 Oct',
+    });
+  });
+
   it('pushes a new join request', async () => {
     expect((await request('/api/join/apply', json({ display_name: 'Nina Newbie', about: 'Catan nights' }), as('nina@example.com'))).status).toBe(201);
     expect(sent).toHaveLength(2);

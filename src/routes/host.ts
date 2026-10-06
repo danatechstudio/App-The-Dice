@@ -3,7 +3,7 @@
 
 import { Hono } from 'hono';
 import { cancelDate, datesForSessions } from '../bookings/bookings';
-import { createSession, listSessions, parseSessionInput, withdrawSession } from '../host/sessions';
+import { createSession, deleteSession, listSessions, parseSessionInput, resubmitSession, withdrawSession } from '../host/sessions';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
 import { afterResponse } from '../lib/background';
 import { notifyApprovers, sessionToApprove } from '../notify/push';
@@ -40,6 +40,24 @@ hostRoutes.post('/sessions', async c => {
   const ctx = { subject: new URL(c.req.url).origin, now: new Date(), exceptUserId: user.user_id };
   await afterResponse(c, () => notifyApprovers(c.env.DB, sessionToApprove(session as unknown as Parameters<typeof sessionToApprove>[0]), ctx));
   return c.json({ session }, 201);
+});
+
+/** Edit a declined or withdrawn session and send it to the café again. Body: the same fields as creating one. */
+hostRoutes.post('/sessions/:id/resubmit', async c => {
+  const parsed = parseSessionInput(await c.req.json().catch(() => null));
+  if (!parsed.ok) return c.json({ error: 'Please check the form', errors: parsed.errors }, 400);
+  const user = c.get('user');
+  const result = await resubmitSession(c.env.DB, user, c.req.param('id'), parsed.value, new Date().toISOString());
+  if (!result.ok) return c.json({ error: result.error }, result.status);
+  const ctx = { subject: new URL(c.req.url).origin, now: new Date(), exceptUserId: user.user_id };
+  await afterResponse(c, () => notifyApprovers(c.env.DB, sessionToApprove(result.session as unknown as Parameters<typeof sessionToApprove>[0]), ctx));
+  return c.json({ session: result.session });
+});
+
+/** Remove a declined or withdrawn session from the host's list (kept for the record). */
+hostRoutes.post('/sessions/:id/delete', async c => {
+  const result = await deleteSession(c.env.DB, c.get('user'), c.req.param('id'), new Date().toISOString());
+  return result.ok ? c.json({ ok: true }) : c.json({ error: result.error }, result.status);
 });
 
 hostRoutes.post('/sessions/:id/withdraw', async c => {

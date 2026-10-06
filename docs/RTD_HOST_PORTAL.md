@@ -7,6 +7,7 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 | Part | State |
 | --- | --- |
 | Organiser page: dashboard, create session, your sessions, withdraw | **Built** |
+| Declined or withdrawn sessions: **Edit and send again**, or **Delete** | **Built** |
 | Staff section: approvals queue (approve / decline with a note), host list, add a host | **Built** |
 | Sign-in | **Working**, through the existing RTD Staff Access app (see [Signing in](#signing-in)) |
 | One-off or weekly sessions | **Built** |
@@ -46,14 +47,21 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 
 | Status | Meaning | Who moves it |
 | --- | --- | --- |
-| Awaiting approval (`submitted`) | Sent by the host | Host creates |
-| Approved (`approved`) | The café said yes | Staff |
-| Not approved (`declined`) | The café said no, optionally with a note the host sees | Staff |
+| Awaiting approval (`submitted`) | Sent by the host, or sent again after a decline or withdrawal | Host creates or sends again |
+| Approved (`approved`) | The café said yes | Approver |
+| Not approved (`declined`) | The café said no, optionally with a note the host sees | Approver |
 | Withdrawn (`withdrawn`) | The host pulled it before it reached the diary | Host |
 | Live (`published`) | It's in the Logic Engine and the diary | n8n |
 
 **Rules:**
-- **Withdrawing:** a host can only withdraw their own session, and only while it is awaiting approval or approved. Once it's live, they ask the café.
+- **Withdrawing:** a host can only withdraw their own session, and only while it is awaiting approval or approved. Once it's live, they cancel its dates instead.
+- **Sending it again:** a declined or withdrawn session has **Edit and send again**.
+  - **The form:** it opens filled in, with the café's note at the top. A date that has passed is left blank.
+  - **Sending:** the session goes back to Awaiting approval with the same number. The old decision is cleared (it stays in the audit log).
+  - **Who's told:** the café is emailed as for a new session, and approvers get a "Session sent again" push. Approvers see a **Sent again** chip on it.
+- **Deleting:** a declined or withdrawn session also has **Delete**.
+  - **What it does:** it disappears from every list. The row and its audit trail are kept (`deleted_at`), so session numbers are never reused.
+  - **What can't be deleted:** sessions that are waiting, approved or live (withdraw them, or cancel their dates).
 - **One decision only:** two staff can't both decide the same session; the second gets "already decided".
 - **Audit:** every change is written to `audit_log` (entity `host_session`, source `organiser`).
 
@@ -61,7 +69,7 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 
 | Role | Can |
 | --- | --- |
-| Host (everyone who joins, café staff included) | Use `/organise`; create, see and withdraw **their own** sessions; see who's booked; cancel a date. Nothing else. |
+| Host (everyone who joins, café staff included) | Use `/organise`; create, see and withdraw **their own** sessions, send a declined or withdrawn one again, or delete it; see who's booked; cancel a date. Nothing else. |
 | Approver (role `staff`: Michelle) | Everything a host can, plus approve or decline join requests and sessions, remove hosts, and cancel any hosted date |
 | Admin (Dan) | As an approver, plus choose approvers and remove them |
 
@@ -108,6 +116,8 @@ The n8n workflow **RTD Host Follow-up** (`FFy0lBTZCm4A5p08`, daily at 10:00) ema
 | GET | `/api/host/sessions` | host, staff, admin | My sessions |
 | POST | `/api/host/sessions` | host, staff, admin | Create. Returns 201, or 400 with `errors` per field. |
 | POST | `/api/host/sessions/:id/withdraw` | the session's host | Withdraw before it's live |
+| POST | `/api/host/sessions/:id/resubmit` | the session's host | Declined or withdrawn only: the same fields as creating one. Back to Awaiting approval (409 otherwise). |
+| POST | `/api/host/sessions/:id/delete` | the session's host | Declined or withdrawn only: hide it (409 otherwise) |
 | GET | `/api/staff/host-sessions?status=` | staff, admin | Sessions by status (default `submitted`) |
 | POST | `/api/staff/host-sessions/:id/decision` | staff, admin | `{ decision: "approve" \| "decline", note? }` |
 | GET | `/api/staff/hosts` | approver, admin | List hosts |

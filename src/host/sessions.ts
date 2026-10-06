@@ -92,7 +92,7 @@ export function priceLabel(pence: number): string {
 
 const FIELDS = `s.session_id, s.host_user_id, u.display_name AS host_name, u.email AS host_email, s.name, s.description,
   s.event_date, s.start_time, s.end_time, s.price_pence, s.max_players, s.frequency, s.access, s.status, s.decision_note, s.decided_at,
-  s.event_id, s.followup_sent_at, s.created_at, s.updated_at`;
+  s.event_id, s.followup_sent_at, s.resubmissions, s.deleted_at, s.created_at, s.updated_at`;
 
 export type SessionRow = Record<string, unknown> & { session_id: string; status: SessionStatus; host_user_id: string };
 
@@ -102,7 +102,7 @@ export async function listSessions(db: D1Database, where: { hostUserId?: string;
   const { results } = await db
     .prepare(
       `SELECT ${FIELDS} FROM host_sessions s JOIN users u ON u.user_id = s.host_user_id
-       WHERE (?1 IS NULL OR s.host_user_id = ?1) AND (?2 IS NULL OR s.status = ?2)
+       WHERE (?1 IS NULL OR s.host_user_id = ?1) AND (?2 IS NULL OR s.status = ?2) AND s.deleted_at IS NULL
        ORDER BY s.event_date DESC, s.start_time DESC LIMIT 200`,
     )
     .bind(where.hostUserId ?? null, where.status ?? null)
@@ -167,6 +167,50 @@ export async function withdrawSession(db: D1Database, host: AuthUser, id: string
   await db.batch([
     db.prepare("UPDATE host_sessions SET status = 'withdrawn', updated_at = ?2 WHERE session_id = ?1").bind(id, now),
     audit(db, id, host, 'host', 'host_session.withdrawn', s.status, 'withdrawn', now),
+  ]);
+  return { ok: true, session: (await getSession(db, id))! };
+}
+
+/** Sessions a host can delete, or edit and send again. */
+const FINISHED: SessionStatus[] = ['declined', 'withdrawn'];
+
+/**
+ * A declined or withdrawn session, edited and sent to the café again. It keeps
+ * its number; the old decision is cleared (it stays in the audit log), and the
+ * café is emailed (and approvers pushed) as for a new one.
+ */
+export async function resubmitSession(db: D1Database, host: AuthUser, id: string, input: SessionInput, now: string): Promise<Transition> {
+  const s = await getSession(db, id);
+  if (!s || s.host_user_id !== host.user_id || s.deleted_at) return { ok: false, status: 404, error: 'Session not found' };
+  if (!FINISHED.includes(s.status)) return { ok: false, status: 409, error: 'Only a declined or withdrawn session can be sent again.' };
+  const res = await db
+    .prepare(
+      `UPDATE host_sessions SET name = ?3, description = ?4, event_date = ?5, start_time = ?6, end_time = ?7, price_pence = ?8,
+         max_players = ?9, frequency = ?10, access = ?11, status = 'submitted', decision_note = NULL, decided_by = NULL,
+         decided_at = NULL, cafe_notified_at = NULL, host_notified_at = NULL, followup_sent_at = NULL,
+         resubmissions = resubmissions + 1, updated_at = ?12
+       WHERE session_id = ?1 AND host_user_id = ?2 AND status IN ('declined', 'withdrawn') AND deleted_at IS NULL`,
+    )
+    .bind(id, host.user_id, input.name, input.description, input.event_date, input.start_time, input.end_time, input.price_pence,
+      input.max_players, input.frequency, input.access, now)
+    .run();
+  if (!res.meta.changes) return { ok: false, status: 409, error: 'This session has just changed. Please reload.' };
+  const before = JSON.stringify({ status: s.status, decision_note: s.decision_note ?? null });
+  await audit(db, id, host, 'host', 'host_session.resubmitted', before, JSON.stringify(input), now).run();
+  return { ok: true, session: (await getSession(db, id))! };
+}
+
+/** A host removes a declined or withdrawn session from their list. Nothing is erased. */
+export async function deleteSession(db: D1Database, host: AuthUser, id: string, now: string): Promise<Transition> {
+  const s = await getSession(db, id);
+  if (!s || s.host_user_id !== host.user_id || s.deleted_at) return { ok: false, status: 404, error: 'Session not found' };
+  if (!FINISHED.includes(s.status)) {
+    const error = s.status === 'published' ? 'This session is in the diary. Cancel its dates instead.' : 'Withdraw this session first.';
+    return { ok: false, status: 409, error };
+  }
+  await db.batch([
+    db.prepare("UPDATE host_sessions SET deleted_at = ?2, updated_at = ?2 WHERE session_id = ?1 AND status IN ('declined', 'withdrawn')").bind(id, now),
+    audit(db, id, host, 'host', 'host_session.deleted', s.status, null, now),
   ]);
   return { ok: true, session: (await getSession(db, id))! };
 }

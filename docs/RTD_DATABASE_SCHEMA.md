@@ -119,6 +119,8 @@ Added in `0003_host_sessions.sql`. These are sessions proposed by hosts in the o
 | `decision_note`, `decided_by`, `decided_at` | The staff decision |
 | `event_id` | The Logic Engine event, once published |
 | `host_notified_at` | When n8n emailed the host the café's decision. Added in `0007_onboarding.sql`. |
+| `deleted_at` | Set when the host deletes a declined or withdrawn session: hidden from every list, never erased (0010) |
+| `resubmissions` | Times it was sent again after a decline or withdrawal (0010) |
 | `sheet_fix_sent`, `sheet_fix_sent_at` | The last Event Index change n8n made for a cancelled date (`inactive` or `date:YYYY-MM-DD`), so it's made once (0008) |
 
 ## applications

@@ -48,7 +48,7 @@ _Last updated: 2026-10-06_
 - **Events without photos keep the navy panel.** Home Education's folder is empty, and Standard Diary groups have no folder.
 
 ## Host organiser (started 2026-10-05)
-- **`/organise`:** hosts create sessions, see their status, and withdraw them.
+- **`/organise`:** hosts create sessions, see their status, and withdraw them. A declined or withdrawn one can be edited and sent again, or deleted.
   - **Session fields:** event name, one-off or weekly, open or private, date, start and end time, cost per player, max players, description.
   - **Staff:** an approvals queue (approve, or decline with a note), plus adding hosts.
 - **Sign-in:** works through the existing RTD Staff Access application. No dashboard change is needed for staff. For hosts, its policy must let them in (Include → Everyone recommended); see [docs/RTD_HOST_PORTAL.md](docs/RTD_HOST_PORTAL.md#signing-in).
@@ -78,7 +78,7 @@ _Last updated: 2026-10-06_
 - **Approvers:** see every hosted date for three weeks, with contact details.
 - **Emails:** n8n **RTD Outbox** (every 5 minutes, live) sends what the app queues.
 - **Tested:**
-  - **Automated:** 203 tests (with push).
+  - **Automated:** 208 tests.
   - **Screens:** checked at 320, 375 and 1280px.
   - **Workflows:** live and simulated n8n runs.
   - **Not yet:** a real booking, and a real cancelled date changing the sheet.

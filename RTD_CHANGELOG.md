@@ -1,5 +1,13 @@
 # RTD App Changelog
 
+## 2026-10-06 (send again or delete a declined session)
+- **Hosts can re-propose a declined or withdrawn session:**
+  - **The button:** **Edit and send again** opens the form filled in, with the café's note at the top.
+  - **What happens:** the session goes back for approval with the same number. The café is emailed again, approvers get a "Session sent again" push, and Michelle sees a **Sent again** chip.
+- **Hosts can delete a declined or withdrawn session.** It disappears from every list. The record and audit trail are kept, and session numbers are never reused.
+- **Database:** migration `0010_resubmit.sql` (`host_sessions.deleted_at`, `resubmissions`), applied to the live database.
+- **Tests:** 208 (was 203).
+
 ## 2026-10-06 (push notifications for approvals)
 - **Approvers and admins can get push notifications** on their phone or computer, as well as the email:
   - **What triggers one:** a host sending a session to approve, or someone asking to host.

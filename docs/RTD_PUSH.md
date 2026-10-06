@@ -17,6 +17,7 @@ Approvers (Michelle) and admins (Dan) can get a push notification on their phone
 | When | Notification | Tapping it opens |
 | --- | --- | --- |
 | A host sends a session | **Session to approve**: "Sam: D&D One Shot, Sat 24 Oct" (weekly: "every Tuesday from…"; private ones say "(private)") | `/organise`, at Sessions awaiting approval |
+| A host sends a declined or withdrawn session again | **Session sent again**, worded the same | The same |
 | Someone asks to host | **Join request**: "Nina Newbie has asked to host games" | `/organise`, at Join requests |
 
 **How it behaves:**
