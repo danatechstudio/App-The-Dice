@@ -4,6 +4,19 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### 2026-10-06 (later still): session approval alerts to the café's info@ address
+
+Dan's decision: "Have the cafe event approval alert set to info@…".
+
+| Workflow | Change | New active version | Roll back to |
+| --- | --- | --- | --- |
+| `rtd_config` | New key `RTD_APPROVAL_ALERT_EMAIL` = the café's info@ address | — | Delete the row (the alert falls back to `RTD_CAFE_NOTIFICATION_EMAIL`) |
+| RTD Host Sessions To Diary (`rdS8LF56B9k170BY`) | New node **Read Approval Alert Email (rtd_config)** before branch A. **Email The Café** now sends to it, falling back to `RTD_CAFE_NOTIFICATION_EMAIL` if the key is missing. Branches B and C unchanged. | `c5b53881-4436-4eb6-8487-6727baefdcf1` | `f7a6d7b7-8077-4b67-a5a0-24a53a16104c` |
+
+**Checked:** a simulated run (`21045`). The new node read the info@ address from `rtd_config`, and the email step was simulated, so no email went to the café.
+
+**Unchanged:** every other café email (join requests, replies from customers and hosts, cancellation notices, date requests) still uses `RTD_CAFE_NOTIFICATION_EMAIL`.
+
 ### 2026-10-06 (later): bookings and cancelled dates
 
 Dan's decisions: hosts and café staff join the same way; "email the event host whenever a person books… 2 days before the event to confirm numbers… option to cancel… email any attendees".
@@ -96,7 +109,8 @@ How it was verified: two dry runs of the Guard (executions 18094/18095 and 18115
 
 | key | purpose |
 | --- | --- |
-| `RTD_CAFE_NOTIFICATION_EMAIL` | Fixed café address for the digest, date requests and change notices. Also gets an email for each new host session (RTD Host Sessions To Diary), and is the Reply-To on host follow-up emails. |
+| `RTD_CAFE_NOTIFICATION_EMAIL` | Fixed café address for the digest, date requests and change notices. Also gets join requests and cancellation notices, and is the Reply-To on emails to hosts and customers. |
+| `RTD_APPROVAL_ALERT_EMAIL` | Added 2026-10-06: the café's info@ address. Gets the email for each new host session to approve (RTD Host Sessions To Diary). |
 
 Still to do: point the Guard's date-change recipient at this instead of its hard-coded copy. That change goes in `rtd-poster-automation`.
 
@@ -188,7 +202,7 @@ This workflow does two jobs for the host organiser ([RTD_HOST_PORTAL.md](RTD_HOS
 - **Triggers:** every 15 minutes (Europe/London), plus **Run By Hand**.
 - **A. Telling the café about new submissions:**
   1. `GET /internal/host-sessions/new-submissions`.
-  2. One email per submission to `RTD_CAFE_NOTIFICATION_EMAIL`:
+  2. One email per submission to `RTD_APPROVAL_ALERT_EMAIL` (the café's info@ address; falls back to `RTD_CAFE_NOTIFICATION_EMAIL`):
      - **Contents:** the session name, when, time, cost, max players, open or private, and the description.
      - **Link:** a link to `/organise` to approve or decline it.
      - **Sender:** `ATech GMAIL`, shown as "Roll The Dice app".

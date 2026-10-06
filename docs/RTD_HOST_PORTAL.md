@@ -135,7 +135,7 @@ The n8n workflow **RTD Host Follow-up** (`FFy0lBTZCm4A5p08`, daily at 10:00) ema
 
 The Logic Engine stays the one master calendar (audit §6). n8n **RTD Host Sessions To Diary** (`rdS8LF56B9k170BY`, every 15 minutes) does the sheet work; details are in [RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#rtd-host-sessions-to-diary-rds8lf56b9k170by).
 
-1. **Submitted:** the café gets an email with the details and a link to `/organise`. Replying to that email reaches the host.
+1. **Submitted:** the café's info@ address (`RTD_APPROVAL_ALERT_EMAIL` in `rtd_config`) gets an email with the details and a link to `/organise`. Replying to that email reaches the host. Approvers with notifications on also get a push.
 2. **Approved:**
    - **Added to the sheet:** within 15 minutes the session is added to **Event Index** as a new row:
      - **Values:** Event Name, Frequency (`One-off` or `Weekly`), Day, Event Date, Event Time, End Time, Base Details (the description), Status `Active` and Organiser Email.

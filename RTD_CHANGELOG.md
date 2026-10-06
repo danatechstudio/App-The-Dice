@@ -1,5 +1,9 @@
 # RTD App Changelog
 
+## 2026-10-06 (approval alerts to info@)
+- **Where they go:** the "new host session to approve" email now goes to the café's info@ address (`RTD_APPROVAL_ALERT_EMAIL` in `rtd_config`, read by n8n RTD Host Sessions To Diary).
+- **Unchanged:** other café emails still use `RTD_CAFE_NOTIFICATION_EMAIL`.
+
 ## 2026-10-06 (send again or delete a declined session)
 - **Hosts can re-propose a declined or withdrawn session:**
   - **The button:** **Edit and send again** opens the form filled in, with the café's note at the top.
