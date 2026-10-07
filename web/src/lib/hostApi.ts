@@ -60,7 +60,10 @@ export interface SessionDate {
   end_time: string | null;
   status: 'scheduled' | 'cancelled';
   cancelled_by: 'host' | 'staff' | null;
+  /** Places on this date; null: no limit. */
   capacity: number | null;
+  /** Places set for this date alone; otherwise it follows the session or event. */
+  own_capacity: number | null;
   booked: number;
   bookings: DateBooking[];
 }
@@ -72,6 +75,26 @@ export interface HostedDate extends Omit<SessionDate, 'host_session_id'> {
   host_session_id: string | null;
   session: { session_id: string; name: string; access: Access; max_players: number | null; host_name: string | null; host_email: string } | null;
 }
+
+/** For approvers: a café event people can book, with its places (docs/RTD_BOOKINGS.md#places). */
+export interface EventPlaces {
+  event_id: string;
+  name: string;
+  source: 'event_index' | 'standard_diary';
+  frequency: string | null;
+  next_date: string;
+  /** App Capacity in the sheet. */
+  sheet_places: number | null;
+  /** Set in the organiser; wins until App Capacity changes in the sheet. */
+  app_places: number | null;
+  /** What applies; null: no limit. */
+  places: number | null;
+  most_booked: number;
+  dates_with_own_places: number;
+}
+
+/** Most places on a date (the server checks too). */
+export const MAX_PLACES = { hosted: 100, cafe: 500 } as const;
 
 /** A request to host games or join the café team (docs/RTD_ONBOARDING.md). */
 export interface Application {

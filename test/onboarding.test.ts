@@ -111,8 +111,9 @@ describe('approving join requests', () => {
     await decide(DAN, 'RTD-APP-00002', 'decline');
     const { results } = await env.DB.prepare("SELECT action, actor_id FROM audit_log WHERE entity_type IN ('application', 'user') ORDER BY audit_id").all();
     expect(results).toEqual([
-      { action: 'application.host.submitted', actor_id: 'newbie@example.com' },
-      { action: 'application.host.submitted', actor_id: 'barista@example.com' },
+      // The request's number, not the person: requests not approved are erased later, and the audit log can't be.
+      { action: 'application.host.submitted', actor_id: 'RTD-APP-00001' },
+      { action: 'application.host.submitted', actor_id: 'RTD-APP-00002' },
       { action: 'application.approved', actor_id: 'michelle@example.com' },
       { action: 'user.granted_host', actor_id: 'michelle@example.com' },
       { action: 'application.declined', actor_id: 'dan@example.com' },

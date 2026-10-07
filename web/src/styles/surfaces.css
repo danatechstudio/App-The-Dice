@@ -534,8 +534,32 @@
 }
 
 .date-row__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-weight: 700;
   font-size: var(--rtd-size-meta);
+  white-space: nowrap;
+}
+
+/* "Change places" and "Cancel this date" side by side on a phone. */
+.date-row__actions {
+  --gap: 4px;
+}
+
+.date-row__actions .btn--text {
+  padding-inline: 8px;
+}
+
+.date-row__count .meta {
+  font-weight: 400;
+}
+
+/* Changing the places on a session, an event or one date. */
+.places-editor {
+  display: grid;
+  gap: var(--rtd-space-2);
+  justify-items: start;
 }
 
 .date-row__people summary {

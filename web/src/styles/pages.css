@@ -558,3 +558,35 @@
 .lightbox :focus-visible {
   outline-color: var(--rtd-focus-inverse);
 }
+
+/* ---------- Privacy notice ---------- */
+
+.privacy {
+  display: grid;
+  gap: var(--rtd-space-5);
+  max-width: 72ch;
+}
+
+.privacy h1 {
+  font-size: var(--rtd-size-h2);
+}
+
+.privacy section {
+  display: grid;
+  gap: var(--rtd-space-2);
+}
+
+.privacy h2 {
+  font-size: var(--rtd-size-h3);
+}
+
+.privacy h3 {
+  margin-top: var(--rtd-space-2);
+  font-size: 1rem;
+}
+
+.privacy ul {
+  display: grid;
+  gap: var(--rtd-space-2);
+  padding-left: 1.25rem;
+}

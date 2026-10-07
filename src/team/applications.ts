@@ -91,7 +91,8 @@ export async function submitApplication(db: D1Database, email: string, body: unk
     .bind(email, display_name, about, now)
     .first<{ application_id: string }>();
   const id = row!.application_id;
-  await audit(db, 'application', id, 'customer', email, 'application.host.submitted', null, JSON.stringify(parsed.value), now).run();
+  // The request's number, not the person: their details are erased later (docs/RTD_PRIVACY.md), and the audit log can't be.
+  await audit(db, 'application', id, 'customer', id, 'application.host.submitted', null, JSON.stringify({ role: 'host' }), now).run();
   return { ok: true, application: (await latestApplication(db, email))! };
 }
 
@@ -103,7 +104,7 @@ export async function withdrawApplication(db: D1Database, email: string, now: st
     .bind(latest.application_id, now)
     .run();
   if (!res.meta.changes) return false;
-  await audit(db, 'application', latest.application_id, 'customer', email, 'application.withdrawn', 'pending', 'withdrawn', now).run();
+  await audit(db, 'application', latest.application_id, 'customer', latest.application_id, 'application.withdrawn', 'pending', 'withdrawn', now).run();
   return true;
 }
 

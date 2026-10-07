@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 import { imagesByEvent, withImages } from '../images/store';
 import { calendarFile, googleCalendarUrl } from '../lib/calendar';
 import { EVENT_ID, LISTED, OCCURRENCE_FIELDS, VISIBLE, findOccurrence, redactPrivate, shape, type Row } from '../lib/queries';
+import { privacyInfo } from '../lib/privacy';
 import { addDays, londonDate, parseSheetDate } from '../lib/time';
 import { CATEGORIES } from '../sync/normalise';
 
@@ -18,6 +19,9 @@ const MAX_RANGE_DAYS = 120;
 const CACHE = { 'Cache-Control': 'public, max-age=60' };
 
 export const publicRoutes = new Hono<{ Bindings: Env }>();
+
+/** Who the privacy notice names, where to send questions, and how long booking details are kept. */
+publicRoutes.get('/privacy', async c => c.json(await privacyInfo(c.env.DB), 200, { 'Cache-Control': 'public, max-age=300' }));
 
 /** Upcoming occurrences for the diary. ?from=&to= (YYYY-MM-DD, London), ?category= */
 publicRoutes.get('/events', async c => {

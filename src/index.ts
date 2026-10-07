@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { readImage } from './images/store';
+import { applyRetention } from './lib/privacy';
 import { bookingRoutes } from './routes/bookings';
 import { hostRoutes } from './routes/host';
 import { internalRoutes } from './routes/internal';
@@ -8,7 +9,7 @@ import { pageRoutes } from './routes/pages';
 import { publicRoutes } from './routes/public';
 import { staffRoutes } from './routes/staff';
 
-const app = new Hono<{ Bindings: Env }>();
+export const app = new Hono<{ Bindings: Env }>();
 
 app.use('*', async (c, next) => {
   await next();
@@ -67,4 +68,12 @@ app.onError((err, c) => {
   return c.json({ error: 'Something went wrong' }, 500);
 });
 
-export default app;
+export default {
+  fetch: app.fetch,
+  /** Daily (wrangler.jsonc triggers): erase people's details once they're no longer needed (docs/RTD_PRIVACY.md). */
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(
+      applyRetention(env.DB, new Date(controller.scheduledTime)).then(erased => console.log('retention', JSON.stringify(erased))),
+    );
+  },
+} satisfies ExportedHandler<Env>;

@@ -174,7 +174,8 @@ function BookingForm({
         </button>
         <p class="meta booking__small">
           {o.price_display && !/^free$/i.test(o.price_display.trim()) ? 'Pay at the café on the day. ' : ''}
-          The café (and the host, for a hosted session) sees your name, how many are coming and your note. Only the café sees your email and mobile.
+          The café (and the host, for a hosted session) sees your name, how many are coming and your note. Only the café sees your email and mobile.{' '}
+          <a href="/privacy">How we use your details</a>
         </p>
       </form>
     </section>

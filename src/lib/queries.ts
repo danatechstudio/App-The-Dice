@@ -10,15 +10,21 @@ export const VISIBLE = `e.active = 1 AND COALESCE(o.visibility, e.visibility) IN
 /** The diary list also shows private sessions, so the café looks as busy as it is. */
 export const LISTED = `e.active = 1 AND COALESCE(o.visibility, e.visibility) IN ('public', 'app_bookable', 'private')`;
 
+/**
+ * Places on a date (o = occurrences, e = events): that date's own number, else
+ * the event's set in the organiser, else the sheet's App Capacity. NULL: no limit.
+ */
+export const CAPACITY = 'COALESCE(o.capacity, e.capacity_override, e.default_capacity)';
+
 export const OCCURRENCE_FIELDS = `
   o.occurrence_id, o.event_id, e.display_name AS name, e.category,
   COALESCE(o.description_override, e.description) AS description,
   o.event_date AS date, o.start_time, o.end_time, o.starts_at, o.ends_at, o.all_day, o.projected,
   o.status, o.rescheduled_to, COALESCE(o.visibility, e.visibility) AS visibility,
   COALESCE(o.image_override, e.default_image) AS image,
-  COALESCE(o.price_display, e.price_display) AS price_display, COALESCE(o.capacity, e.default_capacity) AS capacity,
+  COALESCE(o.price_display, e.price_display) AS price_display, ${CAPACITY} AS capacity,
   CASE WHEN COALESCE(o.visibility, e.visibility) IN ('public', 'app_bookable')
-    AND (e.host_session_id IS NULL OR COALESCE(o.capacity, e.default_capacity) IS NOT NULL) THEN 1 ELSE 0 END AS bookable`;
+    AND (e.host_session_id IS NULL OR ${CAPACITY} IS NOT NULL) THEN 1 ELSE 0 END AS bookable`;
 
 export type Row = Record<string, unknown>;
 
@@ -40,7 +46,7 @@ export interface PublicOccurrence {
   visibility: string;
   image: string | null;
   price_display: string | null;
-  /** Max players, when known (host sessions set it). */
+  /** Places on this date; null: no limit. */
   capacity: number | null;
   /** Takes bookings in the app: every public event (docs/RTD_BOOKINGS.md). */
   bookable: boolean;

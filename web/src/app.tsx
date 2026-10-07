@@ -16,6 +16,7 @@ import { Host } from './pages/Host';
 import { ManageBooking } from './pages/ManageBooking';
 import { NotFound } from './pages/NotFound';
 import { Organise } from './pages/Organise';
+import { Privacy } from './pages/Privacy';
 import { Roll } from './pages/Roll';
 import { StyleGuide } from './pages/StyleGuide';
 
@@ -28,6 +29,7 @@ function route(path: string) {
   if (path === '/games') return <Games />;
   if (path === '/host') return <Host />;
   if (path === '/organise') return <Organise />;
+  if (path === '/privacy') return <Privacy />;
   if (path === '/styleguide') return <StyleGuide />;
   if ((p = match('/event/:id', path))) return <EventPage key={p.id} occurrenceId={p.id!} />;
   if ((p = match('/events/:id', path))) return <SeriesPage key={p.id} eventId={p.id!} />;

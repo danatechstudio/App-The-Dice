@@ -3,6 +3,7 @@
 
 import { Hono } from 'hono';
 import { cancelDate, datesForSessions } from '../bookings/bookings';
+import { setDatePlaces, setSessionPlaces } from '../bookings/places';
 import { createSession, deleteSession, listSessions, parseSessionInput, resubmitSession, withdrawSession } from '../host/sessions';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
 import { afterResponse } from '../lib/background';
@@ -76,4 +77,22 @@ hostRoutes.post('/occurrences/:id/cancel', async c => {
     origin: new URL(c.req.url).origin,
   });
   return result.ok ? c.json({ ok: true, cancelled_bookings: result.cancelled_bookings }) : c.json({ error: result.error }, result.status);
+});
+
+/** Places on every date of the host's own live session. Body: { places }. */
+hostRoutes.post('/sessions/:id/places', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { places?: unknown };
+  const now = new Date();
+  const result = await setSessionPlaces(c.env.DB, c.get('user'), c.req.param('id'), body.places, { now: now.toISOString(), today: londonDate(now) });
+  return result.ok ? c.json({ places: result.places }) : c.json({ error: result.error, errors: result.errors }, result.status);
+});
+
+/**
+ * Places on one date: the host of the session, or an approver for any date.
+ * Body: { places: number | null }; null makes it the same as the other dates.
+ */
+hostRoutes.post('/occurrences/:id/places', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { places?: unknown };
+  const result = await setDatePlaces(c.env.DB, c.get('user'), c.req.param('id'), body.places, { now: new Date().toISOString() });
+  return result.ok ? c.json({ capacity: result.capacity }) : c.json({ error: result.error, errors: result.errors }, result.status);
 });

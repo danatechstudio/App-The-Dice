@@ -14,7 +14,7 @@
 
 import type { AuthUser } from '../lib/auth';
 import { places, ukDate } from '../lib/format';
-import { OCCURRENCE_ID, VISIBLE } from '../lib/queries';
+import { CAPACITY, OCCURRENCE_ID, VISIBLE } from '../lib/queries';
 import { addDays, londonDate, londonHour } from '../lib/time';
 import {
   attendeeDateCancelled,
@@ -58,7 +58,7 @@ interface SlotRow extends Slot {
 const SLOT_SQL = `
   SELECT o.occurrence_id, o.event_id, o.event_date, o.start_time, o.end_time, o.starts_at, o.status,
     e.display_name AS name, e.source, e.frequency, COALESCE(o.price_display, e.price_display) AS price_display,
-    COALESCE(o.capacity, e.default_capacity) AS capacity, e.host_session_id,
+    ${CAPACITY} AS capacity, e.host_session_id,
     h.host_user_id, h.access, u.email AS host_email, u.display_name AS host_name, u.active AS host_active,
     CASE WHEN ${VISIBLE} THEN 1 ELSE 0 END AS visible,
     (SELECT COALESCE(SUM(b.party_size), 0) FROM bookings b WHERE b.occurrence_id = o.occurrence_id AND b.status = 'confirmed') AS booked
@@ -205,23 +205,27 @@ export async function createBooking(db: D1Database, body: unknown, ctx: { now: s
     ...(hosted(s) ? [hostNewBooking(s, b, nowBooked, hostInbox(s), l)] : []),
   ];
   await db.batch([
-    // Saved only if the date is still on, the places are still free and this
-    // email hasn't just booked it: all checked in the same statement.
+    // Saved only if the date is still on, the places are still free (at the
+    // number set right now) and this email hasn't just booked it: all checked
+    // in the same statement.
     db
       .prepare(
         `INSERT INTO bookings (booking_id, occurrence_id, lead_name, email, mobile, party_size, notes, status, source,
            cancellation_token_hash, ip_hash, created_at, updated_at)
          SELECT printf('RTD-BK-%05d', n), ?1, ?2, ?3, ?4, ?5, ?6, 'confirmed', 'app', ?7, ?8, ?9, ?9
          FROM (SELECT COALESCE(MAX(CAST(substr(booking_id, 8) AS INTEGER)), 0) + 1 AS n FROM bookings)
-         WHERE EXISTS (SELECT 1 FROM occurrences WHERE occurrence_id = ?1 AND status = 'scheduled')
-           AND (?10 IS NULL OR (SELECT COALESCE(SUM(party_size), 0) FROM bookings WHERE occurrence_id = ?1 AND status = 'confirmed') + ?5 <= ?10)
+         WHERE EXISTS (
+             SELECT 1 FROM occurrences o JOIN events e ON e.event_id = o.event_id
+             WHERE o.occurrence_id = ?1 AND o.status = 'scheduled'
+               AND (${CAPACITY} IS NULL
+                 OR (SELECT COALESCE(SUM(party_size), 0) FROM bookings WHERE occurrence_id = ?1 AND status = 'confirmed') + ?5 <= ${CAPACITY}))
            AND NOT EXISTS (SELECT 1 FROM bookings WHERE occurrence_id = ?1 AND email = ?3 AND status = 'confirmed')`,
       )
-      .bind(b.occurrence_id, b.lead_name, b.email, b.mobile, b.party_size, b.notes, tokenHash, ipHash, now, s.capacity),
+      .bind(b.occurrence_id, b.lead_name, b.email, b.mobile, b.party_size, b.notes, tokenHash, ipHash, now),
     db
       .prepare(
         `INSERT INTO audit_log (entity_type, entity_id, occurrence_id, actor_type, actor_id, action, new_value, source, created_at)
-         SELECT 'booking', booking_id, occurrence_id, 'customer', email, 'booking.created', json_object('party_size', party_size), 'app', ?2
+         SELECT 'booking', booking_id, occurrence_id, 'customer', booking_id, 'booking.created', json_object('party_size', party_size), 'app', ?2
          FROM bookings WHERE cancellation_token_hash = ?1`,
       )
       .bind(tokenHash, now),
@@ -301,7 +305,7 @@ export async function cancelByCustomer(
   if (!res.meta.changes) return { ok: false, status: 409, error: 'This booking is already cancelled.' };
   const left = Math.max(0, s.booked - b.party_size);
   await db.batch([
-    audit(db, 'booking', b.booking_id, b.occurrence_id, 'customer', b.email, 'booking.cancelled', { by: 'customer' }, ctx.now),
+    audit(db, 'booking', b.booking_id, b.occurrence_id, 'customer', b.booking_id, 'booking.cancelled', { by: 'customer' }, ctx.now),
     // Only while the date is still on: a cancelled date has already told everyone.
     ...(s.status === 'scheduled'
       ? [
@@ -333,7 +337,10 @@ export interface SessionDate {
   end_time: string | null;
   status: 'scheduled' | 'cancelled';
   cancelled_by: string | null;
+  /** Places on this date; null: no limit. */
   capacity: number | null;
+  /** Places set for this date alone (otherwise it follows the session or event). */
+  own_capacity: number | null;
   booked: number;
   bookings: DateBooking[];
 }
@@ -344,7 +351,7 @@ export async function datesForSessions(db: D1Database, sessionIds: string[], tod
   const { results: dates } = await db
     .prepare(
       `SELECT o.occurrence_id, e.host_session_id, o.event_date, o.start_time, o.end_time, o.status, o.cancelled_by,
-         COALESCE(o.capacity, e.default_capacity) AS capacity
+         ${CAPACITY} AS capacity, o.capacity AS own_capacity
        FROM occurrences o JOIN events e ON e.event_id = o.event_id
        WHERE e.host_session_id IN (SELECT value FROM json_each(?1)) AND o.event_date BETWEEN ?2 AND ?3
          AND o.status IN ('scheduled', 'cancelled')
@@ -385,7 +392,7 @@ export async function upcomingBookedDates(db: D1Database, today: string) {
   const { results: dates } = await db
     .prepare(
       `SELECT o.occurrence_id, o.event_id, e.display_name AS event_name, e.host_session_id, o.event_date, o.start_time, o.end_time,
-         o.status, o.cancelled_by, COALESCE(o.capacity, e.default_capacity) AS capacity,
+         o.status, o.cancelled_by, ${CAPACITY} AS capacity, o.capacity AS own_capacity,
          h.name AS session_name, h.access, h.max_players, u.display_name AS host_name, u.email AS host_email
        FROM occurrences o JOIN events e ON e.event_id = o.event_id
        LEFT JOIN host_sessions h ON h.session_id = e.host_session_id
@@ -399,7 +406,7 @@ export async function upcomingBookedDates(db: D1Database, today: string) {
     .all<{
       occurrence_id: string; event_id: string; event_name: string; host_session_id: string | null; event_date: string;
       start_time: string | null; end_time: string | null; status: 'scheduled' | 'cancelled'; cancelled_by: string | null;
-      capacity: number | null; session_name: string | null; access: string | null; max_players: number | null;
+      capacity: number | null; own_capacity: number | null; session_name: string | null; access: string | null; max_players: number | null;
       host_name: string | null; host_email: string | null;
     }>();
   if (!dates.length) return [];
@@ -424,6 +431,7 @@ export async function upcomingBookedDates(db: D1Database, today: string) {
       status: d.status,
       cancelled_by: d.cancelled_by,
       capacity: d.capacity,
+      own_capacity: d.own_capacity,
       booked: mine.reduce((n, b) => n + b.party_size, 0),
       bookings: mine.map(({ occurrence_id: _o, ...b }) => b),
       session: d.host_session_id

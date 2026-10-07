@@ -239,6 +239,13 @@
   gap: var(--rtd-space-3);
 }
 
+.footer__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--rtd-touch-target);
+  font-weight: 700;
+}
+
 .footer__brand img {
   width: 44px;
   height: auto;

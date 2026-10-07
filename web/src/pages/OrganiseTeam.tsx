@@ -151,6 +151,9 @@ function JoinForm({ onSent }: { onSent: () => void }) {
         <button type="submit" class="btn btn--primary btn--lg btn--block" disabled={busy}>
           <Send size={18} aria-hidden="true" /> {busy ? 'Sending...' : 'Send request'}
         </button>
+        <p class="meta">
+          The café team sees your name, your sign-in email and what you'd like to run. <a href="/privacy">How we use your details</a>
+        </p>
       </form>
     </section>
   );

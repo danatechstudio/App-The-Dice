@@ -6,6 +6,7 @@ import { addDays, dayOfMonth, daysBetween, monthShort, shortDate, timeRange, tod
 import { SIGN_IN_URL, hostApi, type Access, type Frequency, type HostRecord, type HostSession, type HostUser, type SessionStatus } from '../lib/hostApi';
 import { toast } from '../lib/toast';
 import { HostedDatesPanel, SessionDates } from './OrganiseDates';
+import { EventPlacesPanel, SessionPlaces } from './OrganisePlaces';
 import { PushCard } from './OrganisePush';
 import { ApproversPanel, JoinRequests, JoinScreen, removeAccess, setApprover } from './OrganiseTeam';
 import { useTitle } from '../lib/title';
@@ -197,6 +198,7 @@ function SessionFacts({ s }: { s: HostSession }) {
 
 function SessionCard({ s, onChange, onSendAgain }: { s: HostSession; onChange: () => void; onSendAgain: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [changingPlaces, setChangingPlaces] = useState(false);
   const status = STATUS[s.status];
   // A weekly session keeps going until it's stopped, so only one-offs finish.
   const past = s.frequency === 'one-off' && s.event_date < todayLondon();
@@ -226,10 +228,18 @@ function SessionCard({ s, onChange, onSendAgain }: { s: HostSession; onChange: (
         <SessionFacts s={s} />
         {s.status === 'declined' && s.decision_note && <p class="meta">Café note: {s.decision_note}</p>}
         {status.note && !past && <p class="meta">{status.note}</p>}
+        {changingPlaces && (
+          <SessionPlaces sessionId={s.session_id} current={s.max_players} onClose={() => setChangingPlaces(false)} onSaved={() => (setChangingPlaces(false), onChange())} />
+        )}
         {s.dates && <SessionDates dates={s.dates} onChanged={onChange} />}
       </div>
       <div class="host-event__side">
         <Chip kind={finished ? 'completed' : status.chip}>{finished ? 'Completed' : status.label}</Chip>
+        {s.status === 'published' && !finished && !changingPlaces && (
+          <button type="button" class="btn btn--secondary btn--sm" onClick={() => setChangingPlaces(true)}>
+            <UsersRound size={16} aria-hidden="true" /> Change places
+          </button>
+        )}
         {(s.status === 'submitted' || s.status === 'approved') && !past && (
           <button type="button" class="btn btn--destructive-quiet btn--sm" onClick={withdraw} disabled={busy}>
             Withdraw
@@ -518,6 +528,7 @@ function StaffDesk({ onDecided, me, isAdmin }: { onDecided: () => void; me: Host
         </div>
       </section>
       <HostedDatesPanel refresh={refresh} />
+      <EventPlacesPanel refresh={refresh} />
       <HostsPanel hosts={hosts} isAdmin={isAdmin} onChanged={() => (load(), setRefresh(n => n + 1))} />
       {isAdmin && <ApproversPanel me={me} refresh={refresh} />}
     </div>

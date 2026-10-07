@@ -2,15 +2,17 @@
 // - SessionDates: a host's live session, date by date, with who's booked;
 // - HostedDatesPanel: approvers see the next three weeks of hosted dates and
 //   booked café events;
-// both let the host (or an approver) cancel a date, which emails everyone booked.
+// both let the host (or an approver) change a date's places, or cancel it,
+// which emails everyone booked.
 
 import { Ban, ChevronDown, Mail, Phone } from 'lucide-preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { Chip } from '../components/Chips';
 import { DiceLoader } from '../components/States';
 import { shortDate, timeRange } from '../lib/dates';
-import { hostApi, type HostedDate, type SessionDate } from '../lib/hostApi';
+import { hostApi, MAX_PLACES, type HostedDate, type SessionDate } from '../lib/hostApi';
 import { toast } from '../lib/toast';
+import { DatePlaces } from './OrganisePlaces';
 
 const placesText = (n: number) => `${n} ${n === 1 ? 'place' : 'places'}`;
 
@@ -19,14 +21,28 @@ export function SessionDates({ dates, onChanged }: { dates: SessionDate[]; onCha
   return (
     <div class="date-list" role="list" aria-label="Upcoming dates">
       {dates.slice(0, 6).map(d => (
-        <DateRow key={d.occurrence_id} d={d} onChanged={onChanged} />
+        <DateRow key={d.occurrence_id} d={d} maxPlaces={MAX_PLACES.hosted} onChanged={onChanged} />
       ))}
     </div>
   );
 }
 
-function DateRow({ d, title, contact, onChanged }: { d: SessionDate; title?: string; contact?: boolean; onChanged: () => void }) {
-  const [cancelling, setCancelling] = useState(false);
+function DateRow({
+  d,
+  title,
+  contact,
+  maxPlaces,
+  onChanged,
+}: {
+  d: SessionDate;
+  title?: string;
+  contact?: boolean;
+  maxPlaces: number;
+  onChanged: () => void;
+}) {
+  const [action, setAction] = useState<'places' | 'cancel' | null>(null);
+  const cancelling = action === 'cancel';
+  const setCancelling = (on: boolean) => setAction(on ? 'cancel' : null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const cancelled = d.status === 'cancelled';
@@ -58,6 +74,7 @@ function DateRow({ d, title, contact, onChanged }: { d: SessionDate; title?: str
         ) : (
           <span class="date-row__count">
             {d.capacity ? `${d.booked} of ${d.capacity} booked` : `${d.booked} booked`}
+            {d.own_capacity !== null && <span class="meta"> (this date)</span>}
           </span>
         )}
       </div>
@@ -84,7 +101,18 @@ function DateRow({ d, title, contact, onChanged }: { d: SessionDate; title?: str
           </ul>
         </details>
       )}
+      {!cancelled && action === 'places' && (
+        <DatePlaces
+          occurrenceId={d.occurrence_id}
+          current={d.capacity}
+          own={d.own_capacity}
+          max={maxPlaces}
+          onClose={() => setAction(null)}
+          onSaved={() => (setAction(null), onChanged())}
+        />
+      )}
       {!cancelled &&
+        action !== 'places' &&
         (cancelling ? (
           <div class="stack date-row__cancel" style={{ '--gap': '8px' }}>
             <label class="label" for={`msg-${d.occurrence_id}`}>
@@ -102,7 +130,10 @@ function DateRow({ d, title, contact, onChanged }: { d: SessionDate; title?: str
             </div>
           </div>
         ) : (
-          <div>
+          <div class="cluster date-row__actions">
+            <button type="button" class="btn btn--text btn--sm" onClick={() => setAction('places')}>
+              Change places
+            </button>
             <button type="button" class="btn btn--destructive-quiet btn--sm" onClick={() => setCancelling(true)}>
               Cancel this date
             </button>
@@ -142,6 +173,7 @@ export function HostedDatesPanel({ refresh }: { refresh?: number }) {
                 : `${d.event_name} · Café event`
             }
             contact
+            maxPlaces={d.session ? MAX_PLACES.hosted : MAX_PLACES.cafe}
             onChanged={load}
           />
         ))}

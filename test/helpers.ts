@@ -1,5 +1,5 @@
 import { applyD1Migrations, env, reset } from 'cloudflare:test';
-import app from '../src/index';
+import { app } from '../src/index';
 
 export { env };
 

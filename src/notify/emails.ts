@@ -82,6 +82,7 @@ export function bookingConfirmed(s: Slot, b: { lead_name: string; email: string;
       p(`Can't make it any more? ${link(manageUrl, 'Cancel your booking')}, so someone else can have your place.`),
       p('Any questions? Just reply to this email.'),
       p('See you there,<br>The Roll The Dice team'),
+      `<p style="font-size:13px;color:#666">${link(`${l.origin}/privacy`, 'How we use your details')}</p>`,
     ]),
   };
 }

@@ -179,6 +179,8 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
              frequency = excluded.frequency, repeatable = excluded.repeatable, requires_redating = excluded.requires_redating,
              visibility = excluded.visibility, sheet_status = excluded.sheet_status, active = excluded.active,
              photo_folder_id = excluded.photo_folder_id, price_display = excluded.price_display,
+             -- Places set in the organiser stand until App Capacity changes in the sheet: the last change wins.
+             capacity_override = CASE WHEN events.default_capacity IS excluded.default_capacity THEN events.capacity_override END,
              default_capacity = excluded.default_capacity, host_session_id = excluded.host_session_id,
              updated_at = CASE WHEN events.source_hash IS excluded.source_hash THEN events.updated_at ELSE excluded.updated_at END,
              source_hash = excluded.source_hash, last_synced_at = excluded.last_synced_at`,

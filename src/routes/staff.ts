@@ -2,6 +2,7 @@
 
 import { Hono } from 'hono';
 import { upcomingBookedDates } from '../bookings/bookings';
+import { cafeEventPlaces, setEventPlaces } from '../bookings/places';
 import { decideSession, listHosts, listSessions, type SessionStatus } from '../host/sessions';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
 import { deviceLabel, myDevices, notifyUser, parseSubscription, removeSubscription, saveSubscription, vapidKeys } from '../notify/push';
@@ -73,6 +74,17 @@ staffRoutes.post('/host-sessions/:id/decision', async c => {
 
 /** The next three weeks: every hosted date, and every café event date people have booked, with contacts. */
 staffRoutes.get('/booked-dates', async c => c.json({ dates: await upcomingBookedDates(c.env.DB, londonDate(new Date())) }));
+
+/** Every café event people can book, with its places (docs/RTD_BOOKINGS.md#places). */
+staffRoutes.get('/event-places', async c => c.json({ events: await cafeEventPlaces(c.env.DB, londonDate(new Date())) }));
+
+/** Places on every date of a café event. Body: { places: number | null }; null goes back to the sheet's App Capacity. */
+staffRoutes.post('/events/:id/places', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { places?: unknown };
+  const now = new Date();
+  const result = await setEventPlaces(c.env.DB, c.get('user'), c.req.param('id'), body.places, { now: now.toISOString(), today: londonDate(now) });
+  return result.ok ? c.json({ capacity: result.capacity }) : c.json({ error: result.error, errors: result.errors }, result.status);
+});
 
 /** Hosts. Everyone joins through a join request; there's no adding people directly. */
 staffRoutes.get('/hosts', async c => c.json({ hosts: await listHosts(c.env.DB) }));

@@ -32,6 +32,8 @@
       "id": "0a23bcba51b84a749f7c64935fa53335"
     }
   ],
+  // Daily at 03:23 UTC: erase people's details once they're no longer needed (docs/RTD_PRIVACY.md).
+  "triggers": { "crons": ["23 3 * * *"] },
   "vars": {
     "ENVIRONMENT": "production",
     // Calendar files use this as the event location. Add the street address when confirmed.

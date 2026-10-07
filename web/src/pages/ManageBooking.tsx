@@ -111,7 +111,7 @@ export function ManageBooking({ bookingId }: { bookingId: string }) {
         </div>
         {booking.can_cancel && (
           <div class="stack" style={{ '--gap': '8px' }}>
-            <p class="meta">Can't make it any more? Cancelling gives your places to someone else, and tells the host.</p>
+            <p class="meta">Can't make it any more? Cancelling gives your places to someone else, and lets the café know.</p>
             <div>
               <button type="button" class="btn btn--destructive" onClick={cancel} disabled={busy}>
                 {busy ? 'Cancelling...' : 'Cancel my booking'}
@@ -125,6 +125,9 @@ export function ManageBooking({ bookingId }: { bookingId: string }) {
             See what else is on
           </a>
         )}
+        <p class="meta">
+          <a href="/privacy">How we use your details</a>
+        </p>
       </section>
     </div>
   );
