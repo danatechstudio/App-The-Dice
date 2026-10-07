@@ -30,7 +30,7 @@ Stack:
 
 ```sh
 npm ci
-npm test            # builds the app, then 215 tests in the Workers runtime against a local D1
+npm test            # builds the app, then 235 tests in the Workers runtime against a local D1
 npm run typecheck   # Worker and web app
 npm run dev         # builds the app and serves everything on http://localhost:8787
 ```

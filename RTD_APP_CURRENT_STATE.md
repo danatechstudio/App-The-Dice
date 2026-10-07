@@ -71,15 +71,17 @@ _Last updated: 2026-10-06_
 - **Not yet tried on a real phone.**
 
 ## Bookings (2026-10-06; café events since 2026-10-07)
-- **Booking:** people book places on every public event (the café's own and open host sessions) from the event page, with no account and a Manage / Cancel link by email. App Capacity sets a limit; blank means none. See [docs/RTD_BOOKINGS.md](docs/RTD_BOOKINGS.md).
+- **Booking:** people book places on every public event (the café's own and open host sessions) from the event page, with no account and a Manage / Cancel link by email. Places are set by hosts (their sessions) and approvers (café events), or App Capacity in the sheet; none means no limit. See [docs/RTD_BOOKINGS.md](docs/RTD_BOOKINGS.md).
 - **The café's info@:** a copy of every booking and cancellation, the numbers two days before each booked café event, and a warning if a booked date leaves the sheet. Customers' replies go there.
+- **Places (2026-10-07):** hosts change their own live sessions' places; approvers set café events' places under **Places for café events**, or any single date's. Never below what's booked.
+- **Privacy (2026-10-07):** notice at `/privacy`; booking details erased 12 months after the event. See [docs/RTD_PRIVACY.md](docs/RTD_PRIVACY.md).
 - **Hosts:**
   - **Emails:** one for every booking and cancellation, and the numbers two days before each date.
   - **In the organiser:** they see who's coming and can cancel a date. Everyone booked is emailed, and the date is taken out of the Logic Engine.
 - **Approvers:** **Bookings coming up** shows three weeks of hosted dates and booked café events, with contact details. They can cancel any of those dates, and everyone booked is emailed.
 - **Emails:** n8n **RTD Outbox** (every 5 minutes, live) sends what the app queues.
 - **Tested:**
-  - **Automated:** 215 tests.
+  - **Automated:** 235 tests.
   - **Screens:** checked at 320, 375 and 1280px.
   - **Workflows:** live and simulated n8n runs.
   - **Not yet:** a real booking, and a real cancelled date changing the sheet.

@@ -19,6 +19,7 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 | Hosts and café staff ask for access themselves, the same way | **Built**: see [RTD_ONBOARDING.md](RTD_ONBOARDING.md) |
 | Bookings on open sessions, who's coming, and cancelling a date | **Built**: see [RTD_BOOKINGS.md](RTD_BOOKINGS.md) |
 | Host emailed for each booking, and the numbers two days before | **Built** (n8n **RTD Outbox**). The café's info@ gets a copy of every booking too. |
+| Host changes the places on a live session (every date or one date), with no new approval | **Built** (2026-10-07): see [RTD_BOOKINGS.md](RTD_BOOKINGS.md#places) |
 
 ## The session form
 
@@ -31,7 +32,7 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 | Start time | Required |
 | End time | Optional; must be after the start |
 | Cost per player | Free, or a price up to £100, paid at the café (no online payment) |
-| Max players | 1–100 |
+| Max players | 1–100. Once the session is live, the host can change it with **Change places**, without a new approval. |
 | Description | Optional, up to 500 characters |
 
 **Validation and numbering:**
@@ -123,6 +124,8 @@ The n8n workflow **RTD Host Follow-up** (`FFy0lBTZCm4A5p08`, daily at 10:00) ema
 | GET | `/api/staff/hosts` | approver, admin | List hosts |
 | GET | `/api/staff/booked-dates` | approver, admin | **Bookings coming up:** hosted dates and booked café events in the next 3 weeks, with bookings ([RTD_BOOKINGS.md](RTD_BOOKINGS.md)) |
 | POST | `/api/host/occurrences/:id/cancel` | the session's host; approvers and admins for any date, café events included | Cancel one date; everyone booked is emailed |
+| POST | `/api/host/sessions/:id/places` | the session's host | `{ places }`: every date of their live session |
+| POST | `/api/host/occurrences/:id/places` | the session's host; approvers and admins for any date | `{ places: number \| null }`: one date, or back to the same as the others |
 | GET | `/api/staff/sign-in` | anyone Access lets in | Redirects to `/organise` after Access sign-in |
 | GET | `/internal/host-sessions/followups` | n8n (bearer token) | One-off sessions due the follow-up email |
 | POST | `/internal/host-sessions/:id/followup-sent` | n8n (bearer token) | Record that the email went out (409 if already) |
@@ -153,4 +156,4 @@ The Logic Engine stays the one master calendar (audit §6). n8n **RTD Host Sessi
    - **Weekly sessions** roll forward each week.
    - **One-offs** go Inactive after their date, without the café's "pick a new date" email: the host gets the follow-up email instead.
 
-**To change a live session:** edit its Event Index row (for example, set Status to `Inactive` to stop it). Hosts can't withdraw a session once it's live, but they can cancel any of its dates in the organiser; people booked are emailed and the date is taken out of the Logic Engine ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#cancelling-a-date)).
+**To change a live session:** edit its Event Index row (for example, set Status to `Inactive` to stop it). Hosts can't withdraw a session once it's live, but they can cancel any of its dates in the organiser; people booked are emailed and the date is taken out of the Logic Engine ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#cancelling-a-date)). They can also change its places, for every date or one ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#places)).

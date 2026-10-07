@@ -59,7 +59,8 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 - **Atomic sync.** Each sync is one D1 batch: it lands completely or not at all. Each sync uses about 10 queries, well under the free plan's limit per request.
 - **Circuit breaker.** A snapshot with no usable rows, or fewer than half the previous count, is refused (`409`) and recorded. A broken sheet read can't empty the diary.
 - **Ambiguous rows are skipped and reported** (`warnings` on the sync run): rows with a missing or duplicated Event ID. A duplicated ID never causes a deactivation.
-- **Audit log.** `audit_log` is append-only; database triggers reject `UPDATE` and `DELETE`.
+- **Audit log.** `audit_log` is append-only; database triggers reject `UPDATE` and `DELETE`. So it records customers by booking or request number, never by name or email.
+- **Erasing old details.** A daily Cron Trigger (03:23 UTC) erases booking contact details 12 months after the event, network hashes after 2 days, and declined join requests after 12 months ([RTD_PRIVACY.md](RTD_PRIVACY.md)).
 - **Caching.**
   - Public responses: `Cache-Control: public, max-age=60`.
   - Staff responses, including refusals: `no-store`.
@@ -70,6 +71,7 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
 | GET | `/api/health` | none | Liveness and time of last good sync |
+| GET | `/api/privacy` | none (cached 5 min) | Who the privacy notice names, its contact address, and how long booking details are kept |
 | GET | `/api/events?from&to&category` | none | Diary listing: upcoming occurrences, max 120-day range. Private ones are redacted to "Private session" and their time. |
 | GET | `/api/events/:eventId` | none | Event page with upcoming occurrences |
 | GET | `/api/occurrences/:occurrenceId` | none | Deep link. Still returns cancelled/rescheduled status so old links explain themselves |
@@ -103,6 +105,8 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | GET | `/api/staff/booked-dates` | Access + approver/admin | The next 3 weeks: hosted dates and booked café events, with bookings |
 | GET / POST | `/api/staff/push/key`, `/devices`, `/subscribe`, `/unsubscribe`, `/test` | Access + approver/admin | Push notifications on this device ([RTD_PUSH.md](RTD_PUSH.md)) |
 | POST | `/api/host/occurrences/:id/cancel` | Access cookie + the session's host, approver or admin | Cancel a date |
+| POST | `/api/host/sessions/:id/places`, `/api/host/occurrences/:id/places` | Access cookie + the session's host (approvers and admins for any single date) | Places on every date of a live session, or on one date ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#places)) |
+| GET / POST | `/api/staff/event-places`, `/api/staff/events/:id/places` | Access + approver/admin | Places for café events |
 
 ## App pages
 
@@ -147,7 +151,7 @@ The **service worker** caches the app shell and the last diary it saw, so the di
 | `src/routes/*` | Public, internal, staff endpoints and app pages (link previews) |
 | `web/` | The PWA: `src/theme` (tokens), `src/styles`, `src/components`, `src/pages`, `public` (icons, manifest, service worker). See [RTD_APP_THEME.md](RTD_APP_THEME.md). |
 | `migrations/` | D1 schema |
-| `test/` | 215 tests, run inside the Workers runtime against a real local D1 and KV |
+| `test/` | 235 tests, run inside the Workers runtime against a real local D1 and KV |
 
 ## Future compatibility
 

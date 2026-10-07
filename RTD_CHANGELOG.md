@@ -1,5 +1,24 @@
 # RTD App Changelog
 
+## 2026-10-07 (privacy notice; places for hosts and approvers)
+- **Privacy notice** at `/privacy`:
+  - **Where it's linked:** the booking form, the join form, the booking page, the footer and the booking confirmation email.
+  - **What it says:** what is collected and why, who sees it, how long it's kept, people's rights, and how to complain to the ICO.
+  - **Settings, not code:** the business name and contact address come from the app's settings, so they change without a release. The contact is the café's info@.
+- **Erasing old details:** a daily job (Cron Trigger, 03:23 UTC):
+  - **Bookings:** erases the name, email, mobile and note 12 months after the event.
+  - **Network codes:** erases the scrambled code after 2 days.
+  - **Join requests:** erases declined or withdrawn ones after 12 months.
+  - **The audit log:** it can't be erased, so it now records bookings and requests by number, not by person.
+- **Places:**
+  - **Hosts:** **Change places** on their live session, for every date or one date, with no new approval.
+  - **Approvers:** a new **Places for café events** section sets each café event's places instead of App Capacity in the sheet. **Change places** sets any single date in **Bookings coming up**.
+  - **Rules:** never below what's already booked. A number set in the app holds until App Capacity changes in the sheet.
+- **Bookings check the places as they're saved,** so lowering the places can't let a booking through on the old number.
+- **Database:** migration `0012_places_privacy.sql`, applied to the live database.
+- **Tests:** 235 (was 215).
+- **Docs:** new [`docs/RTD_PRIVACY.md`](docs/RTD_PRIVACY.md).
+
 ## 2026-10-07 (customers book café events; every booking copied to info@)
 - **Every public event can be booked:**
   - **Which ones:** the café's own events (Event Index and Standard Diary rows with App Visibility Public or App Bookable), as well as open host sessions.

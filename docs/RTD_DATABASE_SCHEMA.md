@@ -19,7 +19,8 @@ One row per permanent event identity, synced from the Logic Engine.
 | `visibility` | `public`, `app_bookable`, `private`, `hidden` (sheet `App Visibility`; blank or unknown = hidden). `private` is listed in the diary only as "Private session" with its time. |
 | `sheet_status`, `active` | Raw Status. `active` = Status is exactly "Active" (Standard Diary: always active) |
 | `default_image`, `default_host_id` | App-owned, later phases |
-| `default_capacity` | Max players, from the sheet's `App Capacity` (host sessions fill it in) |
+| `default_capacity` | Places, from the sheet's `App Capacity` (host sessions fill it in) |
+| `capacity_override` | Places set in the organiser: by the host for their session, or by an approver for a café event. Wins over `default_capacity`; the sync clears it when App Capacity changes in the sheet, so the last change wins (0012) |
 | `price_display` | The sheet's `App Price` ("Free", "£5"). Added in `0006_host_publishing.sql`. |
 | `host_session_id` | The sheet's `App Host Session`: the organiser session this row came from (0006) |
 | `photo_folder_id` | Drive folder used by the poster generator |
@@ -37,7 +38,8 @@ One row per dated occurrence. **Never re-dated, never deleted.** `UNIQUE (event_
 | `projected` | 1 = generated from a weekly/fortnightly cadence, not yet the sheet's date |
 | `status` | `scheduled`, `completed`, `cancelled`, `rescheduled` |
 | `rescheduled_to` | The replacement occurrence, or null while a new date is awaited |
-| `host_id`, `capacity`, `booking_enabled`, `booking_deadline`, `visibility`, `price_display`, `image_override`, `description_override` | App-owned overrides, Phases 5–8 |
+| `capacity` | Places on this date alone, set in the organiser. Wins over the event's number; the sync never changes it ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#places)) |
+| `host_id`, `booking_enabled`, `booking_deadline`, `visibility`, `price_display`, `image_override`, `description_override` | App-owned overrides, Phases 5–8 |
 | `approved_at`, `completed_at`, `cancelled_at` | Lifecycle timestamps |
 
 ## audit_log (append-only)
@@ -75,6 +77,9 @@ Key/value pairs for the app:
 - `splash_window_days` = 14
 - `waitlist_offer_hours` = 12
 - `reminder_lead_minutes` = 240
+- `privacy_controller`: who the privacy notice names (0012)
+- `booking_retention_months` = 12 (0012)
+- `privacy_contact_email`: the notice's contact address, set only in the live database
 
 n8n's own settings (café email) live in the n8n data table `rtd_config`.
 
@@ -136,6 +141,7 @@ Added in `0007_onboarding.sql`. These are requests to host games or join the caf
 | `status` | `pending` → `approved` / `declined`; `withdrawn` by the applicant |
 | `decision_note`, `decided_by`, `decided_at` | The decision, by an approver or admin |
 | `approver_notified_at`, `applicant_notified_at` | When n8n emailed the approver about the request, and the applicant about the outcome |
+| `erased_at` | Declined or withdrawn requests: when the name, email, what they wrote and the note were erased, 12 months after the decision (0012) |
 | `created_at`, `updated_at` | |
 
 **Indexes:** `(email, created_at)` for "my latest request" and the 3-a-day limit, and `(status, role)` for the approval queue.
@@ -154,8 +160,9 @@ Added in `0008_bookings.sql`: places booked on public café events and open host
 | `status` | `confirmed` or `cancelled` |
 | `cancelled_by`, `cancel_message`, `cancelled_at` | `customer`, `host` or `staff`, and the host's or café's message when they cancelled the date |
 | `cancellation_token_hash` | SHA-256 of the secret in the Manage / Cancel link. The secret itself is never stored. |
-| `ip_hash` | First 32 hex characters of SHA-256 of the requester's IP and the day, only for the 10-an-hour limit |
+| `ip_hash` | First 32 hex characters of SHA-256 of the requester's IP and the day, only for the 10-an-hour limit. Erased after 2 days. |
 | `source` | `app` |
+| `erased_at` | When the name, email, mobile and note were erased, 12 months after the event (0012, [RTD_PRIVACY.md](RTD_PRIVACY.md)). The email becomes `erased-RTD-BK-…`. |
 
 **Indexes:** `(occurrence_id, status)` for capacity, `(email, created_at)` and `(ip_hash, created_at)` for the limits.
 

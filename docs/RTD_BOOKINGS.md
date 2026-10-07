@@ -15,21 +15,23 @@ Customers can book places on **every public event** in the app: the café's own 
 | Host emailed for each booking and cancellation on their session, and the numbers two days before | **Built** |
 | Host cancels a date of their session; Michelle cancels any date: everyone booked emailed | **Built** |
 | Cancelled dates taken out of the Logic Engine, so they're never advertised | **Built** (one-off, weekly and fortnightly Event Index rows; n8n **RTD Host Sessions To Diary**) |
+| Hosts change their own sessions' places; approvers set café events' places, or any date's | **Built** (2026-10-07): see [Places](#places) |
+| Privacy notice, and booking details erased 12 months after the event | **Built**: see [RTD_PRIVACY.md](RTD_PRIVACY.md) |
 | Waiting list, daily staff digest, editing a booking | Not built (spec §23, §33) |
 
 ## What can be booked
 
 | Event | Bookable? | Limit |
 | --- | --- | --- |
-| The café's own events with App Visibility **Public** or **App Bookable** (Event Index and Standard Diary) | Yes | The row's **App Capacity**. If it's blank, there's no limit. |
-| A host's **open** session | Yes | Its Max players |
+| The café's own events with App Visibility **Public** or **App Bookable** (Event Index and Standard Diary) | Yes | The number set in the organiser, else the row's **App Capacity**. With neither, there's no limit. |
+| A host's **open** session | Yes | Its Max players, which the host can change once it's live |
 | **Private** events and host sessions | Never | |
 | **Hidden** or inactive events | Never (not shown) | |
 
 **Notes:**
 - **Booking per date:** a weekly or fortnightly event is booked one date at a time.
 - **The Book page** lists the next date of every bookable event. Every event page has the booking form.
-- **To limit numbers for a café event:** fill in App Capacity on its row. To stop bookings altogether, it has to be Private or Hidden.
+- **To limit numbers for a café event:** set its places under **Places for café events** in the organiser, or fill in App Capacity on its row. To stop bookings altogether, it has to be Private or Hidden.
 
 ## Booking
 
@@ -55,6 +57,33 @@ Customers can book places on **every public event** in the app: the café's own 
 - **The café (info@ and approvers in the organiser):** name, email, mobile, party size and note.
 - **A host:** names, how many and notes, not contact details.
 - **The booking form says so,** next to the Book button.
+
+## Places
+
+How many people can book a date. It counts people, not bookings.
+
+**Which number applies to a date, first match wins:**
+1. **That date's own number,** set in the organiser.
+2. **The event's number set in the organiser:** by the host for their session, or by an approver for a café event.
+3. **App Capacity in the sheet.**
+4. **None of these:** there's no limit.
+
+**Who can change what:**
+
+| Who | Where | What |
+| --- | --- | --- |
+| A host | **Change places** on their live session's card | Every date of their own session (1–100). It becomes the session's Max players. No new approval is needed. |
+| A host | **Change places** on one of their dates | That date only, or back to **Same as the other dates** |
+| An approver or admin | **Places for café events** in the organiser | Every date of a café event (1–500), or **No limit** / **Use the sheet's N** |
+| An approver or admin | **Change places** on a date in **Bookings coming up** | That date only, for café events and hosted sessions alike |
+
+**Rules:**
+- **Never below what's booked:** a number below what's already booked on a date it would apply to is refused, naming the date: "5 places are already booked on Tue 20 Oct, so it can't go below 5."
+- **"Every date" means every date:** a new number for every date replaces any date's own number from today on.
+- **Hosts' sessions are the host's:** approvers can't change every date of a host's session, only single dates.
+- **The sheet and the app:** a number set in the app holds through syncs until someone changes App Capacity in the sheet. Then the sheet's number wins (the sync clears the app's number), so the last change always wins.
+- **Checked at the last moment:** the booking itself checks the places at the moment it's saved, so lowering the places can't let a booking through on the old number.
+- **Audit:** every change is in the audit log (`host_session.places_changed`, `event.places_changed`, `occurrence.places_changed`, with the old and new numbers).
 
 ## The Manage / Cancel link
 
@@ -144,11 +173,12 @@ The app writes every booking email itself (`src/notify/emails.ts`) into the `out
 
 | Action | Entity | Actor |
 | --- | --- | --- |
-| `booking.created` | `booking` | the customer (their email) |
-| `booking.cancelled` | `booking` | the customer |
+| `booking.created` | `booking` | the customer, recorded as the booking number (never their email: the audit log can't be erased) |
+| `booking.cancelled` | `booking` | the customer, as above |
 | `occurrence.cancelled` | `occurrence` (with the occurrence ID) | the host (`host`) or an approver (`staff`). It keeps the message and how many bookings were cancelled. |
+| `…places_changed` | `host_session`, `event` or `occurrence` | the host or an approver, with the old and new numbers |
 
-Bookings are never deleted. A cancelled one keeps who cancelled it and why.
+Bookings are never deleted. A cancelled one keeps who cancelled it and why. Twelve months after the event, the person's name, email, mobile and note are erased ([RTD_PRIVACY.md](RTD_PRIVACY.md)).
 
 ## API
 
@@ -160,7 +190,11 @@ Bookings are never deleted. A cancelled one keeps who cancelled it and why.
 | POST | `/api/bookings/:id/cancel` | the link holder | `{ token }`: cancel it |
 | GET | `/api/host/sessions` | host | Each live session has `dates`, each with its bookings (no contact details) |
 | POST | `/api/host/occurrences/:occurrenceId/cancel` | the session's host; approvers and admins for any date | `{ message? }`: cancel a date |
-| GET | `/api/staff/booked-dates` | approver, admin | The next 3 weeks: hosted dates, and café dates people have booked, with contacts |
+| GET | `/api/staff/booked-dates` | approver, admin | The next 3 weeks: hosted dates, and café dates people have booked, with contacts. Each date has `capacity` and `own_capacity`. |
+| POST | `/api/host/sessions/:id/places` | the session's host | `{ places }`: every date of their live session |
+| POST | `/api/host/occurrences/:occurrenceId/places` | the session's host; approvers and admins for any date | `{ places: number \| null }`: one date; null goes back to the event's number |
+| GET | `/api/staff/event-places` | approver, admin | Every café event that can be booked, with its places (sheet, app, applying), the most booked on a date, and how many dates have their own number |
+| POST | `/api/staff/events/:eventId/places` | approver, admin | `{ places: number \| null }`: every date of a café event; null goes back to the sheet |
 | POST | `/internal/outbox/collect` | n8n (bearer token) | Queues emails now due (numbers, warnings), then returns unsent emails |
 | POST | `/internal/outbox/:id/sent` | n8n | Mark one sent |
 | GET | `/internal/sheet-fixes` | n8n | Event Index changes for cancelled dates, each with its Event ID |
@@ -175,10 +209,16 @@ Booking changes must be same-origin JSON (403 for other sites, 415 for non-JSON)
 - **`bookings` and `outbox`:** from migration `0008_bookings.sql`.
 - **`sheet_fixes`:** from `0011_cafe_bookings.sql`. It records the last Event Index change made for each event.
 
-**Columns:** `occurrences.cancelled_by` (0008). `host_sessions.sheet_fix_sent` is no longer used. See [RTD_DATABASE_SCHEMA.md](RTD_DATABASE_SCHEMA.md).
+**Columns:**
+- **0008:** `occurrences.cancelled_by`.
+- **0012:** `events.capacity_override` (places set in the organiser) and `bookings.erased_at`.
+- **From 0001:** `occurrences.capacity` holds a date's own number.
+- **No longer used:** `host_sessions.sheet_fix_sent`.
+
+See [RTD_DATABASE_SCHEMA.md](RTD_DATABASE_SCHEMA.md).
 
 ## Before promoting it
 
-- **A privacy notice** (urgent): the app holds customers' names, emails and phone numbers. See [RTD_PRODUCTION_READINESS.md](RTD_PRODUCTION_READINESS.md).
+- **Privacy:** the notice is live at `/privacy`. Still to do: the business's legal name, checking the ICO fee, and clearing old booking emails from the café's mailboxes. See [RTD_PRIVACY.md](RTD_PRIVACY.md).
 - **Sending address:** emails come from the ATech Gmail account, shown as "Roll The Dice". Gmail has a daily sending limit, which matters if bookings grow.
-- **Capacities:** check App Capacity on events where numbers matter (quizzes, tournaments). Without one, there's no limit.
+- **Places:** set places on events where numbers matter (quizzes, tournaments), under **Places for café events**. Without a number, there's no limit.

@@ -60,7 +60,9 @@ Status words below: **Live** (built and running), **Partial** (some of it works)
 | Removing access | Live | Staff remove hosts; admins also remove café staff |
 | Host edits a session | **Partial** | A declined or withdrawn session can be edited and sent again, or deleted. Live sessions: hosts cancel dates; other changes are made by the café in the sheet |
 | Host sees bookings, emails per booking and two days before, cancels a date | Live | See [RTD_BOOKINGS.md](RTD_BOOKINGS.md). Not yet tried with a real booking |
-| Customers book the café's own events | Live (7 Oct) | Every Public or App Bookable event; App Capacity sets a limit (blank: none). info@ gets every booking, cancellation and the two-day numbers. Not yet tried with a real booking |
+| Customers book the café's own events | Live (7 Oct) | Every Public or App Bookable event. info@ gets every booking, cancellation and the two-day numbers. Not yet tried with a real booking |
+| Places (how many can book) | Live (7 Oct) | Hosts change their own live sessions' places; approvers set café events' places in the organiser (or App Capacity in the sheet), or any single date's. No number: no limit |
+| Privacy notice | Live (7 Oct) | `/privacy`, linked from every form that collects details and from the confirmation email. Booking details erased 12 months after the event. Needs the legal name ([RTD_PRIVACY.md](RTD_PRIVACY.md)) |
 
 ### Everything else in the specification
 
@@ -103,7 +105,7 @@ Who: **You** = Dan; **Michelle** = café; **Claude** = me.
 | 2 | **Rotate the ImageKit key and the Meta page token** (audit S1) | Both are hard-coded in RTD Master V1, so anyone who can open or export that workflow can see them | You rotate; Claude moves them into n8n credentials |
 | 3 | **Lock down or switch off the website-requests webhook** (S3) | It's public, with no checks, and it writes unescaped input into an email | Your decision; Claude makes the change |
 | 4 | **Confirm the n8n editor isn't public** (S6) | Only `/webhook/*` and `/form/*` should be reachable from the internet | You (or Claude, with access to the Pi's proxy settings) |
-| 5 | **Privacy notice and data retention** (S7, spec §49) | **Now urgent:** the app holds customers' names, emails and phone numbers from bookings, as well as hosts'. The sheet holds organiser emails; photos may show customers. Add a privacy page (linked from the booking form), set retention rules, and check whether the café already pays the ICO data protection fee | You for the wording and legal checks; Claude adds the page |
+| 5 | **Privacy: the last steps** (S7, spec §49) | The notice and automatic erasing are live ([RTD_PRIVACY.md](RTD_PRIVACY.md)). Still needed: the business's legal name on the notice, checking the ICO data protection fee, and a routine for clearing old booking emails from info@ and the ATech Gmail Sent folder | You: the name, ICO check and mailbox routine; Claude updates the notice |
 | 6 | **Make Michelle the approver** | Only Dan has an account today. Michelle signs in at `/organise` and asks to host; Dan approves it under **Join requests**, then uses **Make approver** | Michelle, then you |
 | 7 | **Let hosts and staff through sign-in** | The RTD Staff Access policy must let new people sign in so they can ask for access: **Include → Everyone**, since the app decides who gets in | You, in the Cloudflare dashboard |
 | 8 | **One real host session end to end** | Sign-in and submitting are tested. Approve → sheet row → diary → follow-up hasn't run on a real session. Use a **Private** session, so nothing gets posted | You, then Claude checks each step |
@@ -154,12 +156,12 @@ Who: **You** = Dan; **Michelle** = café; **Claude** = me.
 7. **Games:** keep the preview shelf or hide it; when the inventory can be provided.
 8. **Café Google Calendar:** is "Roll The Dice Cafe" public? If so, private session names would be visible there.
 9. **Street address** for calendar entries.
-10. **Capacities:** fill in App Capacity on café events where numbers matter (quizzes, tournaments). Without one, there's no limit.
+10. **Places:** Michelle sets places on café events where numbers matter (quizzes, tournaments), under **Places for café events** in the organiser. Without a number, there's no limit.
 11. **Optional:** a vector or larger logo for sharper icons.
 
 ## 5. Already in place
 
-- **Tests:** 215 automated tests, covering sync, the API, sign-in, host sessions, onboarding, bookings (capacity, limits, cancelling, emails), push encryption and signing, privacy redaction, calendar files, photos and colour contrast.
+- **Tests:** 235 automated tests, covering sync, the API, sign-in, host sessions, onboarding, bookings (capacity, limits, cancelling, emails), push encryption and signing, privacy redaction, calendar files, photos and colour contrast.
 - **Safe sync:** each sync lands completely or not at all. The app keeps serving the last good data if the sheet or the Pi breaks, and refuses a snapshot that loses half the events.
 - **Private sessions:** the server strips their details, so the name, description, photo, price and size never reach the public. They have no page, preview or calendar file.
 - **Security:**
@@ -179,7 +181,7 @@ Who: **You** = Dan; **Michelle** = café; **Claude** = me.
 2. **Security tidy-up:** rotate the keys, lock the webhook, confirm n8n isn't public, and push `rtd-poster-automation`.
 3. **Move to the domain,** before anyone is asked to install the app.
 4. **Staff and hosts:** the Access policy, then Michelle asks to host, and Dan approves the request and makes Michelle the approver. Then run one open trial session end to end: book it, see the emails, cancel a date.
-5. **Polish:** privacy page, analytics, sync alert, weekly export, café sender address.
+5. **Polish:** privacy last steps (legal name, ICO fee, mailbox routine), analytics, sync alert, weekly export, café sender address.
 6. **Phones:** real-device test round with Michelle; fix what it finds.
 7. **Soft launch (Launch A):** tell regulars and hosts; watch the sync, analytics and the café inbox for a couple of weeks.
 8. **The rest of Phase 5 booking** (waiting list, digest), then push reminders, games and the staff dashboard (Launch B).

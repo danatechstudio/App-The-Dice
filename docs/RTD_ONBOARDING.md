@@ -72,14 +72,16 @@ Every step is written to `audit_log` with source `organiser`:
 
 | Action | Entity | Actor |
 | --- | --- | --- |
-| `application.host.submitted` | `application` | the applicant (`customer`) |
-| `application.withdrawn` | `application` | the applicant |
+| `application.host.submitted` | `application` | the applicant (`customer`), recorded as the request number |
+| `application.withdrawn` | `application` | the applicant, as above |
 | `application.approved` / `application.declined` | `application` | the approver (`staff`); the note is kept |
 | `user.granted_host` | `user` | the approver |
 | `user.made_approver` / `user.approver_removed` | `user` | the admin |
 | `user.removed_host` / `user.removed_staff` | `user` | whoever removed them |
 
 Requests made before 2026-10-06 may say `application.staff.submitted` and `user.granted_staff`; that was the old "café team" request.
+
+**No personal details in the audit log** (since 2026-10-07): it can never be erased, so a request is recorded by its number, not the person's email, name or what they wrote. Declined and withdrawn requests are erased 12 months after the decision ([RTD_PRIVACY.md](RTD_PRIVACY.md)). Approving still records the new host's email (`user.granted_host`), because they now have access.
 
 ## Emails (n8n RTD Team Notices)
 
