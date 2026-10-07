@@ -1,6 +1,6 @@
 # RTD App: Feature Status and Production Readiness
 
-_As of 6 October 2026. Live app: https://rtd-app.dan-289.workers.dev_
+_As of 7 October 2026. Live app: https://rtd-app.dan-289.workers.dev_
 
 ## Summary
 
@@ -8,11 +8,11 @@ _As of 6 October 2026. Live app: https://rtd-app.dan-289.workers.dev_
   - **Public app:** an installable diary app with event pages and photos.
   - **Host organiser:** hosts propose sessions and the café approves them.
   - **Onboarding:** hosts and café staff ask for access the same way and can only plan sessions. Michelle approves people and every session.
-  - **Bookings for hosted sessions:** people book places on open host sessions. Hosts are emailed for each booking and two days before, and can cancel a date, which emails everyone booked.
+  - **Bookings:** customers book places on every public event, the café's own and hosts' open sessions. Every booking and cancellation is copied to the café's info@, which also gets the numbers two days before. Hosts are emailed about their own sessions. Hosts (their own) and Michelle (any) can cancel a date, which emails everyone booked.
   - **Automations:** they put approved sessions in the diary, keep private sessions out of social posts, and follow up with hosts after one-off sessions.
 - **What "production" means here.** There are two sensible milestones:
   - **Launch A, soft launch:** the public diary app and the host organiser, as they are now. This needs about a dozen jobs, mostly decisions, security tidy-ups and real-phone testing (§3.1). No big new features.
-  - **Launch B, the full specification:** booking for the café's own events (with a waiting list and daily digest), push reminders, the real game library, and a full staff dashboard (Phases 3–9).
+  - **Launch B, the full specification:** a waiting list and daily digest for bookings, push reminders, the real game library, and a full staff dashboard (Phases 3–9).
 
 Status words below: **Live** (built and running), **Partial** (some of it works), **Not started**.
 
@@ -60,6 +60,7 @@ Status words below: **Live** (built and running), **Partial** (some of it works)
 | Removing access | Live | Staff remove hosts; admins also remove café staff |
 | Host edits a session | **Partial** | A declined or withdrawn session can be edited and sent again, or deleted. Live sessions: hosts cancel dates; other changes are made by the café in the sheet |
 | Host sees bookings, emails per booking and two days before, cancels a date | Live | See [RTD_BOOKINGS.md](RTD_BOOKINGS.md). Not yet tried with a real booking |
+| Customers book the café's own events | Live (7 Oct) | Every Public or App Bookable event; App Capacity sets a limit (blank: none). info@ gets every booking, cancellation and the two-day numbers. Not yet tried with a real booking |
 
 ### Everything else in the specification
 
@@ -67,9 +68,9 @@ Status words below: **Live** (built and running), **Partial** (some of it works)
 | --- | --- | --- |
 | Notifications (Phase 3) | **Not started** | Push opt-in and 4-hour reminders. On iPhone, push only works once the app is installed to the Home Screen |
 | Games (Phase 4) | **Partial** | Roll Me a Game (3D dice, filters, Chaos Roll), the game library and Game of the Week work on a labelled *preview shelf* of sample games. Needs the café's real inventory, staff editing and the weekly automation |
-| Booking (Phase 5) | **Partial** | Open host sessions: multi-person bookings, capacity-safe, confirmation email, secure cancellation ([RTD_BOOKINGS.md](RTD_BOOKINGS.md)). Not built: the café's own events, waiting list, daily digest |
+| Booking (Phase 5) | **Partial** | Every public café event and open host session: multi-person bookings, capacity-safe, confirmation email, copies to info@, secure cancellation ([RTD_BOOKINGS.md](RTD_BOOKINGS.md)). Not built: waiting list, daily digest |
 | Become a Host (Phase 7) | **Partial** | **Apply to host** signs people in and takes their request, which the café approves in the organiser ([RTD_ONBOARDING.md](RTD_ONBOARDING.md)). Not built: a form for people without an email sign-in, and a richer host profile |
-| Staff Control (Phase 8) | **Partial** | In `/organise`: approvals, join requests, hosts, approvers, and hosted dates with bookings. Sync history and audit exist as an API but have no screen. No event or settings controls |
+| Staff Control (Phase 8) | **Partial** | In `/organise`: approvals, join requests, hosts, approvers, and bookings coming up (hosted sessions and booked café events). Sync history and audit exist as an API but have no screen. No event or settings controls |
 | Hardening (Phase 9) | **Partial** | See §5 for what's already covered, and §3 for what's left |
 
 ## 2. What's running where
@@ -128,9 +129,9 @@ Who: **You** = Dan; **Michelle** = café; **Claude** = me.
 
 ### 3.3 For Launch B (the full specification)
 
-1. **Booking (Phase 5), the rest.** Hosted sessions can already be booked. Still to come:
-   - **More of booking:** the café's own events, a waiting list with offer expiry, and the daily booking digest.
-   - **Before building:** the email provider and sending domain, how capacity and booking cut-off are set for café events (new sheet columns or app-only), and which events come next.
+1. **Booking (Phase 5), the rest.** Every public event can already be booked. Still to come:
+   - **More of booking:** a waiting list with offer expiry, and the daily booking digest.
+   - **Before building:** the email provider and sending domain.
 2. **Push reminders (Phase 3):** opt-in, a reminder 4 hours before, no duplicates, and an audit trail.
 3. **Games (Phase 4):** the café's inventory, staff editing, and Game of the Week rotating automatically.
 4. **Become a Host (Phase 7) extras:** request and approval are built; still to come is a richer host profile (games, experience, availability).
@@ -153,12 +154,12 @@ Who: **You** = Dan; **Michelle** = café; **Claude** = me.
 7. **Games:** keep the preview shelf or hide it; when the inventory can be provided.
 8. **Café Google Calendar:** is "Roll The Dice Cafe" public? If so, private session names would be visible there.
 9. **Street address** for calendar entries.
-10. **Booking beyond hosted sessions:** which café events, with what capacity, and when booking closes.
+10. **Capacities:** fill in App Capacity on café events where numbers matter (quizzes, tournaments). Without one, there's no limit.
 11. **Optional:** a vector or larger logo for sharper icons.
 
 ## 5. Already in place
 
-- **Tests:** 208 automated tests, covering sync, the API, sign-in, host sessions, onboarding, bookings (capacity, limits, cancelling, emails), push encryption and signing, privacy redaction, calendar files, photos and colour contrast.
+- **Tests:** 215 automated tests, covering sync, the API, sign-in, host sessions, onboarding, bookings (capacity, limits, cancelling, emails), push encryption and signing, privacy redaction, calendar files, photos and colour contrast.
 - **Safe sync:** each sync lands completely or not at all. The app keeps serving the last good data if the sheet or the Pi breaks, and refuses a snapshot that loses half the events.
 - **Private sessions:** the server strips their details, so the name, description, photo, price and size never reach the public. They have no page, preview or calendar file.
 - **Security:**
@@ -181,4 +182,4 @@ Who: **You** = Dan; **Michelle** = café; **Claude** = me.
 5. **Polish:** privacy page, analytics, sync alert, weekly export, café sender address.
 6. **Phones:** real-device test round with Michelle; fix what it finds.
 7. **Soft launch (Launch A):** tell regulars and hosts; watch the sync, analytics and the café inbox for a couple of weeks.
-8. **Phase 5 booking,** then push reminders, games and the staff dashboard (Launch B).
+8. **The rest of Phase 5 booking** (waiting list, digest), then push reminders, games and the staff dashboard (Launch B).

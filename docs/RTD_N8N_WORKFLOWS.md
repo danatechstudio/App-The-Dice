@@ -4,6 +4,26 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### 2026-10-07: customers book café events; every booking copied to info@
+
+Dan's decision: "prepare the app to enable customers to book on. Ensure any bookings are emailed to info@… as per other confirmations." Every public event is bookable; replies from customers go to info@.
+
+| Workflow | Change | New active version | Roll back to |
+| --- | --- | --- | --- |
+| `rtd_config` | New key `RTD_BOOKINGS_EMAIL` = the café's info@ address | — | Delete the row (bookings mail falls back to `RTD_CAFE_NOTIFICATION_EMAIL`) |
+| RTD Outbox (`dJU9NJOh7aisAiFF`) | New node **Read Bookings Email (rtd_config)**. **Split Emails** turns the app's `@bookings` placeholder into that address. Published **before** the app change, so no email was ever left with nowhere to go. | `d38fef8d-571b-4835-8721-6754ff25cc95` | `a5990c68-8523-4393-bf71-6a225f39da09` (only once the app stops writing `@bookings`, or those emails won't send) |
+| RTD Host Sessions To Diary (`rdS8LF56B9k170BY`) | Branch C now covers café events as well as host sessions: `GET /internal/sheet-fixes` → update the row matched on **Event ID** → `POST /internal/sheet-fixes/:eventId/done`. Fixes without a real `RTD-EVT-…` ID are dropped. Branches A and B unchanged. | `c0738021-829c-484e-97f7-31ec7260ae61` | `c5b53881-4436-4eb6-8487-6727baefdcf1` (harmless: the old feed now always comes back empty) |
+
+**Checked:**
+- **Outbox simulated run** (`23447`): an email to `@bookings` went to info@; an empty address still went to the café address.
+- **Branch C simulated run** (`23452`): a weekly café event moved on a week and a one-off went Inactive, both matched on Event ID. A fix with a blank Event ID was dropped.
+- **Before publishing:** the live database had no cancelled upcoming dates, so the first live run changed nothing in the sheet.
+
+**Order of the change:**
+1. The Outbox learnt `@bookings`.
+2. The app was deployed. The old `/internal/host-sessions/sheet-fixes` feed now always answers empty, so the old branch C (which matched on App Host Session) couldn't touch café rows, which have no App Host Session.
+3. Branch C was switched to the new feed.
+
 ### 2026-10-06 (later still): session approval alerts to the café's info@ address
 
 Dan's decision: "Have the cafe event approval alert set to info@…".
@@ -111,6 +131,7 @@ How it was verified: two dry runs of the Guard (executions 18094/18095 and 18115
 | --- | --- |
 | `RTD_CAFE_NOTIFICATION_EMAIL` | Fixed café address for the digest, date requests and change notices. Also gets join requests and cancellation notices, and is the Reply-To on emails to hosts and customers. |
 | `RTD_APPROVAL_ALERT_EMAIL` | Added 2026-10-06: the café's info@ address. Gets the email for each new host session to approve (RTD Host Sessions To Diary). |
+| `RTD_BOOKINGS_EMAIL` | Added 2026-10-07: the café's info@ address. RTD Outbox sends it a copy of every booking and cancellation, the two-day numbers for café events and the "Check bookings" warnings; customers' replies go there too. The app writes it as `@bookings`. |
 
 Still to do: point the Guard's date-change recipient at this instead of its hard-coded copy. That change goes in `rtd-poster-automation`.
 
@@ -221,14 +242,17 @@ This workflow does two jobs for the host organiser ([RTD_HOST_PORTAL.md](RTD_HOS
   - **One-offs:** they go Inactive after their date. Event Guard doesn't send the "pick a new date" email for host sessions; the host gets RTD Host Follow-up instead.
   - **Open sessions:** they appear in the evening and weekly round-up posts.
   - **Private sessions:** they never appear in posts. The diary shows them only as "Private session".
-- **C. Cancelled host dates out of Event Index** (added 2026-10-06):
-  1. `GET /internal/host-sessions/sheet-fixes`. The app works out the change for each cancelled date still in the sheet:
+- **C. Cancelled dates out of Event Index** (added 2026-10-06; café events too since 2026-10-07):
+  1. `GET /internal/sheet-fixes`. The app works out the change for each cancelled date still in the sheet, for café events and host sessions alike (Event Index rows only):
      - **A one-off:** Status `Inactive`.
-     - **A weekly session whose next date is cancelled:** Event Date moves on to the next date that isn't.
-  2. **Update Event Index Row:** updates `Status` and `Event Date` (RAW text) on the row whose `App Host Session` matches.
-  3. `POST /internal/host-sessions/:id/sheet-fixed` with the change's key, so it's made once.
+     - **A weekly or fortnightly event whose next date is cancelled:** Event Date moves on to the next date that isn't.
+     - **Monthly events and Standard Diary groups:** never changed here. The cancellation email tells the café to update the sheet.
+  2. **Sheet Fixes To Apply:** keeps only fixes with a real Event ID (`RTD-EVT-` and digits), so a blank cell can never be matched.
+  3. **Update Event Index Row:** updates `Status` and `Event Date` (RAW text) on the row whose `Event ID` matches.
+  4. `POST /internal/sheet-fixes/:eventId/done` with the change's key, so it's made once.
   - **Why:** RTD Master V1's posts read the sheet, so a cancelled date must leave it.
   - **Timing:** if Master V1 rolls a weekly row onto a date that's already cancelled, this moves it on again within 15 minutes.
+  - **Retired:** `GET /internal/host-sessions/sheet-fixes` (matched on App Host Session) now always answers empty.
 - **Individual promotion:** a session gets its own hourly Facebook post or a poster only if Michelle adds a prompt (and a photo folder) to its row, as for any other event.
 - **Live since 2026-10-05 22:15** (published).
 - **Errors:** HTTP steps retry 3 times; failures go to `Studio: Error Handler`.
@@ -275,21 +299,24 @@ This workflow sends the onboarding emails and tells hosts what the café decided
 
 ## RTD Outbox (`dJU9NJOh7aisAiFF`)
 
-This workflow sends the emails the app writes for bookings ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#emails-the-outbox)). The app decides who gets what and writes each email; this workflow only delivers them.
+This workflow sends the emails the app writes for bookings ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#the-outbox-and-the-bookings-inbox)). The app decides who gets what and writes each email; this workflow only delivers them.
 
 - **Triggers:** every 5 minutes (Europe/London), plus **Run By Hand**.
 - **Steps:**
-  1. Read `RTD_APP_BASE_URL` and `RTD_CAFE_NOTIFICATION_EMAIL` from `rtd_config`.
-  2. `POST /internal/outbox/collect`. The app first queues any two-day numbers emails now due (from 09:00), then returns up to 50 unsent emails.
-  3. **Split Emails:** an empty `to` or `reply_to` means the café, so it gets the café address.
+  1. Read `RTD_APP_BASE_URL`, `RTD_CAFE_NOTIFICATION_EMAIL` and `RTD_BOOKINGS_EMAIL` from `rtd_config`.
+  2. `POST /internal/outbox/collect`. The app first queues any emails now due (the two-day numbers from 09:00, and "Check bookings" warnings), then returns up to 50 unsent emails.
+  3. **Split Emails:** fills in the café's addresses:
+     - **`@bookings`:** `RTD_BOOKINGS_EMAIL` (info@), or the café address if that key is missing.
+     - **Empty `to` or `reply_to`:** the café address.
   4. **Send Email:** Gmail (`ATech GMAIL`), sent as "Roll The Dice". If one email fails, the rest still go.
   5. `POST /internal/outbox/:id/sent` for each one sent.
   6. **Email Not Sent:** if any email failed, the run then stops with an error naming it, so `Studio: Error Handler` emails Dan. The email stays queued and is tried again in 5 minutes.
 - **What it sends:**
-  - **To the person who booked:** the booking confirmation.
-  - **To the host:** each new booking and cancellation, and the numbers two days before each date.
-  - **When a date is cancelled:** an email to everyone booked, plus one to the café or the host.
-- **Live since 2026-10-06 08:55** (published).
+  - **To the person who booked:** the booking confirmation (replies go to info@).
+  - **To info@:** a copy of every booking and cancellation, the numbers two days before each booked café event, and a warning when a booked date leaves the Logic Engine.
+  - **To the host:** each new booking and cancellation on their session, and the numbers two days before each date.
+  - **When a date is cancelled:** an email to everyone booked, plus a notice to info@ or the host.
+- **Live since 2026-10-06 08:55** (published); `@bookings` since 2026-10-07.
 - **Errors:** collecting and marking retry 3 times; Gmail retries twice.
 
 ## Spec §46 workflow map

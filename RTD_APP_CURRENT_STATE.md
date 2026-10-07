@@ -70,15 +70,16 @@ _Last updated: 2026-10-06_
 - **On iPhone:** the app must be added to the Home Screen first (Apple's rule).
 - **Not yet tried on a real phone.**
 
-## Bookings for hosted sessions (2026-10-06)
-- **Booking:** people book places on open host sessions from the event page, with no account and a Manage / Cancel link by email. See [docs/RTD_BOOKINGS.md](docs/RTD_BOOKINGS.md).
+## Bookings (2026-10-06; café events since 2026-10-07)
+- **Booking:** people book places on every public event (the café's own and open host sessions) from the event page, with no account and a Manage / Cancel link by email. App Capacity sets a limit; blank means none. See [docs/RTD_BOOKINGS.md](docs/RTD_BOOKINGS.md).
+- **The café's info@:** a copy of every booking and cancellation, the numbers two days before each booked café event, and a warning if a booked date leaves the sheet. Customers' replies go there.
 - **Hosts:**
   - **Emails:** one for every booking and cancellation, and the numbers two days before each date.
   - **In the organiser:** they see who's coming and can cancel a date. Everyone booked is emailed, and the date is taken out of the Logic Engine.
-- **Approvers:** see every hosted date for three weeks, with contact details.
+- **Approvers:** **Bookings coming up** shows three weeks of hosted dates and booked café events, with contact details. They can cancel any of those dates, and everyone booked is emailed.
 - **Emails:** n8n **RTD Outbox** (every 5 minutes, live) sends what the app queues.
 - **Tested:**
-  - **Automated:** 208 tests.
+  - **Automated:** 215 tests.
   - **Screens:** checked at 320, 375 and 1280px.
   - **Workflows:** live and simulated n8n runs.
   - **Not yet:** a real booking, and a real cancelled date changing the sheet.
@@ -99,7 +100,7 @@ _Last updated: 2026-10-06_
 ## Next actions
 0. You: set the RTD Staff Access policy to **Include → Everyone**, so new hosts and café staff can sign in and ask. Then have Michelle sign in at `/organise` and ask to host. Approve the request under **Join requests**, then press **Make approver** next to Michelle. Then try one open session end to end: approve it, book a place, check the emails, cancel the date. Turn on **Notifications on this device** (on iPhone, from the Home Screen app) and press **Send a test**.
 1. You: open https://rtd-app.dan-289.workers.dev on your phone (and `/styleguide`) and tell me what to change. Add it to your home screen to try the installed app.
-2. You: check which Standard Diary groups should appear publicly. They all default to Public (e.g. GirlsGetOut Ladies Night, National Coastguard Institute). Set private group bookings to `Private` in the sheet's `App Visibility` column: the diary then shows "Private session" at that time, so the café still looks busy. Use `Hidden` to leave a row out entirely.
+2. You: check which Standard Diary groups should appear publicly. **Now urgent, because every Public row can be booked.** They all default to Public: National Coastguard Institute, GirlsGetOut Ladies Night and DM Olivia are bookable today. Set private group bookings to `Private` in the sheet's `App Visibility` column: the diary then shows "Private session" at that time, so the café still looks busy. Use `Hidden` to leave a row out entirely.
 3. You: push `rtd-poster-automation` to GitHub, so I can fold in the Guard and poster fixes.
 
 ## Required user input

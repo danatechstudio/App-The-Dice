@@ -121,7 +121,7 @@ Added in `0003_host_sessions.sql`. These are sessions proposed by hosts in the o
 | `host_notified_at` | When n8n emailed the host the café's decision. Added in `0007_onboarding.sql`. |
 | `deleted_at` | Set when the host deletes a declined or withdrawn session: hidden from every list, never erased (0010) |
 | `resubmissions` | Times it was sent again after a decline or withdrawal (0010) |
-| `sheet_fix_sent`, `sheet_fix_sent_at` | The last Event Index change n8n made for a cancelled date (`inactive` or `date:YYYY-MM-DD`), so it's made once (0008) |
+| `sheet_fix_sent`, `sheet_fix_sent_at` | No longer used since 2026-10-07: replaced by `sheet_fixes`, which covers café events too (0008) |
 
 ## applications
 
@@ -142,15 +142,15 @@ Added in `0007_onboarding.sql`. These are requests to host games or join the caf
 
 ## bookings
 
-Added in `0008_bookings.sql`: places booked on open host sessions ([RTD_BOOKINGS.md](RTD_BOOKINGS.md)). Never deleted.
+Added in `0008_bookings.sql`: places booked on public café events and open host sessions ([RTD_BOOKINGS.md](RTD_BOOKINGS.md)). Never deleted.
 
 | Column | Notes |
 | --- | --- |
 | `booking_id` | `RTD-BK-00001` upwards, assigned in the same statement that checks capacity |
 | `occurrence_id` | The date booked |
-| `lead_name`, `email`, `mobile` | Who booked. `mobile` is optional. The host sees only the name; approvers see all three. |
-| `party_size` | 1–10 places. Capacity is the sum of `party_size` over confirmed bookings. |
-| `notes` | Optional note for the host (300 characters) |
+| `lead_name`, `email`, `mobile` | Who booked. `mobile` is optional. A host sees only the name; the café (info@ and approvers) sees all three. |
+| `party_size` | 1–10 places. Places taken are the sum of `party_size` over confirmed bookings, checked against the event's App Capacity (none means no limit) or the session's Max players. |
+| `notes` | Optional note for the café and the host (300 characters) |
 | `status` | `confirmed` or `cancelled` |
 | `cancelled_by`, `cancel_message`, `cancelled_at` | `customer`, `host` or `staff`, and the host's or café's message when they cancelled the date |
 | `cancellation_token_hash` | SHA-256 of the secret in the Manage / Cancel link. The secret itself is never stored. |
@@ -166,13 +166,23 @@ Added in `0008_bookings.sql`: emails the app has written, waiting for n8n **RTD 
 | Column | Notes |
 | --- | --- |
 | `message_id` | Order of sending |
-| `dedupe_key` | Unique: each email is queued once (e.g. `booking-confirmed:RTD-BK-00001`, `host-numbers:RTD-OCC-…`) |
-| `kind` | `booking_confirmed`, `host_new_booking`, `host_booking_cancelled`, `host_numbers`, `attendee_date_cancelled`, `cafe_date_cancelled`, `host_date_cancelled` |
-| `to_email`, `reply_to` | NULL means the café address, which only n8n holds (`rtd_config`) |
+| `dedupe_key` | Unique: each email is queued once (e.g. `booking-confirmed:RTD-BK-00001`, `booking-new-cafe:RTD-BK-00001`, `cafe-numbers:RTD-OCC-…`) |
+| `kind` | `booking_confirmed`, `cafe_new_booking`, `cafe_booking_cancelled`, `cafe_numbers`, `cafe_orphaned_bookings`, `host_new_booking`, `host_booking_cancelled`, `host_numbers`, `attendee_date_cancelled`, `cafe_date_cancelled`, `host_date_cancelled` |
+| `to_email`, `reply_to` | The café's addresses are placeholders, which only n8n fills in (`rtd_config`): NULL means the café's general address, and `@bookings` the bookings inbox (info@) |
 | `subject`, `html` | The finished email |
 | `sent_at` | Set by n8n. Sent emails are deleted after 90 days. |
 
 **Also in 0008:** `occurrences.cancelled_by` (`host` or `staff`) for a date cancelled in the organiser. A cancelled occurrence keeps its status through every sync.
+
+## sheet_fixes
+
+Added in `0011_cafe_bookings.sql`: the last Event Index change n8n made for a cancelled date, one row per event, so each change is made once.
+
+| Column | Notes |
+| --- | --- |
+| `event_id` | The Logic Engine event (primary key) |
+| `fix_key` | `inactive`, or `date:YYYY-MM-DD` for the date the row was moved on to |
+| `sent_at` | When n8n reported it done |
 
 ## push_subscriptions and push_keys
 

@@ -1,5 +1,26 @@
 # RTD App Changelog
 
+## 2026-10-07 (customers book café events; every booking copied to info@)
+- **Every public event can be booked:**
+  - **Which ones:** the café's own events (Event Index and Standard Diary rows with App Visibility Public or App Bookable), as well as open host sessions.
+  - **Limit:** App Capacity on the row; blank means no limit.
+  - **Booking closes:** when the event starts.
+  - **Where:** the booking form is on every event page. The Book page lists the next date of each bookable event, and Home now says booking is open.
+- **The café's info@ address gets:**
+  - **Each booking:** a copy of every booking, with contact details. Replying reaches the customer.
+  - **Each cancellation:** a copy of every cancellation.
+  - **Numbers:** two days before each booked café event.
+  - **Warnings:** a "Check bookings" warning when a booked date disappears from the Logic Engine.
+  - **Customer replies:** customers' replies to their confirmation go there too.
+- **Approvers can cancel any date,** café events included, from **Bookings coming up** in the organiser (it was "Hosted sessions coming up"). Everyone booked is emailed.
+- **Cancelled dates leave the Logic Engine** for café events too. A one-off goes Inactive, and a weekly or fortnightly row moves on. Monthly and Standard Diary dates are left to the café, and the email says so. n8n now matches rows on **Event ID**.
+- **n8n:**
+  - **`rtd_config`:** new key `RTD_BOOKINGS_EMAIL`.
+  - **RTD Outbox:** fills in the app's `@bookings` placeholder.
+  - **RTD Host Sessions To Diary:** branch C uses `/internal/sheet-fixes`.
+- **Database:** migration `0011_cafe_bookings.sql` (`sheet_fixes`), applied to the live database.
+- **Tests:** 215 (was 208).
+
 ## 2026-10-06 (approval alerts to info@)
 - **Where they go:** the "new host session to approve" email now goes to the café's info@ address (`RTD_APPROVAL_ALERT_EMAIL` in `rtd_config`, read by n8n RTD Host Sessions To Diary).
 - **Unchanged:** other café emails still use `RTD_CAFE_NOTIFICATION_EMAIL`.

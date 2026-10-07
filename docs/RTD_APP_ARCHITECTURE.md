@@ -87,8 +87,8 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | GET / POST | `/internal/applications/new`, `/internal/applications/decided`, `…/:id/approver-notified`, `…/:id/applicant-notified` | bearer | Join request emails ([RTD_ONBOARDING.md](RTD_ONBOARDING.md)) |
 | GET / POST | `/internal/host-sessions/decided`, `/internal/host-sessions/:id/host-notified` | bearer | Emailing hosts the café's decision |
 | POST | `/internal/outbox/collect`, `/internal/outbox/:id/sent` | bearer | Booking emails for n8n RTD Outbox ([RTD_BOOKINGS.md](RTD_BOOKINGS.md)) |
-| GET / POST | `/internal/host-sessions/sheet-fixes`, `/internal/host-sessions/:id/sheet-fixed` | bearer | Event Index changes for cancelled dates |
-| GET | `/api/bookings/availability/:occurrenceId` | none (never cached) | Places left on an open host session |
+| GET / POST | `/internal/sheet-fixes`, `/internal/sheet-fixes/:eventId/done` | bearer | Event Index changes for cancelled dates, matched on Event ID. The old `/internal/host-sessions/sheet-fixes` is retired and always empty. |
+| GET | `/api/bookings/availability/:occurrenceId` | none (never cached) | Whether a date can be booked, and places left (null when there's no limit) |
 | POST | `/api/bookings`, `/api/bookings/:id/view`, `/api/bookings/:id/cancel` | none; same-origin JSON; the cancel link's secret | Book, see or cancel a booking |
 | GET | `/api/staff/me` | Access + staff/admin | Who am I |
 | GET | `/api/staff/sync-runs` | Access + staff/admin | Last 50 sync runs with warnings |
@@ -100,7 +100,7 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | GET / POST | `/api/join/me`, `/api/join/apply`, `/api/join/withdraw` | Access cookie (any signed-in email) | Asking to host or join the café team ([RTD_ONBOARDING.md](RTD_ONBOARDING.md)) |
 | GET / POST | `/api/staff/applications`, `/api/staff/applications/:id/decision` | Access + approver/admin | Join requests |
 | GET / POST | `/api/staff/approvers`, `/api/staff/users/:id/approver`, `/api/staff/users/:id/remove` | Access + approver/admin | Approvers (admins only), and removing access |
-| GET | `/api/staff/hosted-dates` | Access + approver/admin | Hosted dates with bookings |
+| GET | `/api/staff/booked-dates` | Access + approver/admin | The next 3 weeks: hosted dates and booked café events, with bookings |
 | GET / POST | `/api/staff/push/key`, `/devices`, `/subscribe`, `/unsubscribe`, `/test` | Access + approver/admin | Push notifications on this device ([RTD_PUSH.md](RTD_PUSH.md)) |
 | POST | `/api/host/occurrences/:id/cancel` | Access cookie + the session's host, approver or admin | Cancel a date |
 
@@ -147,7 +147,7 @@ The **service worker** caches the app shell and the last diary it saw, so the di
 | `src/routes/*` | Public, internal, staff endpoints and app pages (link previews) |
 | `web/` | The PWA: `src/theme` (tokens), `src/styles`, `src/components`, `src/pages`, `public` (icons, manifest, service worker). See [RTD_APP_THEME.md](RTD_APP_THEME.md). |
 | `migrations/` | D1 schema |
-| `test/` | 208 tests, run inside the Workers runtime against a real local D1 and KV |
+| `test/` | 215 tests, run inside the Workers runtime against a real local D1 and KV |
 
 ## Future compatibility
 
