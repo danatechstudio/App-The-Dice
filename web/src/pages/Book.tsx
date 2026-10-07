@@ -5,53 +5,37 @@ import { firstPerEvent, notOver, useUpcoming } from '../lib/events';
 import { useTitle } from '../lib/title';
 
 export function Book() {
-  useTitle('Book a session');
+  useTitle('Book a place');
   const { occurrences, error, loading, reload, today } = useUpcoming();
-  const upcoming = (occurrences ?? []).filter(o => notOver(o, today));
-  const hosted = upcoming.filter(o => o.bookable).slice(0, 8);
-  const timed = firstPerEvent(upcoming.filter(o => !o.bookable && o.start_time)).slice(0, 6);
+  // The next date of each event that takes bookings (every public one).
+  const bookable = firstPerEvent((occurrences ?? []).filter(o => notOver(o, today) && o.bookable)).slice(0, 12);
   return (
     <div class="container">
       <header class="page-head">
         <p class="label">Book</p>
-        <h1>Book a session</h1>
+        <h1>Book a place</h1>
       </header>
 
       <div class="notice notice--info">
         <Ticket size={22} aria-hidden="true" />
         <div>
-          <strong>Hosted sessions can be booked right here.</strong>
-          <p>Pick one to see how many places are left. For the café's own events, book with the café team as usual.</p>
+          <strong>Save your seats for any event, right here.</strong>
+          <p>Pick one, choose how many are coming, and we'll email you a confirmation. Booking is free; where there's a charge, you pay at the café on the day.</p>
         </div>
       </div>
 
-      <section class="section" aria-labelledby="book-hosted">
-        <div class="section-head">
-          <h2 id="book-hosted">Book a hosted session</h2>
-        </div>
-        {loading && !occurrences && <DiceLoader />}
-        {occurrences && !hosted.length && <p class="meta">No hosted sessions to book just now. Check back soon, or host one yourself.</p>}
-        <div class="list" role="list">
-          {hosted.map(o => (
-            <div role="listitem" key={o.occurrence_id}>
-              <EventTicket o={o} today={today} />
-            </div>
-          ))}
-        </div>
-      </section>
-
       <section class="section" aria-labelledby="book-next">
         <div class="section-head">
-          <h2 id="book-next">Also coming up</h2>
+          <h2 id="book-next">Coming up</h2>
           <a href="/diary">
             Full diary <ArrowRight size={18} aria-hidden="true" />
           </a>
         </div>
         {loading && !occurrences && <DiceLoader />}
         {error && !occurrences && <ErrorState error={error} onRetry={reload} />}
-        {occurrences && !timed.length && <EmptyState title="Nothing on the table yet." text="Check back soon for more events." />}
+        {occurrences && !bookable.length && <EmptyState title="Nothing on the table yet." text="Check back soon for more events." />}
         <div class="list" role="list">
-          {timed.map(o => (
+          {bookable.map(o => (
             <div role="listitem" key={o.occurrence_id}>
               <EventTicket o={o} today={today} />
             </div>

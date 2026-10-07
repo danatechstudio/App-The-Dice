@@ -22,7 +22,6 @@ export function occurrenceChips(o: Occurrence, today = todayLondon()) {
     const ended = o.end_time && o.end_time <= nowLondonTime();
     if (!ended) chips.push(o.start_time && o.start_time >= EVENING ? { kind: 'tonight', label: 'Tonight' } : { kind: 'today', label: 'Today' });
   }
-  if (o.bookable && o.status === 'scheduled') chips.push({ kind: 'booking-open', label: 'Book in the app' });
   if (o.price_display && /^free$/i.test(o.price_display.trim())) chips.push({ kind: 'free', label: 'Free' });
   return chips;
 }

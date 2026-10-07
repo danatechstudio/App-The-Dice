@@ -1,6 +1,7 @@
 // Dates and bookings in the organiser (docs/RTD_BOOKINGS.md):
 // - SessionDates: a host's live session, date by date, with who's booked;
-// - HostedDatesPanel: approvers see every hosted date in the next three weeks;
+// - HostedDatesPanel: approvers see the next three weeks of hosted dates and
+//   booked café events;
 // both let the host (or an approver) cancel a date, which emails everyone booked.
 
 import { Ban, ChevronDown, Mail, Phone } from 'lucide-preact';
@@ -111,11 +112,11 @@ function DateRow({ d, title, contact, onChanged }: { d: SessionDate; title?: str
   );
 }
 
-/** Approvers: every hosted date coming up, with numbers and contact details. */
+/** Approvers: hosted dates and booked café events coming up, with numbers and contact details. */
 export function HostedDatesPanel({ refresh }: { refresh?: number }) {
   const [dates, setDates] = useState<HostedDate[] | null>(null);
   const load = useCallback(async () => {
-    const res = await hostApi<{ dates: HostedDate[] }>('/api/staff/hosted-dates');
+    const res = await hostApi<{ dates: HostedDate[] }>('/api/staff/booked-dates');
     if (res.ok) setDates(res.data.dates);
   }, []);
   useEffect(() => void load(), [load, refresh]);
@@ -123,19 +124,23 @@ export function HostedDatesPanel({ refresh }: { refresh?: number }) {
   return (
     <section class="section" aria-labelledby="hosted-dates">
       <div class="section-head">
-        <h2 id="hosted-dates">Hosted sessions coming up</h2>
+        <h2 id="hosted-dates">Bookings coming up</h2>
       </div>
       <p class="meta" style={{ marginBottom: '12px' }}>
-        The next three weeks. Hosts are emailed the numbers two days before each date and can cancel it themselves; you can cancel one here too.
+        The next three weeks: every hosted session, and the café's own events people have booked. Cancelling a date here emails everyone booked.
       </p>
-      {dates === null && <DiceLoader label="Loading hosted sessions..." />}
-      {dates && !dates.length && <p class="meta">No hosted sessions in the next three weeks.</p>}
+      {dates === null && <DiceLoader label="Loading bookings..." />}
+      {dates && !dates.length && <p class="meta">No hosted sessions or bookings in the next three weeks.</p>}
       <div class="date-list date-list--staff" role="list">
         {dates?.map(d => (
           <DateRow
             key={d.occurrence_id}
-            d={d}
-            title={`${d.session.name}${d.session.access === 'private' ? ' (private)' : ''} · ${d.session.host_name ?? d.session.host_email}`}
+            d={{ ...d, host_session_id: d.host_session_id ?? '' }}
+            title={
+              d.session
+                ? `${d.session.name}${d.session.access === 'private' ? ' (private)' : ''} · ${d.session.host_name ?? d.session.host_email}`
+                : `${d.event_name} · Café event`
+            }
             contact
             onChanged={load}
           />

@@ -17,7 +17,8 @@ export const OCCURRENCE_FIELDS = `
   o.status, o.rescheduled_to, COALESCE(o.visibility, e.visibility) AS visibility,
   COALESCE(o.image_override, e.default_image) AS image,
   COALESCE(o.price_display, e.price_display) AS price_display, COALESCE(o.capacity, e.default_capacity) AS capacity,
-  CASE WHEN e.host_session_id IS NOT NULL AND COALESCE(o.capacity, e.default_capacity) IS NOT NULL THEN 1 ELSE 0 END AS bookable`;
+  CASE WHEN COALESCE(o.visibility, e.visibility) IN ('public', 'app_bookable')
+    AND (e.host_session_id IS NULL OR COALESCE(o.capacity, e.default_capacity) IS NOT NULL) THEN 1 ELSE 0 END AS bookable`;
 
 export type Row = Record<string, unknown>;
 
@@ -41,7 +42,7 @@ export interface PublicOccurrence {
   price_display: string | null;
   /** Max players, when known (host sessions set it). */
   capacity: number | null;
-  /** Open host sessions take bookings in the app (docs/RTD_BOOKINGS.md). */
+  /** Takes bookings in the app: every public event (docs/RTD_BOOKINGS.md). */
   bookable: boolean;
 }
 

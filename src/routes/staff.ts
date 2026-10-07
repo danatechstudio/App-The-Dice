@@ -1,7 +1,7 @@
 // Staff Control API (Phase 1: identity, sync health and audit history).
 
 import { Hono } from 'hono';
-import { upcomingHostedDates } from '../bookings/bookings';
+import { upcomingBookedDates } from '../bookings/bookings';
 import { decideSession, listHosts, listSessions, type SessionStatus } from '../host/sessions';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
 import { deviceLabel, myDevices, notifyUser, parseSubscription, removeSubscription, saveSubscription, vapidKeys } from '../notify/push';
@@ -71,8 +71,8 @@ staffRoutes.post('/host-sessions/:id/decision', async c => {
   return result.ok ? c.json({ session: result.session }) : c.json({ error: result.error }, result.status);
 });
 
-/** Every hosted date in the next three weeks, with who's booked (and how to reach them). */
-staffRoutes.get('/hosted-dates', async c => c.json({ dates: await upcomingHostedDates(c.env.DB, londonDate(new Date())) }));
+/** The next three weeks: every hosted date, and every café event date people have booked, with contacts. */
+staffRoutes.get('/booked-dates', async c => c.json({ dates: await upcomingBookedDates(c.env.DB, londonDate(new Date())) }));
 
 /** Hosts. Everyone joins through a join request; there's no adding people directly. */
 staffRoutes.get('/hosts', async c => c.json({ hosts: await listHosts(c.env.DB) }));

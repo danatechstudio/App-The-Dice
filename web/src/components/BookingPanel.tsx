@@ -1,5 +1,6 @@
-// Booking a place on an open host session, on its event page (docs/RTD_BOOKINGS.md).
-// No account: name, email, how many. The confirmation email has a link to cancel.
+// Booking places on an event page (docs/RTD_BOOKINGS.md): every public café
+// event and open host session. No account: name, email, how many. The
+// confirmation email has a link to cancel.
 
 import { CircleCheck, Info, Minus, Plus, Ticket } from 'lucide-preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
@@ -10,7 +11,7 @@ import { toast } from '../lib/toast';
 
 export type Availability =
   | { bookable: false }
-  | { bookable: true; open: boolean; reason: 'full' | 'closed' | 'cancelled' | null; capacity: number; places_left: number; max_party: number };
+  | { bookable: true; open: boolean; reason: 'full' | 'closed' | 'cancelled' | null; capacity: number | null; places_left: number | null; max_party: number };
 
 const placesText = (n: number) => `${n} ${n === 1 ? 'place' : 'places'}`;
 
@@ -111,9 +112,11 @@ function BookingForm({
         <h2 id="book-title" class="display">
           <Ticket size={20} aria-hidden="true" /> Book a place
         </h2>
-        <p class="meta">
-          {placesText(avail.places_left)} left of {avail.capacity}
-        </p>
+        {avail.places_left !== null && avail.capacity !== null && (
+          <p class="meta">
+            {placesText(avail.places_left)} left of {avail.capacity}
+          </p>
+        )}
       </div>
       <form class="stack" style={{ '--gap': '14px' }} onSubmit={submit} noValidate>
         <div class={name.class}>
@@ -154,7 +157,7 @@ function BookingForm({
         </div>
         <div class={notes.class}>
           <label for="b-notes">
-            Note for the host <span class="field__optional">optional</span>
+            Anything we should know? <span class="field__optional">optional</span>
           </label>
           <textarea id="b-notes" class="input" rows={2} maxLength={300} value={f.notes} aria-describedby={notes.describedBy}
             placeholder="e.g. First time playing" onInput={e => set('notes', e.currentTarget.value)} />
@@ -171,7 +174,7 @@ function BookingForm({
         </button>
         <p class="meta booking__small">
           {o.price_display && !/^free$/i.test(o.price_display.trim()) ? 'Pay at the café on the day. ' : ''}
-          The host sees your name, how many are coming and your note. The café can see your email and mobile.
+          The café (and the host, for a hosted session) sees your name, how many are coming and your note. Only the café sees your email and mobile.
         </p>
       </form>
     </section>

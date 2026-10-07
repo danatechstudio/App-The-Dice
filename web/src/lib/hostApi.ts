@@ -65,9 +65,12 @@ export interface SessionDate {
   bookings: DateBooking[];
 }
 
-/** For approvers: a date with its session and host. */
-export interface HostedDate extends SessionDate {
-  session: { session_id: string; name: string; access: Access; max_players: number; host_name: string | null; host_email: string };
+/** For approvers: a booked or hosted date, with its session and host (null for the café's own events). */
+export interface HostedDate extends Omit<SessionDate, 'host_session_id'> {
+  event_id: string;
+  event_name: string;
+  host_session_id: string | null;
+  session: { session_id: string; name: string; access: Access; max_players: number | null; host_name: string | null; host_email: string } | null;
 }
 
 /** A request to host games or join the café team (docs/RTD_ONBOARDING.md). */

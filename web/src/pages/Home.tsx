@@ -132,13 +132,13 @@ function GameOfTheWeekMini() {
 function BookPromo() {
   return (
     <section class="section card promo" aria-labelledby="book-promo">
-      <p class="label">Book a session</p>
+      <p class="label">Book a place</p>
       <h2 id="book-promo" class="display" style={{ fontSize: 'var(--rtd-size-h3)' }}>
         Save your seat at the table
       </h2>
-      <p class="meta">Online booking is on its way. Until then, book with the café team as usual.</p>
+      <p class="meta">Book any event in the app: choose how many are coming and we'll email you a confirmation.</p>
       <a class="btn btn--secondary" href="/book">
-        <Ticket size={18} aria-hidden="true" /> Booking & hosting
+        <Ticket size={18} aria-hidden="true" /> Book a place
       </a>
     </section>
   );
