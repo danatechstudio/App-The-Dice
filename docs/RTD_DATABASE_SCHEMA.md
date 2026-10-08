@@ -242,6 +242,16 @@ Added in `0014_event_alerts.sql` ([RTD_ALERTS.md](RTD_ALERTS.md)).
 
 **Indexes:** `alert_subscriptions (ip_hash, created_at)`, `push_sends (event_id, created_at)`, `push_sends (kind, created_at)`.
 
+## Stats
+
+Added in `0015_stats.sql` ([RTD_STATS.md](RTD_STATS.md)).
+
+| Table | Columns |
+| --- | --- |
+| `stats_daily` | `day` (London date), `metric` (`event_view`, `book_tap`, `app_open`…), `event_id` (`''` for the whole app), `count`. Primary key `(day, metric, event_id)`; `WITHOUT ROWID`. Nothing about anyone. |
+
+The same migration added `push_sends.opened`: taps on each event reminder.
+
 ## push_subscriptions and push_keys
 
 Added in `0009_push.sql`: push notifications for approvers ([RTD_PUSH.md](RTD_PUSH.md)).

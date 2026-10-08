@@ -2,10 +2,12 @@ import { ChessKnight, Dices, Info, Star } from 'lucide-preact';
 import { Chip } from '../components/Chips';
 import { GameArt, GameFacts } from '../components/GameCard';
 import { PREVIEW_GAMES, PREVIEW_GAME_OF_THE_WEEK, minutesLabel, playersLabel } from '../data/preview-games';
+import { useCount } from '../lib/stats';
 import { useTitle } from '../lib/title';
 
 export function Games() {
   useTitle('Games');
+  useCount('gotw_view');
   const gotw = PREVIEW_GAMES.find(g => g.id === PREVIEW_GAME_OF_THE_WEEK)!;
   return (
     <div class="container">

@@ -182,6 +182,8 @@ export interface PushMessage {
   url: string;
   /** A newer notification with the same tag replaces the older one. */
   tag: string;
+  /** Event reminders only (src/notify/alerts.ts): which one, so a tap on it can be counted. */
+  send_id?: number;
 }
 
 export interface PushContext {

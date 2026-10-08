@@ -13,6 +13,7 @@ The app holds customers' names, emails and phone numbers from bookings, and host
 | No people in the audit log (it can never be erased) | **Built** for bookings, join requests and market applications |
 | Market stall applications erased 12 months after the market, photos and spreadsheet row included | **Built** (2026-10-08, [RTD_MARKETS.md](RTD_MARKETS.md)) |
 | Event alerts in the notice: what's kept, the push services, turning them off | **Built** (2026-10-08, [RTD_ALERTS.md](RTD_ALERTS.md)) |
+| Counting visits in the notice: daily totals, nothing about who | **Built** (2026-10-08, [RTD_STATS.md](RTD_STATS.md)) |
 | The business's legal name on the notice | **Waiting on Dan.** It shows the trading name until then. |
 | ICO data protection fee | **Check:** does the café already pay it? |
 | Clearing old booking emails out of the café's mailboxes | **To do by the café:** the notice promises it (see below) |
@@ -59,6 +60,7 @@ UPDATE settings SET value = 'Roll The Dice Ltd (company 01234567)', updated_at =
 | Audit log | `audit_log` | For good (append-only) | Holds booking and request numbers, not people. Staff and hosts' own actions are recorded under their sign-in email: the notice says decisions in the organiser are kept. |
 | Push devices (approvers) | `push_subscriptions` | Until turned off, or the device stops working | See [RTD_PUSH.md](RTD_PUSH.md) |
 | Event alerts (anyone) | `alert_subscriptions` | Until turned off, or the device stops working. The scrambled network code: 2 days. | Daily: network code set to NULL. A push address doesn't say who someone is. See [RTD_ALERTS.md](RTD_ALERTS.md). |
+| Visit counts | `stats_daily` | For good | Daily totals per page or event: no network address, device ID or cookie. The per-minute limit holds network addresses in the Worker's memory only. See [RTD_STATS.md](RTD_STATS.md). |
 | Reminders sent | `push_sends` | For good | What each reminder said and which admin sent it. No customer details. Unsent copies (`push_deliveries`) are dropped after a day. |
 | Copies of emails | The café's inbox (info@) and the sending Gmail account (ATech GMAIL, Sent folder) | Outside the app | **The café must clear these out regularly:** the notice says copies in the café's mailboxes are deleted once they're no longer needed |
 

@@ -8,6 +8,7 @@ import { useApi } from '../lib/api';
 import { longDate, shortDate, timeRange } from '../lib/dates';
 import { hostApi } from '../lib/hostApi';
 import { MAX_PHOTOS, shrinkPhoto, type PublicMarket } from '../lib/markets';
+import { useCount } from '../lib/stats';
 import { useTitle } from '../lib/title';
 import { toast } from '../lib/toast';
 
@@ -39,6 +40,7 @@ function MarketFacts({ m }: { m: PublicMarket }) {
 /** /markets: every market still to come. */
 export function Markets() {
   useTitle('Sell at our markets');
+  useCount('markets_view');
   const { data, error, loading } = useApi<{ markets: PublicMarket[] }>('/api/markets');
   return (
     <div class="container">

@@ -75,6 +75,12 @@ export function Privacy() {
             and you can turn them off at any time (on the home page). When you turn them on, we also keep a scrambled code made from your network address for 2
             days, to stop the button being misused.
           </p>
+          <h3>Counting visits</h3>
+          <p>
+            The app counts how often its pages are viewed and its buttons pressed (for example, how many times an event was opened or shared), so the café
+            can see what people are interested in. Each count is added to a daily total for the page or event. Nothing about you goes with it: no network
+            address, no device ID and no cookie, so a count can't be traced back to anyone. Visits by the café team and hosts aren't counted.
+          </p>
           <h3>On your device</h3>
           <p>
             The app remembers a few choices in your browser, like your diary filters, reduced motion, and whether you've closed the install message. They stay on
@@ -137,6 +143,9 @@ export function Privacy() {
             <li>
               <strong>Event alerts:</strong> the notification address is deleted when you turn alerts off, or as soon as your browser tells us it no longer works
               (for example, after you remove the app).
+            </li>
+            <li>
+              <strong>Visit counts</strong> are daily totals with nothing about anyone in them, so we keep them.
             </li>
             <li>
               <strong>Hosts:</strong> we keep your details while you host with us. If you stop, ask us and we'll delete them. We keep a record of decisions made in the

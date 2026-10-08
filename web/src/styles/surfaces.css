@@ -745,3 +745,286 @@
     justify-content: flex-start;
   }
 }
+
+/* ---------- Stats (admins; docs/RTD_STATS.md) ---------- */
+
+.stats__period {
+  max-width: 360px;
+  margin-bottom: var(--rtd-space-4);
+}
+
+/* Reloading for a new period: the old numbers stay, faded, so nothing jumps. */
+.stats__body {
+  display: grid;
+  gap: var(--rtd-space-5);
+  transition: opacity 0.15s;
+}
+
+.stats__body[data-loading] {
+  opacity: 0.55;
+}
+
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--rtd-space-3);
+}
+
+.stat-tile {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: var(--rtd-space-3) var(--rtd-space-4);
+}
+
+.stat-tile__label {
+  color: var(--rtd-text-muted);
+  font-size: var(--rtd-size-meta);
+  font-weight: 600;
+}
+
+.stat-tile__value {
+  font-size: 2rem;
+  font-weight: 650;
+  line-height: 1.15;
+  color: var(--rtd-text);
+}
+
+.stat-tile__note {
+  font-size: 0.8125rem;
+}
+
+.stat-tile__delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--rtd-text-muted);
+}
+
+.stat-tile__delta.is-up {
+  color: var(--rtd-success);
+}
+
+.stat-tile__delta.is-down {
+  color: var(--rtd-danger);
+}
+
+.stat-tile__delta .meta {
+  font-weight: 400;
+}
+
+/* One series of columns: brand blue, square at the baseline, 4px rounded tops,
+   at most 24px wide, 2px apart; a hairline grid; a tooltip on each column. */
+.stats-chart {
+  display: grid;
+  gap: var(--rtd-space-3);
+}
+
+.stats-chart__plot {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--rtd-space-2);
+  height: 180px;
+}
+
+.stats-chart__axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: var(--rtd-text-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  transform: translateY(-0.5em);
+}
+
+.stats-chart__area {
+  position: relative;
+  min-width: 0;
+}
+
+.stats-chart__grid {
+  position: absolute;
+  inset-inline: 0;
+  border-top: 1px solid var(--rtd-border);
+}
+
+.stats-chart__cols {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  gap: 2px;
+  align-items: end;
+}
+
+.stats-chart__col {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.stats-chart__col:focus-visible {
+  outline: 2px solid var(--rtd-focus);
+  outline-offset: 1px;
+}
+
+.stats-chart__bar {
+  width: 100%;
+  max-width: 24px;
+  border-radius: 4px 4px 0 0;
+  background: var(--rtd-secondary);
+}
+
+.stats-chart__bar[data-active] {
+  background: var(--rtd-secondary-dark);
+}
+
+.stats-chart__tip {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  gap: 2px;
+  min-width: 120px;
+  padding: 6px 10px;
+  border: 1px solid var(--rtd-border);
+  border-radius: var(--rtd-radius-sm);
+  background: var(--rtd-surface-elevated);
+  box-shadow: var(--rtd-shadow-sm);
+  font-size: 0.8125rem;
+  pointer-events: none;
+}
+
+.stats-chart__tip strong {
+  font-size: 1rem;
+}
+
+.stats-chart__x {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--rtd-space-2);
+  margin-left: calc(var(--rtd-space-2) + 2.25ch);
+  color: var(--rtd-text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.stats-chart__table summary,
+.stats-around summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.stats-chart__table .table {
+  margin-top: var(--rtd-space-2);
+}
+
+.stats-tops {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--rtd-space-3);
+}
+
+.stats-top {
+  display: grid;
+  align-content: start;
+  gap: var(--rtd-space-2);
+}
+
+.stats-top__list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stats-top__list li {
+  display: grid;
+  gap: 2px;
+}
+
+.stats-top__name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.stats-top__row {
+  display: flex;
+  align-items: center;
+  gap: var(--rtd-space-2);
+}
+
+.stats-top__bar {
+  flex: none;
+  max-width: 60%;
+  height: 10px;
+  min-width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--rtd-secondary);
+}
+
+.stats-top__value {
+  font-size: var(--rtd-size-meta);
+  white-space: nowrap;
+}
+
+.stats-around {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0 var(--rtd-space-5);
+  margin: 0;
+}
+
+.stats-around div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--rtd-space-3);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rtd-border);
+}
+
+.stats-around dt {
+  color: var(--rtd-text-muted);
+}
+
+.stats-around dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* On phones, each event is a small card of labelled numbers. */
+@media (max-width: 639px) {
+  .stats-table tr {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    row-gap: 2px;
+  }
+
+  .stats-table td:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .table--stack.stats-table td + td {
+    grid-column: auto;
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    padding-right: var(--rtd-space-3);
+    text-align: left;
+  }
+
+  .stats-table td + td::before {
+    content: attr(data-label);
+  }
+}

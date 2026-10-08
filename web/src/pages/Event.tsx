@@ -13,6 +13,7 @@ import { CATEGORY } from '../lib/categories';
 import { longDate, shortDate, timeRange, todayLondon } from '../lib/dates';
 import { back } from '../lib/router';
 import { share } from '../lib/share';
+import { count } from '../lib/stats';
 import { useTitle } from '../lib/title';
 
 type Series = { event: EventSummary; occurrences: Occurrence[] };
@@ -73,6 +74,7 @@ function EventDetail({ o, others, images }: { o: Occurrence; others: Occurrence[
   const range = timeRange(o.start_time, o.end_time);
   const Icon = CATEGORY[o.category]?.icon ?? CATEGORY.Other.icon;
   const url = `${location.origin}${eventHref(o)}`;
+  useEffect(() => count('event_view', o.event_id), [o.occurrence_id]);
 
   return (
     <div class="container">
@@ -162,7 +164,7 @@ function EventDetail({ o, others, images }: { o: Occurrence; others: Occurrence[
             {!cancelled && !finished && !moved && (o.market_id ? <MarketVendorPanel marketId={o.market_id} /> : <BookingPanel key={o.occurrence_id} o={o} />)}
             <div class="event-page__actions">
               {!cancelled && !finished && !moved ? <CalendarMenu o={o} /> : <span />}
-              <button type="button" class="btn btn--secondary" onClick={() => share({ title: o.name, text: `${o.name} at Roll The Dice, ${shortDate(o.date)}`, url })}>
+              <button type="button" class="btn btn--secondary" onClick={() => (count('share_tap', o.event_id), share({ title: o.name, text: `${o.name} at Roll The Dice, ${shortDate(o.date)}`, url }))}>
                 <Share2 size={18} aria-hidden="true" /> Share
               </button>
             </div>
@@ -209,10 +211,10 @@ function CalendarMenu({ o }: { o: Occurrence }) {
       </button>
       {open && (
         <div class="menu__list">
-          <a href={`${base}/calendar.ics`} download onClick={() => setOpen(false)}>
+          <a href={`${base}/calendar.ics`} download onClick={() => (count('calendar_tap', o.event_id), setOpen(false))}>
             Apple, Outlook & others (.ics)
           </a>
-          <a href={`${base}/google-calendar`} target="_blank" rel="noopener" onClick={() => setOpen(false)}>
+          <a href={`${base}/google-calendar`} target="_blank" rel="noopener" onClick={() => (count('calendar_tap', o.event_id), setOpen(false))}>
             Google Calendar
           </a>
         </div>

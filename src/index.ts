@@ -3,6 +3,7 @@ import { readImage } from './images/store';
 import { applyRetention } from './lib/privacy';
 import { autoReminder, drain } from './notify/alerts';
 import { alertRoutes } from './routes/alerts';
+import { statsRoutes } from './routes/stats';
 import { bookingRoutes } from './routes/bookings';
 import { hostRoutes } from './routes/host';
 import { internalRoutes } from './routes/internal';
@@ -54,6 +55,7 @@ app.get('/api/staff/sign-in', c => {
 app.route('/api/bookings', bookingRoutes);
 app.route('/api/markets', marketRoutes);
 app.route('/api/alerts', alertRoutes);
+app.route('/api/stats', statsRoutes);
 app.route('/api', publicRoutes);
 app.route('/api/staff', staffRoutes);
 app.route('/api/host', hostRoutes);

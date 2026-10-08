@@ -45,7 +45,7 @@ In the organiser, admins see **Event reminders**:
 
 **A second reminder within 24 hours:** if the event had a reminder (from an admin, or the automatic one) in the last 24 hours, the app doesn't send straight away. It shows when the last one went out, what it said and who sent it, with **Send another anyway** and **Don't send**.
 
-**Afterwards:** **Latest reminders** shows each one with how many devices it reached, and whether the Facebook post went (or why it didn't).
+**Afterwards:** **Latest reminders** shows each one with how many devices it reached, how many people tapped it, and whether the Facebook post went (or why it didn't). Taps are also in **Stats** ([RTD_STATS.md](RTD_STATS.md)).
 
 **Who can:** admins only. Approvers and hosts don't see the section, and the server refuses them.
 

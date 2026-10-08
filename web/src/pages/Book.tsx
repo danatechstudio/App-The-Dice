@@ -2,10 +2,12 @@ import { ArrowRight, ChessKnight, Ticket } from 'lucide-preact';
 import { EventTicket } from '../components/EventCard';
 import { DiceLoader, EmptyState, ErrorState } from '../components/States';
 import { firstPerEvent, notOver, useUpcoming } from '../lib/events';
+import { useCount } from '../lib/stats';
 import { useTitle } from '../lib/title';
 
 export function Book() {
   useTitle('Book a place');
+  useCount('book_page_view');
   const { occurrences, error, loading, reload, today } = useUpcoming();
   // The next date of each event that takes bookings (every public one).
   const bookable = firstPerEvent((occurrences ?? []).filter(o => notOver(o, today) && o.bookable)).slice(0, 12);

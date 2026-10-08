@@ -34,6 +34,8 @@ interface SentReminder {
   devices: number;
   delivered: number;
   failed: number;
+  /** Taps on it (docs/RTD_STATS.md). */
+  opened: number;
   social: 'pending' | 'posted' | 'failed' | null;
   social_error: string | null;
   created_at: string;
@@ -283,6 +285,7 @@ function RecentReminders({ recent }: { recent: SentReminder[] }) {
               {r.kind === 'auto' ? 'Automatic' : `By ${r.sent_by}`} · {r.delivered} of {devicesLabel(r.devices)} reached
               {r.failed > 0 ? `, ${r.failed} not` : ''}
               {r.delivered + r.failed < r.devices ? ' (still sending)' : ''}
+              {r.opened > 0 ? ` · ${r.opened} tapped` : ''}
             </p>
             {r.social && (
               <p class="meta recent-reminder__social">

@@ -76,6 +76,7 @@ _Last updated: 2026-10-08_
 - **Places (2026-10-07):** hosts change their own live sessions' places; approvers set café events' places under **Places for café events**, or any single date's. Never below what's booked.
 - **Markets (2026-10-08):** admins set up markets; vendors apply at `/markets` (with photos); approvers approve or decline; approved vendors get the fee and payment details; everything is in the RTD Market Vendors spreadsheet. See [docs/RTD_MARKETS.md](docs/RTD_MARKETS.md).
 - **Event alerts (2026-10-08):** anyone turns on **Get event alerts** (home page or any event page). Admins send a reminder about an event from the organiser (**Event reminders**), which also posts on the café's Facebook page; a second one within 24 hours needs confirming. The app also sends one at 8pm about a random event in the next three days, at most every 48 hours. See [docs/RTD_ALERTS.md](docs/RTD_ALERTS.md).
+- **Stats (2026-10-08):** the app counts event views, taps (book, Add to calendar, share, reminders), installs and Home Screen opens as daily totals, with nothing about who. Admins see **Stats** in the organiser: headline numbers, views per day, most viewed, booked and tapped, and every event. See [docs/RTD_STATS.md](docs/RTD_STATS.md).
 - **Privacy (2026-10-07):** notice at `/privacy`; booking details erased 12 months after the event. See [docs/RTD_PRIVACY.md](docs/RTD_PRIVACY.md).
 - **Hosts:**
   - **Emails:** one for every booking and cancellation, and the numbers two days before each date.
@@ -83,7 +84,7 @@ _Last updated: 2026-10-08_
 - **Approvers:** **Bookings coming up** shows three weeks of hosted dates and booked café events, with contact details. They can cancel any of those dates, and everyone booked is emailed.
 - **Emails:** n8n **RTD Outbox** (every 5 minutes, live) sends what the app queues.
 - **Tested:**
-  - **Automated:** 270 tests.
+  - **Automated:** 279 tests.
   - **Screens:** checked at 320, 375 and 1280px.
   - **Workflows:** live and simulated n8n runs.
   - **Not yet:** a real booking, and a real cancelled date changing the sheet.
@@ -91,7 +92,6 @@ _Last updated: 2026-10-08_
 **What's left for production:** see [docs/RTD_PRODUCTION_READINESS.md](docs/RTD_PRODUCTION_READINESS.md).
 
 ## Incomplete
-- **Phase 2 leftovers:** privacy-friendly analytics (needs a Cloudflare Web Analytics token, or we use our own counts).
 - **Phases 3–9.**
 - **Roll Me a Game and Game of the Week** use a labelled *preview shelf* of sample games until Phase 4 brings the café's inventory.
 

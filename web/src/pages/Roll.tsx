@@ -4,6 +4,7 @@ import { DiceTray, type DiceTrayHandle } from '../components/Dice';
 import { GameArt, GameFacts } from '../components/GameCard';
 import { PLAYER_OPTIONS, PREVIEW_GAMES, STYLE_OPTIONS, TIME_OPTIONS, type Game, type Style } from '../data/preview-games';
 import { cue } from '../lib/sound';
+import { count } from '../lib/stats';
 import { toast } from '../lib/toast';
 import { useTitle } from '../lib/title';
 
@@ -27,6 +28,7 @@ export function Roll() {
 
   async function roll(chaos: boolean) {
     if (rolling) return;
+    count('roll_use');
     const from = chaos ? PREVIEW_GAMES : pool;
     if (!from.length) {
       setNothing(true);
@@ -147,7 +149,7 @@ function Reveal({ game, chaos, headingRef, onAgain }: { game: Game; chaos: boole
           ))}
         </div>
         <div class="reveal__buttons">
-          <button type="button" class="btn btn--primary" onClick={() => toast(`Great pick. Grab ${game.name} from the shelf, or ask the team.`)}>
+          <button type="button" class="btn btn--primary" onClick={() => (count('roll_pick'), toast(`Great pick. Grab ${game.name} from the shelf, or ask the team.`))}>
             This One!
           </button>
           <button type="button" class="btn btn--secondary" onClick={onAgain}>

@@ -1,9 +1,11 @@
 import { CalendarDays, ChessKnight, UsersRound } from 'lucide-preact';
 import { SIGN_IN_URL } from '../lib/hostApi';
+import { count, useCount } from '../lib/stats';
 import { useTitle } from '../lib/title';
 
 export function Host() {
   useTitle('Become a game host');
+  useCount('host_page_view');
   return (
     <div class="container" data-surface="host">
       <header class="page-head">
@@ -41,7 +43,7 @@ export function Host() {
           <h2 class="display" style={{ fontSize: 'var(--rtd-size-h3)' }}>Want to host?</h2>
           <p class="meta">Sign in with your email, tell us what you'd like to run, and the café team will get back to you.</p>
         </div>
-        <a class="btn btn--primary" href={SIGN_IN_URL}>
+        <a class="btn btn--primary" href={SIGN_IN_URL} onClick={() => count('host_apply_tap')}>
           Apply to host
         </a>
       </div>

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'preact/hooks';
 import type { Occurrence } from '../lib/api';
 import { longDate, timeRange } from '../lib/dates';
 import { hostApi } from '../lib/hostApi';
+import { count } from '../lib/stats';
 import { toast } from '../lib/toast';
 
 export type Availability =
@@ -80,6 +81,7 @@ function BookingForm({
 
   const submit = async (e: Event) => {
     e.preventDefault();
+    count('book_tap', o.event_id);
     setBusy(true);
     const res = await hostApi<{ manage_path: string; booking: { email: string; party_size: number } }>('/api/bookings', {
       occurrence_id: o.occurrence_id,

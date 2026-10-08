@@ -7,6 +7,7 @@ import { decideSession, listHosts, listSessions, type SessionStatus } from '../h
 import { afterResponse } from '../lib/background';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
 import { drain, overview, parseReminder, sendReminder } from '../notify/alerts';
+import { PERIODS, statsOverview, type Period } from '../stats/stats';
 import { deviceLabel, myDevices, notifyUser, parseSubscription, removeSubscription, saveSubscription, vapidKeys } from '../notify/push';
 import { londonDate } from '../lib/time';
 import { applicationsForStaff, createMarket, decideApplication as decideVendor, markWithdrawn, marketsForStaff, parseMarketInput, readPhoto, updateMarket } from '../markets/markets';
@@ -242,4 +243,14 @@ staffRoutes.post('/reminders', async c => {
   // The first devices now; the every-minute Cron Trigger sends the rest.
   await afterResponse(c, () => drain(c.env.DB, { subject: origin, now }));
   return c.json({ send: result.send }, 201);
+});
+
+// --- Stats: page views, taps and bookings (admins only; docs/RTD_STATS.md) ---
+
+/** ?days=7|30|90 (default 30): totals against the days before, day by day, and every event. */
+staffRoutes.get('/stats', async c => {
+  if (!adminsOnly(c.get('user'))) return c.json({ error: 'Only admins can see stats.' }, 403);
+  const days = Number(c.req.query('days') ?? 30);
+  if (!(PERIODS as readonly number[]).includes(days)) return c.json({ error: 'days must be 7, 30 or 90' }, 400);
+  return c.json(await statsOverview(c.env.DB, new Date(), days as Period));
 });

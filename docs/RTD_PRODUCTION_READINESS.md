@@ -29,7 +29,7 @@ Status words below: **Live** (built and running), **Partial** (some of it works)
 | Audit log | Live | Every sync change, host-session change, join request, decision and change of access is recorded |
 | Staff and host sign-in | Live | Cloudflare Access email code. The app's `users` table decides roles. Dan's sign-in tested on 5 Oct |
 
-### Public app (spec Phase 2): Live, except analytics
+### Public app (spec Phase 2): Live
 
 | Feature | Status | Notes |
 | --- | --- | --- |
@@ -40,7 +40,7 @@ Status words below: **Live** (built and running), **Partial** (some of it works)
 | 14-day event splash | Live | At most once per visit; never a private session |
 | Deep links and link previews | Live | `/event/…` and `/events/…`; previews name the event |
 | Event photos from Drive | Live | 65 photos across 9 events, refreshed every 6 hours; `noapp` in a file name keeps a photo out |
-| Analytics | **Not started** | Needs a Cloudflare Web Analytics token (cookieless), or our own counts |
+| Analytics | Live (8 Oct) | The app's own counts: event views, book, calendar and share taps, installs and Home Screen opens, and more, as daily totals with nothing about who. Admins see **Stats** in the organiser ([RTD_STATS.md](RTD_STATS.md)) |
 
 ### Host organiser (spec Phase 6): mostly live
 
@@ -122,7 +122,6 @@ Who: **You** = Dan; **Michelle** = café; **Claude** = me.
 
 | Job | Why | Who |
 | --- | --- | --- |
-| **Analytics** (Cloudflare Web Analytics) | Spec Phase 2; cookieless, so no consent banner needed for it | You create the token; Claude adds it |
 | **Alert if the sync stops** | The n8n error handler covers failed runs, but not "the Pi is off". An uptime check on `/api/health` that also checks the last-sync time would catch it | Claude adds a "stale" flag; you pick the alert channel |
 | **Weekly database export** | Time Travel only goes back 7 days on the free plan. A weekly export to Drive, or the paid plan (30 days), covers longer | Claude |
 | **Send emails from the café, not Dan's Gmail** | Every email, including booking confirmations to customers, comes from ATech Gmail (shown as "Roll The Dice"). A café address or a transactional provider looks right, and Gmail's daily sending limit would matter if bookings grow | Decision (§4); Claude wires it |
@@ -185,7 +184,7 @@ Who: **You** = Dan; **Michelle** = café; **Claude** = me.
 2. **Security tidy-up:** rotate the keys, lock the webhook, confirm n8n isn't public, and push `rtd-poster-automation`.
 3. **Move to the domain,** before anyone is asked to install the app.
 4. **Staff and hosts:** the Access policy, then Michelle asks to host, and Dan approves the request and makes Michelle the approver. Then run one open trial session end to end: book it, see the emails, cancel a date.
-5. **Polish:** privacy last steps (legal name, ICO fee, mailbox routine), analytics, sync alert, weekly export, café sender address.
+5. **Polish:** privacy last steps (legal name, ICO fee, mailbox routine), sync alert, weekly export, café sender address.
 6. **Phones:** real-device test round with Michelle; fix what it finds.
-7. **Soft launch (Launch A):** tell regulars and hosts; watch the sync, analytics and the café inbox for a couple of weeks.
+7. **Soft launch (Launch A):** tell regulars and hosts; watch the sync, **Stats** and the café inbox for a couple of weeks.
 8. **The rest of Phase 5 booking** (waiting list, digest), then push reminders, games and the staff dashboard (Launch B).

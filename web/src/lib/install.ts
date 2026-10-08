@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { installMode, type InstallMode } from './install-mode';
 import { read, write } from './storage';
+import { count } from './stats';
 import { toast } from './toast';
 
 type PromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
@@ -23,6 +24,7 @@ window.addEventListener('beforeinstallprompt', e => {
 window.addEventListener('appinstalled', () => {
   installed = true;
   deferred = null;
+  count('install');
   notify();
   toast('Installed. Find Roll The Dice on your home screen.');
 });

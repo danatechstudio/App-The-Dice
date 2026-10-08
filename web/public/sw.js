@@ -83,27 +83,38 @@ self.addEventListener('push', event => {
       body: data.body || 'Something needs approving in the organiser.',
       tag: data.tag || 'rtd-approval',
       icon: '/icons/icon-192.png',
-      data: { url: data.url || '/organise' },
+      data: { url: data.url || '/organise', send_id: data.send_id || null },
     }),
   );
 });
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const target = new URL((event.notification.data && event.notification.data.url) || '/organise', self.location.origin);
+  const data = event.notification.data || {};
+  const target = new URL(data.url || '/organise', self.location.origin);
   if (target.origin !== self.location.origin) return;
-  event.waitUntil(
-    (async () => {
-      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      const open = windows.find(w => new URL(w.url).origin === self.location.origin);
-      if (open) {
-        await open.focus();
-        if ('navigate' in open) await open.navigate(target.href).catch(() => undefined);
-        return;
-      }
-      await self.clients.openWindow(target.href);
-    })(),
-  );
+  // Stats (docs/RTD_STATS.md): a tap on an event reminder, counted for its event and reminder.
+  const tag = event.notification.tag || '';
+  const opened = tag.startsWith('event-')
+    ? fetch('/api/stats', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hits: [{ m: 'reminder_open', e: tag.slice(6), s: data.send_id || undefined }] }),
+      }).catch(() => undefined)
+    : undefined;
+  // The page opens without waiting for the count: browsers only allow it straight after the tap.
+  const show = (async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const open = windows.find(w => new URL(w.url).origin === self.location.origin);
+    if (open) {
+      await open.focus();
+      if ('navigate' in open) await open.navigate(target.href).catch(() => undefined);
+      return;
+    }
+    await self.clients.openWindow(target.href);
+  })();
+  event.waitUntil(Promise.all([show, opened]));
 });
 
 // Browsers occasionally renew a subscription: send the new one to the app, for

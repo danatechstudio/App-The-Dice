@@ -15,6 +15,7 @@ import type { AuthUser } from '../lib/auth';
 import { shortDate, timeLabel } from '../lib/format';
 import { OCCURRENCE_FIELDS, OCCURRENCE_ID, VISIBLE, findOccurrence, shape, type PublicOccurrence, type Row } from '../lib/queries';
 import { addDays, londonDate, londonHour } from '../lib/time';
+import { countApp } from '../stats/stats';
 import { deviceLabel, parseSubscription, sendPush, vapidHeader, vapidKeys, type PushContext, type PushMessage } from './push';
 
 /**
@@ -55,14 +56,15 @@ export async function turnOn(db: D1Database, body: unknown, ctx: { ua?: string; 
       .first<{ n: number }>();
     if ((recent?.n ?? 0) >= TURN_ONS_PER_HOUR) return { ok: false, status: 429, error: 'Too many devices from here just now. Please try again later.' };
   }
-  await db
+  const save = db
     .prepare(
       `INSERT INTO alert_subscriptions (endpoint, p256dh, auth, device_label, ip_hash, created_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6)
        ON CONFLICT (endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, device_label = excluded.device_label, failures = 0`,
     )
-    .bind(sub.endpoint, sub.p256dh, sub.auth, deviceLabel(ctx.ua), ipHash, ctx.now.toISOString())
-    .run();
+    .bind(sub.endpoint, sub.p256dh, sub.auth, deviceLabel(ctx.ua), ipHash, ctx.now.toISOString());
+  // Stats: a device turning alerts on for the first time.
+  await db.batch(known ? [save] : [save, countApp(db, ctx.now, 'alerts_on')]);
   return { ok: true };
 }
 
@@ -72,9 +74,11 @@ const endpointOf = (body: unknown) => {
 };
 
 /** Turns alerts off for a device. Only someone holding its (secret) push address can. */
-export async function turnOff(db: D1Database, body: unknown): Promise<void> {
+export async function turnOff(db: D1Database, body: unknown, now = new Date()): Promise<void> {
   const endpoint = endpointOf(body);
-  if (endpoint) await db.prepare('DELETE FROM alert_subscriptions WHERE endpoint = ?1').bind(endpoint).run();
+  if (!endpoint) return;
+  const res = await db.prepare('DELETE FROM alert_subscriptions WHERE endpoint = ?1').bind(endpoint).run();
+  if (res.meta.changes) await countApp(db, now, 'alerts_off').run();
 }
 
 export async function isOn(db: D1Database, body: unknown): Promise<boolean> {
@@ -299,7 +303,8 @@ export async function drain(db: D1Database, ctx: PushContext, max = BATCH): Prom
     results.map(async r => {
       // Alerts were turned off after it was queued: nothing to send.
       if (!r.p256dh || !r.auth) return -1;
-      const message: PushMessage = { title: r.title, body: r.body, url: r.url, tag: `event-${r.event_id}` };
+      // send_id: the service worker reports a tap on it (stats, and "opened" under Latest reminders).
+      const message: PushMessage = { title: r.title, body: r.body, url: r.url, tag: `event-${r.event_id}`, send_id: r.send_id };
       return sendPush({ endpoint: r.endpoint, p256dh: r.p256dh, auth: r.auth }, message, keys, ctx, {
         ttlSeconds: TTL_SECONDS,
         urgency: 'normal',
@@ -352,7 +357,7 @@ export async function overview(db: D1Database, now: Date) {
   const [devices, recent, lastAuto, upcoming] = await db.batch([
     db.prepare('SELECT COUNT(*) AS n FROM alert_subscriptions'),
     db.prepare(
-      `SELECT send_id, kind, event_id, occurrence_id, title, body, sent_by, devices, delivered, failed, social, social_error, social_at, created_at
+      `SELECT send_id, kind, event_id, occurrence_id, title, body, sent_by, devices, delivered, failed, opened, social, social_error, social_at, created_at
        FROM push_sends ORDER BY send_id DESC LIMIT 10`,
     ),
     db.prepare("SELECT created_at FROM push_sends WHERE kind = 'auto' ORDER BY send_id DESC LIMIT 1"),

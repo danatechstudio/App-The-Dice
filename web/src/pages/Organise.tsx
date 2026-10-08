@@ -11,6 +11,7 @@ import { MarketApplicationsPanel, MarketsAdmin } from './OrganiseMarkets';
 import type { StaffMarket } from '../lib/markets';
 import { PushCard } from './OrganisePush';
 import { RemindersAdmin } from './OrganiseReminders';
+import { StatsAdmin } from './OrganiseStats';
 import { ApproversPanel, JoinRequests, JoinScreen, removeAccess, setApprover } from './OrganiseTeam';
 import { useTitle } from '../lib/title';
 
@@ -536,6 +537,7 @@ function StaffDesk({ onDecided, me, isAdmin }: { onDecided: () => void; me: Host
       <MarketApplicationsPanel markets={markets} refresh={refresh} onChanged={load} />
       <HostedDatesPanel refresh={refresh} />
       <EventPlacesPanel refresh={refresh} />
+      {isAdmin && <StatsAdmin />}
       {isAdmin && <RemindersAdmin />}
       {isAdmin && <MarketsAdmin markets={markets} onChanged={load} />}
       <HostsPanel hosts={hosts} isAdmin={isAdmin} onChanged={() => (load(), setRefresh(n => n + 1))} />

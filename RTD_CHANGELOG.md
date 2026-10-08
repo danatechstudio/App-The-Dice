@@ -1,5 +1,16 @@
 # RTD App Changelog
 
+## 2026-10-08 (stats for admins)
+- **The app counts how it's used:** event page views; book, Add to calendar and Share taps; taps on event reminders; installs and opens from the Home Screen; visits in a browser; and views of the diary, Book, Games, Become a host and Markets pages, Roll Me a Game rolls and picks, and Apply to host taps.
+  - **Daily totals only:** no network address, device ID or cookie, so a count says how many, never who.
+  - **Not counted:** the café team and hosts (signed in to the organiser), robots, and floods (10 counts a request, 60 a minute from one address).
+- **Stats** in the organiser, for admins: 7, 30 or 90 days against the period before, with headline numbers, event page views per day (with a table), the most viewed, most booked and most tapped events, every event (with bookings per view), and other counts around the app. Bookings, join requests, stall applications and reminders come from their own records.
+- **Latest reminders** now shows how many people tapped each one.
+- **Privacy notice:** a new **Counting visits** section.
+- **Database:** migration `0015_stats.sql`, applied to the live database.
+- **Tests:** 279 (was 270).
+- **Docs:** new [`docs/RTD_STATS.md`](docs/RTD_STATS.md).
+
 ## 2026-10-08 (event alerts and reminders)
 - **Get event alerts:** anyone can turn them on, with no account, from the home page or any event page. One switch covers everything. On iPhone, the card explains adding the app to the Home Screen first.
 - **Admins send reminders** in the organiser (**Event reminders**):

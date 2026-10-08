@@ -133,6 +133,7 @@ describe("an admin's reminder", () => {
       body: 'Teams of up to 6. Book your table in the app.',
       url: `/event/${QUIZ}`,
       tag: 'event-RTD-EVT-00004',
+      send_id: 1,
     });
     expect(toAva.headers.get('TTL')).toBe('43200');
     expect(toAva.headers.get('Urgency')).toBe('normal');

@@ -5,6 +5,7 @@ import type { Category } from '../lib/api';
 import { CATEGORY } from '../lib/categories';
 import { addDays, longDate } from '../lib/dates';
 import { groupByDate, notOver, useUpcoming } from '../lib/events';
+import { useCount } from '../lib/stats';
 import { read, write } from '../lib/storage';
 import { useTitle } from '../lib/title';
 
@@ -18,6 +19,7 @@ type RangeId = (typeof RANGES)[number]['id'];
 
 export function Diary() {
   useTitle("What's on");
+  useCount('diary_view');
   // Private sessions are listed too (as "Private session"), so the café shows as busy as it is.
   const { withPrivate: occurrences, error, loading, reload, today } = useUpcoming();
   const [range, setRange] = useState<RangeId>(() => read<RangeId>('rtd.diary.range', 'week'));
