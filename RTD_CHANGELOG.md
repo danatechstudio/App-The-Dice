@@ -1,5 +1,30 @@
 # RTD App Changelog
 
+## 2026-10-08 (markets: vendors apply for pitches)
+- **Admins set up markets** in the organiser (**Markets** → **New market**):
+  - **The details:** name, date and times, description, pitches, pitch fee, closing date, and how approved vendors pay.
+  - **Into the diary:** it reaches the Logic Engine within 15 minutes, through the same n8n branch as host sessions (App Host Session `RTD-MKT-…`).
+- **Vendors apply at `/markets`** without an account:
+  - **The form:** stall, contact, what they sell, links, public liability insurance, and up to 3 photos (shrunk in the browser, kept privately, seen only by approvers).
+  - **Waiting list:** once every pitch is approved, new applicants join a waiting list.
+- **Approvers decide** under **Market applications**:
+  - **Approve:** needs a free pitch, and emails the vendor the pitch fee, the payment details and their reference.
+  - **Decline:** emails the vendor, with an optional note.
+  - **Mark as dropped out:** frees the pitch.
+  - **Alerts:** every application emails the approvers' inbox (info@) and sends a push.
+- **The RTD Market Vendors spreadsheet** holds every application, kept up to date by the new n8n workflow **RTD Market Vendors To Sheet**.
+- **Privacy:**
+  - **Erasing:** applications are erased 12 months after the market, photos included, and the sheet row with them.
+  - **The notice:** the privacy notice now covers vendors.
+- **Markets set up in the app aren't booked by customers;** their diary page links vendors to the form.
+- **n8n:**
+  - **RTD Outbox:** fills in `@approvals`.
+  - **RTD Host Sessions To Diary:** adds the year when a market's name clashes.
+  - **New workflows:** the spreadsheet workflow, and a one-off that created the sheet.
+- **Database:** migration `0013_markets.sql`, applied to the live database.
+- **Tests:** 248 (was 235).
+- **Docs:** new [`docs/RTD_MARKETS.md`](docs/RTD_MARKETS.md).
+
 ## 2026-10-07 (privacy notice; places for hosts and approvers)
 - **Privacy notice** at `/privacy`:
   - **Where it's linked:** the booking form, the join form, the booking page, the footer and the booking confirmation email.

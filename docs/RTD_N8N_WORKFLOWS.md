@@ -4,6 +4,25 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### 2026-10-08: markets (vendors apply for pitches)
+
+Dan's request: admins set up market events; vendors apply in the app; every detail goes in a special spreadsheet; approvals go to the usual approvers; approved vendors are emailed confirmation and payment details. See [RTD_MARKETS.md](RTD_MARKETS.md).
+
+| Workflow | Change | New active version | Roll back to |
+| --- | --- | --- | --- |
+| RTD Outbox (`dJU9NJOh7aisAiFF`) | New node **Read Approval Alert Email (rtd_config)**. **Split Emails** now also turns `@approvals` into `RTD_APPROVAL_ALERT_EMAIL` (info@). Published **before** the app change. | `a1b77acb-fb1d-4f07-a8e1-a8e34a2ef125` | `d38fef8d-571b-4835-8721-6754ff25cc95`, but only while no `@approvals` emails are queued, or they'd fail |
+| RTD Host Sessions To Diary (`rdS8LF56B9k170BY`) | **Build Rows:** markets come through the same feed (App Host Session = `RTD-MKT-…`). A clashing name gets the app's `clash_suffix`, which is the market's year ("Christmas Market (2026)"), instead of "(hosted)". | `d9cad8de-364c-4c03-9849-ec626861fca7` | `c0738021-829c-484e-97f7-31ec7260ae61` (markets still work; clashes just get "(hosted)") |
+| **New:** RTD One-Off: Create Market Vendors Sheet (`t9yI90E2siGL3FEZ`) | Manual only. Created the spreadsheet **RTD Market Vendors** (`1Fxq3DKarxuVdUkV71aUuIEgcO0e5W34FGfVWBPtX8Pc`, tab **Applications**, gid `268107876`) with its header row, bold and frozen. Run once (`25712`); don't run again, or it makes a second file. | — | — |
+| **New:** RTD Market Vendors To Sheet (`gpm3eaxYJf9m4hRd`) | See [below](#rtd-market-vendors-to-sheet-gpm3eaxyjf9m4hrd). | `364e1135-59d2-426e-92fe-ffdbf6ecfcec` | Unpublish it (the app keeps everything; the sheet catches up when it's back) |
+
+**Checked:**
+- **Outbox simulated run** (`25637`): `@approvals` and `@bookings` went to info@; empty went to the café address.
+- **To Diary simulated run** (`25656`): a market called "Spooky Market" became "Spooky Market (2026)", and a host session "Quiz" still became "Quiz (hosted)".
+- **Market Vendors To Sheet:**
+  - **Live run** (`25783`): the app answered with nothing to write.
+  - **Simulated run** (`25788`): two rows, each carrying its own reference and hash.
+  - **Not yet tested:** a real write to the sheet happens with the first application. If it fails, the error handler emails Dan, and the row is tried again 15 minutes later.
+
 ### 2026-10-07: customers book café events; every booking copied to info@
 
 Dan's decision: "prepare the app to enable customers to book on. Ensure any bookings are emailed to info@… as per other confirmations." Every public event is bookable; replies from customers go to info@.
@@ -318,6 +337,21 @@ This workflow sends the emails the app writes for bookings ([RTD_BOOKINGS.md](RT
   - **When a date is cancelled:** an email to everyone booked, plus a notice to info@ or the host.
 - **Live since 2026-10-06 08:55** (published); `@bookings` since 2026-10-07.
 - **Errors:** collecting and marking retry 3 times; Gmail retries twice.
+
+## RTD Market Vendors To Sheet (`gpm3eaxYJf9m4hRd`)
+
+Keeps the **RTD Market Vendors** spreadsheet in step with the app's market applications ([RTD_MARKETS.md](RTD_MARKETS.md#the-spreadsheet)).
+
+- **Triggers:** every 15 minutes (Europe/London), plus **Run By Hand**.
+- **Steps:**
+  1. Read `RTD_APP_BASE_URL` from `rtd_config`.
+  2. `GET /internal/market-applications/sheet`: each application whose row is out of date (up to 100), with the whole row.
+  3. **Write Row To Market Sheet:** Google Sheets **append or update**, matched on **Application ID**. RAW cells, so nothing a vendor typed can become a formula, and extra fields are ignored.
+  4. `POST /internal/market-applications/:id/sheet-synced` with the row's hash, so each change is written once.
+- **Erasing:** erased applications (12 months after the market) come through as erased, so the sheet is cleared too.
+- **Credentials:** `rtd-app` and `ATECHGoogleSheets`.
+- **Errors:** every step retries 3 times; failures go to `Studio: Error Handler`.
+- **Live since 2026-10-08 09:30** (published).
 
 ## Spec §46 workflow map
 

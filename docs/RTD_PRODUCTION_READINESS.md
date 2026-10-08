@@ -1,6 +1,6 @@
 # RTD App: Feature Status and Production Readiness
 
-_As of 7 October 2026. Live app: https://rtd-app.dan-289.workers.dev_
+_As of 8 October 2026. Live app: https://rtd-app.dan-289.workers.dev_
 
 ## Summary
 
@@ -62,6 +62,7 @@ Status words below: **Live** (built and running), **Partial** (some of it works)
 | Host sees bookings, emails per booking and two days before, cancels a date | Live | See [RTD_BOOKINGS.md](RTD_BOOKINGS.md). Not yet tried with a real booking |
 | Customers book the café's own events | Live (7 Oct) | Every Public or App Bookable event. info@ gets every booking, cancellation and the two-day numbers. Not yet tried with a real booking |
 | Places (how many can book) | Live (7 Oct) | Hosts change their own live sessions' places; approvers set café events' places in the organiser (or App Capacity in the sheet), or any single date's. No number: no limit |
+| Markets: vendors apply for pitches | Live (8 Oct) | Admins set up a market; vendors apply at `/markets` with photos; approvers decide; approved vendors get the fee and payment details; every application is in the RTD Market Vendors sheet ([RTD_MARKETS.md](RTD_MARKETS.md)). Not yet tried with a real market |
 | Privacy notice | Live (7 Oct) | `/privacy`, linked from every form that collects details and from the confirmation email. Booking details erased 12 months after the event. Needs the legal name ([RTD_PRIVACY.md](RTD_PRIVACY.md)) |
 
 ### Everything else in the specification
@@ -161,7 +162,7 @@ Who: **You** = Dan; **Michelle** = café; **Claude** = me.
 
 ## 5. Already in place
 
-- **Tests:** 235 automated tests, covering sync, the API, sign-in, host sessions, onboarding, bookings (capacity, limits, cancelling, emails), push encryption and signing, privacy redaction, calendar files, photos and colour contrast.
+- **Tests:** 248 automated tests, covering sync, the API, sign-in, host sessions, onboarding, bookings (capacity, limits, cancelling, emails), push encryption and signing, privacy redaction, calendar files, photos and colour contrast.
 - **Safe sync:** each sync lands completely or not at all. The app keeps serving the last good data if the sheet or the Pi breaks, and refuses a snapshot that loses half the events.
 - **Private sessions:** the server strips their details, so the name, description, photo, price and size never reach the public. They have no page, preview or calendar file.
 - **Security:**

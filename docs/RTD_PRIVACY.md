@@ -10,7 +10,8 @@ The app holds customers' names, emails and phone numbers from bookings, and host
 | Linked from the booking form, the join form, the booking page, the footer and the booking confirmation email | **Built** |
 | Booking contact details erased 12 months after the event | **Built** (daily Cron Trigger) |
 | Network hashes erased after 2 days; declined or withdrawn join requests after 12 months | **Built** |
-| No people in the audit log (it can never be erased) | **Built** for bookings and join requests |
+| No people in the audit log (it can never be erased) | **Built** for bookings, join requests and market applications |
+| Market stall applications erased 12 months after the market, photos and spreadsheet row included | **Built** (2026-10-08, [RTD_MARKETS.md](RTD_MARKETS.md)) |
 | The business's legal name on the notice | **Waiting on Dan.** It shows the trading name until then. |
 | ICO data protection fee | **Check:** does the café already pay it? |
 | Clearing old booking emails out of the café's mailboxes | **To do by the café:** the notice promises it (see below) |
@@ -52,6 +53,7 @@ UPDATE settings SET value = 'Roll The Dice Ltd (company 01234567)', updated_at =
 | Scrambled network address (`ip_hash`) | `bookings` | 2 days | Daily: set to NULL |
 | Emails about bookings | `outbox` | 90 days after sending | Deleted each time n8n collects (every 5 minutes) |
 | Declined or withdrawn join requests | `applications` | 12 months after the decision | Daily: name, email, what they wrote and the café's note erased; `erased_at` set |
+| Market stall applications | `market_applications`, `market_photos`, KV `vendor:…`, the RTD Market Vendors spreadsheet | 12 months after the market | Daily: details erased and photos deleted; the next spreadsheet sync writes the row as Erased. Google Sheets' version history keeps old values until cleared. |
 | Hosts and approvers | `users`, `host_sessions` | While they have access | **By hand, on request:** the notice says so |
 | Audit log | `audit_log` | For good (append-only) | Holds booking and request numbers, not people. Staff and hosts' own actions are recorded under their sign-in email: the notice says decisions in the organiser are kept. |
 | Push devices (approvers) | `push_subscriptions` | Until turned off, or the device stops working | See [RTD_PUSH.md](RTD_PUSH.md) |

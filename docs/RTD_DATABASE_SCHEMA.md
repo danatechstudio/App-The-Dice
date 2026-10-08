@@ -23,6 +23,7 @@ One row per permanent event identity, synced from the Logic Engine.
 | `capacity_override` | Places set in the organiser: by the host for their session, or by an approver for a café event. Wins over `default_capacity`; the sync clears it when App Capacity changes in the sheet, so the last change wins (0012) |
 | `price_display` | The sheet's `App Price` ("Free", "£5"). Added in `0006_host_publishing.sql`. |
 | `host_session_id` | The sheet's `App Host Session`: the organiser session this row came from (0006) |
+| `market_id` | The same column holding `RTD-MKT-…`: a market set up in the organiser (0013). Customers don't book these. |
 | `photo_folder_id` | Drive folder used by the poster generator |
 | `source_hash`, `last_synced_at` | Change detection |
 
@@ -190,6 +191,44 @@ Added in `0011_cafe_bookings.sql`: the last Event Index change n8n made for a ca
 | `event_id` | The Logic Engine event (primary key) |
 | `fix_key` | `inactive`, or `date:YYYY-MM-DD` for the date the row was moved on to |
 | `sent_at` | When n8n reported it done |
+
+## markets
+
+Added in `0013_markets.sql` ([RTD_MARKETS.md](RTD_MARKETS.md)). One row per market an admin sets up.
+
+| Column | Notes |
+| --- | --- |
+| `market_id` | `RTD-MKT-00001` upwards |
+| `name`, `description`, `event_date`, `start_time`, `end_time` | As set up |
+| `pitches` | 1–200. Can't go below the vendors approved |
+| `pitch_fee_pence` | 0 = no fee |
+| `applications_close` | The last day vendors can apply |
+| `payment_details` | Typed by the admin; only sent to approved vendors |
+| `status` | `scheduled` until n8n adds it to Event Index, then `published` |
+| `event_id`, `published_at` | Its Logic Engine event, once the sync links it |
+| `created_by` | The admin's email |
+
+### market_applications
+
+| Column | Notes |
+| --- | --- |
+| `application_id` | `RTD-MV-00001` upwards: the vendor's reference |
+| `stall_name`, `contact_name`, `email`, `mobile`, `products`, `links`, `notes` | As typed |
+| `insured`, `insurer`, `insurance_expiry` | Public liability insurance |
+| `photo_count` | 0–3 |
+| `status` | `pending` → `approved` / `declined`; `withdrawn` = dropped out (marked by an approver) |
+| `waitlisted` | Every pitch was approved when they applied |
+| `decision_note`, `decided_by`, `decided_at` | The approver's decision |
+| `ip_hash` | Only for the 5-an-hour limit; erased after 2 days |
+| `submit_key` | Random, so the photos and emails saved in the same batch find the new row |
+| `sheet_hash` | What n8n last wrote to the RTD Market Vendors spreadsheet |
+| `erased_at` | Personal details erased, 12 months after the market |
+
+**Indexes:** `(market_id, status)`, `(email, created_at)`, `(ip_hash, created_at)`.
+
+### market_photos
+
+`photo_id` (random, 32 hex characters; the KV key is `vendor:<photo_id>`), `application_id`, `position` (1–3), `content_type` (JPEG, PNG or WebP), `bytes`. Deleted, with the KV copies, when the application is erased.
 
 ## push_subscriptions and push_keys
 

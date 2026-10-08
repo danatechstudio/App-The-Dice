@@ -27,6 +27,7 @@ Customers can book places on **every public event** in the app: the café's own 
 | A host's **open** session | Yes | Its Max players, which the host can change once it's live |
 | **Private** events and host sessions | Never | |
 | **Hidden** or inactive events | Never (not shown) | |
+| Markets set up in the organiser | No: vendors apply for pitches instead ([RTD_MARKETS.md](RTD_MARKETS.md)) | |
 
 **Notes:**
 - **Booking per date:** a weekly or fortnightly event is booked one date at a time.

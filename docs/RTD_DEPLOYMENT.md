@@ -2,11 +2,11 @@
 
 Everything runs in the existing Cloudflare account. These are one-off steps. They need either your Cloudflare login (on your own machine), or a `CLOUDFLARE_API_TOKEN` in an environment that can reach `api.cloudflare.com`.
 
-## Status (2026-10-07)
+## Status (2026-10-08)
 
 Done through the Cloudflare connector:
 - **Database:** D1 `rtd-app` created in Western Europe (id `6c948ad3-0311-459b-895d-facb14d5697d`, now in `wrangler.jsonc`).
-- **Schema:** `0001_foundation.sql`, `0002_event_images.sql`, `0003_host_sessions.sql`, `0004_host_session_frequency.sql`, `0005_host_session_access.sql`, `0006_host_publishing.sql`, `0007_onboarding.sql`, `0008_bookings.sql`, `0009_push.sql`, `0010_resubmit.sql`, `0011_cafe_bookings.sql` and `0012_places_privacy.sql` applied and recorded in `d1_migrations`, so `wrangler d1 migrations apply` will skip them. All tables, indexes and both audit triggers are present.
+- **Schema:** `0001_foundation.sql`, `0002_event_images.sql`, `0003_host_sessions.sql`, `0004_host_session_frequency.sql`, `0005_host_session_access.sql`, `0006_host_publishing.sql`, `0007_onboarding.sql`, `0008_bookings.sql`, `0009_push.sql`, `0010_resubmit.sql`, `0011_cafe_bookings.sql`, `0012_places_privacy.sql` and `0013_markets.sql` applied and recorded in `d1_migrations`, so `wrangler d1 migrations apply` will skip them. All tables, indexes and both audit triggers are present.
 - **First admin:** Dan's account added (role `admin`).
 - **Privacy contact:** `privacy_contact_email` set in `settings` (live only, not in the repo).
 - **Cron Trigger:** daily at 03:23 UTC, from `wrangler.jsonc`. It deploys with the code, so there's nothing to set up.

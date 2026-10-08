@@ -107,6 +107,9 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | POST | `/api/host/occurrences/:id/cancel` | Access cookie + the session's host, approver or admin | Cancel a date |
 | POST | `/api/host/sessions/:id/places`, `/api/host/occurrences/:id/places` | Access cookie + the session's host (approvers and admins for any single date) | Places on every date of a live session, or on one date ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#places)) |
 | GET / POST | `/api/staff/event-places`, `/api/staff/events/:id/places` | Access + approver/admin | Places for café events |
+| GET / POST | `/api/markets`, `/api/markets/:id`, `/api/markets/:id/apply` | none; applying is same-origin JSON | Markets vendors can apply to, and applying ([RTD_MARKETS.md](RTD_MARKETS.md)) |
+| GET / POST | `/api/staff/markets…`, `/api/staff/market-applications…`, `/api/staff/market-photos/:id` | Access + approver/admin (setting up markets: admins only) | Markets and vendor applications |
+| GET / POST | `/internal/market-applications/sheet`, `/internal/market-applications/:id/sheet-synced` | bearer | The market spreadsheet |
 
 ## App pages
 
@@ -151,7 +154,7 @@ The **service worker** caches the app shell and the last diary it saw, so the di
 | `src/routes/*` | Public, internal, staff endpoints and app pages (link previews) |
 | `web/` | The PWA: `src/theme` (tokens), `src/styles`, `src/components`, `src/pages`, `public` (icons, manifest, service worker). See [RTD_APP_THEME.md](RTD_APP_THEME.md). |
 | `migrations/` | D1 schema |
-| `test/` | 235 tests, run inside the Workers runtime against a real local D1 and KV |
+| `test/` | 248 tests, run inside the Workers runtime against a real local D1 and KV |
 
 ## Future compatibility
 
