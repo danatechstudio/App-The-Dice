@@ -7,6 +7,8 @@ declare namespace Cloudflare {
     ASSETS: Fetcher;
     /** Where events happen, for calendar files. */
     VENUE_LOCATION: string;
+    /** The app's address (https://…), for push messages sent from the Cron Trigger. */
+    APP_ORIGIN: string;
     ENVIRONMENT: string;
     ACCESS_TEAM_DOMAIN: string;
     ACCESS_AUD: string;

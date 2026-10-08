@@ -1,5 +1,22 @@
 # RTD App Changelog
 
+## 2026-10-08 (event alerts and reminders)
+- **Get event alerts:** anyone can turn them on, with no account, from the home page or any event page. One switch covers everything. On iPhone, the card explains adding the app to the Home Screen first.
+- **Admins send reminders** in the organiser (**Event reminders**):
+  - **Pick an event:** the next date of every public event in the next fortnight, with when each last had a reminder.
+  - **The words:** a suggested title and message to change as you like, with a preview.
+  - **Facebook:** the same words, a link to the event and its photo go on the café's Facebook page through Buffer, unless you choose **No**.
+  - **A second reminder within 24 hours** about the same event shows a warning (when, what and who), and needs **Send another anyway**.
+  - **Latest reminders:** how many devices each reached, and whether the Facebook post went.
+- **The automatic reminder:** at 8pm, about a random public event in the next three days, at most once every 48 hours. Admins' reminders don't count towards the 48 hours. No Facebook post.
+- **Sending:** queued per device and sent 20 at a time by a new every-minute Cron Trigger (the free plan's limits). The daily erasing job now runs from the same trigger, at 03:23 UTC.
+- **Approvers:** turning approval notifications off no longer unsubscribes a browser that has event alerts on.
+- **Privacy:** the notice covers event alerts; the scrambled network code is erased after 2 days.
+- **n8n:** new workflow **RTD Event Reminders To Facebook**.
+- **Database:** migration `0014_event_alerts.sql`, applied to the live database.
+- **Tests:** 270 (was 248).
+- **Docs:** new [`docs/RTD_ALERTS.md`](docs/RTD_ALERTS.md).
+
 ## 2026-10-08 (markets: vendors apply for pitches)
 - **Admins set up markets** in the organiser (**Markets** → **New market**):
   - **The details:** name, date and times, description, pitches, pitch fee, closing date, and how approved vendors pay.

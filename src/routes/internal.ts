@@ -17,6 +17,7 @@ import { MAX_IMAGE_BYTES, imagePlan, parseImageSync, storeImage, syncImages } fr
 import { checkBearer } from '../lib/auth';
 import { londonDate } from '../lib/time';
 import { MARKET_ID, markMarketPublished, markSheetSynced, marketsToPublish, sheetRows } from '../markets/markets';
+import { markSocial, socialQueue } from '../notify/alerts';
 import { markSent, unsent } from '../notify/outbox';
 import { decidedApplicationsForApplicants, markApplicationNotified, newApplicationsForApprovers } from '../team/applications';
 import { applySync, parsePayload } from '../sync/apply';
@@ -223,4 +224,25 @@ internalRoutes.get('/market-applications/sheet', async c => c.json({ rows: await
 internalRoutes.post('/market-applications/:id/sheet-synced', async c => {
   const body = (await c.req.json().catch(() => ({}))) as { hash?: unknown };
   return (await markSheetSynced(c.env.DB, c.req.param('id'), body.hash)) ? c.json({ ok: true }) : c.json({ error: 'No application with that ID, or a bad hash' }, 404);
+});
+
+// --- Facebook posts for admins' reminders (n8n RTD Event Reminders To Facebook, docs/RTD_ALERTS.md) ---
+
+/** Reminders whose Facebook post hasn't gone yet: text and photo address. */
+internalRoutes.get('/social-posts', async c => c.json({ posts: await socialQueue(c.env.DB) }));
+
+/** Buffer took it. Body: { post_id } */
+internalRoutes.post('/social-posts/:id/done', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { post_id?: unknown };
+  const postId = typeof body.post_id === 'string' ? body.post_id.slice(0, 100) : null;
+  const done = await markSocial(c.env.DB, Number(c.req.param('id')), { ok: true, post_id: postId }, new Date());
+  return done ? c.json({ ok: true }) : c.json({ error: 'No post waiting with that ID' }, 404);
+});
+
+/** Buffer refused it. Body: { error } (shown to admins in the organiser). */
+internalRoutes.post('/social-posts/:id/failed', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { error?: unknown };
+  const error = typeof body.error === 'string' && body.error.trim() ? body.error.trim() : 'Buffer refused the post';
+  const done = await markSocial(c.env.DB, Number(c.req.param('id')), { ok: false, error }, new Date());
+  return done ? c.json({ ok: true }) : c.json({ error: 'No post waiting with that ID' }, 404);
 });

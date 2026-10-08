@@ -2,6 +2,8 @@
 
 Approvers (Michelle) and admins (Dan) can get a push notification on their phone or computer whenever something needs approving. It comes **as well as** the email, not instead of it. Nobody else can turn them on.
 
+Customers' **event alerts** (reminders about events, sent by admins or at 8pm) use the same sending code but their own switch and devices: see [RTD_ALERTS.md](RTD_ALERTS.md). One browser has one subscription, so turning approvals off on a device that also has event alerts on keeps the browser subscribed.
+
 ## Status (2026-10-06)
 
 | Part | State |

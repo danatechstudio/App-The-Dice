@@ -1,4 +1,5 @@
 import { ArrowRight, ChevronRight, Dices, Lock, Star, Ticket } from 'lucide-preact';
+import { AlertsPromo } from '../components/Alerts';
 import { DiceMark, Logo } from '../components/Brand';
 import { Chip } from '../components/Chips';
 import { EventCard } from '../components/EventCard';
@@ -80,6 +81,7 @@ export function Home() {
 
         <aside class="home-side" aria-label="More from Roll The Dice">
           <RollPromo />
+          <AlertsPromo />
           <GameOfTheWeekMini />
           <BookPromo />
         </aside>

@@ -63,13 +63,14 @@ Status words below: **Live** (built and running), **Partial** (some of it works)
 | Customers book the café's own events | Live (7 Oct) | Every Public or App Bookable event. info@ gets every booking, cancellation and the two-day numbers. Not yet tried with a real booking |
 | Places (how many can book) | Live (7 Oct) | Hosts change their own live sessions' places; approvers set café events' places in the organiser (or App Capacity in the sheet), or any single date's. No number: no limit |
 | Markets: vendors apply for pitches | Live (8 Oct) | Admins set up a market; vendors apply at `/markets` with photos; approvers decide; approved vendors get the fee and payment details; every application is in the RTD Market Vendors sheet ([RTD_MARKETS.md](RTD_MARKETS.md)). Not yet tried with a real market |
+| Event alerts and reminders | Live (8 Oct) | Anyone turns on **Get event alerts** (home page or event page). Admins send a reminder about any event from the organiser, which also posts on Facebook; a second within 24 hours needs confirming. An automatic reminder at 8pm, at most every 48 hours ([RTD_ALERTS.md](RTD_ALERTS.md)). Not yet tried on a real phone |
 | Privacy notice | Live (7 Oct) | `/privacy`, linked from every form that collects details and from the confirmation email. Booking details erased 12 months after the event. Needs the legal name ([RTD_PRIVACY.md](RTD_PRIVACY.md)) |
 
 ### Everything else in the specification
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Notifications (Phase 3) | **Not started** | Push opt-in and 4-hour reminders. On iPhone, push only works once the app is installed to the Home Screen |
+| Notifications (Phase 3) | **Partial** | Push opt-in (event alerts), admins' reminders and the 8pm automatic reminder are live ([RTD_ALERTS.md](RTD_ALERTS.md)). Not built: a reminder 4 hours before an event someone has booked. On iPhone, push only works once the app is installed to the Home Screen |
 | Games (Phase 4) | **Partial** | Roll Me a Game (3D dice, filters, Chaos Roll), the game library and Game of the Week work on a labelled *preview shelf* of sample games. Needs the café's real inventory, staff editing and the weekly automation |
 | Booking (Phase 5) | **Partial** | Every public café event and open host session: multi-person bookings, capacity-safe, confirmation email, copies to info@, secure cancellation ([RTD_BOOKINGS.md](RTD_BOOKINGS.md)). Not built: waiting list, daily digest |
 | Become a Host (Phase 7) | **Partial** | **Apply to host** signs people in and takes their request, which the café approves in the organiser ([RTD_ONBOARDING.md](RTD_ONBOARDING.md)). Not built: a form for people without an email sign-in, and a richer host profile |
@@ -90,6 +91,8 @@ Status words below: **Live** (built and running), **Partial** (some of it works)
 | RTD Team Notices | n8n | Every 15 min: join request and session decision emails |
 | RTD Outbox | n8n | Every 5 min: booking emails the app has queued |
 | RTD Host Follow-up | n8n | Daily 10:00: email to the host after a one-off |
+| RTD Event Reminders To Facebook | n8n | Every minute: posts admins' event reminders on the café's Facebook page through Buffer |
+| Event reminders | The app's Cron Trigger | Every minute: sends queued reminders, 20 devices a run; the automatic one at 8pm |
 | RTD Master V1 and Event Guard | n8n (existing) | Social posts, calendar, date roll-forward, posters, expiry. Edited 5 Oct; rollback versions in [RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md) |
 | Config | n8n data table `rtd_config` | App URL and café email |
 | Outgoing email | Dan's "ATech GMAIL" in n8n | Every email, including booking confirmations to customers |

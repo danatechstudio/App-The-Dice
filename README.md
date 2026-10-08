@@ -30,7 +30,7 @@ Stack:
 
 ```sh
 npm ci
-npm test            # builds the app, then 248 tests in the Workers runtime against a local D1
+npm test            # builds the app, then 270 tests in the Workers runtime against a local D1
 npm run typecheck   # Worker and web app
 npm run dev         # builds the app and serves everything on http://localhost:8787
 ```
@@ -46,6 +46,7 @@ npm run dev         # builds the app and serves everything on http://localhost:8
 | [`docs/RTD_HOST_PORTAL.md`](docs/RTD_HOST_PORTAL.md) | Host organiser: sessions, approvals, sign-in |
 | [`docs/RTD_ONBOARDING.md`](docs/RTD_ONBOARDING.md) | Onboarding hosts and café staff (one way in): requests, approvers, emails, removing access |
 | [`docs/RTD_PUSH.md`](docs/RTD_PUSH.md) | Push notifications for approvers: turning them on (iPhone too), what arrives, how it's secured |
+| [`docs/RTD_ALERTS.md`](docs/RTD_ALERTS.md) | Event alerts for everyone: turning them on, admins' reminders (with the Facebook post and the 24-hour warning), the 8pm automatic reminder |
 | [`docs/RTD_BOOKINGS.md`](docs/RTD_BOOKINGS.md) | Booking hosted sessions: capacity, the cancel link, host emails, cancelling a date, the outbox |
 | [`docs/RTD_PRODUCTION_READINESS.md`](docs/RTD_PRODUCTION_READINESS.md) | Feature status and what's needed to go into production |
 | [`docs/RTD_APP_THEME.md`](docs/RTD_APP_THEME.md) | Visual theme: brand reference, colours, type, components, accessibility |

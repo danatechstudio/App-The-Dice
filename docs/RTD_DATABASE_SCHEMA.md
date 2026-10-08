@@ -230,6 +230,18 @@ Added in `0013_markets.sql` ([RTD_MARKETS.md](RTD_MARKETS.md)). One row per mark
 
 `photo_id` (random, 32 hex characters; the KV key is `vendor:<photo_id>`), `application_id`, `position` (1–3), `content_type` (JPEG, PNG or WebP), `bytes`. Deleted, with the KV copies, when the application is erased.
 
+## Event alerts
+
+Added in `0014_event_alerts.sql` ([RTD_ALERTS.md](RTD_ALERTS.md)).
+
+| Table | Columns |
+| --- | --- |
+| `alert_subscriptions` | `endpoint` (primary key: one browser's push address; never shown), `p256dh`, `auth`, `device_label`, `ip_hash` (only for the 20-an-hour limit; erased after 2 days), `created_at`, `last_sent_at`, `failures` (5 in a row and it's dropped) |
+| `push_sends` | `send_id`, `kind` (`manual` by an admin, `auto` at 8pm), `event_id`, `occurrence_id`, `title`, `body`, `url`, `sent_by` (the admin's email, or `auto`), `devices`, `delivered`, `failed`, `social` (`pending` / `posted` / `failed`, or NULL for no Facebook post), `social_text`, `social_image`, `social_post_id`, `social_error`, `social_at`, `created_at` |
+| `push_deliveries` | `send_id`, `endpoint`, `claim`, `claimed_at`: a reminder waiting for one device; deleted once sent |
+
+**Indexes:** `alert_subscriptions (ip_hash, created_at)`, `push_sends (event_id, created_at)`, `push_sends (kind, created_at)`.
+
 ## push_subscriptions and push_keys
 
 Added in `0009_push.sql`: push notifications for approvers ([RTD_PUSH.md](RTD_PUSH.md)).

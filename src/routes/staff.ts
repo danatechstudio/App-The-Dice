@@ -4,7 +4,9 @@ import { Hono } from 'hono';
 import { upcomingBookedDates } from '../bookings/bookings';
 import { cafeEventPlaces, setEventPlaces } from '../bookings/places';
 import { decideSession, listHosts, listSessions, type SessionStatus } from '../host/sessions';
+import { afterResponse } from '../lib/background';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
+import { drain, overview, parseReminder, sendReminder } from '../notify/alerts';
 import { deviceLabel, myDevices, notifyUser, parseSubscription, removeSubscription, saveSubscription, vapidKeys } from '../notify/push';
 import { londonDate } from '../lib/time';
 import { applicationsForStaff, createMarket, decideApplication as decideVendor, markWithdrawn, marketsForStaff, parseMarketInput, readPhoto, updateMarket } from '../markets/markets';
@@ -215,4 +217,29 @@ staffRoutes.get('/market-photos/:photoId', async c => {
       'Cache-Control': 'private, no-store',
     },
   });
+});
+
+// --- Event reminders to everyone with alerts on (admins only; docs/RTD_ALERTS.md) ---
+
+/** Devices with alerts on, the latest reminders, and the public events of the next fortnight. */
+staffRoutes.get('/reminders', async c => {
+  if (!adminsOnly(c.get('user'))) return c.json({ error: 'Only admins can send reminders.' }, 403);
+  return c.json(await overview(c.env.DB, new Date()));
+});
+
+/**
+ * Send one. Body: { occurrence_id, title, body, social, confirm }. A reminder
+ * about the same event in the last 24 hours comes back as 409 { warning } until
+ * it's sent again with confirm: true.
+ */
+staffRoutes.post('/reminders', async c => {
+  const parsed = parseReminder(await c.req.json().catch(() => null));
+  if (!parsed.ok) return c.json({ error: 'Please check the reminder.', errors: parsed.errors }, 400);
+  const now = new Date();
+  const origin = new URL(c.req.url).origin;
+  const result = await sendReminder(c.env.DB, c.get('user'), parsed.value, { now, origin });
+  if (!result.ok) return 'warning' in result ? c.json({ warning: result.warning }, 409) : c.json({ error: result.error }, result.status);
+  // The first devices now; the every-minute Cron Trigger sends the rest.
+  await afterResponse(c, () => drain(c.env.DB, { subject: origin, now }));
+  return c.json({ send: result.send }, 201);
 });

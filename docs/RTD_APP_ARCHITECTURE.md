@@ -60,7 +60,8 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 - **Circuit breaker.** A snapshot with no usable rows, or fewer than half the previous count, is refused (`409`) and recorded. A broken sheet read can't empty the diary.
 - **Ambiguous rows are skipped and reported** (`warnings` on the sync run): rows with a missing or duplicated Event ID. A duplicated ID never causes a deactivation.
 - **Audit log.** `audit_log` is append-only; database triggers reject `UPDATE` and `DELETE`. So it records customers by booking or request number, never by name or email.
-- **Erasing old details.** A daily Cron Trigger (03:23 UTC) erases booking contact details 12 months after the event, network hashes after 2 days, and declined join requests after 12 months ([RTD_PRIVACY.md](RTD_PRIVACY.md)).
+- **One Cron Trigger, every minute.** It sends queued event reminders in batches of 20 and the 8pm automatic one ([RTD_ALERTS.md](RTD_ALERTS.md)). At 03:23 UTC the same run erases old details (next point).
+- **Erasing old details.** Daily at 03:23 UTC, the Cron Trigger erases booking contact details 12 months after the event, network hashes after 2 days, and declined join requests after 12 months, and event alert network codes after 2 days ([RTD_PRIVACY.md](RTD_PRIVACY.md)).
 - **Caching.**
   - Public responses: `Cache-Control: public, max-age=60`.
   - Staff responses, including refusals: `no-store`.
@@ -110,6 +111,9 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | GET / POST | `/api/markets`, `/api/markets/:id`, `/api/markets/:id/apply` | none; applying is same-origin JSON | Markets vendors can apply to, and applying ([RTD_MARKETS.md](RTD_MARKETS.md)) |
 | GET / POST | `/api/staff/markets…`, `/api/staff/market-applications…`, `/api/staff/market-photos/:id` | Access + approver/admin (setting up markets: admins only) | Markets and vendor applications |
 | GET / POST | `/internal/market-applications/sheet`, `/internal/market-applications/:id/sheet-synced` | bearer | The market spreadsheet |
+| GET / POST | `/api/alerts/key`, `/subscribe`, `/unsubscribe`, `/status`, `/renew` | none; same-origin JSON | Event alerts on this device ([RTD_ALERTS.md](RTD_ALERTS.md)) |
+| GET / POST | `/api/staff/reminders` | Access + admin | Event reminders: the list, and sending one (`409 { warning }` within 24 hours of the last for that event) |
+| GET / POST | `/internal/social-posts`, `/internal/social-posts/:id/done`, `…/failed` | bearer | Facebook posts for admins' reminders (n8n RTD Event Reminders To Facebook) |
 
 ## App pages
 
@@ -120,7 +124,7 @@ Static files in `web/dist` are served directly; unknown paths fall back to the a
 | `/`, `/event/:occurrenceId`, `/events/:eventId` | Serves the app shell with link-preview tags (title, description, image, URL) for that event, so shared links show the event. Unknown or hidden events get the shell with a 404 status. |
 | `/api/*`, `/internal/*`, `/images/*` | API and photos, as above |
 
-The **service worker** caches the app shell and the last diary it saw, so the diary opens offline. It never touches `/api/staff` or `/internal`. It also shows approvers' push notifications and opens the organiser when one is tapped ([RTD_PUSH.md](RTD_PUSH.md)).
+The **service worker** caches the app shell and the last diary it saw, so the diary opens offline. It never touches `/api/staff` or `/internal`. It also shows push notifications: approvers' (tapping opens the organiser, [RTD_PUSH.md](RTD_PUSH.md)) and event alerts (tapping opens the event, [RTD_ALERTS.md](RTD_ALERTS.md)). When the browser renews its subscription, it tells the app.
 
 ## Event photos
 
@@ -147,14 +151,15 @@ The **service worker** caches the app shell and the last diary it saw, so the di
 | `src/team/applications.ts` | Onboarding: join requests, approvers, granting and removing access, email feeds |
 | `src/bookings/bookings.ts` | Bookings: availability, capacity-safe booking, the cancel link, host and approver views, cancelling a date, two-day emails, Event Index fixes |
 | `src/notify/emails.ts`, `src/notify/outbox.ts` | Booking email wording, and the outbox n8n sends from |
-| `src/notify/push.ts` | Web Push for approvers: VAPID keys, RFC 8291 encryption, devices, sending |
+| `src/notify/push.ts` | Web Push: VAPID keys, RFC 8291 encryption, approvers' devices, sending |
+| `src/notify/alerts.ts` | Event alerts: turning on and off, admins' reminders (24-hour warning), the 8pm automatic reminder, batched sending, the Facebook queue |
 | `src/lib/background.ts` | Work after the response (`waitUntil`), such as pushes |
 | `src/lib/format.ts` | Dates, times and escaping for emails |
 | `src/images/store.ts` | Event photos: plan, sync, upload (type sniffing, content hashing), serving, per-date picking |
 | `src/routes/*` | Public, internal, staff endpoints and app pages (link previews) |
 | `web/` | The PWA: `src/theme` (tokens), `src/styles`, `src/components`, `src/pages`, `public` (icons, manifest, service worker). See [RTD_APP_THEME.md](RTD_APP_THEME.md). |
 | `migrations/` | D1 schema |
-| `test/` | 248 tests, run inside the Workers runtime against a real local D1 and KV |
+| `test/` | 270 tests, run inside the Workers runtime against a real local D1 and KV |
 
 ## Future compatibility
 

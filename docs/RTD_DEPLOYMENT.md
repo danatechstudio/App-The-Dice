@@ -6,10 +6,11 @@ Everything runs in the existing Cloudflare account. These are one-off steps. The
 
 Done through the Cloudflare connector:
 - **Database:** D1 `rtd-app` created in Western Europe (id `6c948ad3-0311-459b-895d-facb14d5697d`, now in `wrangler.jsonc`).
-- **Schema:** `0001_foundation.sql`, `0002_event_images.sql`, `0003_host_sessions.sql`, `0004_host_session_frequency.sql`, `0005_host_session_access.sql`, `0006_host_publishing.sql`, `0007_onboarding.sql`, `0008_bookings.sql`, `0009_push.sql`, `0010_resubmit.sql`, `0011_cafe_bookings.sql`, `0012_places_privacy.sql` and `0013_markets.sql` applied and recorded in `d1_migrations`, so `wrangler d1 migrations apply` will skip them. All tables, indexes and both audit triggers are present.
+- **Schema:** `0001_foundation.sql`, `0002_event_images.sql`, `0003_host_sessions.sql`, `0004_host_session_frequency.sql`, `0005_host_session_access.sql`, `0006_host_publishing.sql`, `0007_onboarding.sql`, `0008_bookings.sql`, `0009_push.sql`, `0010_resubmit.sql`, `0011_cafe_bookings.sql`, `0012_places_privacy.sql`, `0013_markets.sql` and `0014_event_alerts.sql` applied and recorded in `d1_migrations`, so `wrangler d1 migrations apply` will skip them. All tables, indexes and both audit triggers are present.
 - **First admin:** Dan's account added (role `admin`).
 - **Privacy contact:** `privacy_contact_email` set in `settings` (live only, not in the repo).
-- **Cron Trigger:** daily at 03:23 UTC, from `wrangler.jsonc`. It deploys with the code, so there's nothing to set up.
+- **Cron Trigger:** every minute, from `wrangler.jsonc` (event reminders; erasing old details at 03:23 UTC). It deploys with the code, so there's nothing to set up.
+- **`APP_ORIGIN`** (`wrangler.jsonc` vars): the app's own address, for push messages sent from the Cron Trigger. Change it if the app moves to a new domain.
 
 The connector can't deploy code, set secrets or configure Access, so three dashboard steps remain.
 

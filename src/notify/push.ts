@@ -193,30 +193,39 @@ export interface PushContext {
 /** After this many failures in a row, a device is dropped. */
 const MAX_FAILURES = 5;
 
+/**
+ * One message to one device, encrypted for it and signed with the app's key.
+ * Returns the push service's status (0 if it couldn't be reached).
+ */
+export async function sendPush(
+  s: Subscription,
+  message: PushMessage,
+  keys: VapidKeys,
+  ctx: PushContext,
+  opts: { ttlSeconds?: number; urgency?: 'normal' | 'high'; authorization?: string } = {},
+): Promise<number> {
+  try {
+    const res = await fetch(s.endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: opts.authorization ?? (await vapidHeader(s.endpoint, keys, ctx.subject, ctx.now)),
+        'Content-Encoding': 'aes128gcm',
+        'Content-Type': 'application/octet-stream',
+        TTL: String(opts.ttlSeconds ?? 86400),
+        Urgency: opts.urgency ?? 'high',
+      },
+      body: await encryptForSubscription(enc.encode(JSON.stringify(message)), s.p256dh, s.auth),
+    });
+    return res.status;
+  } catch {
+    return 0;
+  }
+}
+
 async function deliver(db: D1Database, subs: Subscription[], message: PushMessage, ctx: PushContext): Promise<{ sent: number; failed: number }> {
   if (!subs.length) return { sent: 0, failed: 0 };
   const keys = await vapidKeys(db);
-  const payload = enc.encode(JSON.stringify(message));
-  const statuses = await Promise.all(
-    subs.map(async s => {
-      try {
-        const res = await fetch(s.endpoint, {
-          method: 'POST',
-          headers: {
-            Authorization: await vapidHeader(s.endpoint, keys, ctx.subject, ctx.now),
-            'Content-Encoding': 'aes128gcm',
-            'Content-Type': 'application/octet-stream',
-            TTL: '86400',
-            Urgency: 'high',
-          },
-          body: await encryptForSubscription(payload, s.p256dh, s.auth),
-        });
-        return res.status;
-      } catch {
-        return 0;
-      }
-    }),
-  );
+  const statuses = await Promise.all(subs.map(s => sendPush(s, message, keys, ctx)));
   const now = ctx.now.toISOString();
   const updates = statuses.flatMap((status, i) => {
     const endpoint = subs[i]!.endpoint;

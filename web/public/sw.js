@@ -67,9 +67,9 @@ self.addEventListener('fetch', event => {
   }
 });
 
-// ---------- Push notifications for approvers (docs/RTD_PUSH.md) ----------
+// ---------- Push notifications: approvers (docs/RTD_PUSH.md) and event alerts (docs/RTD_ALERTS.md) ----------
 // The browser decrypts each message before this runs. Tapping one opens the
-// organiser at the right place; only ever one of our own pages.
+// right page (the organiser, or the event); only ever one of our own pages.
 
 self.addEventListener('push', event => {
   let data = {};
@@ -106,22 +106,25 @@ self.addEventListener('notificationclick', event => {
   );
 });
 
-// Browsers occasionally renew a subscription: send the new one to the app.
+// Browsers occasionally renew a subscription: send the new one to the app, for
+// event alerts (docs/RTD_ALERTS.md) and, if an approver is signed in, their notifications.
 self.addEventListener('pushsubscriptionchange', event => {
   event.waitUntil(
     (async () => {
-      const res = await fetch('/api/staff/push/key', { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+      const res = await fetch('/api/alerts/key', { credentials: 'same-origin', headers: { Accept: 'application/json' } });
       if (!res.ok) return;
       const { public_key } = await res.json();
       const b64 = public_key.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((public_key.length + 3) % 4);
       const key = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-      const sub = await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
-      await fetch('/api/staff/push/subscribe', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sub),
-      });
+      const sub = event.newSubscription || (await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }));
+      const post = (path, body) =>
+        fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(
+          () => undefined,
+        );
+      await Promise.all([
+        event.oldSubscription ? post('/api/alerts/renew', { old_endpoint: event.oldSubscription.endpoint, subscription: sub }) : undefined,
+        post('/api/staff/push/subscribe', sub),
+      ]);
     })().catch(() => undefined),
   );
 });

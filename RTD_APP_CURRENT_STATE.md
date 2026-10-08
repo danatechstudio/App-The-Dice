@@ -1,6 +1,6 @@
 # RTD App: Current State
 
-_Last updated: 2026-10-06_
+_Last updated: 2026-10-08_
 
 ## Live
 - **Logic Engine:** every event row now has a permanent `Event ID`, plus `App Visibility` and `App Category` (backup taken first).
@@ -75,6 +75,7 @@ _Last updated: 2026-10-06_
 - **The café's info@:** a copy of every booking and cancellation, the numbers two days before each booked café event, and a warning if a booked date leaves the sheet. Customers' replies go there.
 - **Places (2026-10-07):** hosts change their own live sessions' places; approvers set café events' places under **Places for café events**, or any single date's. Never below what's booked.
 - **Markets (2026-10-08):** admins set up markets; vendors apply at `/markets` (with photos); approvers approve or decline; approved vendors get the fee and payment details; everything is in the RTD Market Vendors spreadsheet. See [docs/RTD_MARKETS.md](docs/RTD_MARKETS.md).
+- **Event alerts (2026-10-08):** anyone turns on **Get event alerts** (home page or any event page). Admins send a reminder about an event from the organiser (**Event reminders**), which also posts on the café's Facebook page; a second one within 24 hours needs confirming. The app also sends one at 8pm about a random event in the next three days, at most every 48 hours. See [docs/RTD_ALERTS.md](docs/RTD_ALERTS.md).
 - **Privacy (2026-10-07):** notice at `/privacy`; booking details erased 12 months after the event. See [docs/RTD_PRIVACY.md](docs/RTD_PRIVACY.md).
 - **Hosts:**
   - **Emails:** one for every booking and cancellation, and the numbers two days before each date.
@@ -82,7 +83,7 @@ _Last updated: 2026-10-06_
 - **Approvers:** **Bookings coming up** shows three weeks of hosted dates and booked café events, with contact details. They can cancel any of those dates, and everyone booked is emailed.
 - **Emails:** n8n **RTD Outbox** (every 5 minutes, live) sends what the app queues.
 - **Tested:**
-  - **Automated:** 248 tests.
+  - **Automated:** 270 tests.
   - **Screens:** checked at 320, 375 and 1280px.
   - **Workflows:** live and simulated n8n runs.
   - **Not yet:** a real booking, and a real cancelled date changing the sheet.

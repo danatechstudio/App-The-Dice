@@ -131,12 +131,16 @@ describe('erasing details that are no longer needed', () => {
     for (const personal of ['ava@example.com', 'nina@example.com', 'Nina', 'Catan']) expect(everything).not.toContain(personal);
   });
 
-  it('runs every day from the Cron Trigger', async () => {
+  it('runs every day at 03:23 UTC from the every-minute Cron Trigger', async () => {
     expect((await book(QUIZ, 'ava@example.com')).status).toBe(201);
-    vi.setSystemTime(new Date('2027-11-01T03:23:00Z'));
-    const ctx = createExecutionContext();
-    await worker.scheduled!({ scheduledTime: Date.now(), cron: '23 3 * * *', noRetry: () => {} } as ScheduledController, env, ctx);
-    await waitOnExecutionContext(ctx);
-    expect(await env.DB.prepare('SELECT lead_name FROM bookings').first()).toEqual({ lead_name: 'Erased' });
+    const run = async (iso: string) => {
+      vi.setSystemTime(new Date(iso));
+      const ctx = createExecutionContext();
+      await worker.scheduled!({ scheduledTime: Date.now(), cron: '* * * * *', noRetry: () => {} } as ScheduledController, env, ctx);
+      await waitOnExecutionContext(ctx);
+      return (await env.DB.prepare('SELECT lead_name FROM bookings').first<{ lead_name: string }>())!.lead_name;
+    };
+    expect(await run('2027-11-01T03:22:00Z')).toBe('Ava Player');
+    expect(await run('2027-11-01T03:23:00Z')).toBe('Erased');
   });
 });

@@ -648,6 +648,62 @@
   max-width: 640px;
 }
 
+/* ---------- Event reminders (admins) ---------- */
+
+.reminder-form {
+  display: grid;
+  gap: var(--rtd-space-3);
+  margin-bottom: var(--rtd-space-4);
+  border-left: 5px solid var(--rtd-secondary);
+}
+
+.notification-preview {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--rtd-space-3);
+  max-width: 420px;
+  padding: var(--rtd-space-3);
+  border: 1px solid var(--rtd-border);
+  border-radius: 14px;
+  background: var(--rtd-surface-elevated);
+  box-shadow: var(--rtd-card-shadow);
+}
+
+.notification-preview img {
+  border-radius: 8px;
+}
+
+.notification-preview strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.notification-preview p {
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+.recent-reminders {
+  margin-top: var(--rtd-space-4);
+}
+
+.recent-reminders summary {
+  cursor: pointer;
+  font-weight: 700;
+  padding: var(--rtd-space-2) 0;
+}
+
+.recent-reminder {
+  display: grid;
+  gap: 4px;
+}
+
+.recent-reminder__social {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* ---------- Push notifications (approvers) ---------- */
 
 .push-card {

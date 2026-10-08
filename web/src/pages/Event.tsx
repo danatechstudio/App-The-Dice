@@ -1,5 +1,6 @@
 import { CalendarDays, CalendarPlus, ChevronDown, ChevronLeft, Clock, Info, MapPin, PoundSterling, Share2, TriangleAlert, UsersRound } from 'lucide-preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { AlertsInline } from '../components/Alerts';
 import { BookingPanel } from '../components/BookingPanel';
 import { MarketVendorPanel } from './Markets';
 import { Chip, ChipRow, occurrenceChips } from '../components/Chips';
@@ -165,6 +166,7 @@ function EventDetail({ o, others, images }: { o: Occurrence; others: Occurrence[
                 <Share2 size={18} aria-hidden="true" /> Share
               </button>
             </div>
+            <AlertsInline />
             {others.length > 0 && (
               <div class="stack" style={{ '--gap': '8px' }}>
                 <h2 class="label">Other dates</h2>

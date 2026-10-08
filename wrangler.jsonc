@@ -32,12 +32,16 @@
       "id": "0a23bcba51b84a749f7c64935fa53335"
     }
   ],
-  // Daily at 03:23 UTC: erase people's details once they're no longer needed (docs/RTD_PRIVACY.md).
-  "triggers": { "crons": ["23 3 * * *"] },
+  // Every minute: send queued event reminders, and the 8pm automatic one (docs/RTD_ALERTS.md).
+  // The same run erases people's details at 03:23 UTC (docs/RTD_PRIVACY.md). One trigger,
+  // because the free plan allows only a few per account.
+  "triggers": { "crons": ["* * * * *"] },
   "vars": {
     "ENVIRONMENT": "production",
     // Calendar files use this as the event location. Add the street address when confirmed.
     "VENUE_LOCATION": "Roll The Dice Board Game Café, Cleethorpes",
+    // The app's address, for push messages sent outside a request (the Cron Trigger).
+    "APP_ORIGIN": "https://rtd-app.dan-289.workers.dev",
     // Cloudflare Access team domain and the Access application's AUD tag (docs/RTD_DEPLOYMENT.md).
     "ACCESS_TEAM_DOMAIN": "https://solitary-thunder-9de0.cloudflareaccess.com",
     // Access application "RTD Staff" protecting rtd-app.dan-289.workers.dev/api/staff

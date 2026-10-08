@@ -68,6 +68,13 @@ export function Privacy() {
             note. We use them to decide on your application, to email you the result (and, if you're approved, how to pay), and to arrange the market.
             That's in our legitimate interest, and needed to give you a pitch.
           </p>
+          <h3>If you turn on event alerts</h3>
+          <p>
+            Your browser gives us an address to send notifications to, which works only for that browser on that device, and what we need to lock them so only
+            your device can read them. It doesn't tell us who you are. We use it only to send you reminders about events at the café, because you asked us to,
+            and you can turn them off at any time (on the home page). When you turn them on, we also keep a scrambled code made from your network address for 2
+            days, to stop the button being misused.
+          </p>
           <h3>On your device</h3>
           <p>
             The app remembers a few choices in your browser, like your diary filters, reduced motion, and whether you've closed the install message. They stay on
@@ -88,12 +95,19 @@ export function Privacy() {
               <strong>Market applications</strong> are seen only by the café team, photos included. They're also kept in the café's market list.
             </li>
             <li>
+              <strong>Event alerts</strong> travel through your browser's own notification service (Google for Chrome and Android, Apple for Safari and iPhone,
+              Mozilla for Firefox, Microsoft for Edge on Windows). They're locked so that only your device can read them.
+            </li>
+            <li>
               <strong>The people and companies who run the app for us:</strong> our app developer, who builds and looks after the app and its emails; Cloudflare
               (hosting and storage); and Google (the app's emails are sent through Gmail). They only use your details to do that work for us. Some of it may be
               handled outside the UK, under the safeguards UK law requires.
             </li>
           </ul>
-          <p>We never sell your details, and we don't use them for marketing.</p>
+          <p>
+            We never sell your details, and we don't use your booking or application details for marketing. The only reminders we send are event alerts, and
+            only if you turn them on.
+          </p>
           <p>
             Event pages show the café's own photos of past events. If you're in one and would like it taken down, let us know.
           </p>
@@ -119,6 +133,10 @@ export function Privacy() {
             <li>
               <strong>Market applications</strong> are erased 12 months after the market, photos included, and cleared from the café's market list at the
               same time.
+            </li>
+            <li>
+              <strong>Event alerts:</strong> the notification address is deleted when you turn alerts off, or as soon as your browser tells us it no longer works
+              (for example, after you remove the app).
             </li>
             <li>
               <strong>Hosts:</strong> we keep your details while you host with us. If you stop, ask us and we'll delete them. We keep a record of decisions made in the

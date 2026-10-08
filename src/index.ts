@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { readImage } from './images/store';
 import { applyRetention } from './lib/privacy';
+import { autoReminder, drain } from './notify/alerts';
+import { alertRoutes } from './routes/alerts';
 import { bookingRoutes } from './routes/bookings';
 import { hostRoutes } from './routes/host';
 import { internalRoutes } from './routes/internal';
@@ -51,6 +53,7 @@ app.get('/api/staff/sign-in', c => {
 
 app.route('/api/bookings', bookingRoutes);
 app.route('/api/markets', marketRoutes);
+app.route('/api/alerts', alertRoutes);
 app.route('/api', publicRoutes);
 app.route('/api/staff', staffRoutes);
 app.route('/api/host', hostRoutes);
@@ -70,12 +73,25 @@ app.onError((err, c) => {
   return c.json({ error: 'Something went wrong' }, 500);
 });
 
+/** Every minute: queue the 8pm automatic reminder when it's due, then send a batch of queued ones. */
+async function eventAlerts(env: Env, now: Date) {
+  const auto = await autoReminder(env.DB, now);
+  if (auto) console.log('alerts: automatic reminder', JSON.stringify(auto));
+  const sent = await drain(env.DB, { subject: env.APP_ORIGIN, now });
+  if (sent.sent || sent.failed) console.log('alerts: sent', JSON.stringify(sent));
+}
+
 export default {
   fetch: app.fetch,
-  /** Daily (wrangler.jsonc triggers): erase people's details once they're no longer needed (docs/RTD_PRIVACY.md). */
+  /**
+   * One Cron Trigger, every minute (wrangler.jsonc): event alerts (docs/RTD_ALERTS.md),
+   * and at 03:23 UTC, erasing people's details once they're no longer needed (docs/RTD_PRIVACY.md).
+   */
   async scheduled(controller, env, ctx) {
-    ctx.waitUntil(
-      applyRetention(env.DB, new Date(controller.scheduledTime), env.IMAGES).then(erased => console.log('retention', JSON.stringify(erased))),
-    );
+    const now = new Date(controller.scheduledTime);
+    ctx.waitUntil(eventAlerts(env, now).catch(err => console.error('alerts failed:', err)));
+    if (now.getUTCHours() === 3 && now.getUTCMinutes() === 23) {
+      ctx.waitUntil(applyRetention(env.DB, now, env.IMAGES).then(erased => console.log('retention', JSON.stringify(erased))));
+    }
   },
 } satisfies ExportedHandler<Env>;

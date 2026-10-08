@@ -64,7 +64,7 @@ export async function applyRetention(db: D1Database, now: Date, kv?: KVNamespace
   const bookingsBefore = monthsBefore(londonDate(now), months);
   const requestsBefore = `${monthsBefore(londonDate(now), DEFAULT_RETENTION_MONTHS)}T00:00:00Z`;
   const hashesBefore = new Date(now.getTime() - KEEP_NETWORK_HASH_DAYS * 86_400_000).toISOString();
-  const [bookings, hashes, vendorHashes, requests] = await db.batch([
+  const [bookings, hashes, vendorHashes, requests, alertHashes, staleDeliveries] = await db.batch([
     db
       .prepare(
         `UPDATE bookings SET lead_name = 'Erased', email = 'erased-' || booking_id, mobile = NULL, notes = NULL, ip_hash = NULL,
@@ -81,11 +81,17 @@ export async function applyRetention(db: D1Database, now: Date, kv?: KVNamespace
          WHERE erased_at IS NULL AND status IN ('declined', 'withdrawn') AND COALESCE(decided_at, updated_at) < ?1`,
       )
       .bind(requestsBefore, stamp),
+    db.prepare('UPDATE alert_subscriptions SET ip_hash = NULL WHERE ip_hash IS NOT NULL AND created_at < ?1').bind(hashesBefore),
+    // A reminder still unsent after a day is out of date (src/notify/alerts.ts).
+    db
+      .prepare('DELETE FROM push_deliveries WHERE send_id IN (SELECT send_id FROM push_sends WHERE created_at < ?1)')
+      .bind(new Date(now.getTime() - 86_400_000).toISOString()),
   ]);
+  if (staleDeliveries!.meta.changes) console.warn('alerts: dropped', staleDeliveries!.meta.changes, 'reminders unsent after a day');
   const vendors = await eraseMarketApplications(db, kv, monthsBefore(londonDate(now), DEFAULT_RETENTION_MONTHS), stamp);
   return {
     bookings: bookings!.meta.changes,
-    network_hashes: hashes!.meta.changes + vendorHashes!.meta.changes,
+    network_hashes: hashes!.meta.changes + vendorHashes!.meta.changes + alertHashes!.meta.changes,
     requests: requests!.meta.changes,
     vendors,
   };

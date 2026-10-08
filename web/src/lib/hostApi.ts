@@ -132,7 +132,7 @@ export interface HostRecord {
 
 export type ApiResult<T> =
   | { ok: true; data: T }
-  | { ok: false; kind: 'signed-out' | 'not-host' | 'invalid' | 'error'; error: string; errors?: Record<string, string>; reason?: string };
+  | { ok: false; kind: 'signed-out' | 'not-host' | 'invalid' | 'error'; error: string; errors?: Record<string, string>; reason?: string; status?: number; body?: unknown };
 
 /** Where the "Sign in" button goes: a path Cloudflare Access guards, which sends people back to /organise. */
 export const SIGN_IN_URL = '/api/staff/sign-in';
@@ -155,6 +155,6 @@ export async function hostApi<T>(path: string, body?: unknown): Promise<ApiResul
   if (res.status === 401) return { ok: false, kind: 'signed-out', error: 'Please sign in again.', reason: data.reason };
   if (res.status === 403) return { ok: false, kind: 'not-host', error: data.error ?? 'Not allowed' };
   if (res.status === 400 || (res.status === 409 && data.errors)) return { ok: false, kind: 'invalid', error: data.error ?? 'Please check the form', errors: data.errors };
-  if (!res.ok) return { ok: false, kind: 'error', error: data.error ?? `Something went wrong (${res.status})` };
+  if (!res.ok) return { ok: false, kind: 'error', error: data.error ?? `Something went wrong (${res.status})`, status: res.status, body: data };
   return { ok: true, data: data as T };
 }

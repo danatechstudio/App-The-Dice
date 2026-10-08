@@ -5,29 +5,16 @@
 
 import { Bell, BellOff, Send } from 'lucide-preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
+import { alertsOn } from '../lib/alerts';
 import { hostApi } from '../lib/hostApi';
+import { currentSubscription, permission as currentPermission, pushSupport, subscription } from '../lib/push';
 import { toast } from '../lib/toast';
 
-type Support = 'ok' | 'ios-install' | 'unsupported';
 type Device = { endpoint: string; device_label: string | null };
 
-function support(): Support {
-  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const standalone = matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
-  const capable = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
-  if (ios && !standalone) return 'ios-install';
-  return capable ? 'ok' : 'unsupported';
-}
-
-const keyBytes = (b64: string) => Uint8Array.from(atob(b64.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((b64.length + 3) % 4)), c => c.charCodeAt(0));
-
-async function registration(): Promise<ServiceWorkerRegistration> {
-  return (await navigator.serviceWorker.getRegistration()) ?? (await navigator.serviceWorker.register('/sw.js'));
-}
-
 export function PushCard() {
-  const [can] = useState(support);
-  const [permission, setPermission] = useState(() => ('Notification' in window ? Notification.permission : 'default'));
+  const [can] = useState(pushSupport);
+  const [permission, setPermission] = useState(currentPermission);
   const [endpoint, setEndpoint] = useState<string | null>(null);
   const [devices, setDevices] = useState<Device[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -35,7 +22,7 @@ export function PushCard() {
   const load = useCallback(async () => {
     const res = await hostApi<{ devices: Device[] }>('/api/staff/push/devices');
     if (res.ok) setDevices(res.data.devices);
-    if (can === 'ok') setEndpoint((await (await registration()).pushManager.getSubscription())?.endpoint ?? null);
+    if (can === 'ok') setEndpoint((await currentSubscription())?.endpoint ?? null);
   }, [can]);
   useEffect(() => void load(), [load]);
 
@@ -51,9 +38,7 @@ export function PushCard() {
       if (result !== 'granted') return;
       const key = await hostApi<{ public_key: string }>('/api/staff/push/key');
       if (!key.ok) return toast(key.error);
-      await navigator.serviceWorker.ready;
-      const reg = await registration();
-      const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key.data.public_key) }));
+      const sub = await subscription(key.data.public_key);
       const res = await hostApi('/api/staff/push/subscribe', sub.toJSON());
       toast(res.ok ? 'Notifications are on for this device.' : res.error);
       await load();
@@ -66,10 +51,11 @@ export function PushCard() {
 
   const turnOff = async () => {
     setBusy(true);
-    const sub = await (await registration()).pushManager.getSubscription();
+    const sub = await currentSubscription();
     if (sub) {
       await hostApi('/api/staff/push/unsubscribe', { endpoint: sub.endpoint });
-      await sub.unsubscribe().catch(() => undefined);
+      // Event alerts use the same subscription: keep it if they're on.
+      if (!(await alertsOn(sub.endpoint))) await sub.unsubscribe().catch(() => undefined);
     }
     setBusy(false);
     toast('Notifications are off for this device.');
