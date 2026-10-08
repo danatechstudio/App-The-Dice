@@ -4,6 +4,18 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### 2026-10-08 (later): event reminders on Facebook
+
+Dan's request: admins send a push reminder about an event whenever they like, and "this should also trigger a social post at the same time". Dan chose Facebook, with the same text and the event's photo. See [RTD_ALERTS.md](RTD_ALERTS.md).
+
+| Workflow | Change | New active version | Roll back to |
+| --- | --- | --- | --- |
+| **New:** RTD Event Reminders To Facebook (`2BLoRwo7Fvtdu2ya`) | See [below](#rtd-event-reminders-to-facebook-2blorwo7fvtdu2ya). Published **after** the app change. | `12a8096a-81b0-4d3f-a2ed-cfe1b1f23d08` | Unpublish it (reminders still reach phones; posts wait as `pending`) |
+
+**Checked:**
+- **Live run** (`26137`): the app answered with nothing to post.
+- **Not yet tested:** a real post to Facebook. It happens with the first admin reminder that has **Post on Facebook too?** set to **Yes**. If Buffer refuses it, admins see the reason under **Latest reminders**, and nothing is retried.
+
 ### 2026-10-08: markets (vendors apply for pitches)
 
 Dan's request: admins set up market events; vendors apply in the app; every detail goes in a special spreadsheet; approvals go to the usual approvers; approved vendors are emailed confirmation and payment details. See [RTD_MARKETS.md](RTD_MARKETS.md).
@@ -352,6 +364,22 @@ Keeps the **RTD Market Vendors** spreadsheet in step with the app's market appli
 - **Credentials:** `rtd-app` and `ATECHGoogleSheets`.
 - **Errors:** every step retries 3 times; failures go to `Studio: Error Handler`.
 - **Live since 2026-10-08 09:30** (published).
+
+## RTD Event Reminders To Facebook (`2BLoRwo7Fvtdu2ya`)
+
+Posts each admin's event reminder on the café's Facebook page ([RTD_ALERTS.md](RTD_ALERTS.md#how-it-works)).
+
+- **Triggers:** every minute (Europe/London), plus **Run By Hand**. Successful runs aren't saved, so the list of runs isn't flooded; failed ones are.
+- **Steps:**
+  1. Read `RTD_APP_BASE_URL` from `rtd_config`.
+  2. `GET /internal/social-posts`: up to 5 reminders waiting for their post. Usually none, and the run stops there.
+  3. **Posts To Send:** one Buffer request each: `createPost` to the café's Facebook channel (`6a4034035ab6d2f1067c890a`), shared now, as a Facebook post. With a photo when the event has one (the app's `/images/<id>` address).
+  4. **Post To Facebook Via Buffer:** `POST https://api.buffer.com`. Tried twice; a failure carries on to the next step rather than stopping.
+  5. **Posted?** Buffer gave a post ID → `POST /internal/social-posts/:id/done` with it. Otherwise → `POST /internal/social-posts/:id/failed` with Buffer's reason, which admins see under **Latest reminders**.
+- **Not retried:** a failed post stays failed, so a broken post is never repeated every minute.
+- **Credentials:** `rtd-app` and `RTD Buffer`.
+- **Errors:** the app calls retry 3 times; failures go to `Studio: Error Handler`.
+- **Live since 2026-10-08 13:10** (published).
 
 ## Spec §46 workflow map
 
