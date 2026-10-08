@@ -152,10 +152,11 @@ export async function setEventPlaces(
   ctx: { now: string; today: string },
 ): Promise<{ ok: true; capacity: number | null } | Fail> {
   const e = await db
-    .prepare('SELECT event_id, host_session_id, default_capacity, capacity_override FROM events WHERE event_id = ?1 AND active = 1')
+    .prepare('SELECT event_id, host_session_id, market_id, default_capacity, capacity_override FROM events WHERE event_id = ?1 AND active = 1')
     .bind(eventId)
-    .first<{ event_id: string; host_session_id: string | null; default_capacity: number | null; capacity_override: number | null }>();
+    .first<{ event_id: string; host_session_id: string | null; market_id: string | null; default_capacity: number | null; capacity_override: number | null }>();
   if (!e) return { ok: false, status: 404, error: 'No event with that ID.' };
+  if (e.market_id) return { ok: false, status: 409, error: 'Customers don\'t book markets set up in the app. Change its pitches under Markets.' };
   if (e.host_session_id) {
     return { ok: false, status: 409, error: "This is a host's session, so the host sets its places. You can change a single date under Bookings coming up." };
   }
@@ -199,7 +200,7 @@ export async function cafeEventPlaces(db: D1Database, today: string): Promise<Ev
          MIN(o.event_date) AS next_date, MAX(${BOOKED}) AS most_booked,
          SUM(CASE WHEN o.capacity IS NOT NULL THEN 1 ELSE 0 END) AS dates_with_own_places
        FROM events e JOIN occurrences o ON o.event_id = e.event_id AND o.status = 'scheduled' AND o.event_date >= ?1
-       WHERE e.active = 1 AND e.host_session_id IS NULL AND e.visibility IN ('public', 'app_bookable')
+       WHERE e.active = 1 AND e.host_session_id IS NULL AND e.market_id IS NULL AND e.visibility IN ('public', 'app_bookable')
        GROUP BY e.event_id
        ORDER BY next_date, name LIMIT 100`,
     )

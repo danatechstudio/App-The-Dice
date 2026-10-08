@@ -46,6 +46,8 @@ interface SlotRow extends Slot {
   status: string;
   /** Set for a host's session; null for the café's own events. */
   host_session_id: string | null;
+  /** A market set up in the organiser: vendors apply, customers don't book. */
+  market_id: string | null;
   host_user_id: string | null;
   host_email: string | null;
   host_active: number | null;
@@ -58,7 +60,7 @@ interface SlotRow extends Slot {
 const SLOT_SQL = `
   SELECT o.occurrence_id, o.event_id, o.event_date, o.start_time, o.end_time, o.starts_at, o.status,
     e.display_name AS name, e.source, e.frequency, COALESCE(o.price_display, e.price_display) AS price_display,
-    ${CAPACITY} AS capacity, e.host_session_id,
+    ${CAPACITY} AS capacity, e.host_session_id, e.market_id,
     h.host_user_id, h.access, u.email AS host_email, u.display_name AS host_name, u.active AS host_active,
     CASE WHEN ${VISIBLE} THEN 1 ELSE 0 END AS visible,
     (SELECT COALESCE(SUM(b.party_size), 0) FROM bookings b WHERE b.occurrence_id = o.occurrence_id AND b.status = 'confirmed') AS booked
@@ -103,7 +105,7 @@ export type Availability =
 function availabilityOf(s: SlotRow | null, now: string): Availability {
   // Every public event can be booked (private and hidden ones never reach here).
   // A host's session also needs to be open, with its size set.
-  if (!s || !s.visible) return { bookable: false };
+  if (!s || !s.visible || s.market_id) return { bookable: false };
   if (hosted(s) && (s.access !== 'open' || !s.capacity)) return { bookable: false };
   const left = s.capacity ? Math.max(0, s.capacity - s.booked) : null;
   const base = { bookable: true as const, capacity: s.capacity || null, places_left: left, max_party: left === null ? MAX_PARTY : Math.min(left, MAX_PARTY) };
@@ -120,9 +122,9 @@ export async function availability(db: D1Database, occurrenceId: string, now: st
 // ---- Booking ----
 
 // Plain addresses only: no commas, semicolons or angle brackets that a mail header could read as extra recipients.
-const EMAIL = /^[a-z0-9._%+'-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/;
-const MOBILE = /^\+?[0-9][0-9 ()-]{6,19}$/;
-const clean = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max + 1) : '');
+export const EMAIL = /^[a-z0-9._%+'-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/;
+export const MOBILE = /^\+?[0-9][0-9 ()-]{6,19}$/;
+export const clean = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max + 1) : '');
 
 export interface BookingInput {
   occurrence_id: string;

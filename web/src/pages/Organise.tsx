@@ -7,6 +7,8 @@ import { SIGN_IN_URL, hostApi, type Access, type Frequency, type HostRecord, typ
 import { toast } from '../lib/toast';
 import { HostedDatesPanel, SessionDates } from './OrganiseDates';
 import { EventPlacesPanel, SessionPlaces } from './OrganisePlaces';
+import { MarketApplicationsPanel, MarketsAdmin } from './OrganiseMarkets';
+import type { StaffMarket } from '../lib/markets';
 import { PushCard } from './OrganisePush';
 import { ApproversPanel, JoinRequests, JoinScreen, removeAccess, setApprover } from './OrganiseTeam';
 import { useTitle } from '../lib/title';
@@ -493,14 +495,17 @@ function SessionForm({ again, onDone }: { again?: HostSession; onDone: (created:
 function StaffDesk({ onDecided, me, isAdmin }: { onDecided: () => void; me: HostUser; isAdmin: boolean }) {
   const [pending, setPending] = useState<HostSession[] | null>(null);
   const [hosts, setHosts] = useState<HostRecord[] | null>(null);
+  const [markets, setMarkets] = useState<StaffMarket[] | null>(null);
   const [refresh, setRefresh] = useState(0);
   const load = useCallback(async () => {
-    const [p, h] = await Promise.all([
+    const [p, h, m] = await Promise.all([
       hostApi<{ sessions: HostSession[] }>('/api/staff/host-sessions?status=submitted'),
       hostApi<{ hosts: HostRecord[] }>('/api/staff/hosts'),
+      hostApi<{ markets: StaffMarket[] }>('/api/staff/markets'),
     ]);
     if (p.ok) setPending(p.data.sessions.slice().reverse());
     if (h.ok) setHosts(h.data.hosts);
+    if (m.ok) setMarkets(m.data.markets);
   }, []);
   useEffect(() => void load(), [load]);
 
@@ -527,8 +532,10 @@ function StaffDesk({ onDecided, me, isAdmin }: { onDecided: () => void; me: Host
           ))}
         </div>
       </section>
+      <MarketApplicationsPanel markets={markets} refresh={refresh} onChanged={load} />
       <HostedDatesPanel refresh={refresh} />
       <EventPlacesPanel refresh={refresh} />
+      {isAdmin && <MarketsAdmin markets={markets} onChanged={load} />}
       <HostsPanel hosts={hosts} isAdmin={isAdmin} onChanged={() => (load(), setRefresh(n => n + 1))} />
       {isAdmin && <ApproversPanel me={me} refresh={refresh} />}
     </div>

@@ -132,7 +132,7 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
     db.prepare(
       `SELECT event_id, source, source_row, event_name, display_name, category, description, frequency, repeatable,
               requires_redating, visibility, sheet_status, active, photo_folder_id, price_display, default_capacity,
-              host_session_id, source_hash FROM events`,
+              host_session_id, market_id, source_hash FROM events`,
     ),
     db
       .prepare(
@@ -167,10 +167,10 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
         .prepare(
           `INSERT INTO events (event_id, source, source_row, event_name, display_name, category, description, frequency,
              repeatable, requires_redating, visibility, sheet_status, active, photo_folder_id, price_display,
-             default_capacity, host_session_id, source_hash, last_synced_at, created_at, updated_at)
+             default_capacity, host_session_id, market_id, source_hash, last_synced_at, created_at, updated_at)
            SELECT ${['event_id', 'source', 'source_row', 'event_name', 'display_name', 'category', 'description', 'frequency',
              'repeatable', 'requires_redating', 'visibility', 'sheet_status', 'active', 'photo_folder_id', 'price_display',
-             'default_capacity', 'host_session_id', 'source_hash'].map(j).join(', ')},
+             'default_capacity', 'host_session_id', 'market_id', 'source_hash'].map(j).join(', ')},
              ?2, ?2, ?2
            FROM json_each(?1) WHERE true
            ON CONFLICT (event_id) DO UPDATE SET
@@ -181,7 +181,7 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
              photo_folder_id = excluded.photo_folder_id, price_display = excluded.price_display,
              -- Places set in the organiser stand until App Capacity changes in the sheet: the last change wins.
              capacity_override = CASE WHEN events.default_capacity IS excluded.default_capacity THEN events.capacity_override END,
-             default_capacity = excluded.default_capacity, host_session_id = excluded.host_session_id,
+             default_capacity = excluded.default_capacity, host_session_id = excluded.host_session_id, market_id = excluded.market_id,
              updated_at = CASE WHEN events.source_hash IS excluded.source_hash THEN events.updated_at ELSE excluded.updated_at END,
              source_hash = excluded.source_hash, last_synced_at = excluded.last_synced_at`,
         )
@@ -248,6 +248,17 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
          FROM events AS e
          WHERE e.host_session_id = host_sessions.session_id
            AND (host_sessions.event_id IS NOT e.event_id OR host_sessions.status = 'approved')`,
+      )
+      .bind(now),
+  );
+  // Markets likewise (docs/RTD_MARKETS.md).
+  writes.push(
+    db
+      .prepare(
+        `UPDATE markets SET event_id = e.event_id, status = 'published',
+           published_at = COALESCE(markets.published_at, ?1), updated_at = ?1
+         FROM events AS e
+         WHERE e.market_id = markets.market_id AND (markets.event_id IS NOT e.event_id OR markets.status = 'scheduled')`,
       )
       .bind(now),
   );

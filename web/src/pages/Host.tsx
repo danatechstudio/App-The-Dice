@@ -46,6 +46,15 @@ export function Host() {
         </a>
       </div>
       <div class="section card card--pad cluster" style={{ justifyContent: 'space-between' }}>
+        <div>
+          <h2 class="display" style={{ fontSize: 'var(--rtd-size-h3)' }}>Sell at a market?</h2>
+          <p class="meta">Makers and traders can apply for a pitch at our markets.</p>
+        </div>
+        <a class="btn btn--secondary" href="/markets">
+          See the markets
+        </a>
+      </div>
+      <div class="section card card--pad cluster" style={{ justifyContent: 'space-between' }}>
         <p>
           <strong>Already a host, or on the café team?</strong> Plan sessions and approvals in the organiser.
         </p>

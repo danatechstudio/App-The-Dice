@@ -31,6 +31,8 @@ export interface NormalisedEvent {
   default_capacity: number | null;
   /** Event Index "App Host Session": the organiser session this row came from. */
   host_session_id: string | null;
+  /** The same column holds RTD-MKT-… for a market set up in the organiser (docs/RTD_MARKETS.md). */
+  market_id: string | null;
   /** The single date the Logic Engine currently holds for this event, if valid. */
   next: { date: string; start_time: string | null; end_time: string | null; all_day: boolean } | null;
 }
@@ -45,6 +47,7 @@ export interface SyncWarning {
 
 const EVENT_ID = /^RTD-EVT-\d{5,}$/;
 const HOST_SESSION_ID = /^RTD-HS-\d{5,}$/;
+const MARKET_ID = /^RTD-MKT-\d{5,}$/;
 
 const text = (v: unknown): string => String(v ?? '').trim();
 const orNull = (s: string): string | null => (s === '' ? null : s);
@@ -153,6 +156,7 @@ export function normaliseRows(
       price_display: isIndex ? orNull(text(row['App Price']).slice(0, 40)) : null,
       default_capacity: isIndex ? capacityOf(row['App Capacity']) : null,
       host_session_id: isIndex && HOST_SESSION_ID.test(text(row['App Host Session'])) ? text(row['App Host Session']) : null,
+      market_id: isIndex && MARKET_ID.test(text(row['App Host Session'])) ? text(row['App Host Session']) : null,
       next: date ? { date, start_time: start, end_time: end, all_day: start === null } : null,
     });
   }

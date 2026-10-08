@@ -30,6 +30,7 @@ export interface EventRow {
   price_display: string | null;
   default_capacity: number | null;
   host_session_id: string | null;
+  market_id: string | null;
   source_hash: string | null;
 }
 
@@ -88,7 +89,7 @@ export function occurrenceIdFor(eventId: string, date: string): string {
 const EVENT_FIELDS = [
   'event_name', 'display_name', 'category', 'description', 'frequency', 'repeatable',
   'requires_redating', 'visibility', 'sheet_status', 'active', 'photo_folder_id', 'source_row',
-  'price_display', 'default_capacity', 'host_session_id',
+  'price_display', 'default_capacity', 'host_session_id', 'market_id',
 ] as const;
 
 function cadenceDays(e: NormalisedEvent): number | null {
@@ -119,6 +120,7 @@ function toEventRow(e: NormalisedEvent & { source_hash: string }): EventRow {
     price_display: e.price_display,
     default_capacity: e.default_capacity,
     host_session_id: e.host_session_id,
+    market_id: e.market_id,
     source_hash: e.source_hash,
   };
 }

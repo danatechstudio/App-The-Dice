@@ -590,3 +590,166 @@
   gap: var(--rtd-space-2);
   padding-left: 1.25rem;
 }
+
+/* ---------- Markets (vendors) ---------- */
+
+.market-card {
+  display: grid;
+  gap: var(--rtd-space-3);
+  justify-items: start;
+}
+
+.market-page {
+  display: grid;
+  gap: var(--rtd-space-5);
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .market-page {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  }
+}
+
+.market-page__about {
+  white-space: pre-line;
+}
+
+.vendor-form h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--rtd-space-3);
+  font-size: var(--rtd-size-h3);
+}
+
+.photo-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rtd-space-2);
+  padding: 0;
+  margin: var(--rtd-space-2) 0;
+  list-style: none;
+}
+
+.photo-picks li {
+  position: relative;
+}
+
+.photo-picks img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: var(--rtd-radius-sm);
+  border: 1px solid var(--rtd-border);
+}
+
+.photo-picks li .btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 32px;
+  min-height: 32px;
+  width: 32px;
+  height: 32px;
+}
+
+.photo-picks__add {
+  cursor: pointer;
+  justify-self: start;
+}
+
+.photo-picks__add:focus-within {
+  outline: 3px solid var(--rtd-focus);
+  outline-offset: 2px;
+}
+
+/* ---------- Markets (organiser) ---------- */
+
+.market-admin {
+  display: grid;
+  gap: var(--rtd-space-2);
+}
+
+.market-form {
+  display: grid;
+  gap: var(--rtd-space-3);
+  margin-bottom: var(--rtd-space-4);
+}
+
+.market-review {
+  display: grid;
+  gap: var(--rtd-space-2);
+  margin-bottom: var(--rtd-space-5);
+}
+
+.market-review__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--rtd-size-h3);
+}
+
+.market-review__more summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--rtd-touch-target);
+  color: var(--rtd-secondary);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.market-review__more summary::-webkit-details-marker {
+  display: none;
+}
+
+.market-review__more[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.vendor-card h4 {
+  font-family: var(--rtd-heading-font);
+  font-size: 1.0625rem;
+}
+
+.vendor-card__contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.vendor-card__contact a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  overflow-wrap: anywhere;
+}
+
+.vendor-card__text {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.vendor-card__links {
+  display: grid;
+  gap: 2px;
+  padding-left: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.vendor-card__photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rtd-space-2);
+}
+
+.vendor-card__photos img {
+  width: 112px;
+  height: 112px;
+  object-fit: cover;
+  border-radius: var(--rtd-radius-sm);
+  border: 1px solid var(--rtd-border);
+}

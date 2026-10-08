@@ -11,7 +11,7 @@ interface PrivacyInfo {
   booking_retention_months: number;
 }
 
-const UPDATED = '7 October 2026';
+const UPDATED = '8 October 2026';
 
 export function Privacy() {
   useTitle('Privacy');
@@ -62,6 +62,12 @@ export function Privacy() {
             Your name, the email address you sign in with, what you'd like to run and the sessions you plan. We use them to decide on requests, put your
             sessions in the diary, and email you about bookings and changes.
           </p>
+          <h3>If you apply for a market stall</h3>
+          <p>
+            Your stall name, your name, email address and mobile number, what you sell, any links you give, your insurance details, any photos and any
+            note. We use them to decide on your application, to email you the result (and, if you're approved, how to pay), and to arrange the market.
+            That's in our legitimate interest, and needed to give you a pitch.
+          </p>
           <h3>On your device</h3>
           <p>
             The app remembers a few choices in your browser, like your diary filters, reduced motion, and whether you've closed the install message. They stay on
@@ -77,6 +83,9 @@ export function Privacy() {
             </li>
             <li>
               <strong>The host of a hosted session</strong> sees your name, how many are coming and your note. Not your email address or phone number.
+            </li>
+            <li>
+              <strong>Market applications</strong> are seen only by the café team, photos included. They're also kept in the café's market list.
             </li>
             <li>
               <strong>The people and companies who run the app for us:</strong> our app developer, who builds and looks after the app and its emails; Cloudflare
@@ -106,6 +115,10 @@ export function Privacy() {
             </li>
             <li>
               <strong>Requests to host</strong> that weren't approved, or were withdrawn, are erased after 12 months.
+            </li>
+            <li>
+              <strong>Market applications</strong> are erased 12 months after the market, photos included, and cleared from the café's market list at the
+              same time.
             </li>
             <li>
               <strong>Hosts:</strong> we keep your details while you host with us. If you stop, ask us and we'll delete them. We keep a record of decisions made in the

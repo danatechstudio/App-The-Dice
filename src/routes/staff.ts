@@ -7,6 +7,7 @@ import { decideSession, listHosts, listSessions, type SessionStatus } from '../h
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
 import { deviceLabel, myDevices, notifyUser, parseSubscription, removeSubscription, saveSubscription, vapidKeys } from '../notify/push';
 import { londonDate } from '../lib/time';
+import { applicationsForStaff, createMarket, decideApplication as decideVendor, markWithdrawn, marketsForStaff, parseMarketInput, readPhoto, updateMarket } from '../markets/markets';
 import { decideApplication, listApplications, listApprovers, removeAccess, setApprover, type ApplicationStatus } from '../team/applications';
 
 export const staffRoutes = new Hono<{ Bindings: Env; Variables: { user: AuthUser } }>();
@@ -158,4 +159,60 @@ staffRoutes.post('/push/test', async c => {
     { subject: new URL(c.req.url).origin, now: new Date() },
   );
   return c.json(result);
+});
+
+// --- Markets (docs/RTD_MARKETS.md): admins set them up; approvers decide on vendors ---
+
+const adminsOnly = (user: AuthUser) => user.role === 'admin';
+
+/** Markets from a month ago on, with how many applications are waiting and approved. */
+staffRoutes.get('/markets', async c => c.json({ markets: await marketsForStaff(c.env.DB, londonDate(new Date())) }));
+
+/** Admins: a new market. It reaches the Logic Engine (and the diary) within 15 minutes. */
+staffRoutes.post('/markets', async c => {
+  if (!adminsOnly(c.get('user'))) return c.json({ error: 'Only admins can set up markets.' }, 403);
+  const parsed = parseMarketInput(await c.req.json().catch(() => null), londonDate(new Date()), { creating: true });
+  if (!parsed.ok) return c.json({ error: 'Please check the form', errors: parsed.errors }, 400);
+  return c.json({ market: await createMarket(c.env.DB, c.get('user'), parsed.value, new Date().toISOString()) }, 201);
+});
+
+/** Admins: change a market. Body: the same fields as creating one. */
+staffRoutes.post('/markets/:id', async c => {
+  if (!adminsOnly(c.get('user'))) return c.json({ error: 'Only admins can change markets.' }, 403);
+  const parsed = parseMarketInput(await c.req.json().catch(() => null), londonDate(new Date()), { creating: false });
+  if (!parsed.ok) return c.json({ error: 'Please check the form', errors: parsed.errors }, 400);
+  const result = await updateMarket(c.env.DB, c.get('user'), c.req.param('id'), parsed.value, new Date().toISOString());
+  return result.ok ? c.json({ market: result.market }) : c.json({ error: result.error, errors: result.errors }, result.status);
+});
+
+/** Vendor applications for markets from a fortnight ago on, with their photos' IDs. */
+staffRoutes.get('/market-applications', async c => c.json({ applications: await applicationsForStaff(c.env.DB, londonDate(new Date())) }));
+
+/** Approve (emails the payment details) or decline. Body: { decision: 'approve' | 'decline', note? } */
+staffRoutes.post('/market-applications/:id/decision', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { decision?: string; note?: unknown };
+  if (body.decision !== 'approve' && body.decision !== 'decline') return c.json({ error: "decision must be 'approve' or 'decline'" }, 400);
+  const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim().slice(0, 500) : null;
+  const result = await decideVendor(c.env.DB, c.get('user'), c.req.param('id'), body.decision, note, new Date().toISOString());
+  return result.ok ? c.json({ status: result.status }) : c.json({ error: result.error }, result.status);
+});
+
+/** A vendor dropped out: their pitch is free again. No email. */
+staffRoutes.post('/market-applications/:id/withdraw', async c => {
+  const result = await markWithdrawn(c.env.DB, c.get('user'), c.req.param('id'), new Date().toISOString());
+  return result.ok ? c.json({ ok: true }) : c.json({ error: result.error }, result.status);
+});
+
+/** A vendor's photo: approvers and admins only, never cached or shared. */
+staffRoutes.get('/market-photos/:photoId', async c => {
+  const photo = await readPhoto(c.env.DB, c.env.IMAGES, c.req.param('photoId'));
+  if (!photo) return c.json({ error: 'Not found' }, 404);
+  return new Response(photo.body, {
+    headers: {
+      'Content-Type': photo.type,
+      'Content-Disposition': 'inline',
+      'Content-Security-Policy': "default-src 'none'; sandbox",
+      'Cache-Control': 'private, no-store',
+    },
+  });
 });

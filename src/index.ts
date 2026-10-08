@@ -5,6 +5,7 @@ import { bookingRoutes } from './routes/bookings';
 import { hostRoutes } from './routes/host';
 import { internalRoutes } from './routes/internal';
 import { joinRoutes } from './routes/join';
+import { marketRoutes } from './routes/markets';
 import { pageRoutes } from './routes/pages';
 import { publicRoutes } from './routes/public';
 import { staffRoutes } from './routes/staff';
@@ -49,6 +50,7 @@ app.get('/api/staff/sign-in', c => {
 });
 
 app.route('/api/bookings', bookingRoutes);
+app.route('/api/markets', marketRoutes);
 app.route('/api', publicRoutes);
 app.route('/api/staff', staffRoutes);
 app.route('/api/host', hostRoutes);
@@ -73,7 +75,7 @@ export default {
   /** Daily (wrangler.jsonc triggers): erase people's details once they're no longer needed (docs/RTD_PRIVACY.md). */
   async scheduled(controller, env, ctx) {
     ctx.waitUntil(
-      applyRetention(env.DB, new Date(controller.scheduledTime)).then(erased => console.log('retention', JSON.stringify(erased))),
+      applyRetention(env.DB, new Date(controller.scheduledTime), env.IMAGES).then(erased => console.log('retention', JSON.stringify(erased))),
     );
   },
 } satisfies ExportedHandler<Env>;

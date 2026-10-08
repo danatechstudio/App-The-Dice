@@ -1,6 +1,7 @@
 import { CalendarDays, CalendarPlus, ChevronDown, ChevronLeft, Clock, Info, MapPin, PoundSterling, Share2, TriangleAlert, UsersRound } from 'lucide-preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { BookingPanel } from '../components/BookingPanel';
+import { MarketVendorPanel } from './Markets';
 import { Chip, ChipRow, occurrenceChips } from '../components/Chips';
 import { eventHref } from '../components/EventCard';
 import { EventArt } from '../components/EventArt';
@@ -157,7 +158,7 @@ function EventDetail({ o, others, images }: { o: Occurrence; others: Occurrence[
                 <span><strong>Roll The Dice</strong>Board Game Café</span>
               </div>
             </div>
-            {!cancelled && !finished && !moved && <BookingPanel key={o.occurrence_id} o={o} />}
+            {!cancelled && !finished && !moved && (o.market_id ? <MarketVendorPanel marketId={o.market_id} /> : <BookingPanel key={o.occurrence_id} o={o} />)}
             <div class="event-page__actions">
               {!cancelled && !finished && !moved ? <CalendarMenu o={o} /> : <span />}
               <button type="button" class="btn btn--secondary" onClick={() => share({ title: o.name, text: `${o.name} at Roll The Dice, ${shortDate(o.date)}`, url })}>

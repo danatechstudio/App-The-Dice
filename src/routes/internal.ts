@@ -16,6 +16,7 @@ import {
 import { MAX_IMAGE_BYTES, imagePlan, parseImageSync, storeImage, syncImages } from '../images/store';
 import { checkBearer } from '../lib/auth';
 import { londonDate } from '../lib/time';
+import { MARKET_ID, markMarketPublished, markSheetSynced, marketsToPublish, sheetRows } from '../markets/markets';
 import { markSent, unsent } from '../notify/outbox';
 import { decidedApplicationsForApplicants, markApplicationNotified, newApplicationsForApprovers } from '../team/applications';
 import { applySync, parsePayload } from '../sync/apply';
@@ -112,11 +113,17 @@ internalRoutes.post('/host-sessions/:id/followup-sent', async c => {
 });
 
 /** Approved host sessions to add to Logic Engine Event Index, each with its sheet row. */
-internalRoutes.get('/host-sessions/to-publish', async c =>
-  c.json({ sessions: await sessionsToPublish(c.env.DB, londonDate(new Date())) }),
-);
+// Markets come through the same feed (App Host Session = RTD-MKT-…), so the same n8n branch adds them.
+internalRoutes.get('/host-sessions/to-publish', async c => {
+  const today = londonDate(new Date());
+  return c.json({ sessions: [...(await sessionsToPublish(c.env.DB, today)), ...(await marketsToPublish(c.env.DB, today))] });
+});
 
 internalRoutes.post('/host-sessions/:id/published', async c => {
+  if (MARKET_ID.test(c.req.param('id'))) {
+    const done = await markMarketPublished(c.env.DB, c.req.param('id'), new Date().toISOString());
+    return done === 'not_found' ? c.json({ error: 'No market with that ID' }, 404) : c.json({ ok: true, already: done === 'already' });
+  }
   const result = await markPublished(c.env.DB, c.req.param('id'), new Date().toISOString());
   if (result === 'not_found') return c.json({ error: 'No session with that ID' }, 404);
   if (result === 'not_approved') return c.json({ error: 'That session is no longer approved' }, 409);
@@ -206,3 +213,14 @@ internalRoutes.post('/sheet-fixes/:eventId/done', async c => {
  * still calling it changes nothing in the sheet; use /internal/sheet-fixes.
  */
 internalRoutes.get('/host-sessions/sheet-fixes', c => c.json({ fixes: [] }));
+
+// --- The market spreadsheet (n8n RTD Market Vendors To Sheet, docs/RTD_MARKETS.md) ---
+
+/** Applications whose spreadsheet row is out of date, each with the whole row, matched on Application ID. */
+internalRoutes.get('/market-applications/sheet', async c => c.json({ rows: await sheetRows(c.env.DB, new URL(c.req.url).origin) }));
+
+/** n8n wrote the row. Body: { hash } from the feed. */
+internalRoutes.post('/market-applications/:id/sheet-synced', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { hash?: unknown };
+  return (await markSheetSynced(c.env.DB, c.req.param('id'), body.hash)) ? c.json({ ok: true }) : c.json({ error: 'No application with that ID, or a bad hash' }, 404);
+});

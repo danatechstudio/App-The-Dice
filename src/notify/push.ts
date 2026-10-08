@@ -283,3 +283,10 @@ export const joinRequestToApprove = (a: { application_id: string; display_name: 
   url: '/organise#join-requests',
   tag: `join-${a.application_id}`,
 });
+
+export const marketApplicationToApprove = (a: { application_id: string; stall_name: string; market_name: string; event_date: string; waitlisted: boolean }): PushMessage => ({
+  title: 'Market application',
+  body: `${a.stall_name}: ${a.market_name}, ${shortDate(a.event_date)}${a.waitlisted ? ' (waiting list)' : ''}`,
+  url: '/organise#market-applications',
+  tag: `market-${a.application_id}`,
+});

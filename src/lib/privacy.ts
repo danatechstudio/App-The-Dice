@@ -1,6 +1,7 @@
 // Privacy (docs/RTD_PRIVACY.md): who the privacy notice names, and erasing
 // people's details once the app no longer needs them. Runs daily (Cron Trigger).
 
+import { eraseMarketApplications } from '../markets/markets';
 import { londonDate } from './time';
 
 export interface PrivacyInfo {
@@ -46,21 +47,24 @@ export interface Erased {
   bookings: number;
   network_hashes: number;
   requests: number;
+  /** Market stall applications (and their photos), 12 months after the market. */
+  vendors: number;
 }
 
 /**
  * Erases what the app no longer needs. Rows stay, so numbers and history add up:
  * - bookings: name, email, mobile and note, the set number of months after the event;
  * - the scrambled network address on a booking, after 2 days;
- * - declined or withdrawn join requests: name, email and what they wrote, 12 months after.
+ * - declined or withdrawn join requests: name, email and what they wrote, 12 months after;
+ * - market stall applications, 12 months after the market, with their photos (KV).
  */
-export async function applyRetention(db: D1Database, now: Date): Promise<Erased> {
+export async function applyRetention(db: D1Database, now: Date, kv?: KVNamespace): Promise<Erased> {
   const { booking_retention_months: months } = await privacyInfo(db);
   const stamp = now.toISOString();
   const bookingsBefore = monthsBefore(londonDate(now), months);
   const requestsBefore = `${monthsBefore(londonDate(now), DEFAULT_RETENTION_MONTHS)}T00:00:00Z`;
   const hashesBefore = new Date(now.getTime() - KEEP_NETWORK_HASH_DAYS * 86_400_000).toISOString();
-  const [bookings, hashes, requests] = await db.batch([
+  const [bookings, hashes, vendorHashes, requests] = await db.batch([
     db
       .prepare(
         `UPDATE bookings SET lead_name = 'Erased', email = 'erased-' || booking_id, mobile = NULL, notes = NULL, ip_hash = NULL,
@@ -69,6 +73,7 @@ export async function applyRetention(db: D1Database, now: Date): Promise<Erased>
       )
       .bind(bookingsBefore, stamp),
     db.prepare('UPDATE bookings SET ip_hash = NULL WHERE ip_hash IS NOT NULL AND created_at < ?1').bind(hashesBefore),
+    db.prepare('UPDATE market_applications SET ip_hash = NULL WHERE ip_hash IS NOT NULL AND created_at < ?1').bind(hashesBefore),
     db
       .prepare(
         `UPDATE applications SET display_name = 'Erased', email = 'erased-' || application_id, about = '', decision_note = NULL,
@@ -77,5 +82,11 @@ export async function applyRetention(db: D1Database, now: Date): Promise<Erased>
       )
       .bind(requestsBefore, stamp),
   ]);
-  return { bookings: bookings!.meta.changes, network_hashes: hashes!.meta.changes, requests: requests!.meta.changes };
+  const vendors = await eraseMarketApplications(db, kv, monthsBefore(londonDate(now), DEFAULT_RETENTION_MONTHS), stamp);
+  return {
+    bookings: bookings!.meta.changes,
+    network_hashes: hashes!.meta.changes + vendorHashes!.meta.changes,
+    requests: requests!.meta.changes,
+    vendors,
+  };
 }

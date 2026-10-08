@@ -22,8 +22,8 @@ export const OCCURRENCE_FIELDS = `
   o.event_date AS date, o.start_time, o.end_time, o.starts_at, o.ends_at, o.all_day, o.projected,
   o.status, o.rescheduled_to, COALESCE(o.visibility, e.visibility) AS visibility,
   COALESCE(o.image_override, e.default_image) AS image,
-  COALESCE(o.price_display, e.price_display) AS price_display, ${CAPACITY} AS capacity,
-  CASE WHEN COALESCE(o.visibility, e.visibility) IN ('public', 'app_bookable')
+  COALESCE(o.price_display, e.price_display) AS price_display, ${CAPACITY} AS capacity, e.market_id,
+  CASE WHEN COALESCE(o.visibility, e.visibility) IN ('public', 'app_bookable') AND e.market_id IS NULL
     AND (e.host_session_id IS NULL OR ${CAPACITY} IS NOT NULL) THEN 1 ELSE 0 END AS bookable`;
 
 export type Row = Record<string, unknown>;
@@ -48,8 +48,10 @@ export interface PublicOccurrence {
   price_display: string | null;
   /** Places on this date; null: no limit. */
   capacity: number | null;
-  /** Takes bookings in the app: every public event (docs/RTD_BOOKINGS.md). */
+  /** Takes bookings in the app: every public event (docs/RTD_BOOKINGS.md), except markets set up in the app. */
   bookable: boolean;
+  /** A market set up in the organiser: vendors apply for pitches (docs/RTD_MARKETS.md). */
+  market_id: string | null;
 }
 
 export function shape(r: Row): PublicOccurrence {
@@ -86,5 +88,5 @@ export async function nextOccurrence(db: D1Database, eventId: string, today: str
  */
 export function redactPrivate(o: PublicOccurrence): PublicOccurrence {
   if (o.visibility !== 'private') return o;
-  return { ...o, name: 'Private session', description: null, image: null, price_display: null, capacity: null, bookable: false };
+  return { ...o, name: 'Private session', description: null, image: null, price_display: null, capacity: null, bookable: false, market_id: null };
 }

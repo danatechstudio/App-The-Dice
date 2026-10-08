@@ -27,6 +27,7 @@ describe('normaliseRows (Event Index)', () => {
         price_display: null,
         default_capacity: null,
         host_session_id: null,
+        market_id: null,
         next: { date: '2026-10-23', start_time: '18:30', end_time: '22:00', all_day: false },
       },
     ]);
@@ -37,11 +38,14 @@ describe('normaliseRows (Event Index)', () => {
       indexRow(1, { 'App Price': ' £5 ', 'App Capacity': '6', 'App Host Session': 'RTD-HS-00012' }),
       indexRow(2, { 'App Price': '', 'App Capacity': 'lots', 'App Host Session': 'not-a-session' }),
       indexRow(3, { 'App Capacity': '0' }),
+      indexRow(4, { 'App Host Session': 'RTD-MKT-00003' }),
     ]);
-    expect(events.map(e => [e.price_display, e.default_capacity, e.host_session_id])).toEqual([
-      ['£5', 6, 'RTD-HS-00012'],
-      [null, null, null],
-      [null, null, null],
+    expect(events.map(e => [e.price_display, e.default_capacity, e.host_session_id, e.market_id])).toEqual([
+      ['£5', 6, 'RTD-HS-00012', null],
+      [null, null, null, null],
+      [null, null, null, null],
+      // The same column links a market set up in the organiser.
+      [null, null, null, 'RTD-MKT-00003'],
     ]);
   });
 

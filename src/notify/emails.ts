@@ -10,7 +10,13 @@ import { esc, firstName, longDate, places, shortDate, timeLabel } from '../lib/f
 export const BOOKINGS_INBOX = '@bookings';
 
 /**
- * One email for the outbox. `to` / `reply_to`: an address, BOOKINGS_INBOX, or
+ * Where approvals go (info@): n8n swaps this for rtd_config
+ * RTD_APPROVAL_ALERT_EMAIL, as for host sessions to approve.
+ */
+export const APPROVALS_INBOX = '@approvals';
+
+/**
+ * One email for the outbox. `to` / `reply_to`: an address, BOOKINGS_INBOX, APPROVALS_INBOX, or
  * null for the café's general address (rtd_config RTD_CAFE_NOTIFICATION_EMAIL).
  */
 export interface Email {
@@ -49,12 +55,12 @@ export interface Contact {
   notes: string | null;
 }
 
-const p = (html: string) => `<p>${html}</p>`;
-const fact = (label: string, value: string) => `<p style="margin:4px 0"><strong>${label}:</strong> ${value}</p>`;
-const link = (href: string, text: string) => `<a href="${esc(href)}">${esc(text)}</a>`;
+export const p = (html: string) => `<p>${html}</p>`;
+export const fact = (label: string, value: string) => `<p style="margin:4px 0"><strong>${label}:</strong> ${value}</p>`;
+export const link = (href: string, text: string) => `<a href="${esc(href)}">${esc(text)}</a>`;
 const SIGN_OFF = p('Thanks,<br>The Roll The Dice team');
 const when = (s: Slot) => `${longDate(s.event_date)}, ${timeLabel(s.start_time, s.end_time)}`;
-const join = (parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join('\n');
+export const join = (parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join('\n');
 const isFree = (price: string) => /^free$/i.test(price.trim());
 /** "5 of 8 places", or "5 places" when there's no limit. */
 const taken = (booked: number, capacity: number | null) => (capacity ? `${booked} of ${capacity} places` : places(booked));
