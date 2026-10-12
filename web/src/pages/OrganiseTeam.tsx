@@ -9,6 +9,7 @@ import { Chip } from '../components/Chips';
 import { DiceLoader, EmptyState } from '../components/States';
 import { longDate } from '../lib/dates';
 import { hostApi, type Application, type HostUser, type JoinMe, type TeamMember } from '../lib/hostApi';
+import { shownName } from '../lib/names';
 import { toast } from '../lib/toast';
 
 const dateOf = (iso: string) => longDate(iso.slice(0, 10));
@@ -291,7 +292,7 @@ export function ApproversPanel({ me, refresh }: { me: HostUser; refresh: number 
             )}
             {list?.map(t => (
               <tr key={t.user_id}>
-                <td>{t.display_name ?? '—'}</td>
+                <td>{shownName(t)}</td>
                 <td>{t.email}</td>
                 <td>{t.role === 'admin' ? 'Admin' : 'Approver'}</td>
                 <td class="table__action">

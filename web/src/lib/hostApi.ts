@@ -21,6 +21,7 @@ export interface HostSession {
   host_user_id: string;
   host_name: string | null;
   host_email: string;
+  host_role: HostRole;
   name: string;
   description: string | null;
   event_date: string;
@@ -73,7 +74,7 @@ export interface HostedDate extends Omit<SessionDate, 'host_session_id'> {
   event_id: string;
   event_name: string;
   host_session_id: string | null;
-  session: { session_id: string; name: string; access: Access; max_players: number | null; host_name: string | null; host_email: string } | null;
+  session: { session_id: string; name: string; access: Access; max_players: number | null; host_name: string | null; host_email: string; host_role: HostRole } | null;
 }
 
 /** For approvers: a café event people can book, with its places (docs/RTD_BOOKINGS.md#places). */

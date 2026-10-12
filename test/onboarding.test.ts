@@ -131,15 +131,6 @@ describe('approvers and removing access', () => {
     ]);
   });
 
-  it("always shows Dan's admin account as Dan (Admin)", async () => {
-    await env.DB.prepare("INSERT INTO users VALUES ('u-dan2', 'dan@atechstudio.com', 'Daniel', 'admin', 1, '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z')").run();
-    const me = await (await request('/api/host/me', {}, as('Dan@AtechStudio.com'))).json<{ user: { display_name: string } }>();
-    expect(me.user.display_name).toBe('Dan (Admin)');
-    expect(await env.DB.prepare("SELECT display_name FROM users WHERE user_id = 'u-dan2'").first('display_name')).toBe('Dan (Admin)');
-    // Other admins keep their own name.
-    expect((await (await request('/api/host/me', {}, DAN)).json<{ user: { display_name: string } }>()).user.display_name).toBe('Dan');
-  });
-
   it('lets only an admin make a host an approver, and back', async () => {
     const make = (who: Record<string, string>, id: string, approver: boolean) => request(`/api/staff/users/${id}/approver`, json({ approver }), who);
     expect((await make(MICHELLE, 'u-sam', true)).status).toBe(403);

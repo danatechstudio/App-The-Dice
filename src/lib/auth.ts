@@ -18,10 +18,6 @@ export interface AuthUser {
   role: Role;
 }
 
-/** Dan's admin account always shows as "Dan (Admin)", whatever name was typed when it joined. */
-export const ADMIN_EMAILS = new Set(['dan@atechstudio.com', 'dan@atechstudio.co.uk']);
-export const ADMIN_DISPLAY_NAME = 'Dan (Admin)';
-
 const jwksCache = new Map<string, JWTVerifyGetKey>();
 
 function remoteKeys(teamDomain: string): JWTVerifyGetKey {
@@ -84,14 +80,6 @@ export function requireRole(...roles: Role[]): MiddlewareHandler<{ Bindings: Env
       .bind(who.email)
       .first<AuthUser>();
     if (!user || !allowed.has(user.role)) return c.json({ error: 'Not allowed' }, 403);
-    if (user.role === 'admin' && ADMIN_EMAILS.has(user.email) && user.display_name !== ADMIN_DISPLAY_NAME) {
-      // Saved too, so the hosts and approvers lists and session hosts show it.
-      await c.env.DB
-        .prepare('UPDATE users SET display_name = ?2, updated_at = ?3 WHERE user_id = ?1')
-        .bind(user.user_id, ADMIN_DISPLAY_NAME, new Date().toISOString())
-        .run();
-      user.display_name = ADMIN_DISPLAY_NAME;
-    }
     c.set('user', user);
     await next();
   };
