@@ -131,6 +131,15 @@ describe('approvers and removing access', () => {
     ]);
   });
 
+  it("always shows Dan's admin account as Dan (Admin)", async () => {
+    await env.DB.prepare("INSERT INTO users VALUES ('u-dan2', 'dan@atechstudio.com', 'Daniel', 'admin', 1, '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z')").run();
+    const me = await (await request('/api/host/me', {}, as('Dan@AtechStudio.com'))).json<{ user: { display_name: string } }>();
+    expect(me.user.display_name).toBe('Dan (Admin)');
+    expect(await env.DB.prepare("SELECT display_name FROM users WHERE user_id = 'u-dan2'").first('display_name')).toBe('Dan (Admin)');
+    // Other admins keep their own name.
+    expect((await (await request('/api/host/me', {}, DAN)).json<{ user: { display_name: string } }>()).user.display_name).toBe('Dan');
+  });
+
   it('lets only an admin make a host an approver, and back', async () => {
     const make = (who: Record<string, string>, id: string, approver: boolean) => request(`/api/staff/users/${id}/approver`, json({ approver }), who);
     expect((await make(MICHELLE, 'u-sam', true)).status).toBe(403);
@@ -177,13 +186,13 @@ describe('emails for n8n', () => {
     await apply(as('barista@example.com'), { display_name: 'Bea Barista', about: 'Front of house; Catan nights' });
   });
 
-  it('sends every join request to the café address (the approvers), once', async () => {
+  it('sends every join request to info@ and Dan, once', async () => {
     expect((await request('/internal/applications/new')).status).toBe(401);
     const body = await (await request('/internal/applications/new', { headers: AUTH })).json<{ organiser_url: string; applications: App[] }>();
     expect(body.organiser_url).toBe('http://localhost/organise');
     expect(body.applications.map(a => [a.application_id, a.role_label, a.notify, a.notify_cafe])).toEqual([
-      ['RTD-APP-00001', 'host', [], true],
-      ['RTD-APP-00002', 'host', [], true],
+      ['RTD-APP-00001', 'host', ['info@rollthedicecafe.co.uk', 'dan@atechstudio.co.uk'], false],
+      ['RTD-APP-00002', 'host', ['info@rollthedicecafe.co.uk', 'dan@atechstudio.co.uk'], false],
     ]);
     const mark = (id: string) => request(`/internal/applications/${id}/approver-notified`, { method: 'POST', headers: AUTH });
     expect(await (await mark('RTD-APP-00001')).json()).toEqual({ ok: true, already: false });

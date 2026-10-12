@@ -1,5 +1,10 @@
 # RTD App Changelog
 
+## 2026-10-12 (join request emails and the admin's name)
+- **Join request emails** now go to info@rollthedicecafe.co.uk and dan@atechstudio.co.uk (was the café address in `rtd_config`). No n8n change: RTD Team Notices already sends to the app's `notify` list.
+- **Dan's admin account** (dan@atechstudio.com or dan@atechstudio.co.uk) always shows as **Dan (Admin)**. It's set each time he signs in, and saved, so the Hosts and Approvers lists and his sessions show it too.
+- **Tests:** 280 (was 279).
+
 ## 2026-10-08 (stats for admins)
 - **The app counts how it's used:** event page views; book, Add to calendar and Share taps; taps on event reminders; installs and opens from the Home Screen; visits in a browser; and views of the diary, Book, Games, Become a host and Markets pages, Roll Me a Game rolls and picks, and Apply to host taps.
   - **Daily totals only:** no network address, device ID or cookie, so a count says how many, never who.
