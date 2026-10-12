@@ -20,9 +20,10 @@ People ask for access to the organiser (`/organise`) themselves, and an approver
 | --- | --- | --- |
 | `host` | Host | Plan sessions to host, see who's booked, and cancel a date. **Nothing else.** Everyone approved through a join request, café staff included, is a host. |
 | `staff` | Approver | Everything a host can, plus approve or decline join requests and sessions, remove hosts, and cancel any hosted date. **Michelle.** |
-| `admin` | Admin | Everything an approver can, plus choose approvers and remove approvers. **Dan**, always shown as "Dan (Admin)". |
+| `admin` | Admin | Everything an approver can, plus choose approvers and remove approvers. **Dan**. |
 
 **How roles work:**
+- **How names show in the organiser:** Dan's admin account (dan@atechstudio.co.uk) as "Dan (Admin)"; everyone who isn't an admin, approvers included, as "Name (Host)" (`web/src/lib/names.ts`). Emails and the diary use the plain name.
 - **Where they live:** the `users` table decides roles. Cloudflare Access only proves someone's email address.
 - **Making an approver:** an admin uses **Make approver** in the Hosts table. **Stop approving** turns an approver back into a host, keeping their sessions.
 - **Admins:** they're only changed in the database, so the café can't lock itself out.
