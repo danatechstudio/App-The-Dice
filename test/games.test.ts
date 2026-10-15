@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import worker from '../src/index';
 import { applyImport, planImport, type Manifest } from '../src/games/admin';
 import { matches, NO_FILTERS, parseFilters, pick, similar } from '../src/games/chooser';
-import { checkGame, sourceKey, type PublicGame } from '../src/games/model';
+import { categoryName, checkGame, sourceKey, type PublicGame } from '../src/games/model';
 import { weekKey } from '../src/games/gotw';
 import { env, freshDb, request } from './helpers';
 
@@ -75,6 +75,13 @@ describe('reading the source catalogue', () => {
     expect(sourceKey('Pokémon', null)).toBe('pokemon|');
   });
 
+  it('writes categories in Title Case, without starting a word after an apostrophe', () => {
+    expect(categoryName("children's & educational")).toBe("Children's & Educational");
+    expect(categoryName('Children’s & Educational')).toBe("Children's & Educational");
+    expect(categoryName('party, trivia & social')).toBe('Party, Trivia & Social');
+    expect(categoryName('deck-building')).toBe('Deck Building');
+  });
+
   it('refuses a game without the details needed to publish it', () => {
     const r = checkGame({ title: 'X', category: '', audiences: ['Elves'], min_players: 5, max_players: 2, synopsis: 'Short' }, { publish: true });
     expect(r.ok).toBe(false);
@@ -140,7 +147,7 @@ describe('importing', () => {
     expect((await request('/api/staff/games/import', json({ mode: 'dry_run' }), SAM)).status).toBe(403);
     expect((await request('/api/staff/games', {}, MICHELLE)).status).toBe(403);
     expect((await request('/api/staff/games/import', json({ mode: 'apply' }), DAN)).status).toBe(400);
-    // The bundled manifest is empty until the source catalogue arrives.
+    // The bundled catalogue confirms nothing by itself: every title waits for review.
     expect(await (await request('/api/staff/games/import', json({ mode: 'dry_run' }), DAN)).json()).toMatchObject({ ok: true, counts: { manifest_games: 0, add: 0 } });
   });
 });
@@ -185,6 +192,89 @@ describe('the review register', () => {
   it('is for admins only', async () => {
     expect((await request('/api/staff/game-review', {}, MICHELLE)).status).toBe(403);
     expect((await request('/api/staff/game-review/RTD-GREV-00001/confirm', json({}), SAM)).status).toBe(403);
+  });
+});
+
+describe('the café’s catalogue (data/)', () => {
+  type Entry = { review_id: string; source_title: string; kind: string; entry: Record<string, unknown> };
+  const reviewEntries = async () => (await (await request('/api/staff/game-review', {}, DAN)).json<{ entries: Entry[] }>()).entries;
+
+  it('imports cleanly: every title into the review register, nothing confirmed or public', async () => {
+    const dry = await applyImport(env.DB, ADMIN, { mode: 'dry_run' }, NOW);
+    expect(dry).toMatchObject({ ok: true, errors: [], counts: { manifest_games: 0, manifest_review: 163, review_add: 163 } });
+    expect((await applyImport(env.DB, ADMIN, { mode: 'apply' }, NOW)).applied).toBe(true);
+    const entries = await reviewEntries();
+    expect(entries.filter(e => e.kind === 'provisional')).toHaveLength(127);
+    expect(entries.filter(e => e.kind === 'uncertain')).toHaveLength(36);
+    expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM games').first()).toEqual({ n: 0 });
+    // Running it again adds nothing.
+    expect((await applyImport(env.DB, ADMIN, { mode: 'apply' }, NOW)).counts).toMatchObject({ review_add: 0, review_update: 0 });
+    // The details are complete enough to publish for all but the three with an open-ended player count.
+    const notReady = entries.filter(e => e.kind === 'provisional' && !checkGame(e.entry, { publish: true }).ok).map(e => e.source_title);
+    expect(notReady.sort()).toEqual(['Creative Strip Puzzle', 'Perfection', 'Yahtzee']);
+    const categories = new Set(entries.map(e => e.entry.category).filter(Boolean));
+    expect([...categories].sort()).toEqual([
+      "Children's & Educational",
+      'Classic & Family',
+      'Fantasy, Licensed & Specialist',
+      'Modern Strategy & Hobby',
+      'Party, Trivia & Social',
+      'Word, Dexterity & Quick Play',
+    ]);
+    // Search links are kept as leads for finding a cover, never as an image.
+    expect(entries.every(e => !('image_url' in e.entry))).toBe(true);
+  });
+});
+
+describe('confirming several titles at once', () => {
+  beforeEach(async () => {
+    await importManifest({
+      games: [game('Carcassonne')],
+      review: [
+        { ...game('Wingspan'), ownership_evidence: null, kind: 'provisional', reasons: ['Not yet checked'] },
+        { ...game('Scythe'), ownership_evidence: null, kind: 'provisional', reasons: ['Not yet checked'] },
+        { ...game('Yahtzee'), max_players: null, ownership_evidence: null, kind: 'provisional', reasons: ['Open-ended players'] },
+        { ...game('Carcassonne'), edition: 'Hunters', ownership_evidence: null, kind: 'provisional', reasons: ['Not yet checked'] },
+        { title: 'Unknown Red Box', kind: 'uncertain', reasons: ['Spine unreadable'] },
+      ],
+    });
+  });
+  const ids = async () => Object.fromEntries((await (await request('/api/staff/game-review', {}, DAN)).json<{ entries: { review_id: string; source_title: string }[] }>()).entries.map(e => [e.source_title, e.review_id]));
+  const bulk = (body: unknown, who = DAN) => request('/api/staff/game-review/confirm', json(body), who);
+
+  it('confirms the ticked titles with one note, and leaves any that need details open', async () => {
+    const id = await ids();
+    const res = await bulk({ review_ids: [id.Wingspan, id.Scythe, id.Yahtzee, id['Unknown Red Box'], id.Carcassonne], ownership_evidence: 'Stocktake, 16 Oct' });
+    expect(res.status).toBe(200);
+    const body = await res.json<{ confirmed: { title: string }[]; needs_details: { title: string }[] }>();
+    expect(body.confirmed.map(g => g.title)).toEqual(['Wingspan', 'Scythe', 'Carcassonne']);
+    expect(body.needs_details.map(g => g.title).sort()).toEqual(['Unknown Red Box', 'Yahtzee']);
+    expect((await env.DB.prepare("SELECT slug, ownership_evidence, confirmed_by FROM games WHERE title IN ('Wingspan', 'Carcassonne') ORDER BY slug").all()).results).toEqual([
+      { slug: 'carcassonne', ownership_evidence: 'Shelf photo 3, top row', confirmed_by: 'import by dan@example.com' },
+      { slug: 'carcassonne-hunters', ownership_evidence: 'Stocktake, 16 Oct', confirmed_by: 'dan@example.com' },
+      { slug: 'wingspan', ownership_evidence: 'Stocktake, 16 Oct', confirmed_by: 'dan@example.com' },
+    ]);
+    expect((await env.DB.prepare("SELECT source_title, status FROM game_review ORDER BY source_title").all()).results).toEqual([
+      { source_title: 'Carcassonne', status: 'confirmed' },
+      { source_title: 'Scythe', status: 'confirmed' },
+      { source_title: 'Unknown Red Box', status: 'open' },
+      { source_title: 'Wingspan', status: 'confirmed' },
+      { source_title: 'Yahtzee', status: 'open' },
+    ]);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'game.confirmed_from_review'").first()).toEqual({ n: 3 });
+    await goLive();
+    expect((await titles()).sort()).toEqual(['Carcassonne', 'Carcassonne', 'Scythe', 'Wingspan']);
+  });
+
+  it('needs a note, open titles, and an admin', async () => {
+    const id = await ids();
+    expect((await bulk({ review_ids: [id.Wingspan] })).status).toBe(400);
+    expect((await bulk({ review_ids: [], ownership_evidence: 'Stocktake, 16 Oct' })).status).toBe(400);
+    expect((await bulk({ review_ids: [id.Wingspan], ownership_evidence: 'Stocktake, 16 Oct' }, MICHELLE)).status).toBe(403);
+    expect((await bulk({ review_ids: [id.Wingspan], ownership_evidence: 'Stocktake, 16 Oct' })).status).toBe(200);
+    // Already decided: nothing else is confirmed either.
+    expect((await bulk({ review_ids: [id.Wingspan, id.Scythe], ownership_evidence: 'Stocktake, 16 Oct' })).status).toBe(409);
+    expect(await env.DB.prepare("SELECT status FROM game_review WHERE source_title = 'Scythe'").first()).toEqual({ status: 'open' });
   });
 });
 

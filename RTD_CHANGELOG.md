@@ -1,5 +1,13 @@
 # RTD App Changelog
 
+## 2026-10-15 (the café's game catalogue)
+- **The catalogue is in the app's import:** 127 games from the café's shelf photos, each with category, audience, age, players, play time and a synopsis, plus 36 titles the photos couldn't identify for sure. The catalogue marks all of them provisional, so **none is confirmed yet**, and the public app is unchanged.
+- **Confirming many at once:** under **Review**, tick the titles you can see on the shelf and press **Confirm ticked**, with one note ("Stocktake, 16 Oct"). Search the list, or **Tick all**. Titles that need details filled in (3 with an open-ended player count, and the 36 uncertain ones) are confirmed one at a time.
+- **Review list:** each title shows its category, players, play time and age. The confirm form now scrolls into view.
+- **Category names:** an apostrophe no longer starts a new word ("Children's", not "Children'S").
+- **Next:** an admin runs **Game library → Import** (dry run, then apply), then works through **Review**. See [docs/GAME_LIBRARY_DEPLOYMENT.md](docs/GAME_LIBRARY_DEPLOYMENT.md#2-load-the-catalogue).
+- **Tests:** 312 (was 308).
+
 ## 2026-10-15 (game library, switched off)
 - **The game library's code is live, switched off,** so customers see no change yet: Roll Me a Game, the Games page and Game of the Week still use the 10 preview games, now served by the app's API.
   - **Ready for the café's games:** game pages with similar games and alternatives; Roll Me a Game filters for party size, youngest age, time, audience and category; a searchable shelf; Game of the Week picked each Monday (London time), avoiding the last 12 weeks.

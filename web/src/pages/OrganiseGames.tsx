@@ -6,7 +6,7 @@
 //   puts the library live in the public app.
 
 import { BookCheck, ImagePlus, Pencil, Plus, RotateCcw, Upload, X } from 'lucide-preact';
-import { useCallback, useEffect, useState } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { Chip } from '../components/Chips';
 import { DiceLoader } from '../components/States';
 import { hostApi } from '../lib/hostApi';
@@ -492,14 +492,34 @@ function CoverForm({ game, onDone }: { game: AdminGame; onDone: (changed: boolea
 
 // ---- The review register ----
 
+const BULK_GROUP = 40;
+
+/** Whether a title's catalogue details are complete enough to confirm as they are (src/games/model.ts checkGame, publish). */
+const readyToConfirm = (e: ReviewEntry) => {
+  const x = e.entry;
+  const n = (k: string) => typeof x[k] === 'number';
+  return e.kind === 'provisional' && typeof x.category === 'string' && typeof x.synopsis === 'string' && x.synopsis.length >= 20
+    && n('min_players') && n('max_players') && n('min_age') && n('play_time_max');
+};
+
 function Review({ categories, onChanged }: { categories: string[]; onChanged: () => void }) {
   const [entries, setEntries] = useState<ReviewEntry[] | null>(null);
   const [confirming, setConfirming] = useState<ReviewEntry | null>(null);
+  const [q, setQ] = useState('');
+  const [ticked, setTicked] = useState<Set<string>>(new Set());
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
   const load = useCallback(async () => {
     const res = await hostApi<{ entries: ReviewEntry[] }>('/api/staff/game-review?status=open');
-    if (res.ok) setEntries(res.data.entries);
+    if (res.ok) {
+      setEntries(res.data.entries);
+      setTicked(t => new Set(res.data.entries.filter(e => t.has(e.review_id)).map(e => e.review_id)));
+    }
   }, []);
   useEffect(() => void load(), [load]);
+  // The form opens above the list: bring it into view, however far down the title was.
+  useEffect(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), [confirming]);
   const reject = async (e: ReviewEntry) => {
     const note = prompt(`Reject ${e.source_title}? Say why (optional), e.g. "Not ours".`);
     if (note === null) return;
@@ -508,49 +528,136 @@ function Review({ categories, onChanged }: { categories: string[]; onChanged: ()
     await load();
     onChanged();
   };
+  const tick = (id: string, on: boolean) => setTicked(t => {
+    const next = new Set(t);
+    if (on) next.add(id);
+    else next.delete(id);
+    return next;
+  });
+  const confirmTicked = async () => {
+    if (note.trim().length < 5) return toast('Say how you know the café has them, e.g. “Stocktake, 16 Oct”.');
+    if (!confirm(`Confirm ${ticked.size} ${ticked.size === 1 ? 'title' : 'titles'} as on the café's shelf, with the note “${note.trim()}”? They join the library with the catalogue's details.`)) return;
+    setBusy(true);
+    // In groups of 40, so each request stays well inside the free plan's CPU time. Each group is all or nothing.
+    const ids = [...ticked];
+    let done = 0;
+    let left = 0;
+    let error: string | null = null;
+    for (let i = 0; i < ids.length && !error; i += BULK_GROUP) {
+      const res = await hostApi<{ confirmed: unknown[]; needs_details: unknown[] }>('/api/staff/game-review/confirm', { review_ids: ids.slice(i, i + BULK_GROUP), ownership_evidence: note });
+      if (res.ok) {
+        done += res.data.confirmed.length;
+        left += res.data.needs_details.length;
+      } else error = res.error;
+    }
+    setBusy(false);
+    const need = left ? ` ${left} need details: confirm ${left === 1 ? 'it' : 'them'} one at a time.` : '';
+    toast(error ? `${done} confirmed, then it stopped: ${error}` : `${done} confirmed and added to the library.${need}`);
+    setTicked(new Set());
+    await load();
+    onChanged();
+  };
 
   if (!entries) return <DiceLoader label="Loading the review list..." />;
+  const needle = q.trim().toLowerCase();
+  const shown = entries.filter(e => !needle || `${e.source_title} ${String(e.entry.category ?? '')}`.toLowerCase().includes(needle));
+  const tickable = shown.filter(readyToConfirm);
+  const allTicked = tickable.length > 0 && tickable.every(e => ticked.has(e.review_id));
   return (
     <div class="stack" style={{ '--gap': '12px', marginTop: '12px' }}>
       <p class="meta">
-        These titles come from the catalogue but aren't proven to be on the café's shelf. Confirm each one you can see on the shelf (it goes live with your note), or reject it.
+        These titles come from the catalogue but aren't proven to be on the café's shelf. Tick each one you can see on the shelf and confirm them together with one note, or confirm one at a
+        time to change its details first. Reject any the café doesn't have.
       </p>
-      {confirming && (
-        <GameForm
-          mode="confirm"
-          reviewId={confirming.review_id}
-          initial={confirming.entry}
-          categories={categories}
-          onDone={async changed => {
-            setConfirming(null);
-            if (changed) {
-              await load();
-              onChanged();
-            }
-          }}
-        />
-      )}
+      <div ref={formRef}>
+        {confirming && (
+          <GameForm
+            mode="confirm"
+            reviewId={confirming.review_id}
+            initial={confirming.entry}
+            categories={categories}
+            onDone={async changed => {
+              setConfirming(null);
+              if (changed) {
+                await load();
+                onChanged();
+              }
+            }}
+          />
+        )}
+      </div>
       {!entries.length && <p class="meta">Nothing waiting for review.</p>}
+      {entries.length > 0 && (
+        <div class="cluster games-admin__tools">
+          <input class="input" type="search" placeholder="Search title or category" aria-label="Search the review list" value={q} onInput={e => setQ(e.currentTarget.value)} />
+          {tickable.length > 0 && (
+            <button type="button" class="btn btn--text btn--sm" onClick={() => setTicked(t => {
+              const next = new Set(t);
+              for (const e of tickable) {
+                if (allTicked) next.delete(e.review_id);
+                else next.add(e.review_id);
+              }
+              return next;
+            })}>
+              {allTicked ? 'Untick' : 'Tick'} all {needle ? 'shown' : ''} ({tickable.length})
+            </button>
+          )}
+        </div>
+      )}
+      {entries.length > 0 && !shown.length && <p class="meta">Nothing matches.</p>}
       <ul class="list" role="list">
-        {entries.map(e => (
-          <li key={e.review_id} class="card card--pad review-entry">
-            <div class="cluster" style={{ justifyContent: 'space-between' }}>
-              <strong>{e.source_title}</strong>
-              <Chip kind={e.kind === 'uncertain' ? 'cancelled' : 'awaiting'}>{e.kind === 'uncertain' ? 'Uncertain' : 'Not yet checked'}</Chip>
-            </div>
-            {e.reasons.length > 0 && <p class="meta">{e.reasons.join(' · ')}</p>}
-            {typeof e.entry.synopsis === 'string' && <p class="meta">{e.entry.synopsis}</p>}
-            <div class="cluster" style={{ '--gap': '8px' }}>
-              <button type="button" class="btn btn--secondary btn--sm" onClick={() => setConfirming(e)}>
-                <BookCheck size={16} aria-hidden="true" /> Confirm we have it
-              </button>
-              <button type="button" class="btn btn--text btn--sm" onClick={() => reject(e)}>
-                Reject
-              </button>
-            </div>
-          </li>
-        ))}
+        {shown.map(e => {
+          const ready = readyToConfirm(e);
+          const x = e.entry;
+          return (
+            <li key={e.review_id} class="card card--pad review-entry">
+              <div class="cluster" style={{ justifyContent: 'space-between', flexWrap: 'nowrap', alignItems: 'flex-start' }}>
+                {ready ? (
+                  <label class="review-entry__tick">
+                    <input type="checkbox" checked={ticked.has(e.review_id)} onChange={ev => tick(e.review_id, ev.currentTarget.checked)} />
+                    <strong>{e.source_title}</strong>
+                  </label>
+                ) : (
+                  <strong>{e.source_title}</strong>
+                )}
+                <Chip kind={e.kind === 'uncertain' ? 'cancelled' : 'awaiting'}>{e.kind === 'uncertain' ? 'Uncertain' : 'Not yet checked'}</Chip>
+              </div>
+              {e.kind === 'provisional' && (
+                <p class="meta">
+                  {String(x.category ?? '')} · {x.max_players == null ? `${x.min_players ?? '?'}+` : range(x.min_players as number | null, x.max_players as number)} players
+                  {' · '}{range((x.play_time_min as number | null) ?? null, (x.play_time_max as number | null) ?? null, ' min')} · {x.min_age ?? '?'}+
+                </p>
+              )}
+              {e.reasons.length > 0 && <p class="meta">{e.reasons.join(' · ')}</p>}
+              {typeof x.synopsis === 'string' && <p class="meta">{x.synopsis}</p>}
+              <div class="cluster" style={{ '--gap': '8px' }}>
+                <button type="button" class="btn btn--secondary btn--sm" onClick={() => setConfirming(e)}>
+                  <BookCheck size={16} aria-hidden="true" /> {ready ? 'Check and confirm' : 'Fill in and confirm'}
+                </button>
+                <button type="button" class="btn btn--text btn--sm" onClick={() => reject(e)}>
+                  Reject
+                </button>
+              </div>
+            </li>
+          );
+        })}
       </ul>
+      {ticked.size > 0 && (
+        <div class="card card--pad review-bulk" role="region" aria-label="Confirm ticked titles">
+          <label for="review-bulk-note">
+            <strong>{ticked.size} ticked.</strong> How do you know the café has them?
+          </label>
+          <div class="cluster" style={{ '--gap': '8px' }}>
+            <input id="review-bulk-note" class="input" value={note} maxLength={300} placeholder="e.g. Stocktake, 16 Oct" onInput={ev => setNote(ev.currentTarget.value)} />
+            <button type="button" class="btn btn--primary btn--sm" onClick={confirmTicked} disabled={busy}>
+              <BookCheck size={16} aria-hidden="true" /> Confirm ticked
+            </button>
+            <button type="button" class="btn btn--text btn--sm" onClick={() => setTicked(new Set())} disabled={busy}>
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

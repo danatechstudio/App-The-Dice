@@ -8,7 +8,7 @@ import { afterResponse } from '../lib/background';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
 import { drain, overview, parseReminder, sendReminder } from '../notify/alerts';
 import { PERIODS, statsOverview, type Period } from '../stats/stats';
-import { adminLibrary, applyImport, attachCover, confirmReview, createGame, rejectReview, removeCover, reviewList, setCoverStatus, setLive, setRetired, updateGame } from '../games/admin';
+import { adminLibrary, applyImport, attachCover, confirmReview, confirmReviews, createGame, rejectReview, removeCover, reviewList, setCoverStatus, setLive, setRetired, updateGame } from '../games/admin';
 import { gotwHistory } from '../games/gotw';
 import { deviceLabel, myDevices, notifyUser, parseSubscription, removeSubscription, saveSubscription, vapidKeys } from '../notify/push';
 import { londonDate } from '../lib/time';
@@ -327,6 +327,12 @@ staffRoutes.get('/game-review', async c => {
   const s = c.req.query('status');
   const status = s === 'confirmed' || s === 'rejected' ? s : 'open';
   return c.json({ entries: await reviewList(c.env.DB, status) });
+});
+
+/** Confirm several at once with the catalogue's details. Body: { review_ids: string[], ownership_evidence } */
+staffRoutes.post('/game-review/confirm', async c => {
+  const res = await confirmReviews(c.env.DB, c.get('user'), await c.req.json().catch(() => null), new Date().toISOString());
+  return res.ok ? c.json(res.value) : c.json({ error: res.error, errors: res.errors }, res.status);
 });
 
 /** Confirm the café owns it. Body: the game's details (checked and completed) and `ownership_evidence`. */

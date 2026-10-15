@@ -1,6 +1,6 @@
 # Game Library: Cover Image Audit
 
-_Status, 15 October 2026: **no covers sourced yet.** There are no confirmed games to source covers for: the source catalogue hasn't been supplied ([GAME_LIBRARY_AUDIT.md §6](GAME_LIBRARY_AUDIT.md#6-blocked-inputs-needed-from-the-operator))._
+_Status, 15 October 2026: **no covers sourced yet.** The catalogue arrived, but no game is confirmed yet, and covers wait for confirmed games. For each of its 127 titles the catalogue gives a BoardGameGeek search link and marks the image "pending verification": it has no direct image address, verified or otherwise. The search links are kept on each review entry as `image_lookup`, as leads only._
 
 ## Coverage report
 

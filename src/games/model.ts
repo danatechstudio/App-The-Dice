@@ -138,12 +138,12 @@ export function slugify(title: string, edition: string | null): string {
   return sourceKey(title, edition).replace('|', ' ').trim().replace(/\s+/g, '-').slice(0, 80) || 'game';
 }
 
-/** Title Case for categories, so "deck-building" and "Deck Building" are one category. */
+/** Title Case for categories, so "deck-building" and "Deck Building" are one category. An apostrophe doesn't start a word: "Children's". */
 export const categoryName = (s: string) =>
   tidy(s, 40)
     .replace(/[-_]+/g, ' ')
     .toLowerCase()
-    .replace(/\b[a-z]/g, c => c.toUpperCase());
+    .replace(/(^|[^a-z0-9'])([a-z])/g, (_, before: string, c: string) => before + c.toUpperCase());
 
 // ---- Checking a game's details ----
 

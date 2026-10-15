@@ -13,7 +13,7 @@ Brief: replace the app's game catalogue with the café's enriched master list, b
 | F3 | **There is one D1 database, the production one** (`rtd-app`, `6c948ad3-…`). There is no staging database. | Staging means a local D1 (`wrangler dev`, and the test suite's own database), plus a separate branch. New tables in production are additive, and the public pages switch over with one setting, which switches back as easily. |
 | F4 | **R2 isn't enabled on the account.** Event photos live in Workers KV (`IMAGES`), described in `event_images`. | Covers go in the same KV namespace, under their own keys. No new service. |
 | F5 | **There is no Game of the Week history and no Game of the Week notification.** | History starts at cutover. No duplicate alerts are possible. No GOTW push is added: Dan asked for automatic pushes to stay at one every 48 hours (event alerts). |
-| F6 | **The source files weren't supplied.** `board_game_library_image_references.md`, `board_game_library_enriched.md` and the shelf photographs aren't in the repository or the environment. | Parsing, the manifest, the review register and the image audit are blocked until they're provided (§6). |
+| F6 | **The source files weren't supplied.** `board_game_library_image_references.md`, `board_game_library_enriched.md` and the shelf photographs aren't in the repository or the environment. | Parsing, the manifest, the review register and the image audit are blocked until they're provided (§6). **Update 15 Oct:** supplied as one file holding both, parsed into `data/` (163 titles for review). |
 | F7 | **The source marks every profile as provisional** (per the brief). Without the photographs, there is no evidence on file that the café owns any given title. | No game can be published as confirmed on the source alone. Proposed evidence route: an admin confirms each title is on the shelf, recorded with their name and the date (§5). |
 | F8 | **The service worker caches `/api/events` and `/api/occurrences` (network first) and hashed `/assets/` (cache first).** Game data is currently inside the JavaScript bundle. | Game endpoints are network-first, so a removed game disappears as soon as the phone is online. The hashed bundle changes with every deploy. |
 
@@ -82,7 +82,7 @@ Last migration: `0015_stats.sql`.
 
 ## 6. Blocked: inputs needed from the operator
 
-1. **The two source files:** `board_game_library_image_references.md` and `board_game_library_enriched.md`.
+1. ~~**The two source files:** `board_game_library_image_references.md` and `board_game_library_enriched.md`.~~ Supplied 15 Oct, as one file.
 2. **The eight shelf photographs,** if available. Without them, every title waits in the review register for an admin to confirm (F7).
 3. **Cover rights:** whether there's any existing permission (for example from publishers) for box art. Otherwise covers stay as placeholders until approved images are attached.
 

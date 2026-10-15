@@ -1092,3 +1092,34 @@
   display: grid;
   gap: 6px;
 }
+
+.review-entry__tick {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.review-entry__tick input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 1px 0 0;
+  accent-color: var(--rtd-primary);
+}
+
+/* "Confirm ticked" stays in reach while ticking down a long list. */
+.review-bulk {
+  position: sticky;
+  z-index: 5;
+  bottom: calc(var(--rtd-bottom-nav) + env(safe-area-inset-bottom) + var(--rtd-space-3));
+  display: grid;
+  gap: 8px;
+  box-shadow: var(--rtd-shadow-float);
+}
+
+.review-bulk .input {
+  flex: 1 1 220px;
+  min-width: 0;
+}

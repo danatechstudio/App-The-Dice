@@ -24,13 +24,13 @@ The work is on the branch `game-library` of `danatechstudio/App-The-Dice`. Nothi
 
 ## 2. Load the catalogue
 
-1. **Supply the source files** (the two Markdown files and the shelf photos). Claude parses them into:
+1. **Supply the source files.** **Done 15 Oct:** the catalogue is in `data/source/`, and `python3 scripts/parse-game-catalogue.py data/source/board_game_library_image_references.md` turns it into:
    - `data/game-library-master.json`: confirmed holdings, each with its ownership evidence.
    - `data/game-library-review.json`: everything else, with the reasons it's held.
    The manifest format is below. Once committed and deployed, the organiser's **Import** tab shows its counts.
 2. **Dry run:** **Game library → Import → Dry run** shows what would be added, updated, kept or flagged, and any errors. An import with errors can't be applied.
 3. **(approval) Apply import:** confirm the prompt. It's one transaction, and safe to repeat (`game_import_batches` logs each run).
-4. **Review:** under **Review**, confirm each title that's on the shelf, saying how you know ("On the shelf, checked 16 Oct"), or reject it. Each decision goes in the audit log.
+4. **Review:** under **Review**, tick each title that's on the shelf and press **Confirm ticked**, saying how you know ("Stocktake, 16 Oct"). Use **Check and confirm** to change a title's details first, and **Fill in and confirm** for the uncertain ones. Reject what the café doesn't have. Each decision goes in the audit log. A ticked title whose details aren't complete stays in the list for you to confirm on its own.
 5. **Covers:** **Library → Cover** for each game, following [GAME_LIBRARY_IMAGE_AUDIT.md](GAME_LIBRARY_IMAGE_AUDIT.md). Optional: placeholders work.
 
 ## 3. Cutover: put the library live
@@ -106,3 +106,4 @@ The work is on the branch `game-library` of `danatechstudio/App-The-Dice`. Nothi
 - **Ranges:** players 1–100, age 0–21, minutes 1–720, and minimum ≤ maximum.
 - **Publishing a game needs:** the title, the category, a synopsis of at least 20 characters, the players, the minimum age, the longest play time, and the ownership evidence.
 - **Matching:** each game is matched by its normalised title and edition, so running the import again never duplicates.
+- **Extra fields** on a review entry are kept with it, for reference. The parser adds `source_audience` (the catalogue's own audience labels) and `image_lookup` (a search link: never an image address).

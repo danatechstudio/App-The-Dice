@@ -1,6 +1,6 @@
 # Game Library: Completion Report
 
-_15 October 2026. **Code deployed to production** (`main` at `c1a6584`) with the library switched **off**: the public app still shows the preview shelf._
+_15 October 2026. **Code deployed to production** (`main` at `c1a6584`) with the library switched **off**: the public app still shows the preview shelf. Catalogue parsed the same evening: 163 titles ready for review, none confirmed yet._
 
 ## Done (deployed, tested)
 
@@ -18,12 +18,14 @@ _15 October 2026. **Code deployed to production** (`main` at `c1a6584`) with the
 | Admin Game library: search and filter, add, edit, retire and restore; covers with source, credit and rights; review; import; the live switch | `web/src/pages/OrganiseGames.tsx` |
 | Covers stored in KV; shown only when matched and rights-approved; RTD placeholder otherwise | `src/games/admin.ts`, `/images/games/:id` |
 | Cutover by switch, with the preview shelf kept until then | `settings.game_library_live` |
+| Catalogue parser: the café's Markdown into the manifest, the same output every run; the source kept with it | `scripts/parse-game-catalogue.py`, `data/source/` |
+| Confirming many titles at once: tick the ones on the shelf, one note for all of them; titles whose details are incomplete stay open | `src/games/admin.ts` `confirmReviews`, organiser **Review** |
 | Deployment, cutover, rollback, manifest format | [GAME_LIBRARY_DEPLOYMENT.md](GAME_LIBRARY_DEPLOYMENT.md) |
 | Image policy and coverage report | [GAME_LIBRARY_IMAGE_AUDIT.md](GAME_LIBRARY_IMAGE_AUDIT.md) |
 
 **Tests:**
-- **Suite:** 308 pass (was 279): 29 new in `test/games.test.ts`, and every existing test passes unchanged.
-- **Covered:** parsing and validation, an import refused on any bad entry, dry run versus apply, re-runs not duplicating, admin edits kept, retiring only on request, admin-only access (hosts and approvers refused), the review register never being public, the switch, every filter rule (unknown age or time never counting as suitable), repeat avoidance, server-side roll and count agreeing, similar and alternative games only from the shelf, Game of the Week (week boundaries in BST, concurrent requests picking once, the 12-week window, the fallback, reselecting after a retirement, history, the Cron check, no push), and cover rights gating.
+- **Suite:** 312 pass (was 279): 33 new in `test/games.test.ts`, and every existing test passes unchanged.
+- **Covered:** parsing and validation, an import refused on any bad entry, dry run versus apply, re-runs not duplicating, admin edits kept, retiring only on request, admin-only access (hosts and approvers refused), the review register never being public, the switch, every filter rule (unknown age or time never counting as suitable), repeat avoidance, server-side roll and count agreeing, similar and alternative games only from the shelf, Game of the Week (week boundaries in BST, concurrent requests picking once, the 12-week window, the fallback, reselecting after a retirement, history, the Cron check, no push), cover rights gating, the bundled catalogue importing cleanly (163 for review, none confirmed, no errors), category names with apostrophes, and confirming several titles at once (one note, incomplete titles left open, refused if any were already decided).
 
 **Checked in a browser (local, with test data):**
 - **Preview mode:** a filtered roll, a game page, and the shelf with Game of the Week, at 390 and 1280 px.
@@ -45,9 +47,10 @@ _15 October 2026. **Code deployed to production** (`main` at `c1a6584`) with the
 
 | | Count |
 | --- | --- |
-| Source profiles parsed | **0** (source not supplied) |
-| Confirmed holdings | 0 |
-| In the review register | 0 |
+| Source profiles parsed | **127**, in 6 categories |
+| Unconfirmed or obscured entries | **36** (plus 1 note: "Other partially obscured boxes", which needs a stocktake, not a title) |
+| Confirmed holdings | **0**: the catalogue marks every profile provisional |
+| For review, in the manifest | **163**: 127 with details (124 complete enough to confirm as they are; 3 have an open-ended player count) and 36 uncertain with no details. In the live review register once an admin runs the import. |
 | Rejected | 0 |
 | Covers verified | 0 |
 | Legacy (preview) games in production | 10, served until the switch is turned on |
@@ -57,11 +60,12 @@ _15 October 2026. **Code deployed to production** (`main` at `c1a6584`) with the
 
 | Item | Status | Needed |
 | --- | --- | --- |
-| Parsing the catalogue; `data/game-library-master.json` and `data/game-library-review.json` | **Blocked** | The two Markdown files. The data files exist, marked `awaiting-source`. |
-| Checking holdings against the shelf photos | **Blocked** | The photos. Without them, titles wait for an admin to confirm. |
-| Researching covers | **Blocked** | Confirmed games first, then rights decisions ([image audit](GAME_LIBRARY_IMAGE_AUDIT.md)). |
+| Parsing the catalogue; `data/game-library-master.json` and `data/game-library-review.json` | **Done** 15 Oct | One file was supplied, `board_game_library_image_references.md`. It holds the enriched catalogue and the image references together, so the second file isn't needed. |
+| Checking holdings against the shelf photos | **Not needed** | Admins confirm what's on the shelf under **Review**, which records who and when. The photos would only have pre-filled evidence. |
+| Researching covers | **Waiting** | Confirmed games first, then rights decisions. The catalogue has a search link per title and no verified image ([image audit](GAME_LIBRARY_IMAGE_AUDIT.md)). |
 | Production: migration 0016 and merge | **Done** 15 Oct 2026 | See **Production** above |
-| Production: import and cutover | **Waiting** | The catalogue first; then approval to switch on ([deployment §2–3](GAME_LIBRARY_DEPLOYMENT.md)) |
+| Production: import and review | **Waiting** | An admin: **Import → Dry run → Apply**, then **Review** ([deployment §2](GAME_LIBRARY_DEPLOYMENT.md#2-load-the-catalogue)) |
+| Production: cutover | **Waiting** | Approval to switch on, once enough games are confirmed ([deployment §3](GAME_LIBRARY_DEPLOYMENT.md#3-cutover-put-the-library-live)) |
 | Deleting the preview shelf code (`src/games/preview.ts`) | After cutover is stable | One small follow-up |
 
 ## Decisions taken (change any of them)
@@ -76,10 +80,17 @@ _15 October 2026. **Code deployed to production** (`main` at `c1a6584`) with the
 - **No Game of the Week notification,** to keep automatic pushes within the one-per-48-hours rule set for event alerts.
 - **Chaos Roll stays as the Quick Roll** (it ignores filters). The main button rolls with whatever filters are set, so with none set it's a Quick Roll too.
 - **Covers are stored in KV,** because R2 isn't enabled on the account.
+- **Reading the catalogue:**
+  - **Titles kept whole:** "Monopoly: Star Wars Saga Edition" stays one title, with no edition split off, so nothing is misread. An admin can set an edition when confirming.
+  - **Categories:** the catalogue's own six (Classic & Family; Modern Strategy & Hobby; Party, Trivia & Social; Children's & Educational; Word, Dexterity & Quick Play; Fantasy, Licensed & Specialist).
+  - **Audiences:** the catalogue's Children, Family, Adult, Party and Strategy map to the app's five. Its other labels (Teen, Fans, Trivia, Cooperative and so on) describe the game rather than who it suits, so they stay on the entry as `source_audience`, for reference. One title, Solitaire, has none of the five.
+  - **Players "1+" or "2+":** no maximum is invented. Those three titles need one before they're confirmed.
+  - **Uncertain entries** have no details, as the catalogue says. They're confirmed one at a time once the box is identified.
+- **Confirming many at once:** ticking titles uses the catalogue's details as they are, with one note for all of them ("Stocktake, 16 Oct"). Each still gets its own record and audit entry.
 
 ## Operator actions
 
-1. Supply the two source files and the shelf photos.
+1. ~~Supply the source files.~~ Done 15 Oct. The shelf photos are no longer needed.
 2. ~~Approve applying migration 0016 and merging the branch (deployment §1).~~ Done 15 Oct 2026.
-3. After the import, work through **Review**, and add covers where rights allow.
+3. In the organiser: **Game library → Import → Dry run**, then **Apply**. Then work through **Review**: tick what's on the shelf and **Confirm ticked**, and reject what isn't. Add covers where rights allow.
 4. Approve turning the library live (deployment §3).

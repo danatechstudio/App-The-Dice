@@ -1,7 +1,3273 @@
 {
   "format": "rtd-game-library/1",
-  "status": "awaiting-source",
-  "note": "Provisional and uncertain titles held for review: never public. Empty until the source catalogue is parsed.",
-  "sources": [],
-  "entries": []
+  "status": "ready",
+  "note": "127 provisional titles with details, and 36 uncertain entries. Never public until an admin confirms one.",
+  "notes": [
+    "Other partially obscured boxes: needs a physical stocktake, not a single title."
+  ],
+  "sources": [
+    {
+      "name": "board_game_library_image_references.md",
+      "sha256": "cf0ab0a5e12395a7342925515ba48732d7fc68a6384c97cf0cbff1f6b07ff137",
+      "title": "Board Game Library — Enriched Catalogue"
+    }
+  ],
+  "entries": [
+    {
+      "title": "The Game of Life",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 45,
+      "play_time_max": 90,
+      "synopsis": "Travel through life's milestones, choosing careers, families and financial decisions. The richest player at retirement usually wins.",
+      "source_title": "The Game of Life",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #1",
+      "source_audience": "Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=The%20Game%20of%20Life"
+    },
+    {
+      "title": "The Game of Life: Adventures Edition",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 40,
+      "play_time_max": 75,
+      "synopsis": "An alternative Life edition with new choices and events along the journey. Players navigate personal milestones and compete to finish with the best outcome.",
+      "source_title": "The Game of Life: Adventures Edition",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #2",
+      "source_audience": "Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=The%20Game%20of%20Life%3A%20Adventures%20Edition"
+    },
+    {
+      "title": "Operation",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 6,
+      "min_players": 1,
+      "max_players": 4,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "Use tweezers to remove ailments from a patient without touching the sides. A buzzer punishes shaky hands in this dexterity classic.",
+      "source_title": "Operation",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #3",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Operation"
+    },
+    {
+      "title": "Operation: Doctor Who",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 6,
+      "min_players": 1,
+      "max_players": 4,
+      "play_time_min": 15,
+      "play_time_max": 30,
+      "synopsis": "A Doctor Who themed variation of Operation replaces the familiar surgery challenges with franchise-inspired objects. Carefully remove pieces without setting off the alarm.",
+      "source_title": "Operation: Doctor Who",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #4",
+      "source_audience": "Children, Family, Fans",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Operation%3A%20Doctor%20Who"
+    },
+    {
+      "title": "Downfall",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 7,
+      "min_players": 2,
+      "max_players": 2,
+      "play_time_min": 15,
+      "play_time_max": 30,
+      "synopsis": "Rotate gears to move your coloured counters down a vertical board. Anticipate how your opponent's moves will alter the mechanism.",
+      "source_title": "Downfall",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #5",
+      "source_audience": "Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Downfall"
+    },
+    {
+      "title": "Pac-Man: The Board Game",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 5,
+      "play_time_min": 20,
+      "play_time_max": 40,
+      "synopsis": "One player guides Pac-Man through a maze collecting pellets while others control ghosts. Movement and power-ups recreate the arcade chase.",
+      "source_title": "Pac-Man: The Board Game",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #6",
+      "source_audience": "Family, Fans",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Pac-Man%3A%20The%20Board%20Game"
+    },
+    {
+      "title": "Monopoly",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 60,
+      "play_time_max": 180,
+      "synopsis": "Buy properties, charge rent and develop houses and hotels to bankrupt opponents. Trading and negotiation are central to the game.",
+      "source_title": "Monopoly",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #7",
+      "source_audience": "Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Monopoly"
+    },
+    {
+      "title": "Monopoly: Game of Thrones",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Adults"
+      ],
+      "min_age": 18,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 60,
+      "play_time_max": 180,
+      "synopsis": "Trade and develop locations from Westeros using Monopoly-style rules. The themed board and tokens replace traditional streets and landmarks.",
+      "source_title": "Monopoly: Game of Thrones",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #8",
+      "source_audience": "Adult, Fans",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Monopoly%3A%20Game%20of%20Thrones"
+    },
+    {
+      "title": "Monopoly: Star Wars Saga Edition",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 60,
+      "play_time_max": 150,
+      "synopsis": "Acquire Star Wars-themed locations and compete for control of the board. Familiar Monopoly trading and rent collection underpin the experience.",
+      "source_title": "Monopoly: Star Wars Saga Edition",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #9",
+      "source_audience": "Family, Fans",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Monopoly%3A%20Star%20Wars%20Saga%20Edition"
+    },
+    {
+      "title": "Monopoly: Doctor Who",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 60,
+      "play_time_max": 150,
+      "synopsis": "Buy and trade Doctor Who-themed properties as you circle the board. The familiar Monopoly format features franchise locations and imagery.",
+      "source_title": "Monopoly: Doctor Who",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #10",
+      "source_audience": "Family, Fans",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Monopoly%3A%20Doctor%20Who"
+    },
+    {
+      "title": "Monopoly: Disney",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 60,
+      "play_time_max": 150,
+      "synopsis": "Trade Disney-themed properties in a themed version of Monopoly. Familiar rent, sets and development rules determine the winner.",
+      "source_title": "Monopoly: Disney",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #11",
+      "source_audience": "Family, Fans",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Monopoly%3A%20Disney"
+    },
+    {
+      "title": "Monopoly: Dungeons & Dragons",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 60,
+      "play_time_max": 150,
+      "synopsis": "A fantasy-themed Monopoly edition featuring Dungeons & Dragons locations or characters. Players compete through property acquisition and trading.",
+      "source_title": "Monopoly: Dungeons & Dragons",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #12",
+      "source_audience": "Family, Fans",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Monopoly%3A%20Dungeons%20%26%20Dragons"
+    },
+    {
+      "title": "Monopoly: Cheaters Edition",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family",
+        "Party"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 45,
+      "play_time_max": 120,
+      "synopsis": "Secretly attempt specified cheats while watching opponents for rule-breaking. Getting caught can bring penalties, making bluffing part of the game.",
+      "source_title": "Monopoly: Cheaters Edition",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #13",
+      "source_audience": "Family, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Monopoly%3A%20Cheaters%20Edition"
+    },
+    {
+      "title": "Monopoly Millionaire",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 45,
+      "play_time_max": 90,
+      "synopsis": "Buy properties and collect money in a faster race to become a millionaire. The first to reach the wealth target wins.",
+      "source_title": "Monopoly Millionaire",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #14",
+      "source_audience": "Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Monopoly%20Millionaire"
+    },
+    {
+      "title": "Scrabble",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 45,
+      "play_time_max": 90,
+      "synopsis": "Place letter tiles to form interlocking words on a shared board. Earn points from letter values and premium squares.",
+      "source_title": "Scrabble",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #15",
+      "source_audience": "Family, Word Games",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Scrabble"
+    },
+    {
+      "title": "Scrabble Junior",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 5,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 20,
+      "play_time_max": 40,
+      "synopsis": "Introduce children to spelling and word-building with a simpler board. Some versions offer two sides for different skill levels.",
+      "source_title": "Scrabble Junior",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #16",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Scrabble%20Junior"
+    },
+    {
+      "title": "Scrabble: Harry Potter Edition",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 10,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 45,
+      "play_time_max": 90,
+      "synopsis": "Build words using familiar Scrabble scoring with Harry Potter-themed features. Special rules or themed vocabulary depend on the edition.",
+      "source_title": "Scrabble: Harry Potter Edition",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #17",
+      "source_audience": "Family, Fans",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Scrabble%3A%20Harry%20Potter%20Edition"
+    },
+    {
+      "title": "Cluedo",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Deduce the culprit, weapon and location by collecting clues and eliminating possibilities. Be the first to make a correct accusation.",
+      "source_title": "Cluedo",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #18",
+      "source_audience": "Family, Deduction",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Cluedo"
+    },
+    {
+      "title": "Cluedo: Star Wars",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Solve a Star Wars-themed mystery by moving between locations and collecting clues. The exact scenario and special rules vary by edition.",
+      "source_title": "Cluedo: Star Wars",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #19",
+      "source_audience": "Family, Fans",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Cluedo%3A%20Star%20Wars"
+    },
+    {
+      "title": "Guess Who?",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 6,
+      "min_players": 2,
+      "max_players": 2,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "Ask yes-or-no questions to eliminate faces from a grid. Identify the other player's secret character first.",
+      "source_title": "Guess Who?",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #20",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Guess%20Who%3F"
+    },
+    {
+      "title": "Battleship",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 7,
+      "min_players": 2,
+      "max_players": 2,
+      "play_time_min": 20,
+      "play_time_max": 40,
+      "synopsis": "Hide ships on a grid and call coordinates to locate your opponent's fleet. Sink every enemy ship to win.",
+      "source_title": "Battleship",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #21",
+      "source_audience": "Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Battleship"
+    },
+    {
+      "title": "Connect 4",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 6,
+      "min_players": 2,
+      "max_players": 2,
+      "play_time_min": 5,
+      "play_time_max": 15,
+      "synopsis": "Drop coloured discs into a vertical grid and connect four in a row. Block the opponent while building your own lines.",
+      "source_title": "Connect 4",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #22",
+      "source_audience": "Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Connect%204"
+    },
+    {
+      "title": "Frustration",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 6,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 20,
+      "play_time_max": 40,
+      "synopsis": "Race pieces around the board using a pop-o-matic die. Land on opponents to send their pieces back to the start.",
+      "source_title": "Frustration",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #23",
+      "source_audience": "Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Frustration"
+    },
+    {
+      "title": "Jumanji",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Advance through a jungle-themed board and overcome hazards before the game overwhelms the group. The movie-inspired challenge blends luck and cooperation.",
+      "source_title": "Jumanji",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #24",
+      "source_audience": "Family, Adventure",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Jumanji"
+    },
+    {
+      "title": "Topple",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 6,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 15,
+      "play_time_max": 25,
+      "synopsis": "Place pieces onto a precariously balanced platform to score points. Poor placement can tip the structure and undo your progress.",
+      "source_title": "Topple",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #25",
+      "source_audience": "Family, Dexterity",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Topple"
+    },
+    {
+      "title": "Don't Panic",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family",
+        "Party"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 20,
+      "play_time_max": 40,
+      "synopsis": "Race against a timer to name examples fitting a prompted category. The pressure increases as players attempt longer answers.",
+      "source_title": "Don't Panic",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #26",
+      "source_audience": "Family, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Don%27t%20Panic"
+    },
+    {
+      "title": "Dingbats",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Decode visual word puzzles that represent common phrases or sayings. Players compete to solve the most rebuses.",
+      "source_title": "Dingbats",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #27",
+      "source_audience": "Family, Word Games",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Dingbats"
+    },
+    {
+      "title": "Pictureka!",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family",
+        "Children"
+      ],
+      "min_age": 6,
+      "min_players": 2,
+      "max_players": 7,
+      "play_time_min": 20,
+      "play_time_max": 30,
+      "synopsis": "Search crowded illustrated boards for objects matching a challenge. Quick observation and a sharp eye are rewarded.",
+      "source_title": "Pictureka!",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #28",
+      "source_audience": "Family, Children",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Pictureka%21"
+    },
+    {
+      "title": "5 Second Rule",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family",
+        "Party"
+      ],
+      "min_age": 8,
+      "min_players": 3,
+      "max_players": 6,
+      "play_time_min": 15,
+      "play_time_max": 30,
+      "synopsis": "Name three things in a category before five seconds expire. The short timer creates funny slips and frantic answers.",
+      "source_title": "5 Second Rule",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #29",
+      "source_audience": "Family, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=5%20Second%20Rule"
+    },
+    {
+      "title": "5 Second Rule Junior",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 6,
+      "min_players": 3,
+      "max_players": 6,
+      "play_time_min": 15,
+      "play_time_max": 30,
+      "synopsis": "Answer child-friendly naming challenges against a five-second timer. Simple prompts make the fast party format accessible to younger players.",
+      "source_title": "5 Second Rule Junior",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #30",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=5%20Second%20Rule%20Junior"
+    },
+    {
+      "title": "Articulate!",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family",
+        "Party"
+      ],
+      "min_age": 12,
+      "min_players": 4,
+      "max_players": 20,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Describe words to teammates without saying the answers. Race around the board through successful guesses.",
+      "source_title": "Articulate!",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #31",
+      "source_audience": "Family, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Articulate%21"
+    },
+    {
+      "title": "Articulate! Your Life",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family",
+        "Party"
+      ],
+      "min_age": 12,
+      "min_players": 4,
+      "max_players": 20,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Describe everyday words and experiences across life-themed categories. Teams advance by guessing quickly and accurately.",
+      "source_title": "Articulate! Your Life",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #32",
+      "source_audience": "Family, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Articulate%21%20Your%20Life"
+    },
+    {
+      "title": "Articulate! Fame",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family",
+        "Party"
+      ],
+      "min_age": 12,
+      "min_players": 4,
+      "max_players": 20,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Give clues about famous people and entertainment topics without using the answer. Teams compete to identify as many as possible.",
+      "source_title": "Articulate! Fame",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #33",
+      "source_audience": "Family, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Articulate%21%20Fame"
+    },
+    {
+      "title": "Big Brother: The Game",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Adults",
+        "Party"
+      ],
+      "min_age": 12,
+      "min_players": 3,
+      "max_players": 8,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "A reality-television themed party game with social challenges and competitive tasks. The exact format depends on the series edition.",
+      "source_title": "Big Brother: The Game",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #34",
+      "source_audience": "Teen, Adult, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Big%20Brother%3A%20The%20Game"
+    },
+    {
+      "title": "The Weakest Link",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 10,
+      "min_players": 3,
+      "max_players": 8,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Answer general-knowledge questions while deciding whether to bank points. Voting and elimination echo the television quiz show.",
+      "source_title": "The Weakest Link",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #35",
+      "source_audience": "Family, Trivia",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=The%20Weakest%20Link"
+    },
+    {
+      "title": "Who Wants to Be a Millionaire?",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Answer increasingly difficult multiple-choice trivia questions for larger prizes. Lifelines may help players progress through the question ladder.",
+      "source_title": "Who Wants to Be a Millionaire?",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #36",
+      "source_audience": "Family, Trivia",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Who%20Wants%20to%20Be%20a%20Millionaire%3F"
+    },
+    {
+      "title": "Deal or No Deal",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Classic & Family",
+      "audiences": [
+        "Family",
+        "Party"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Open numbered boxes while weighing offers from the Banker. Decide whether to accept a deal or gamble on a better prize.",
+      "source_title": "Deal or No Deal",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Classic & Family #37",
+      "source_audience": "Family, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Deal%20or%20No%20Deal"
+    },
+    {
+      "title": "Catan",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family",
+        "Strategy"
+      ],
+      "min_age": 10,
+      "min_players": 3,
+      "max_players": 4,
+      "play_time_min": 60,
+      "play_time_max": 120,
+      "synopsis": "Collect resources from a changing island and trade with other settlers. Build roads, settlements and cities to reach the victory-point target.",
+      "source_title": "Catan",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #1",
+      "source_audience": "Family, Strategy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Catan"
+    },
+    {
+      "title": "Ticket to Ride: Europe",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family",
+        "Strategy"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 5,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Collect train cards to connect European cities and complete secret routes. Tunnels, ferries and stations add tactical decisions.",
+      "source_title": "Ticket to Ride: Europe",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #2",
+      "source_audience": "Family, Strategy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Ticket%20to%20Ride%3A%20Europe"
+    },
+    {
+      "title": "Wingspan",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family",
+        "Strategy"
+      ],
+      "min_age": 10,
+      "min_players": 1,
+      "max_players": 5,
+      "play_time_min": 40,
+      "play_time_max": 70,
+      "synopsis": "Attract birds to habitats and build combinations of useful abilities. Gain points through birds, eggs, food and conservation objectives.",
+      "source_title": "Wingspan",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #3",
+      "source_audience": "Family, Strategy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Wingspan"
+    },
+    {
+      "title": "Living Forest",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family",
+        "Strategy"
+      ],
+      "min_age": 10,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 30,
+      "play_time_max": 45,
+      "synopsis": "Recruit animal guardians and use push-your-luck turns to protect a magical forest. Win through trees, sacred flowers or extinguishing fires.",
+      "source_title": "Living Forest",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #4",
+      "source_audience": "Family, Strategy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Living%20Forest"
+    },
+    {
+      "title": "Azul",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family",
+        "Strategy"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 30,
+      "play_time_max": 45,
+      "synopsis": "Draft colourful tiles and arrange them into scoring patterns on a personal board. Efficient placement earns points while waste costs you.",
+      "source_title": "Azul",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #5",
+      "source_audience": "Family, Strategy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Azul"
+    },
+    {
+      "title": "7 Wonders",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family",
+        "Strategy"
+      ],
+      "min_age": 10,
+      "min_players": 3,
+      "max_players": 7,
+      "play_time_min": 30,
+      "play_time_max": 45,
+      "synopsis": "Draft cards over three ages to develop an ancient civilisation. Balance science, military, trade and civic buildings for points.",
+      "source_title": "7 Wonders",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #6",
+      "source_audience": "Family, Strategy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=7%20Wonders"
+    },
+    {
+      "title": "Splendor",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family",
+        "Strategy"
+      ],
+      "min_age": 10,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 30,
+      "play_time_max": 45,
+      "synopsis": "Collect gems to purchase development cards that discount later purchases. Attract nobles and reach the victory-point threshold.",
+      "source_title": "Splendor",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #7",
+      "source_audience": "Family, Strategy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Splendor"
+    },
+    {
+      "title": "Flamecraft",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family",
+        "Strategy"
+      ],
+      "min_age": 10,
+      "min_players": 1,
+      "max_players": 5,
+      "play_time_min": 60,
+      "play_time_max": 90,
+      "synopsis": "Place artisan dragons in charming shops to gather goods and improve the town. Fulfil enchantments and score reputation through efficient actions.",
+      "source_title": "Flamecraft",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #8",
+      "source_audience": "Family, Strategy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Flamecraft"
+    },
+    {
+      "title": "Dragonrealm",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 10,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 20,
+      "play_time_max": 30,
+      "synopsis": "Recruit adventurers and attempt challenges to claim locations in a fantasy realm. Push your luck while competing for valuable rewards.",
+      "source_title": "Dragonrealm",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #9",
+      "source_audience": "Family, Fantasy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Dragonrealm"
+    },
+    {
+      "title": "Dice Forge",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family",
+        "Strategy"
+      ],
+      "min_age": 10,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 40,
+      "play_time_max": 60,
+      "synopsis": "Upgrade the faces of your dice to produce better resources on every roll. Spend resources on heroic feats and score victory points.",
+      "source_title": "Dice Forge",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #10",
+      "source_audience": "Family, Strategy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Dice%20Forge"
+    },
+    {
+      "title": "World War Z: The Game",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Adults"
+      ],
+      "min_age": 14,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 45,
+      "play_time_max": 90,
+      "synopsis": "Survive a zombie outbreak through tactical choices and escalating threats. Specific rules and player limits require checking the box edition.",
+      "source_title": "World War Z: The Game",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #11",
+      "source_audience": "Teen, Adult, Thematic",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=World%20War%20Z%3A%20The%20Game"
+    },
+    {
+      "title": "Gutterhead",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Adults",
+        "Party"
+      ],
+      "min_age": 18,
+      "min_players": 4,
+      "max_players": 16,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Draw and guess cheeky or explicit prompts under time pressure. This is intended for adults rather than children.",
+      "source_title": "Gutterhead",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #12",
+      "source_audience": "Adult, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Gutterhead"
+    },
+    {
+      "title": "Herd Mentality",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family",
+        "Party"
+      ],
+      "min_age": 10,
+      "min_players": 4,
+      "max_players": 20,
+      "play_time_min": 20,
+      "play_time_max": 30,
+      "synopsis": "Try to give the same answer as the majority to ordinary questions. Being the odd one out earns the troublesome pink cow.",
+      "source_title": "Herd Mentality",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #13",
+      "source_audience": "Family, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Herd%20Mentality"
+    },
+    {
+      "title": "Quacks of Quedlinburg",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family",
+        "Strategy"
+      ],
+      "min_age": 10,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 45,
+      "play_time_max": 60,
+      "synopsis": "Draw ingredients from a bag to brew increasingly valuable potions. Push your luck without letting your cauldron explode.",
+      "source_title": "Quacks of Quedlinburg",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #14",
+      "source_audience": "Family, Strategy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Quacks%20of%20Quedlinburg"
+    },
+    {
+      "title": "Alchemists",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Adults",
+        "Strategy"
+      ],
+      "min_age": 14,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 120,
+      "play_time_max": 180,
+      "synopsis": "Experiment with ingredients to deduce their hidden properties. Publish theories and balance scientific discovery with reputation.",
+      "source_title": "Alchemists",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #15",
+      "source_audience": "Teen, Adult, Strategy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Alchemists"
+    },
+    {
+      "title": "Small World of Warcraft",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family",
+        "Strategy"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 5,
+      "play_time_min": 40,
+      "play_time_max": 80,
+      "synopsis": "Control fantasy races and powers to conquer regions across Warcraft islands. Time the decline of your civilisation to maintain scoring momentum.",
+      "source_title": "Small World of Warcraft",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #16",
+      "source_audience": "Family, Strategy, Fans",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Small%20World%20of%20Warcraft"
+    },
+    {
+      "title": "Mountains of Madness",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Adults"
+      ],
+      "min_age": 12,
+      "min_players": 3,
+      "max_players": 5,
+      "play_time_min": 60,
+      "play_time_max": 90,
+      "synopsis": "Explore an Antarctic mountain expedition while accumulating madness effects. Players must communicate under strange restrictions to survive.",
+      "source_title": "Mountains of Madness",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #17",
+      "source_audience": "Teen, Adult, Cooperative",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Mountains%20of%20Madness"
+    },
+    {
+      "title": "Arkham Horror",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Adults"
+      ],
+      "min_age": 12,
+      "min_players": 1,
+      "max_players": 8,
+      "play_time_min": 120,
+      "play_time_max": 240,
+      "synopsis": "Investigators work together to stop supernatural threats engulfing Arkham. Exploration, encounters and escalating doom drive a long horror adventure.",
+      "source_title": "Arkham Horror",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #18",
+      "source_audience": "Teen, Adult, Cooperative",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Arkham%20Horror"
+    },
+    {
+      "title": "Dungeons & Dragons: Wrath of Ashardalon",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Adults"
+      ],
+      "min_age": 12,
+      "min_players": 1,
+      "max_players": 5,
+      "play_time_min": 60,
+      "play_time_max": 90,
+      "synopsis": "Explore a modular dungeon, battle monsters and complete scenarios as fantasy heroes. Automated enemy behaviour supports cooperative play.",
+      "source_title": "Dungeons & Dragons: Wrath of Ashardalon",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #19",
+      "source_audience": "Teen, Adult, Cooperative",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Dungeons%20%26%20Dragons%3A%20Wrath%20of%20Ashardalon"
+    },
+    {
+      "title": "A Game of Thrones: The Board Game",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Adults",
+        "Strategy"
+      ],
+      "min_age": 14,
+      "min_players": 3,
+      "max_players": 6,
+      "play_time_min": 120,
+      "play_time_max": 240,
+      "synopsis": "Lead a noble house competing for control of Westeros. Secret orders, military manoeuvres and political negotiation determine who claims the throne.",
+      "source_title": "A Game of Thrones: The Board Game",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #20",
+      "source_audience": "Teen, Adult, Strategy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=A%20Game%20of%20Thrones%3A%20The%20Board%20Game"
+    },
+    {
+      "title": "Obscurio",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 10,
+      "min_players": 2,
+      "max_players": 8,
+      "play_time_min": 45,
+      "play_time_max": 60,
+      "synopsis": "Interpret visual clues to escape a magical library. A hidden traitor tries to mislead the group.",
+      "source_title": "Obscurio",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #21",
+      "source_audience": "Family, Deduction",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Obscurio"
+    },
+    {
+      "title": "Mysterium",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 10,
+      "min_players": 2,
+      "max_players": 7,
+      "play_time_min": 40,
+      "play_time_max": 60,
+      "synopsis": "A ghost communicates through surreal picture cards to help psychics solve a murder. Players interpret visions to identify suspects, locations and objects.",
+      "source_title": "Mysterium",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #22",
+      "source_audience": "Family, Cooperative",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Mysterium"
+    },
+    {
+      "title": "Carcassonne",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family",
+        "Strategy"
+      ],
+      "min_age": 7,
+      "min_players": 2,
+      "max_players": 5,
+      "play_time_min": 30,
+      "play_time_max": 45,
+      "synopsis": "Build a medieval landscape by laying tiles and claiming roads, cities and fields. Score points through careful placement of followers.",
+      "source_title": "Carcassonne",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #23",
+      "source_audience": "Family, Strategy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Carcassonne"
+    },
+    {
+      "title": "Takenoko",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family",
+        "Strategy"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 45,
+      "play_time_max": 60,
+      "synopsis": "Grow bamboo, irrigate plots and guide a hungry panda through a garden. Complete secret objectives to earn points.",
+      "source_title": "Takenoko",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #24",
+      "source_audience": "Family, Strategy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Takenoko"
+    },
+    {
+      "title": "Pandemic",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 45,
+      "play_time_max": 60,
+      "synopsis": "Work as a team of specialists to contain diseases spreading around the world. Share knowledge and discover cures before outbreaks overwhelm the board.",
+      "source_title": "Pandemic",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #25",
+      "source_audience": "Family, Cooperative",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Pandemic"
+    },
+    {
+      "title": "Forbidden Island",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 10,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 30,
+      "play_time_max": 45,
+      "synopsis": "Collect four treasures and escape an island that sinks tile by tile. Teamwork and careful movement are essential.",
+      "source_title": "Forbidden Island",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #26",
+      "source_audience": "Family, Cooperative",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Forbidden%20Island"
+    },
+    {
+      "title": "Fire Tower",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Adults",
+        "Strategy"
+      ],
+      "min_age": 14,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 15,
+      "play_time_max": 30,
+      "synopsis": "Manipulate wind and fire to threaten rivals' lookout towers while protecting your own. Tactical card play determines how the wildfire spreads.",
+      "source_title": "Fire Tower",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #27",
+      "source_audience": "Teen, Adult, Strategy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Fire%20Tower"
+    },
+    {
+      "title": "Outburst!",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Adults",
+        "Party"
+      ],
+      "min_age": 16,
+      "min_players": 4,
+      "max_players": 20,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Teams shout answers to a topic hoping to match those on a hidden list. Broad knowledge and fast brainstorming are rewarded.",
+      "source_title": "Outburst!",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #28",
+      "source_audience": "Teen, Adult, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Outburst%21"
+    },
+    {
+      "title": "Concept",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family",
+        "Party"
+      ],
+      "min_age": 10,
+      "min_players": 4,
+      "max_players": 12,
+      "play_time_min": 30,
+      "play_time_max": 45,
+      "synopsis": "Communicate words or phrases by placing markers on icons. Other players infer the answer without verbal clues.",
+      "source_title": "Concept",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #29",
+      "source_audience": "Family, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Concept"
+    },
+    {
+      "title": "Quarto",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 2,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "Select pieces for your opponent to place on a four-by-four grid. Win by forming a line sharing one physical characteristic.",
+      "source_title": "Quarto",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #30",
+      "source_audience": "Family, Abstract",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Quarto"
+    },
+    {
+      "title": "Wacky Races: The Board Game",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Modern Strategy & Hobby",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 20,
+      "play_time_max": 40,
+      "synopsis": "Race familiar cartoon characters across a modular track using movement cards. Hazards and rival interference create a chaotic finish.",
+      "source_title": "Wacky Races: The Board Game",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Modern Strategy & Hobby #31",
+      "source_audience": "Family, Racing",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Wacky%20Races%3A%20The%20Board%20Game"
+    },
+    {
+      "title": "Confident?",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Party, Trivia & Social",
+      "audiences": [
+        "Family",
+        "Party"
+      ],
+      "min_age": 10,
+      "min_players": 2,
+      "max_players": 30,
+      "play_time_min": 20,
+      "play_time_max": 45,
+      "synopsis": "Answer numerical questions by giving a range rather than a single figure. Narrow accurate ranges score best.",
+      "source_title": "Confident?",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Party, Trivia & Social #1",
+      "source_audience": "Family, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Confident%3F"
+    },
+    {
+      "title": "QI: The Board Game",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Party, Trivia & Social",
+      "audiences": [
+        "Adults"
+      ],
+      "min_age": 12,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Answer unusual trivia questions and avoid obvious misconceptions. The game rewards surprising knowledge rather than conventional quiz responses.",
+      "source_title": "QI: The Board Game",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Party, Trivia & Social #2",
+      "source_audience": "Teen, Adult, Trivia",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=QI%3A%20The%20Board%20Game"
+    },
+    {
+      "title": "Pop Party",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Party, Trivia & Social",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Answer pop-music themed questions and challenges. Players test their familiarity with artists, songs and chart culture.",
+      "source_title": "Pop Party",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Party, Trivia & Social #3",
+      "source_audience": "Family, Music",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Pop%20Party"
+    },
+    {
+      "title": "Now That's What I Call Music!",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Party, Trivia & Social",
+      "audiences": [
+        "Family",
+        "Adults"
+      ],
+      "min_age": 12,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Compete in music trivia inspired by the long-running compilation series. Questions cover artists, tracks and pop history.",
+      "source_title": "Now That's What I Call Music!",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Party, Trivia & Social #4",
+      "source_audience": "Family, Adult, Music",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Now%20That%27s%20What%20I%20Call%20Music%21"
+    },
+    {
+      "title": "Popularity",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Party, Trivia & Social",
+      "audiences": [
+        "Adults",
+        "Party"
+      ],
+      "min_age": 12,
+      "min_players": 3,
+      "max_players": 8,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Predict or debate which answers will prove most popular. The exact rules and player range need edition verification.",
+      "source_title": "Popularity",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Party, Trivia & Social #5",
+      "source_audience": "Teen, Adult, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Popularity"
+    },
+    {
+      "title": "Grab the Mic",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Party, Trivia & Social",
+      "audiences": [
+        "Family",
+        "Party"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 10,
+      "play_time_min": 15,
+      "play_time_max": 30,
+      "synopsis": "Grab the microphone and sing a lyric containing a prompted word. Quick thinking matters more than singing ability.",
+      "source_title": "Grab the Mic",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Party, Trivia & Social #6",
+      "source_audience": "Family, Party, Music",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Grab%20the%20Mic"
+    },
+    {
+      "title": "TikTok: The Game",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Party, Trivia & Social",
+      "audiences": [
+        "Party"
+      ],
+      "min_age": 12,
+      "min_players": 3,
+      "max_players": 8,
+      "play_time_min": 20,
+      "play_time_max": 45,
+      "synopsis": "Take on social-media-inspired challenges and performances. Edition-specific prompts may involve acting, guessing or creativity.",
+      "source_title": "TikTok: The Game",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Party, Trivia & Social #7",
+      "source_audience": "Teen, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=TikTok%3A%20The%20Game"
+    },
+    {
+      "title": "Quiz Bingo",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Party, Trivia & Social",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 8,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Combine quiz questions with the anticipation of bingo-style matching. Mark correct results to complete winning patterns.",
+      "source_title": "Quiz Bingo",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Party, Trivia & Social #8",
+      "source_audience": "Family, Trivia",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Quiz%20Bingo"
+    },
+    {
+      "title": "The Logo Board Game",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Party, Trivia & Social",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 12,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Answer questions about familiar brands, packaging and advertising. Progress around the board by recognising logos and consumer trivia.",
+      "source_title": "The Logo Board Game",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Party, Trivia & Social #9",
+      "source_audience": "Family, Trivia",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=The%20Logo%20Board%20Game"
+    },
+    {
+      "title": "Logo: What Am I?",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Party, Trivia & Social",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 20,
+      "play_time_max": 40,
+      "synopsis": "Identify familiar products, brands and characters from verbal or visual clues. Teams or individuals compete to make correct guesses.",
+      "source_title": "Logo: What Am I?",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Party, Trivia & Social #10",
+      "source_audience": "Family, Trivia",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Logo%3A%20What%20Am%20I%3F"
+    },
+    {
+      "title": "MindTrap",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Party, Trivia & Social",
+      "audiences": [
+        "Adults"
+      ],
+      "min_age": 12,
+      "min_players": 2,
+      "max_players": 8,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Solve lateral-thinking riddles and logic puzzles. Players must question assumptions rather than rely on straightforward trivia.",
+      "source_title": "MindTrap",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Party, Trivia & Social #11",
+      "source_audience": "Teen, Adult, Puzzles",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=MindTrap"
+    },
+    {
+      "title": "Cranium",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Party, Trivia & Social",
+      "audiences": [
+        "Family",
+        "Party"
+      ],
+      "min_age": 12,
+      "min_players": 4,
+      "max_players": 16,
+      "play_time_min": 45,
+      "play_time_max": 90,
+      "synopsis": "Teams tackle drawing, acting, word and knowledge challenges. A mixture of skills gives everyone a chance to contribute.",
+      "source_title": "Cranium",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Party, Trivia & Social #12",
+      "source_audience": "Family, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Cranium"
+    },
+    {
+      "title": "Scattergories",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Party, Trivia & Social",
+      "audiences": [
+        "Family",
+        "Party"
+      ],
+      "min_age": 12,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 20,
+      "play_time_max": 40,
+      "synopsis": "List answers to categories that start with a randomly chosen letter. Unique valid answers score points.",
+      "source_title": "Scattergories",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Party, Trivia & Social #13",
+      "source_audience": "Family, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Scattergories"
+    },
+    {
+      "title": "What Do You Meme? Family Edition",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Party, Trivia & Social",
+      "audiences": [
+        "Family",
+        "Party"
+      ],
+      "min_age": 8,
+      "min_players": 3,
+      "max_players": 20,
+      "play_time_min": 30,
+      "play_time_max": 60,
+      "synopsis": "Match caption cards to funny pictures and vote for the best combination. A family-friendly adaptation of the adult meme party format.",
+      "source_title": "What Do You Meme? Family Edition",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Party, Trivia & Social #14",
+      "source_audience": "Family, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=What%20Do%20You%20Meme%3F%20Family%20Edition"
+    },
+    {
+      "title": "Hungry Hungry Hippos",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 4,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 5,
+      "play_time_max": 15,
+      "synopsis": "Rapidly press a hippo's lever to gobble marbles from the arena. The player collecting the most wins.",
+      "source_title": "Hungry Hungry Hippos",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #1",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Hungry%20Hungry%20Hippos"
+    },
+    {
+      "title": "Hungry Hippos Launchers",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 4,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "Launch balls towards targets in a Hungry Hippos-themed dexterity contest. Aim and timing determine the score.",
+      "source_title": "Hungry Hippos Launchers",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #2",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Hungry%20Hippos%20Launchers"
+    },
+    {
+      "title": "Elefun",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 3,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 10,
+      "play_time_max": 15,
+      "synopsis": "Catch butterflies blown from an elephant's trunk using nets. Count the catches to determine the winner.",
+      "source_title": "Elefun",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #3",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Elefun"
+    },
+    {
+      "title": "Pop-Up Pirate!",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 4,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 5,
+      "play_time_max": 15,
+      "synopsis": "Take turns pushing swords into a pirate barrel. One unlucky slot launches the pirate into the air.",
+      "source_title": "Pop-Up Pirate!",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #4",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Pop-Up%20Pirate%21"
+    },
+    {
+      "title": "KerPlunk",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 5,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "Remove sticks from a tube without allowing marbles to drop. The player who loses the fewest marbles wins.",
+      "source_title": "KerPlunk",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #5",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=KerPlunk"
+    },
+    {
+      "title": "Buckaroo!",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 4,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "Carefully load equipment onto a spring-loaded mule. Too much movement makes it kick the load away.",
+      "source_title": "Buckaroo!",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #6",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Buckaroo%21"
+    },
+    {
+      "title": "Pigs in the Park",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 4,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 15,
+      "play_time_max": 25,
+      "synopsis": "Play a light children's game with a park and animal theme. Exact rules and age range need checking against the box.",
+      "source_title": "Pigs in the Park",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #7",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Pigs%20in%20the%20Park"
+    },
+    {
+      "title": "Hedbanz",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 7,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 15,
+      "play_time_max": 30,
+      "synopsis": "Wear a mystery picture on your head and ask yes-or-no questions. Guess your own card before the timer runs out.",
+      "source_title": "Hedbanz",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #8",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Hedbanz"
+    },
+    {
+      "title": "Iceberg Insanity",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 5,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 15,
+      "play_time_max": 25,
+      "synopsis": "Play a penguin-themed balancing or action challenge on an icy setting. The precise rules require edition confirmation.",
+      "source_title": "Iceberg Insanity",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #9",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Iceberg%20Insanity"
+    },
+    {
+      "title": "Dog Park",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Family",
+        "Strategy"
+      ],
+      "min_age": 10,
+      "min_players": 1,
+      "max_players": 4,
+      "play_time_min": 40,
+      "play_time_max": 80,
+      "synopsis": "Recruit dogs, plan walks and manage resources to become a successful dog walker. Each breed brings different scoring opportunities.",
+      "source_title": "Dog Park",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #10",
+      "source_audience": "Family, Strategy",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Dog%20Park"
+    },
+    {
+      "title": "Catch and Count Game",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children"
+      ],
+      "min_age": 3,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "Catch illustrated sea creatures and practise simple counting. A short turn structure makes it suitable for younger children.",
+      "source_title": "Catch and Count Game",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #11",
+      "source_audience": "Children, Educational",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Catch%20and%20Count%20Game"
+    },
+    {
+      "title": "Heads in the Sand",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children"
+      ],
+      "min_age": 4,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "A playful animal-themed children's game involving simple matching or observation. Confirm the precise mechanics from the box instructions.",
+      "source_title": "Heads in the Sand",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #12",
+      "source_audience": "Children, Educational",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Heads%20in%20the%20Sand"
+    },
+    {
+      "title": "Shopping List",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children"
+      ],
+      "min_age": 3,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "Turn over item tiles to fill your shopping trolley or basket. Matching and memory help young players finish their lists.",
+      "source_title": "Shopping List",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #13",
+      "source_audience": "Children, Educational",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Shopping%20List"
+    },
+    {
+      "title": "Smelly Wellies",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children"
+      ],
+      "min_age": 2,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 10,
+      "play_time_max": 15,
+      "synopsis": "Match colourful patterned wellies and find pairs. The game encourages observation and early matching skills.",
+      "source_title": "Smelly Wellies",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #14",
+      "source_audience": "Children, Educational",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Smelly%20Wellies"
+    },
+    {
+      "title": "Snakes and Ladders",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 4,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 15,
+      "play_time_max": 30,
+      "synopsis": "Roll and move towards the finish, climbing ladders and sliding down snakes. A straightforward introduction to counting and turn-taking.",
+      "source_title": "Snakes and Ladders",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #15",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Snakes%20and%20Ladders"
+    },
+    {
+      "title": "Go Go Dragons!",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 4,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 15,
+      "play_time_max": 25,
+      "synopsis": "Race colourful dragons towards the finish using simple movement rules. Designed as an accessible first racing game.",
+      "source_title": "Go Go Dragons!",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #16",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Go%20Go%20Dragons%21"
+    },
+    {
+      "title": "Peter Rabbit",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 4,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 15,
+      "play_time_max": 30,
+      "synopsis": "Play through a Peter Rabbit-themed children's adventure. Mechanics and duration depend on the Ravensburger edition.",
+      "source_title": "Peter Rabbit",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #17",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Peter%20Rabbit"
+    },
+    {
+      "title": "Beetle",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 4,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "Roll dice to collect the parts needed to assemble a beetle. Complete the insect before other players.",
+      "source_title": "Beetle",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #18",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Beetle"
+    },
+    {
+      "title": "Alphabet Race",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children"
+      ],
+      "min_age": 5,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 15,
+      "play_time_max": 30,
+      "synopsis": "Race through alphabet-based challenges to recognise letters and words. It combines early literacy with simple competitive play.",
+      "source_title": "Alphabet Race",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #19",
+      "source_audience": "Children, Educational",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Alphabet%20Race"
+    },
+    {
+      "title": "Colour Match",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children"
+      ],
+      "min_age": 3,
+      "min_players": 1,
+      "max_players": 4,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "Match coloured pictures or pieces to build recognition skills. Short rounds support preschool learning.",
+      "source_title": "Colour Match",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #20",
+      "source_audience": "Children, Educational",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Colour%20Match"
+    },
+    {
+      "title": "The Wheels on the Bus",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children"
+      ],
+      "min_age": 3,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "Take part in a bus-themed matching or movement game. The exact tasks depend on the Ravensburger edition.",
+      "source_title": "The Wheels on the Bus",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #21",
+      "source_audience": "Children, Educational",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=The%20Wheels%20on%20the%20Bus"
+    },
+    {
+      "title": "Name 5",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Family",
+        "Party"
+      ],
+      "min_age": 12,
+      "min_players": 2,
+      "max_players": 8,
+      "play_time_min": 20,
+      "play_time_max": 40,
+      "synopsis": "Name five examples in a category before the timer expires. Broad topics reward fast recall and teamwork.",
+      "source_title": "Name 5",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #22",
+      "source_audience": "Family, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Name%205"
+    },
+    {
+      "title": "Creative Strip Puzzle",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)",
+        "Players given as “1+”: add the most players before confirming"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children"
+      ],
+      "min_age": 4,
+      "min_players": 1,
+      "max_players": null,
+      "play_time_min": 10,
+      "play_time_max": 30,
+      "synopsis": "Arrange picture strips to complete illustrated scenes or sequences. A quiet activity focused on observation and spatial matching.",
+      "source_title": "Creative Strip Puzzle",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #23",
+      "source_audience": "Children, Puzzle",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Creative%20Strip%20Puzzle"
+    },
+    {
+      "title": "Frozen: Disney Game",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 4,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 15,
+      "play_time_max": 30,
+      "synopsis": "Play a Frozen-themed family activity featuring familiar characters. Confirm the specific product to establish its rules and components.",
+      "source_title": "Frozen: Disney Game",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #24",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Frozen%3A%20Disney%20Game"
+    },
+    {
+      "title": "Disney Princess Pop-Up Game",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Children's & Educational",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 4,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 15,
+      "play_time_max": 30,
+      "synopsis": "Move princess-themed pieces around a simple board using a pop-up die. Reach the goal while following basic racing rules.",
+      "source_title": "Disney Princess Pop-Up Game",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Children's & Educational #25",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Disney%20Princess%20Pop-Up%20Game"
+    },
+    {
+      "title": "Boggle",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Word, Dexterity & Quick Play",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 1,
+      "max_players": 8,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "Find as many words as possible in a grid of letter dice before time runs out. Longer and unique words score more points.",
+      "source_title": "Boggle",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Word, Dexterity & Quick Play #1",
+      "source_audience": "Family, Word Games",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Boggle"
+    },
+    {
+      "title": "Pass the Bomb",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Word, Dexterity & Quick Play",
+      "audiences": [
+        "Family",
+        "Party"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 12,
+      "play_time_min": 15,
+      "play_time_max": 30,
+      "synopsis": "Say a word fitting a letter or sound challenge and pass the ticking bomb. Avoid holding it when the timer goes off.",
+      "source_title": "Pass the Bomb",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Word, Dexterity & Quick Play #2",
+      "source_audience": "Family, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Pass%20the%20Bomb"
+    },
+    {
+      "title": "Drama Llama 2",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Word, Dexterity & Quick Play",
+      "audiences": [
+        "Adults",
+        "Party"
+      ],
+      "min_age": 12,
+      "min_players": 3,
+      "max_players": 8,
+      "play_time_min": 20,
+      "play_time_max": 40,
+      "synopsis": "A humorous social party game built around dramatic prompts and reactions. Verify the edition for exact play details.",
+      "source_title": "Drama Llama 2",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Word, Dexterity & Quick Play #3",
+      "source_audience": "Teen, Adult, Party",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Drama%20Llama%202"
+    },
+    {
+      "title": "Tiddlywinks",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Word, Dexterity & Quick Play",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 5,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 10,
+      "play_time_max": 30,
+      "synopsis": "Flick small counters using a larger disc to land them in a target cup. Precision and careful positioning earn points.",
+      "source_title": "Tiddlywinks",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Word, Dexterity & Quick Play #4",
+      "source_audience": "Family, Dexterity",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Tiddlywinks"
+    },
+    {
+      "title": "Wordstax",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Word, Dexterity & Quick Play",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 20,
+      "play_time_max": 40,
+      "synopsis": "Build or identify words using three-dimensional letter pieces. Speed and vocabulary drive this word challenge.",
+      "source_title": "Wordstax",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Word, Dexterity & Quick Play #5",
+      "source_audience": "Family, Word Games",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Wordstax"
+    },
+    {
+      "title": "Wordsearch",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Word, Dexterity & Quick Play",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 7,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 15,
+      "play_time_max": 30,
+      "synopsis": "Find hidden words in a letter grid faster than your opponents. Some versions let players mark words on a shared board.",
+      "source_title": "Wordsearch",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Word, Dexterity & Quick Play #6",
+      "source_audience": "Family, Word Games",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Wordsearch"
+    },
+    {
+      "title": "Jenga",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Word, Dexterity & Quick Play",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 6,
+      "min_players": 1,
+      "max_players": 8,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "Remove wooden blocks from a tower and stack them on top. The player who causes it to collapse loses.",
+      "source_title": "Jenga",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Word, Dexterity & Quick Play #7",
+      "source_audience": "Family, Dexterity",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Jenga"
+    },
+    {
+      "title": "Perfection",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)",
+        "Players given as “1+”: add the most players before confirming"
+      ],
+      "category": "Word, Dexterity & Quick Play",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 5,
+      "min_players": 1,
+      "max_players": null,
+      "play_time_min": 5,
+      "play_time_max": 15,
+      "synopsis": "Fit geometric shapes into matching slots before a timer releases the board. Speed and spatial recognition are essential.",
+      "source_title": "Perfection",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Word, Dexterity & Quick Play #8",
+      "source_audience": "Children, Family, Dexterity",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Perfection"
+    },
+    {
+      "title": "Top Trumps",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Word, Dexterity & Quick Play",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 6,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "Compare statistics on themed cards to win opponents' cards. Choose the category most likely to beat the other players.",
+      "source_title": "Top Trumps",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Word, Dexterity & Quick Play #9",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Top%20Trumps"
+    },
+    {
+      "title": "Top Trumps: Star Wars",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Word, Dexterity & Quick Play",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 6,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "Compare Star Wars characters or vehicles across printed attributes. Win rounds by selecting the strongest statistic.",
+      "source_title": "Top Trumps: Star Wars",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Word, Dexterity & Quick Play #10",
+      "source_audience": "Family, Fans",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Top%20Trumps%3A%20Star%20Wars"
+    },
+    {
+      "title": "Monopoly Grab & Go",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Word, Dexterity & Quick Play",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 30,
+      "play_time_max": 90,
+      "synopsis": "Play a compact travel version of the classic property-trading game. Buy sets, charge rent and manage cash on a smaller board.",
+      "source_title": "Monopoly Grab & Go",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Word, Dexterity & Quick Play #11",
+      "source_audience": "Family, Travel",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Monopoly%20Grab%20%26%20Go"
+    },
+    {
+      "title": "Solitaire",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)",
+        "No audience from the app's list (the catalogue says “Solo, Puzzle”)"
+      ],
+      "category": "Word, Dexterity & Quick Play",
+      "audiences": [],
+      "min_age": 7,
+      "min_players": 1,
+      "max_players": 1,
+      "play_time_min": 10,
+      "play_time_max": 25,
+      "synopsis": "Solve a one-player puzzle by moving or removing pieces according to the board's rules. Finish with the target arrangement or fewest remaining pieces.",
+      "source_title": "Solitaire",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Word, Dexterity & Quick Play #12",
+      "source_audience": "Solo, Puzzle",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Solitaire"
+    },
+    {
+      "title": "Yahtzee",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)",
+        "Players given as “2+”: add the most players before confirming"
+      ],
+      "category": "Word, Dexterity & Quick Play",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": null,
+      "play_time_min": 20,
+      "play_time_max": 40,
+      "synopsis": "Roll five dice up to three times to make scoring combinations. Choose when to bank a result and maximise the score sheet.",
+      "source_title": "Yahtzee",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Word, Dexterity & Quick Play #13",
+      "source_audience": "Family, Dice",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Yahtzee"
+    },
+    {
+      "title": "Guess What?",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Word, Dexterity & Quick Play",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 5,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 15,
+      "play_time_max": 30,
+      "synopsis": "Use clues and questions to identify hidden objects or characters. Verify the exact box because several games share this name.",
+      "source_title": "Guess What?",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Word, Dexterity & Quick Play #14",
+      "source_audience": "Children, Family",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Guess%20What%3F"
+    },
+    {
+      "title": "Bezzzerwizzer",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Word, Dexterity & Quick Play",
+      "audiences": [
+        "Adults"
+      ],
+      "min_age": 15,
+      "min_players": 2,
+      "max_players": 12,
+      "play_time_min": 45,
+      "play_time_max": 60,
+      "synopsis": "Answer trivia questions while using tactical tokens to steal or swap categories. Knowledge and strategic timing both matter.",
+      "source_title": "Bezzzerwizzer",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Word, Dexterity & Quick Play #15",
+      "source_audience": "Teen, Adult, Trivia",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Bezzzerwizzer"
+    },
+    {
+      "title": "Ghost Castle",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Fantasy, Licensed & Specialist",
+      "audiences": [
+        "Children",
+        "Family"
+      ],
+      "min_age": 6,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 20,
+      "play_time_max": 40,
+      "synopsis": "Explore a haunted castle while avoiding traps and ghostly surprises. Race through the spooky board to escape or complete the objective.",
+      "source_title": "Ghost Castle",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Fantasy, Licensed & Specialist #1",
+      "source_audience": "Children, Family, Adventure",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Ghost%20Castle"
+    },
+    {
+      "title": "Sonic the Hedgehog: Sonic Battle",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Fantasy, Licensed & Specialist",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 7,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 20,
+      "play_time_max": 40,
+      "synopsis": "Compete in a Sonic-themed tabletop adventure or battle. Exact player limits and rules require identification of the box edition.",
+      "source_title": "Sonic the Hedgehog: Sonic Battle",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Fantasy, Licensed & Specialist #2",
+      "source_audience": "Family, Fans",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Sonic%20the%20Hedgehog%3A%20Sonic%20Battle"
+    },
+    {
+      "title": "Doctor Who: Dalek Battle",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Fantasy, Licensed & Specialist",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 8,
+      "min_players": 2,
+      "max_players": 4,
+      "play_time_min": 20,
+      "play_time_max": 40,
+      "synopsis": "Face Dalek-themed challenges inspired by Doctor Who. Confirm the edition for precise mechanics and recommended age.",
+      "source_title": "Doctor Who: Dalek Battle",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Fantasy, Licensed & Specialist #3",
+      "source_audience": "Family, Fans",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Doctor%20Who%3A%20Dalek%20Battle"
+    },
+    {
+      "title": "Trivial Pursuit: Lord of the Rings",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Fantasy, Licensed & Specialist",
+      "audiences": [
+        "Adults"
+      ],
+      "min_age": 12,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 45,
+      "play_time_max": 90,
+      "synopsis": "Answer questions about Middle-earth, its characters and events. Progress through themed categories to demonstrate Tolkien knowledge.",
+      "source_title": "Trivial Pursuit: Lord of the Rings",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Fantasy, Licensed & Specialist #4",
+      "source_audience": "Teen, Adult, Fans, Trivia",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Trivial%20Pursuit%3A%20Lord%20of%20the%20Rings"
+    },
+    {
+      "title": "Top Trumps: Star Wars Collection",
+      "edition": null,
+      "kind": "provisional",
+      "reasons": [
+        "Catalogue status: provisional (from shelf photos, not yet checked on the shelf)"
+      ],
+      "category": "Fantasy, Licensed & Specialist",
+      "audiences": [
+        "Family"
+      ],
+      "min_age": 6,
+      "min_players": 2,
+      "max_players": 6,
+      "play_time_min": 10,
+      "play_time_max": 20,
+      "synopsis": "Compare printed statistics across Star Wars-themed collectible card packs. Players win cards by selecting advantageous attributes.",
+      "source_title": "Top Trumps: Star Wars Collection",
+      "source_evidence": "Enriched catalogue (15 Oct 2026, from shelf photos): Fantasy, Licensed & Specialist #5",
+      "source_audience": "Family, Fans",
+      "image_lookup": "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=Top%20Trumps%3A%20Star%20Wars%20Collection"
+    },
+    {
+      "title": "Loco",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: exact edition and rules",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Loco (exact edition and rules)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Loco Millionaire",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: exact edition",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Loco Millionaire (exact edition)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "The Game of Life: Junior",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: edition not confirmed",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "The Game of Life: Junior (edition not confirmed)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Ticket to Ride",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: additional standalone copy/edition",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Ticket to Ride (additional standalone copy/edition)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Sparks",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: exact title",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Sparks (exact title)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Pandemic: Rapid Response",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: box identification",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Pandemic: Rapid Response (box identification)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Concept Kids",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: box identification",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Concept Kids (box identification)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Top Gear",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: exact edition",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Top Gear (exact edition)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Cards Against Humanity",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: not securely identified",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Cards Against Humanity (not securely identified)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Don't Get Got",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: not securely identified",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Don't Get Got (not securely identified)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Would I Lie to You?",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: not securely identified",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Would I Lie to You? (not securely identified)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Pointless",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: not securely identified",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Pointless (not securely identified)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "The Chase",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: not securely identified",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "The Chase (not securely identified)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Wavelength",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: not securely identified",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Wavelength (not securely identified)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Beat the Parents",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: not securely identified",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Beat the Parents (not securely identified)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Tension",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: not securely identified",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Tension (not securely identified)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Doggie Doo",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: not securely identified",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Doggie Doo (not securely identified)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Pop-Up Game",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: unreadable title",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Pop-Up Game (unreadable title)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "104-piece Clementoni puzzle",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: picture/title",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "104-piece Clementoni puzzle (picture/title)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Great Graphics Puzzle",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: edition",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Great Graphics Puzzle (edition)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Family Fortunes",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: not securely identified",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Family Fortunes (not securely identified)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Keep Talking / Keep in the Park",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: unreadable",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Keep Talking / Keep in the Park (unreadable)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Charades",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: not securely identified",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Charades (not securely identified)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Zombie-themed game",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: unreadable",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Zombie-themed game (unreadable)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Trading Game",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: unreadable",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Trading Game (unreadable)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Magnetic Games",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: unreadable",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Magnetic Games (unreadable)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Harry Potter boxed game",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: exact title",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Harry Potter boxed game (exact title)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Lord of the Rings boxed game",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: exact title",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Lord of the Rings boxed game (exact title)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Star Wars boxed game",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: exact title",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Star Wars boxed game (exact title)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Disney Princess additional game",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: exact title",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Disney Princess additional game (exact title)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "The Hobbit",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: not securely identified",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "The Hobbit (not securely identified)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Marvel Smash Up",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: not securely identified",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Marvel Smash Up (not securely identified)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Firefly",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: not securely identified",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Firefly (not securely identified)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Angry Birds",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: not securely identified",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Angry Birds (not securely identified)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "The Crystal Maze",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: not securely identified",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "The Crystal Maze (not securely identified)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    },
+    {
+      "title": "Additional Monopoly editions",
+      "edition": null,
+      "kind": "uncertain",
+      "reasons": [
+        "Uncertain in the catalogue: unreadable",
+        "No details recorded: identify the box and fill them in to confirm"
+      ],
+      "source_title": "Additional Monopoly editions (unreadable)",
+      "source_evidence": "Enriched catalogue (15 Oct 2026): Unconfirmed or obscured entries"
+    }
+  ]
 }

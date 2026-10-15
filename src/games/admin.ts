@@ -418,6 +418,77 @@ export async function confirmReview(db: D1Database, admin: AuthUser, reviewId: s
   return { ok: true, value: (await db.prepare('SELECT * FROM games WHERE game_id = ?1').bind(id).first<GameRow>())! };
 }
 
+/** Most titles one bulk confirmation takes (the Review list's "Confirm ticked"). */
+export const MAX_BULK_CONFIRM = 200;
+
+/**
+ * An admin confirms several titles at once, with one note of how they know the
+ * café has them (a stocktake, say). Each goes live with the catalogue's details
+ * as they are; a title whose details aren't complete enough to publish is left
+ * open, to confirm one at a time with the details filled in. One transaction.
+ */
+export async function confirmReviews(
+  db: D1Database,
+  admin: AuthUser,
+  body: unknown,
+  now: string,
+): Promise<Result<{ confirmed: { review_id: string; game_id: string; title: string }[]; needs_details: { review_id: string; title: string; errors: string[] }[] }>> {
+  const b = (body && typeof body === 'object' ? body : {}) as { review_ids?: unknown };
+  const ids = Array.isArray(b.review_ids) ? [...new Set(b.review_ids.filter((x): x is string => typeof x === 'string'))] : [];
+  if (!ids.length || ids.length > MAX_BULK_CONFIRM) return { ok: false, status: 400, error: `Tick between 1 and ${MAX_BULK_CONFIRM} titles.` };
+  const evidence = evidenceOf(body);
+  if (evidence.length < 5) return { ok: false, status: 400, error: 'Say how you know the café has them.', errors: { ownership_evidence: 'Say how you know the café has them, e.g. “Stocktake, 16 Oct”.' } };
+
+  const [open, existing] = await db.batch([
+    db.prepare("SELECT review_id, source_key, source_title, entry FROM game_review WHERE status = 'open' AND review_id IN (SELECT value FROM json_each(?1)) ORDER BY review_id").bind(JSON.stringify(ids)),
+    db.prepare('SELECT slug, source_key FROM games'),
+  ]);
+  const entries = open!.results as { review_id: string; source_key: string; source_title: string; entry: string }[];
+  if (entries.length !== ids.length) return { ok: false, status: 409, error: 'Some of those titles have already been decided. Reload the list and try again.' };
+  const inLibrary = new Set((existing!.results as { source_key: string | null }[]).map(g => g.source_key));
+  const slugs = new Set((existing!.results as { slug: string }[]).map(g => g.slug));
+  const gameId = await nextId(db, 'games', 'RTD-GAME-');
+
+  const confirmed: { review_id: string; game_id: string; title: string }[] = [];
+  const needs: { review_id: string; title: string; errors: string[] }[] = [];
+  const statements: D1PreparedStatement[] = [];
+  for (const e of entries) {
+    const source = JSON.parse(e.entry) as ManifestReview;
+    const checked = checkGame({ ...source, available_for_chooser: true, available_for_gotw: true }, { publish: true });
+    if (!checked.ok) {
+      needs.push({ review_id: e.review_id, title: e.source_title, errors: Object.values(checked.errors) });
+      continue;
+    }
+    if (inLibrary.has(e.source_key)) {
+      needs.push({ review_id: e.review_id, title: e.source_title, errors: ['Already in the library.'] });
+      continue;
+    }
+    const v = checked.value;
+    const base = slugify(v.title, v.edition);
+    let slug = base;
+    for (let i = 2; slugs.has(slug); i++) slug = `${base}-${i}`;
+    slugs.add(slug);
+    const id = gameId(confirmed.length);
+    confirmed.push({ review_id: e.review_id, game_id: id, title: v.title });
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO games (game_id, slug, title, edition, category, audiences, min_age, min_players, max_players, play_time_min, play_time_max, synopsis,
+             verification_status, available_for_chooser, available_for_gotw, source_key, source_title, source_evidence, ownership_evidence,
+             confirmed_by, confirmed_at, created_at, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'confirmed', 1, 1, ?13, ?14, ?15, ?16, ?17, ?18, ?18, ?18)`,
+        )
+        .bind(id, slug, ...detailValues(v), e.source_key, e.source_title, tidy(source.source_evidence) || null, evidence, admin.email, now),
+      db
+        .prepare("UPDATE game_review SET status = 'confirmed', game_id = ?2, decision_note = ?3, decided_by = ?4, decided_at = ?5, updated_at = ?5 WHERE review_id = ?1")
+        .bind(e.review_id, id, evidence, admin.email, now),
+      audit(db, admin.email, id, 'game.confirmed_from_review', { review_id: e.review_id, bulk: true }, { ...v, ownership_evidence: evidence }, now),
+    );
+  }
+  if (statements.length) await db.batch(statements);
+  return { ok: true, value: { confirmed, needs_details: needs } };
+}
+
 export async function rejectReview(db: D1Database, admin: AuthUser, reviewId: string, note: unknown, now: string): Promise<boolean> {
   const why = tidy(note, 300) || null;
   const res = await db
