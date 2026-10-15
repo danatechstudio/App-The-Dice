@@ -219,3 +219,47 @@
   margin-bottom: var(--rtd-space-2);
   padding: 0;
 }
+
+/* Box covers on the reveal card: whole, not cropped. */
+.reveal .game-cover {
+  aspect-ratio: auto;
+  height: clamp(180px, 40vw, 280px);
+}
+
+.reveal__buttons .reveal__similar {
+  grid-column: 1 / -1;
+  justify-self: center;
+}
+
+/* Party size: − n + on the navy table. */
+.roll-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.roll-stepper .filter {
+  min-width: 44px;
+  padding-inline: 10px;
+}
+
+.roll-stepper__value {
+  min-width: 2.5ch;
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.roll-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 12px;
+  color: inherit;
+}
+
+.roll-clear {
+  color: inherit;
+  text-decoration: underline;
+}

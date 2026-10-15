@@ -116,9 +116,9 @@ export function likeLabel(of: PublicGame, g: PublicGame): string {
 export function similar<T extends PublicGame>(of: PublicGame, games: T[], n = 4): { game: T; label: string }[] {
   const seen = new Set([of.title.toLowerCase()]);
   return games
-    .filter(g => g.id !== of.id)
+    // Something real in common (the category or an audience), and a score of 4 or more.
+    .filter(g => g.id !== of.id && (g.category === of.category || g.audiences.some(a => of.audiences.includes(a))))
     .map(g => ({ g, s: similarity(of, g) }))
-    // 4 or more: at least a shared category or audience, and something else in common.
     .filter(x => x.s >= 4)
     .sort((x, y) => y.s - x.s || x.g.title.localeCompare(y.g.title))
     .filter(x => !seen.has(x.g.title.toLowerCase()) && seen.add(x.g.title.toLowerCase()))

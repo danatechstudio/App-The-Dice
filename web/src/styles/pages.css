@@ -453,9 +453,151 @@ p.alerts-inline svg {
   box-shadow: inset 0 0 0 3px rgb(255 255 255 / 0.9);
 }
 
-.shelf-card h3 {
+.shelf-card h3,
+.shelf-card__title {
+  display: block;
   font-family: var(--rtd-font-display);
   font-weight: 700;
+}
+
+a.shelf-card {
+  color: inherit;
+  text-decoration: none;
+}
+
+a.shelf-card:hover .shelf-card__title {
+  text-decoration: underline;
+}
+
+.shelf-card__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* The tile holds the cover thumbnail, or the knight placeholder. */
+.shelf-card__tile {
+  overflow: hidden;
+}
+
+.shelf-card__tile .art {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+}
+
+.shelf-card__tile .art__sticker {
+  width: 56%;
+  border-width: 2px;
+}
+
+.shelf-tools {
+  display: grid;
+  gap: var(--rtd-space-3);
+  margin-bottom: var(--rtd-space-4);
+}
+
+.shelf-search {
+  position: relative;
+  display: block;
+  max-width: 420px;
+}
+
+.shelf-search svg {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  color: var(--rtd-text-muted);
+  pointer-events: none;
+}
+
+.shelf-search .input {
+  padding-left: 40px;
+}
+
+/* Box covers: shown whole (never cropped), on a light panel. */
+.game-cover {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  background: var(--rtd-background-alt);
+}
+
+.game-cover img {
+  object-fit: contain;
+  object-position: 50% 50%;
+}
+
+.shelf-card__tile .game-cover {
+  aspect-ratio: auto;
+  background: var(--rtd-surface-elevated);
+}
+
+/* One game's page. */
+.game-page {
+  display: grid;
+  gap: var(--rtd-space-5);
+  margin-top: var(--rtd-space-3);
+}
+
+.game-page__art .art {
+  border-radius: var(--rtd-radius-card);
+  aspect-ratio: 1;
+  max-width: 480px;
+}
+
+.game-page__credit {
+  margin-top: 6px;
+  font-size: 0.8125rem;
+}
+
+.game-page__synopsis {
+  font-size: 1.0625rem;
+}
+
+@media (min-width: 768px) {
+  .game-page {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    align-items: start;
+  }
+}
+
+.game-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: var(--rtd-space-3);
+}
+
+.game-tile {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--rtd-space-3);
+  align-items: center;
+  padding: var(--rtd-space-3);
+  color: inherit;
+  text-decoration: none;
+}
+
+.game-tile .art {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  aspect-ratio: auto;
+}
+
+.game-tile .art__sticker {
+  width: 56%;
+  border-width: 2px;
+}
+
+.game-tile__body {
+  display: grid;
+  gap: 2px;
+}
+
+.game-tile:hover strong {
+  text-decoration: underline;
 }
 
 .preview-note {

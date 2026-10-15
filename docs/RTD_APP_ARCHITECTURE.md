@@ -112,6 +112,9 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | GET / POST | `/api/staff/markets…`, `/api/staff/market-applications…`, `/api/staff/market-photos/:id` | Access + approver/admin (setting up markets: admins only) | Markets and vendor applications |
 | GET / POST | `/internal/market-applications/sheet`, `/internal/market-applications/:id/sheet-synced` | bearer | The market spreadsheet |
 | GET / POST | `/api/alerts/key`, `/subscribe`, `/unsubscribe`, `/status`, `/renew` | none; same-origin JSON | Event alerts on this device ([RTD_ALERTS.md](RTD_ALERTS.md)) |
+| GET / POST | `/api/games`, `/api/games/pool`, `/api/games/roll`, `/api/games/gotw`, `/api/games/:slug` | none (roll: same-origin JSON) | The game library: shelf, eligible count, server-side roll, Game of the Week, game pages ([GAME_LIBRARY_AUDIT.md](GAME_LIBRARY_AUDIT.md)) |
+| GET / POST | `/api/staff/games…`, `/api/staff/game-review…` | Access + admin | Game library: edit, covers, review, import, the live switch |
+| GET | `/images/games/:imageId` | none | A game's box cover from KV (content-addressed, cached a year) |
 | POST | `/api/stats` | none; same-origin JSON | Page views and taps, as daily totals ([RTD_STATS.md](RTD_STATS.md)) |
 | GET | `/api/staff/stats?days=7\|30\|90` | Access + admin | Stats |
 | GET / POST | `/api/staff/reminders` | Access + admin | Event reminders: the list, and sending one (`409 { warning }` within 24 hours of the last for that event) |
@@ -154,6 +157,7 @@ The **service worker** caches the app shell and the last diary it saw, so the di
 | `src/bookings/bookings.ts` | Bookings: availability, capacity-safe booking, the cancel link, host and approver views, cancelling a date, two-day emails, Event Index fixes |
 | `src/notify/emails.ts`, `src/notify/outbox.ts` | Booking email wording, and the outbox n8n sends from |
 | `src/notify/push.ts` | Web Push: VAPID keys, RFC 8291 encryption, approvers' devices, sending |
+| `src/games/*` | The game library: model and checks, chooser rules, catalogue, Game of the Week, admin and importer, the preview shelf |
 | `src/stats/stats.ts` | Stats: counting page views and taps (daily totals), and the admins' overview |
 | `src/notify/alerts.ts` | Event alerts: turning on and off, admins' reminders (24-hour warning), the 8pm automatic reminder, batched sending, the Facebook queue |
 | `src/lib/background.ts` | Work after the response (`waitUntil`), such as pushes |
@@ -162,7 +166,7 @@ The **service worker** caches the app shell and the last diary it saw, so the di
 | `src/routes/*` | Public, internal, staff endpoints and app pages (link previews) |
 | `web/` | The PWA: `src/theme` (tokens), `src/styles`, `src/components`, `src/pages`, `public` (icons, manifest, service worker). See [RTD_APP_THEME.md](RTD_APP_THEME.md). |
 | `migrations/` | D1 schema |
-| `test/` | 279 tests, run inside the Workers runtime against a real local D1 and KV |
+| `test/` | 308 tests, run inside the Workers runtime against a real local D1 and KV |
 
 ## Future compatibility
 

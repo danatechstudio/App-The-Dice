@@ -400,6 +400,13 @@ describe('admins looking after the library', () => {
     expect(actions).toEqual(['game.added', 'game.updated', 'game.retired', 'game.restored']);
   });
 
+  it("an import never retires a game an admin added or confirmed", async () => {
+    await importManifest();
+    await request('/api/staff/games', json({ ...game('Splendor'), ownership_evidence: 'Bought 14 Oct' }), DAN);
+    const plan = await planImport(env.DB, { games: [], review: [] });
+    expect(plan.not_in_manifest.map(g => g.title).sort()).toEqual(['Azul', 'Carcassonne', 'Codenames', 'Dobble', 'Ticket to Ride']);
+  });
+
   it('attach a cover, which shows publicly only once matched and approved', async () => {
     await importManifest();
     await goLive();

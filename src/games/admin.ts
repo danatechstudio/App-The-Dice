@@ -156,8 +156,11 @@ export async function planImport(db: D1Database, manifest: Manifest = BUNDLED): 
     const changed = DETAIL_COLUMNS.filter((_, i) => now[i] !== was[i]);
     if (changed.length) plan.update.push({ game_id: g.game_id, title: g.title, changed: [...changed] });
   }
+  // Only games an import brought in: games an admin added or confirmed are their decisions, never retired by an import.
   for (const g of existing!.results as GameRow[]) {
-    if (g.source_key && !keys.has(g.source_key) && !reviewKeys.has(g.source_key) && !g.retired_at) plan.not_in_manifest.push({ game_id: g.game_id, title: g.title });
+    if (g.import_batch_id && g.source_key && !keys.has(g.source_key) && !reviewKeys.has(g.source_key) && !g.retired_at) {
+      plan.not_in_manifest.push({ game_id: g.game_id, title: g.title });
+    }
   }
   for (const r of manifest.review) {
     const key = sourceKey(tidy(r.title), tidy(r.edition) || null);

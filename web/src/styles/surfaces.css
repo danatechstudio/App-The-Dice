@@ -1028,3 +1028,67 @@
     content: attr(data-label);
   }
 }
+
+/* ---------- Game library (admins; docs/GAME_LIBRARY_AUDIT.md) ---------- */
+
+.games-admin__tabs {
+  max-width: 480px;
+}
+
+.games-admin__tools {
+  --gap: 8px;
+}
+
+.games-admin__tools .input {
+  width: auto;
+  flex: 1 1 200px;
+}
+
+.games-table td {
+  white-space: normal;
+}
+
+.games-form {
+  display: grid;
+  gap: var(--rtd-space-3);
+  border-left: 5px solid var(--rtd-game);
+}
+
+.games-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: var(--rtd-space-4) var(--rtd-space-3);
+}
+
+.games-form__wide {
+  grid-column: 1 / -1;
+}
+
+.games-cover {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--rtd-space-3);
+}
+
+.games-cover img,
+.games-cover__empty {
+  width: 120px;
+  height: 120px;
+  border: 1px solid var(--rtd-border);
+  border-radius: var(--rtd-radius-sm);
+  background: var(--rtd-background-alt);
+  object-fit: contain;
+}
+
+.games-cover__empty {
+  display: grid;
+  place-items: center;
+  color: var(--rtd-text-muted);
+  font-size: var(--rtd-size-meta);
+}
+
+.review-entry {
+  display: grid;
+  gap: 6px;
+}

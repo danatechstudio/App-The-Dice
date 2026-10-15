@@ -10,6 +10,7 @@ import { match, usePath } from './lib/router';
 import { Book } from './pages/Book';
 import { Diary } from './pages/Diary';
 import { EventPage, SeriesPage } from './pages/Event';
+import { GamePage } from './pages/GamePage';
 import { Games } from './pages/Games';
 import { Home } from './pages/Home';
 import { Host } from './pages/Host';
@@ -35,6 +36,7 @@ function route(path: string) {
   if (path === '/styleguide') return <StyleGuide />;
   if ((p = match('/event/:id', path))) return <EventPage key={p.id} occurrenceId={p.id!} />;
   if ((p = match('/events/:id', path))) return <SeriesPage key={p.id} eventId={p.id!} />;
+  if ((p = match('/games/:slug', path))) return <GamePage key={p.slug} slug={p.slug!} />;
   if ((p = match('/booking/:id', path))) return <ManageBooking key={p.id} bookingId={p.id!} />;
   if ((p = match('/markets/:id', path))) return <MarketPage key={p.id} marketId={p.id!} />;
   return <NotFound />;

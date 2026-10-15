@@ -242,6 +242,19 @@ Added in `0014_event_alerts.sql` ([RTD_ALERTS.md](RTD_ALERTS.md)).
 
 **Indexes:** `alert_subscriptions (ip_hash, created_at)`, `push_sends (event_id, created_at)`, `push_sends (kind, created_at)`.
 
+## Game library
+
+Added in `0016_game_library.sql` ([GAME_LIBRARY_AUDIT.md](GAME_LIBRARY_AUDIT.md)). Additive.
+
+| Table | Holds |
+| --- | --- |
+| `games` | Confirmed holdings only: `game_id` (`RTD-GAME-00001`), `slug`, `title`, `edition`, `category`, `audiences` (JSON), `min_age`, `min_players`, `max_players`, `play_time_min`, `play_time_max`, `synopsis`, `verification_status`, `available_for_chooser`, `available_for_gotw`, `copies` (NULL = not counted), cover and thumbnail image IDs with `image_source_url`, `image_attribution`, `image_rights_status`, `image_status`, `image_checked_at`; `source_key` (normalised title and edition), `source_title`, `source_evidence`, `ownership_evidence`, `confirmed_by`, `confirmed_at`, `import_batch_id`, `admin_edited_at`, `retired_at` |
+| `game_review` | Titles held back (`provisional` or `uncertain`), with their parsed details, reasons, and the decision |
+| `game_import_batches` | Each dry run or import: mode, SHA-256 of the manifest, counts, who, when |
+| `gotw_weeks` | One row per week (`week_key` = Monday, primary key): the game, a snapshot of its title, edition and cover, mode (`random` or `least_recent`), pool size |
+
+**Settings:** `game_library_live` (`off` until cutover) and `gotw_avoid_weeks` (12).
+
 ## Stats
 
 Added in `0015_stats.sql` ([RTD_STATS.md](RTD_STATS.md)).

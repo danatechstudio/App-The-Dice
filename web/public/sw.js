@@ -22,8 +22,10 @@ self.addEventListener('activate', event => {
   );
 });
 
+// Network first: an online phone always gets the current shelf, so a game
+// that has left the library disappears straight away; offline shows the last copy.
 const isPublicApi = path =>
-  path.startsWith('/api/events') || path.startsWith('/api/occurrences/') || path === '/api/health';
+  path.startsWith('/api/events') || path.startsWith('/api/occurrences/') || path === '/api/health' || path.startsWith('/api/games');
 
 async function networkFirst(request, fallback) {
   const cache = await caches.open(RUNTIME);

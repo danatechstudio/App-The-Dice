@@ -4,10 +4,11 @@ import { DiceMark, Logo } from '../components/Brand';
 import { Chip } from '../components/Chips';
 import { EventCard } from '../components/EventCard';
 import { DiceLoader, EmptyState, ErrorState } from '../components/States';
-import { PREVIEW_GAMES, PREVIEW_GAME_OF_THE_WEEK, minutesLabel, playersLabel } from '../data/preview-games';
 import { addDays } from '../lib/dates';
 import { firstPerEvent, isPrivate, notOver, useUpcoming } from '../lib/events';
 import { useTitle } from '../lib/title';
+import { useApi } from '../lib/api';
+import { gameName, playersLabel, timeLabel, type Gotw } from '../lib/games';
 
 export function Home() {
   useTitle(null);
@@ -109,22 +110,23 @@ function RollPromo() {
 }
 
 function GameOfTheWeekMini() {
-  const game = PREVIEW_GAMES.find(g => g.id === PREVIEW_GAME_OF_THE_WEEK)!;
+  const res = useApi<{ gotw: Gotw | null }>('/api/games/gotw');
+  const gotw = res.data?.gotw;
+  const game = gotw?.game;
+  if (!gotw || !game) return null;
   return (
     <section class="section card promo" aria-labelledby="gotw-mini">
       <div class="cluster" style={{ justifyContent: 'space-between' }}>
         <p class="label stars">
           <Star size={14} aria-hidden="true" /> Game of the Week <Star size={14} aria-hidden="true" />
         </p>
-        <Chip kind="preview">Preview</Chip>
+        {gotw.preview && <Chip kind="preview">Preview</Chip>}
       </div>
       <h2 id="gotw-mini" class="gotw-mini__title">
-        {game.name}
+        {gameName(game)}
       </h2>
-      <p class="meta">
-        {game.tagline} · {playersLabel(game)} · {minutesLabel(game)}
-      </p>
-      <a class="btn btn--secondary" href="/games">
+      <p class="meta">{[game.category, playersLabel(game), timeLabel(game)].filter(Boolean).join(' · ')}</p>
+      <a class="btn btn--secondary" href={`/games/${game.slug}`}>
         View game <ArrowRight size={18} aria-hidden="true" />
       </a>
     </section>
