@@ -2,7 +2,10 @@ import { Hono } from 'hono';
 import { readImage } from './images/store';
 import { applyRetention } from './lib/privacy';
 import { autoReminder, drain } from './notify/alerts';
+import { readCover } from './games/admin';
+import { currentGotw } from './games/gotw';
 import { alertRoutes } from './routes/alerts';
+import { gameRoutes } from './routes/games';
 import { statsRoutes } from './routes/stats';
 import { bookingRoutes } from './routes/bookings';
 import { hostRoutes } from './routes/host';
@@ -44,6 +47,15 @@ app.get('/images/:imageId', async c => {
   });
 });
 
+// Game box covers (docs/GAME_LIBRARY_AUDIT.md). Content-addressed, so cached for a year.
+app.get('/images/games/:imageId', async c => {
+  const cover = await readCover(c.env.IMAGES, c.req.param('imageId'));
+  if (!cover) return c.json({ error: 'Not found' }, 404);
+  return new Response(cover.body, {
+    headers: { 'Content-Type': cover.type, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' },
+  });
+});
+
 // The organiser's "Sign in" button. Cloudflare Access guards /api/staff, so a
 // visitor only reaches this after signing in; Access's cookie covers the whole
 // site, so we just send them back. It checks no role: hosts come this way too.
@@ -56,6 +68,7 @@ app.route('/api/bookings', bookingRoutes);
 app.route('/api/markets', marketRoutes);
 app.route('/api/alerts', alertRoutes);
 app.route('/api/stats', statsRoutes);
+app.route('/api/games', gameRoutes);
 app.route('/api', publicRoutes);
 app.route('/api/staff', staffRoutes);
 app.route('/api/host', hostRoutes);
@@ -92,6 +105,8 @@ export default {
   async scheduled(controller, env, ctx) {
     const now = new Date(controller.scheduledTime);
     ctx.waitUntil(eventAlerts(env, now).catch(err => console.error('alerts failed:', err)));
+    // Hourly: make sure this week's Game of the Week is picked, even if nobody has looked yet.
+    if (now.getUTCMinutes() === 5) ctx.waitUntil(currentGotw(env.DB, now).catch(err => console.error('gotw failed:', err)));
     if (now.getUTCHours() === 3 && now.getUTCMinutes() === 23) {
       ctx.waitUntil(applyRetention(env.DB, now, env.IMAGES).then(erased => console.log('retention', JSON.stringify(erased))));
     }

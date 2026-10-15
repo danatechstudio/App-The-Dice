@@ -8,6 +8,8 @@ import { afterResponse } from '../lib/background';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
 import { drain, overview, parseReminder, sendReminder } from '../notify/alerts';
 import { PERIODS, statsOverview, type Period } from '../stats/stats';
+import { adminLibrary, applyImport, attachCover, confirmReview, createGame, rejectReview, removeCover, reviewList, setCoverStatus, setLive, setRetired, updateGame } from '../games/admin';
+import { gotwHistory } from '../games/gotw';
 import { deviceLabel, myDevices, notifyUser, parseSubscription, removeSubscription, saveSubscription, vapidKeys } from '../notify/push';
 import { londonDate } from '../lib/time';
 import { applicationsForStaff, createMarket, decideApplication as decideVendor, markWithdrawn, marketsForStaff, parseMarketInput, readPhoto, updateMarket } from '../markets/markets';
@@ -253,4 +255,87 @@ staffRoutes.get('/stats', async c => {
   const days = Number(c.req.query('days') ?? 30);
   if (!(PERIODS as readonly number[]).includes(days)) return c.json({ error: 'days must be 7, 30 or 90' }, 400);
   return c.json(await statsOverview(c.env.DB, new Date(), days as Period));
+});
+
+// --- The game library (admins only; docs/GAME_LIBRARY_AUDIT.md) ---
+
+const MAX_COVER_BODY = 2_600_000;
+staffRoutes.use('/games/*', async (c, next) => (adminsOnly(c.get('user')) ? next() : c.json({ error: 'Only admins can change the game library.' }, 403)));
+staffRoutes.use('/games', async (c, next) => (adminsOnly(c.get('user')) ? next() : c.json({ error: 'Only admins can change the game library.' }, 403)));
+staffRoutes.use('/game-review/*', async (c, next) => (adminsOnly(c.get('user')) ? next() : c.json({ error: 'Only admins can review games.' }, 403)));
+staffRoutes.use('/game-review', async (c, next) => (adminsOnly(c.get('user')) ? next() : c.json({ error: 'Only admins can review games.' }, 403)));
+
+/** Every game (retired too), the review counts, the switch, the bundled manifest and recent imports. */
+staffRoutes.get('/games', async c => c.json(await adminLibrary(c.env.DB)));
+
+/** Add a game by hand. Body: its details and `ownership_evidence`. */
+staffRoutes.post('/games', async c => {
+  const res = await createGame(c.env.DB, c.get('user'), await c.req.json().catch(() => null), new Date().toISOString());
+  return res.ok ? c.json({ game: res.value }, 201) : c.json({ error: res.error, errors: res.errors }, res.status);
+});
+
+/** Import the bundled manifest. Body: { mode: 'dry_run' | 'apply', retire_missing?, confirm: 'apply' (to apply) } */
+staffRoutes.post('/games/import', async c => {
+  const body = ((await c.req.json().catch(() => ({}))) ?? {}) as { mode?: unknown; retire_missing?: unknown; confirm?: unknown };
+  const mode = body.mode === 'apply' ? 'apply' : 'dry_run';
+  if (mode === 'apply' && body.confirm !== 'apply') return c.json({ error: 'Applying an import needs confirm: "apply".' }, 400);
+  const result = await applyImport(c.env.DB, c.get('user'), { mode, retireMissing: body.retire_missing === true }, new Date().toISOString());
+  return c.json(result, mode === 'apply' && !result.applied ? 409 : 200);
+});
+
+/** The public switch. Body: { on: boolean, confirm: true } */
+staffRoutes.post('/games/live', async c => {
+  const body = ((await c.req.json().catch(() => ({}))) ?? {}) as { on?: unknown; confirm?: unknown };
+  if (typeof body.on !== 'boolean' || body.confirm !== true) return c.json({ error: 'Send { on: true|false, confirm: true }.' }, 400);
+  const res = await setLive(c.env.DB, c.get('user'), body.on, new Date().toISOString());
+  return res.ok ? c.json(res.value) : c.json({ error: res.error }, res.status);
+});
+
+/** Game of the Week, past weeks. */
+staffRoutes.get('/games/gotw', async c => c.json({ weeks: await gotwHistory(c.env.DB) }));
+
+staffRoutes.post('/games/:id', async c => {
+  const res = await updateGame(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), new Date().toISOString());
+  return res.ok ? c.json({ game: res.value }) : c.json({ error: res.error, errors: res.errors }, res.status);
+});
+
+for (const [path, retire] of [['retire', true], ['restore', false]] as const) {
+  staffRoutes.post(`/games/:id/${path}`, async c =>
+    (await setRetired(c.env.DB, c.get('user'), c.req.param('id'), retire, new Date().toISOString())) ? c.json({ ok: true }) : c.json({ error: 'Nothing to change.' }, 409),
+  );
+}
+
+/** Attach a cover. Body: { cover, thumb (base64), source_url, attribution, rights_status, matches_edition } */
+staffRoutes.post('/games/:id/cover', async c => {
+  if (Number(c.req.header('Content-Length') ?? 0) > MAX_COVER_BODY) return c.json({ error: 'That image is too big.' }, 413);
+  const res = await attachCover(c.env.DB, c.env.IMAGES, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), new Date().toISOString());
+  return res.ok ? c.json({ game: res.value }) : c.json({ error: res.error, errors: res.errors }, res.status);
+});
+
+staffRoutes.post('/games/:id/cover/status', async c =>
+  (await setCoverStatus(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), new Date().toISOString()))
+    ? c.json({ ok: true })
+    : c.json({ error: 'No cover to update, or an unknown rights status.' }, 400),
+);
+
+staffRoutes.post('/games/:id/cover/remove', async c =>
+  (await removeCover(c.env.DB, c.get('user'), c.req.param('id'), new Date().toISOString())) ? c.json({ ok: true }) : c.json({ error: 'No cover to remove.' }, 409),
+);
+
+/** The review register. ?status=open|confirmed|rejected */
+staffRoutes.get('/game-review', async c => {
+  const s = c.req.query('status');
+  const status = s === 'confirmed' || s === 'rejected' ? s : 'open';
+  return c.json({ entries: await reviewList(c.env.DB, status) });
+});
+
+/** Confirm the café owns it. Body: the game's details (checked and completed) and `ownership_evidence`. */
+staffRoutes.post('/game-review/:id/confirm', async c => {
+  const res = await confirmReview(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), new Date().toISOString());
+  return res.ok ? c.json({ game: res.value }, 201) : c.json({ error: res.error, errors: res.errors }, res.status);
+});
+
+staffRoutes.post('/game-review/:id/reject', async c => {
+  const body = ((await c.req.json().catch(() => ({}))) ?? {}) as { note?: unknown };
+  return (await rejectReview(c.env.DB, c.get('user'), c.req.param('id'), body.note, new Date().toISOString())) ? c.json({ ok: true }) : c.json({ error: 'No open entry with that ID.' }, 404);
 });

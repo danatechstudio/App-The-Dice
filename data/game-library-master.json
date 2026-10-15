@@ -1,0 +1,7 @@
+{
+  "format": "rtd-game-library/1",
+  "status": "awaiting-source",
+  "note": "Confirmed holdings only. Empty until the source catalogue is parsed and ownership is evidenced (docs/GAME_LIBRARY_AUDIT.md §6).",
+  "sources": [],
+  "games": []
+}
