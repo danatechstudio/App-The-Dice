@@ -476,6 +476,50 @@ a.card:active {
   height: 52%;
 }
 
+/* A game without an approved box cover: its title on its category's colour (GameCard.tsx). */
+.art--template {
+  container-type: inline-size;
+  grid-template-rows: 1fr auto;
+  gap: var(--rtd-space-2);
+  padding: var(--rtd-space-4) var(--rtd-space-4) var(--rtd-space-3);
+  background-color: var(--art-bg);
+  background:
+    radial-gradient(circle at 20% 25%, rgb(255 255 255 / 0.1) 0 3px, transparent 4px) 0 0 / 28px 28px,
+    radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--art-bg) 78%, white) 0%, var(--art-bg) 55%, color-mix(in srgb, var(--art-bg) 72%, black) 100%);
+}
+
+.art--template .art__sticker {
+  width: 24%;
+  background: var(--art-bg);
+}
+
+.art__title {
+  display: -webkit-box;
+  max-width: 92%;
+  margin: 0;
+  overflow: hidden;
+  color: var(--rtd-text-inverse);
+  font-family: var(--rtd-font-display);
+  font-size: 1.15rem;
+  font-size: clamp(1rem, 6cqi, 1.75rem);
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+  text-shadow: 0 2px 0 rgb(0 0 0 / 0.28);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.art--compact {
+  grid-template-rows: 1fr;
+  padding: 0;
+}
+
+.art--compact .art__sticker {
+  width: 56%;
+}
+
 .art__chips {
   position: absolute;
   z-index: 1;

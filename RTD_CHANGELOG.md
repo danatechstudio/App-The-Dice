@@ -1,5 +1,9 @@
 # RTD App Changelog
 
+## 2026-10-15 (template covers)
+- **Every game has a cover now:** a game without a box image shows a template cover with its title, in its category's colour and icon (for example green with blocks for Children's & Educational, orange with a party popper for Party, Trivia & Social). The catalogue had no images, only search links, so all 124 games use it until a real cover is added under **Library → Cover**.
+- **No rights to clear:** the app draws the template itself; there's no image file.
+
 ## 2026-10-15 (the café's game catalogue)
 - **The catalogue is in the app's import:** 127 games from the café's shelf photos, each with category, audience, age, players, play time and a synopsis, plus 36 titles the photos couldn't identify for sure. The catalogue marks all of them provisional, so **none is confirmed yet**, and the public app is unchanged.
 - **Confirming many at once:** under **Review**, tick the titles you can see on the shelf and press **Confirm ticked**, with one note ("Stocktake, 16 Oct"). Search the list, or **Tick all**. Titles that need details filled in (3 with an open-ended player count, and the 36 uncertain ones) are confirmed one at a time.

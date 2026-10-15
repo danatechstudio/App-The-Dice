@@ -23,7 +23,8 @@ The live record is the `games` table (`image_source_url`, `image_attribution`, `
 
 ## How covers are handled
 
-- **Placeholder by default:** every game without an approved cover shows the RTD placeholder (the knight from the logo). A missing cover never keeps a confirmed game out of the library.
+- **Template cover by default:** every game without an approved cover shows a template cover drawn by the app: the game's title on its category's colour, with the category's icon as a sticker (thumbnails show the sticker only). No image file, so there are no rights to clear. A missing cover never keeps a confirmed game out of the library.
+  - **Colours and icons:** Classic & Family navy with dice; Modern Strategy & Hobby blue with a castle; Party, Trivia & Social orange with a party popper; Children's & Educational green with blocks; Word, Dexterity & Quick Play purple with a puzzle piece; Fantasy, Licensed & Specialist red with a wand. A category the app doesn't recognise gets navy and the knight. Matched on words in the category name (`web/src/components/GameCard.tsx`).
 - **Shown only when both are true:**
   - **Matches the edition:** an admin has checked the image is the café's edition (title, edition, language).
   - **Rights approved:** reuse is permitted (publisher permission, a press kit that allows it, or a licence).

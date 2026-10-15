@@ -99,7 +99,7 @@ function GameOfTheWeek({ gotw }: { gotw: Gotw }) {
         <Star size={16} aria-hidden="true" /> Game of the Week <Star size={16} aria-hidden="true" />
       </p>
       <div class="gotw__layout">
-        {g ? <GameCover game={g} eager /> : <GameCover game={{ cover: gotw.snapshot.cover, thumb: null, cover_alt: `Box cover of ${gotw.snapshot.title}` }} />}
+        {g ? <GameCover game={g} eager /> : <GameCover game={{ cover: gotw.snapshot.cover, thumb: null, cover_alt: `Box cover of ${gotw.snapshot.title}`, title: gotw.snapshot.title }} />}
         <div class="gotw__body">
           {gotw.preview && (
             <div class="cluster">

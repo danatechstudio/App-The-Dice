@@ -29,7 +29,7 @@ describe('theme', () => {
     ['secondary', 'surfaceElevated'], ['accentStrong', 'background'], ['accentStrong', 'surfaceElevated'], ['primaryDark', 'accent'],
     ['primaryDark', 'accentHover'], ['textInverse', 'success'], ['textInverse', 'danger'], ['textInverse', 'warning'],
     ['success', 'successLight'], ['warning', 'warningLight'], ['danger', 'dangerLight'], ['secondaryDark', 'secondaryLight'],
-    ['primary', 'primaryLight'], ['textInverse', 'host'], ['textInverse', 'game'], ['accent', 'primary'],
+    ['primary', 'primaryLight'], ['textInverse', 'host'], ['textInverse', 'game'], ['accent', 'primary'], ['textInverse', 'secondary'],
   ];
   it.each(TEXT)('%s on %s reads at 4.5:1 or better', (fg, bg) => {
     expect(contrast(colours[fg], colours[bg])).toBeGreaterThanOrEqual(4.5);
