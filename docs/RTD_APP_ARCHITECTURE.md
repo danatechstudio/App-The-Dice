@@ -128,6 +128,19 @@ Static files in `web/dist` are served directly; unknown paths fall back to the a
 
 The **service worker** caches the app shell and the last diary it saw, so the diary opens offline. It never touches `/api/staff` or `/internal`. It also shows push notifications: approvers' (tapping opens the organiser, [RTD_PUSH.md](RTD_PUSH.md)) and event alerts (tapping opens the event, [RTD_ALERTS.md](RTD_ALERTS.md)). When the browser renews its subscription, it tells the app.
 
+## Updates
+
+Everyone is moved onto the newest build (`web/src/lib/update.ts`):
+- **Build ID:** each build gets an ID (the commit on Workers Builds, otherwise the build time). It's baked into the app's code and written to `/version.json`.
+- **When the app checks:** it fetches `/version.json` (never cached):
+  - when it opens;
+  - when it comes back on screen (at most once a minute);
+  - when someone moves to another page (at most every 5 minutes).
+  It doesn't check while someone stays on one page, so nobody is interrupted mid-form.
+- **A newer build is live:** a screen covers the app ("A new version is ready") with one button, **Update now**. It asks the service worker to refresh itself, then reloads. Pages are network-first, so the reload brings the new code.
+- **Offline, or the check fails:** nothing happens; the app carries on and checks again next time.
+- **Phones still on a build from before this existed** pick it up the next time they reload.
+
 ## Event photos
 
 - **Where they live:** photos are copied into the app, not linked to Drive. This means they load fast and nothing in Drive has to be shared publicly. The bytes are in Workers KV.

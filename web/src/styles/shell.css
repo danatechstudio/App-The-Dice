@@ -462,6 +462,12 @@
   box-shadow: var(--rtd-shadow-feature);
 }
 
+/* The update screen sits above everything, the bottom bar included. */
+.update-backdrop {
+  z-index: 300;
+  background: rgb(11 42 71 / 0.8);
+}
+
 .sheet__icon {
   width: 56px;
   height: 56px;

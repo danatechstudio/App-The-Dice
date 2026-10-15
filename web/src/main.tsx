@@ -12,10 +12,12 @@ import { App } from './app';
 import { applyMotionPreference } from './lib/motion';
 import { installLinkInterception } from './lib/router';
 import { count } from './lib/stats';
+import { watchForUpdates } from './lib/update';
 
 applyMotionPreference();
 installLinkInterception();
 render(<App />, document.getElementById('app')!);
+watchForUpdates();
 
 // Stats: each time the app opens, from the Home Screen (installed) or in a browser.
 const standalone = matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
