@@ -4,6 +4,7 @@ import { InstallBanner, InstallHelp } from './components/Install';
 import { BottomNav, TopBar } from './components/Nav';
 import { Splash, markSplashShown, pickSplash, splashSeenThisSession } from './components/Splash';
 import { Toaster } from './components/Toaster';
+import { UpdatePrompt } from './components/UpdatePrompt';
 import type { Occurrence } from './lib/api';
 import { useUpcoming } from './lib/events';
 import { match, usePath } from './lib/router';
@@ -69,6 +70,7 @@ export function App() {
       <Toaster />
       <InstallHelp />
       <LaunchSplash path={path} />
+      <UpdatePrompt path={path} />
     </>
   );
 }

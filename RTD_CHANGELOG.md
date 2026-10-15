@@ -1,5 +1,12 @@
 # RTD App Changelog
 
+## 2026-10-15 (forced updates)
+- **The app makes sure people run the newest version:**
+  - **When it checks:** when it opens, when it comes back on screen, and between pages.
+  - **What people see:** if a newer build is live, a screen asks them to **Update now**, with no way past it, and reloads into the new version.
+  - **Offline:** nothing happens.
+- **Version file:** each build writes `/version.json` with its ID. See [docs/RTD_APP_ARCHITECTURE.md](docs/RTD_APP_ARCHITECTURE.md#updates).
+
 ## 2026-10-08 (stats for admins)
 - **The app counts how it's used:** event page views; book, Add to calendar and Share taps; taps on event reminders; installs and opens from the Home Screen; visits in a browser; and views of the diary, Book, Games, Become a host and Markets pages, Roll Me a Game rolls and picks, and Apply to host taps.
   - **Daily totals only:** no network address, device ID or cookie, so a count says how many, never who.
