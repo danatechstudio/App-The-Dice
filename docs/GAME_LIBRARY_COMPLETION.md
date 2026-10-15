@@ -1,8 +1,8 @@
 # Game Library: Completion Report
 
-_15 October 2026. Branch `game-library`. **Not deployed to production.**_
+_15 October 2026. **Code deployed to production** (`main` at `c1a6584`) with the library switched **off**: the public app still shows the preview shelf._
 
-## Done (on the branch, tested)
+## Done (deployed, tested)
 
 | Part | Where |
 | --- | --- |
@@ -30,6 +30,17 @@ _15 October 2026. Branch `game-library`. **Not deployed to production.**_
 - **Live mode:** the admin library, attaching a cover, confirming and rejecting review titles, and the dry run.
 - **No horizontal scrolling.**
 
+## Production (15 Oct 2026)
+
+- **Database:** restore point `2026-10-15T21:25:56Z` noted, then migration `0016_game_library.sql` applied and recorded (`d1_migrations` id 16). Four tables, six indexes and two settings (`game_library_live` = `off`, `gotw_avoid_weeks` = `12`).
+- **Code:** `game-library` merged into `main` (fast-forward to `c1a6584`). Tests (308) and typecheck passed before the push; Workers Builds deployed build `c1a65843e9dc`.
+- **Checked live:**
+  - `/version.json` gives build `c1a65843e9dc`.
+  - `GET /api/games` gives `live: false` and the 10 preview games.
+  - `GET /api/games/gotw` gives the preview pick (Carcassonne) and writes nothing.
+  - Baseline counts unchanged: events 32, occurrences 56, bookings 0, users 2, applications 1, audit log 146, push sends 2, event images 57. Settings 9 (the 2 new ones). Game tables empty.
+- **Not yet checked live:** the organiser's **Game library** (needs an admin signed in through Cloudflare Access).
+
 ## Counts
 
 | | Count |
@@ -49,7 +60,8 @@ _15 October 2026. Branch `game-library`. **Not deployed to production.**_
 | Parsing the catalogue; `data/game-library-master.json` and `data/game-library-review.json` | **Blocked** | The two Markdown files. The data files exist, marked `awaiting-source`. |
 | Checking holdings against the shelf photos | **Blocked** | The photos. Without them, titles wait for an admin to confirm. |
 | Researching covers | **Blocked** | Confirmed games first, then rights decisions ([image audit](GAME_LIBRARY_IMAGE_AUDIT.md)). |
-| Production: migration 0016, merge, import, cutover | **Not started**: waiting for approval | [GAME_LIBRARY_DEPLOYMENT.md](GAME_LIBRARY_DEPLOYMENT.md) |
+| Production: migration 0016 and merge | **Done** 15 Oct 2026 | See **Production** above |
+| Production: import and cutover | **Waiting** | The catalogue first; then approval to switch on ([deployment §2–3](GAME_LIBRARY_DEPLOYMENT.md)) |
 | Deleting the preview shelf code (`src/games/preview.ts`) | After cutover is stable | One small follow-up |
 
 ## Decisions taken (change any of them)
@@ -68,6 +80,6 @@ _15 October 2026. Branch `game-library`. **Not deployed to production.**_
 ## Operator actions
 
 1. Supply the two source files and the shelf photos.
-2. Approve applying migration 0016 and merging the branch (deployment §1).
+2. ~~Approve applying migration 0016 and merging the branch (deployment §1).~~ Done 15 Oct 2026.
 3. After the import, work through **Review**, and add covers where rights allow.
 4. Approve turning the library live (deployment §3).

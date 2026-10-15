@@ -1,5 +1,14 @@
 # RTD App Changelog
 
+## 2026-10-15 (game library, switched off)
+- **The game library's code is live, switched off,** so customers see no change yet: Roll Me a Game, the Games page and Game of the Week still use the 10 preview games, now served by the app's API.
+  - **Ready for the café's games:** game pages with similar games and alternatives; Roll Me a Game filters for party size, youngest age, time, audience and category; a searchable shelf; Game of the Week picked each Monday (London time), avoiding the last 12 weeks.
+  - **Admins:** **Game library** in the organiser: add, edit, retire and restore games; covers with their source and rights; **Review** for titles to confirm; **Import**; the live switch.
+- **Waiting on:** the café's catalogue files and shelf photos. After the import and review, turning the library on needs your approval. See [docs/GAME_LIBRARY_DEPLOYMENT.md](docs/GAME_LIBRARY_DEPLOYMENT.md).
+- **Database:** migration `0016_game_library.sql`, applied to the live database. Other tables unchanged.
+- **Tests:** 308 (was 279).
+- **Docs:** new [`docs/GAME_LIBRARY_AUDIT.md`](docs/GAME_LIBRARY_AUDIT.md), [`GAME_LIBRARY_DEPLOYMENT.md`](docs/GAME_LIBRARY_DEPLOYMENT.md), [`GAME_LIBRARY_IMAGE_AUDIT.md`](docs/GAME_LIBRARY_IMAGE_AUDIT.md) and [`GAME_LIBRARY_COMPLETION.md`](docs/GAME_LIBRARY_COMPLETION.md).
+
 ## 2026-10-15 (forced updates)
 - **The app makes sure people run the newest version:**
   - **When it checks:** when it opens, when it comes back on screen, and between pages.

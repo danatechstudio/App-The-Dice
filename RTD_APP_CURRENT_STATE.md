@@ -1,6 +1,6 @@
 # RTD App: Current State
 
-_Last updated: 2026-10-08_
+_Last updated: 2026-10-15_
 
 ## Live
 - **Logic Engine:** every event row now has a permanent `Event ID`, plus `App Visibility` and `App Category` (backup taken first).
@@ -84,7 +84,7 @@ _Last updated: 2026-10-08_
 - **Approvers:** **Bookings coming up** shows three weeks of hosted dates and booked café events, with contact details. They can cancel any of those dates, and everyone booked is emailed.
 - **Emails:** n8n **RTD Outbox** (every 5 minutes, live) sends what the app queues.
 - **Tested:**
-  - **Automated:** 279 tests.
+  - **Automated:** 308 tests.
   - **Screens:** checked at 320, 375 and 1280px.
   - **Workflows:** live and simulated n8n runs.
   - **Not yet:** a real booking, and a real cancelled date changing the sheet.
@@ -93,7 +93,7 @@ _Last updated: 2026-10-08_
 
 ## Incomplete
 - **Phases 3–9.**
-- **Roll Me a Game and Game of the Week** use a labelled *preview shelf* of sample games until Phase 4 brings the café's inventory.
+- **The game library** is deployed but switched off: Roll Me a Game, the Games page and Game of the Week use a labelled *preview shelf* of 10 sample games until the café's catalogue is imported, reviewed and switched on ([docs/GAME_LIBRARY_COMPLETION.md](docs/GAME_LIBRARY_COMPLETION.md)).
 
 ## Known issues
 - **Secrets in RTD Master V1:** the ImageKit private key and the Meta page access token are hard-coded. Rotate both (S1).
@@ -110,5 +110,5 @@ _Last updated: 2026-10-08_
 ## Required user input
 - The café's **street address** for calendar entries (currently "Roll The Dice Board Game Café, Cleethorpes", `VENUE_LOCATION` in `wrangler.jsonc`).
 - A **vector or higher-resolution logo**, if one exists. The current assets come from a 1423px JPEG, which is fine for screens; a vector would sharpen the large icons.
-- The **initial game inventory** (name, players, play time, difficulty, style), for Phase 4.
+- The **game catalogue** (`board_game_library_enriched.md` and `board_game_library_image_references.md`) and **shelf photos**, for the game library import.
 - Answers to audit §12 items 6, 7, 9, 10 and 11.

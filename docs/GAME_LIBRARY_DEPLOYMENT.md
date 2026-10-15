@@ -4,6 +4,8 @@ The work is on the branch `game-library` of `danatechstudio/App-The-Dice`. Nothi
 
 ## 1. Ship the code (the public app doesn't change)
 
+**Done 15 Oct 2026:** restore point `2026-10-15T21:25:56Z`, migration 0016 applied, `main` at `c1a6584`. Checks passed, except the organiser's **Game library**, which needs an admin signed in ([completion report](GAME_LIBRARY_COMPLETION.md#production-15-oct-2026)).
+
 1. **Bookmark the database** (lets it be restored to this moment):
    ```sh
    npx wrangler d1 time-travel info rtd-app
