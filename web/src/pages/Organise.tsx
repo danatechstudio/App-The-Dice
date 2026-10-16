@@ -4,6 +4,7 @@ import { Chip, type ChipKind } from '../components/Chips';
 import { DiceLoader, EmptyState } from '../components/States';
 import { addDays, dayOfMonth, daysBetween, monthShort, shortDate, timeRange, todayLondon, weekday } from '../lib/dates';
 import { SIGN_IN_URL, hostApi, type Access, type Frequency, type HostRecord, type HostSession, type HostUser, type SessionStatus } from '../lib/hostApi';
+import { shownName } from '../lib/names';
 import { toast } from '../lib/toast';
 import { HostedDatesPanel, SessionDates } from './OrganiseDates';
 import { EventPlacesPanel, SessionPlaces } from './OrganisePlaces';
@@ -88,7 +89,7 @@ export function Organise() {
       <header class="page-head organiser__head">
         <div>
           <p class="label">{gate.user.role === 'host' ? 'Host dashboard' : gate.user.role === 'admin' ? 'Admin' : 'Approver'}</p>
-          <h1>Welcome back{gate.user.display_name ? `, ${gate.user.display_name}` : ''}</h1>
+          <h1>Welcome back, {shownName(gate.user)}</h1>
         </div>
         <a class="btn btn--text btn--sm" href="/cdn-cgi/access/logout">
           <LogOut size={16} aria-hidden="true" /> Sign out
@@ -586,7 +587,7 @@ function ReviewCard({ s, onDone }: { s: HostSession; onDone: () => void }) {
         </div>
         <SessionFacts s={s} />
         <p class="meta">
-          From {s.host_name ?? s.host_email} · {s.session_id}
+          From {shownName({ display_name: s.host_name, email: s.host_email, role: s.host_role })} · {s.session_id}
         </p>
         {s.description && <p>{s.description}</p>}
       </div>
@@ -635,7 +636,7 @@ function HostsPanel({ hosts, isAdmin, onChanged }: { hosts: HostRecord[] | null;
           <tbody>
             {active?.map(h => (
               <tr key={h.user_id}>
-                <td>{h.display_name ?? '—'}</td>
+                <td>{shownName({ ...h, role: 'host' })}</td>
                 <td>{h.email}</td>
                 <td class={isAdmin ? 'table__action table__action--wide' : 'table__action'}>
                   <div class="table__buttons">

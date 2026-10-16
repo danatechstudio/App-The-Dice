@@ -411,7 +411,7 @@ export async function upcomingBookedDates(db: D1Database, today: string) {
     .prepare(
       `SELECT o.occurrence_id, o.event_id, e.display_name AS event_name, e.host_session_id, o.event_date, o.start_time, o.end_time,
          o.status, o.cancelled_by, ${CAPACITY} AS capacity, o.capacity AS own_capacity,
-         h.name AS session_name, h.access, h.max_players, u.display_name AS host_name, u.email AS host_email
+         h.name AS session_name, h.access, h.max_players, u.display_name AS host_name, u.email AS host_email, u.role AS host_role
        FROM occurrences o JOIN events e ON e.event_id = o.event_id
        LEFT JOIN host_sessions h ON h.session_id = e.host_session_id
        LEFT JOIN users u ON u.user_id = h.host_user_id
@@ -425,7 +425,7 @@ export async function upcomingBookedDates(db: D1Database, today: string) {
       occurrence_id: string; event_id: string; event_name: string; host_session_id: string | null; event_date: string;
       start_time: string | null; end_time: string | null; status: 'scheduled' | 'cancelled'; cancelled_by: string | null;
       capacity: number | null; own_capacity: number | null; session_name: string | null; access: string | null; max_players: number | null;
-      host_name: string | null; host_email: string | null;
+      host_name: string | null; host_email: string | null; host_role: 'host' | 'staff' | 'admin' | null;
     }>();
   if (!dates.length) return [];
   const { results: bookings } = await db
@@ -453,7 +453,7 @@ export async function upcomingBookedDates(db: D1Database, today: string) {
       booked: mine.reduce((n, b) => n + b.party_size, 0),
       bookings: mine.map(({ occurrence_id: _o, ...b }) => b),
       session: d.host_session_id
-        ? { session_id: d.host_session_id, name: d.session_name ?? d.event_name, access: d.access, max_players: d.max_players, host_name: d.host_name, host_email: d.host_email }
+        ? { session_id: d.host_session_id, name: d.session_name ?? d.event_name, access: d.access, max_players: d.max_players, host_name: d.host_name, host_email: d.host_email, host_role: d.host_role }
         : null,
     };
   });

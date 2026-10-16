@@ -226,7 +226,10 @@ export async function setApprover(
 
 const NOTICE_WINDOW_DAYS = 14;
 
-/** New requests the approvers haven't been emailed about: they go to the café address (rtd_config in n8n). */
+/** Who is emailed about each new join request (n8n RTD Team Notices sends to `notify`). */
+export const JOIN_REQUEST_RECIPIENTS = ['info@rollthedicecafe.co.uk', 'dan@atechstudio.co.uk'];
+
+/** New requests the approvers haven't been emailed about: they go to JOIN_REQUEST_RECIPIENTS. */
 export async function newApplicationsForApprovers(db: D1Database) {
   const { results } = await db
     .prepare(
@@ -235,7 +238,7 @@ export async function newApplicationsForApprovers(db: D1Database) {
     )
     .all<Application>();
   // notify / notify_cafe keep the shape n8n RTD Team Notices reads.
-  return results.map(a => ({ ...a, role: 'host' as const, role_label: 'host', notify: [] as string[], notify_cafe: true }));
+  return results.map(a => ({ ...a, role: 'host' as const, role_label: 'host', notify: [...JOIN_REQUEST_RECIPIENTS], notify_cafe: false }));
 }
 
 /** Requests decided in the last fortnight whose applicant hasn't been told. */

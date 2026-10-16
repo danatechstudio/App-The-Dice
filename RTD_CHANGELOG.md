@@ -143,6 +143,11 @@
   - **Offline:** nothing happens.
 - **Version file:** each build writes `/version.json` with its ID. See [docs/RTD_APP_ARCHITECTURE.md](docs/RTD_APP_ARCHITECTURE.md#updates).
 
+## 2026-10-12 (join request emails and the admin's name)
+- **Join request emails** now go to info@rollthedicecafe.co.uk and dan@atechstudio.co.uk (was the café address in `rtd_config`). No n8n change: RTD Team Notices already sends to the app's `notify` list.
+- **Names in the organiser:** Dan's admin account (dan@atechstudio.co.uk) always shows as **Dan (Admin)**, and everyone who isn't an admin (hosts and approvers) as **Name (Host)**: in the welcome, the Hosts and Approvers tables, sessions to approve and the dates list. Only the display changes: the stored names in emails and the diary stay as they are. See `web/src/lib/names.ts`.
+- **Tests:** 282 (was 279).
+
 ## 2026-10-08 (stats for admins)
 - **The app counts how it's used:** event page views; book, Add to calendar and Share taps; taps on event reminders; installs and opens from the Home Screen; visits in a browser; and views of the diary, Book, Games, Become a host and Markets pages, Roll Me a Game rolls and picks, and Apply to host taps.
   - **Daily totals only:** no network address, device ID or cookie, so a count says how many, never who.
