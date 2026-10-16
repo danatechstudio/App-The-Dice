@@ -29,8 +29,17 @@ describe('normaliseRows (Event Index)', () => {
         host_session_id: null,
         market_id: null,
         next: { date: '2026-10-23', start_time: '18:30', end_time: '22:00', all_day: false },
+        sheet_date_raw: '23/10/2026',
       },
     ]);
+  });
+
+  it('keeps the date cell as written, for Needs attention', () => {
+    const { events } = normaliseRows('event_index', [
+      indexRow(1, { 'Event Date': 'Every Thursday' }),
+      indexRow(2, { 'Event Date': '' }),
+    ]);
+    expect(events.map(e => [e.next, e.sheet_date_raw])).toEqual([[null, 'Every Thursday'], [null, null]]);
   });
 
   it('reads the host session columns: App Price, App Capacity, App Host Session', () => {

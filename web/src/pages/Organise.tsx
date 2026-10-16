@@ -9,6 +9,7 @@ import { HostedDatesPanel, SessionDates } from './OrganiseDates';
 import { EventPlacesPanel, SessionPlaces } from './OrganisePlaces';
 import { MarketApplicationsPanel, MarketsAdmin } from './OrganiseMarkets';
 import type { StaffMarket } from '../lib/markets';
+import { AttentionPanel } from './OrganiseAttention';
 import { PushCard } from './OrganisePush';
 import { RemindersAdmin } from './OrganiseReminders';
 import { GamesAdmin } from './OrganiseGames';
@@ -515,6 +516,7 @@ function StaffDesk({ onDecided, me, isAdmin }: { onDecided: () => void; me: Host
   return (
     <div data-surface="staff" class="staff-desk">
       <PushCard />
+      <AttentionPanel isAdmin={isAdmin} />
       <JoinRequests onDecided={load} />
       <section class="section" aria-labelledby="awaiting">
         <div class="section-head">

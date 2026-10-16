@@ -91,11 +91,13 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | GET / POST | `/internal/applications/new`, `/internal/applications/decided`, `…/:id/approver-notified`, `…/:id/applicant-notified` | bearer | Join request emails ([RTD_ONBOARDING.md](RTD_ONBOARDING.md)) |
 | GET / POST | `/internal/host-sessions/decided`, `/internal/host-sessions/:id/host-notified` | bearer | Emailing hosts the café's decision |
 | POST | `/internal/outbox/collect`, `/internal/outbox/:id/sent` | bearer | Booking emails for n8n RTD Outbox ([RTD_BOOKINGS.md](RTD_BOOKINGS.md)) |
-| GET / POST | `/internal/sheet-fixes`, `/internal/sheet-fixes/:eventId/done` | bearer | Event Index changes for cancelled dates, matched on Event ID. The old `/internal/host-sessions/sheet-fixes` is retired and always empty. |
+| GET / POST | `/internal/sheet-fixes`, `/internal/sheet-fixes/:eventId/done` | bearer | Event Index changes, matched on Event ID: new dates and archives decided under Needs attention, then cancelled dates. At most one per event per run. The old `/internal/host-sessions/sheet-fixes` is retired and always empty. |
 | GET | `/api/bookings/availability/:occurrenceId` | none (never cached) | Whether a date can be booked, and places left (null when there's no limit) |
 | POST | `/api/bookings`, `/api/bookings/:id/view`, `/api/bookings/:id/cancel` | none; same-origin JSON; the cancel link's secret | Book, see or cancel a booking |
 | GET | `/api/staff/me` | Access + staff/admin | Who am I |
 | GET | `/api/staff/sync-runs` | Access + staff/admin | Last 50 sync runs with warnings |
+| GET | `/api/staff/attention` | Access + approver/admin | Needs attention: open items, what was sorted in the last 30 days, dates with no end time. Brings the list up to date first ([RTD_EVENT_CONTROL_AUDIT.md](RTD_EVENT_CONTROL_AUDIT.md) G-2) |
+| POST | `/api/staff/attention/:id/resolve`, `/api/staff/attention/switch` | Access + approver/admin (switch: admins) | Resolve one: `{ action: renew \| archive \| complete \| dismiss, date?, note? }`; switch it on or off |
 | GET | `/api/staff/audit?entity_id&before&limit` | Access + staff/admin | Audit history |
 | GET | `/api/staff/sign-in` | Access (anyone it lets in) | The organiser's Sign in button: redirects to `/organise` |
 | GET / POST | `/api/host/me`, `/api/host/sessions`, `/api/host/sessions/:id/withdraw`, `…/resubmit`, `…/delete` | Access cookie + host/staff/admin | Host organiser ([RTD_HOST_PORTAL.md](RTD_HOST_PORTAL.md)) |
@@ -173,6 +175,7 @@ Everyone is moved onto the newest build (`web/src/lib/update.ts`):
 | `src/notify/push.ts` | Web Push: VAPID keys, RFC 8291 encryption, approvers' devices, sending |
 | `src/games/*` | The game library: model and checks, chooser rules, catalogue, Game of the Week, admin and importer, the preview shelf |
 | `src/stats/stats.ts` | Stats: counting page views and taps (daily totals), and the admins' overview |
+| `src/attention/attention.ts` | Needs attention: finding items (hourly and when the organiser opens), settling the ones the Logic Engine answers, resolving, the sheet changes for renewals and archives |
 | `src/notify/alerts.ts` | Event alerts: turning on and off, admins' reminders (24-hour warning), the 8pm automatic reminder, batched sending, the Facebook queue |
 | `src/lib/background.ts` | Work after the response (`waitUntil`), such as pushes |
 | `src/lib/format.ts` | Dates, times and escaping for emails |

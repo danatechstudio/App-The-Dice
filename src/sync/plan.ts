@@ -31,6 +31,7 @@ export interface EventRow {
   default_capacity: number | null;
   host_session_id: string | null;
   market_id: string | null;
+  sheet_date_raw: string | null;
   source_hash: string | null;
 }
 
@@ -121,6 +122,7 @@ function toEventRow(e: NormalisedEvent & { source_hash: string }): EventRow {
     default_capacity: e.default_capacity,
     host_session_id: e.host_session_id,
     market_id: e.market_id,
+    sheet_date_raw: e.sheet_date_raw,
     source_hash: e.source_hash,
   };
 }

@@ -1,5 +1,23 @@
 # RTD App Changelog
 
+## 2026-10-16 (Needs attention)
+- **New in the organiser, for approvers and admins: Needs attention.** It's switched off until an admin presses **Switch on**. It lists:
+  - **events whose date has passed with nothing after it**, such as a one-off or a monthly event. Weekly clubs never appear, because their next date is already there;
+  - **events with no usable date in the Logic Engine** (blank, text like "Every Thursday", or a date that has passed), which is why they aren't in the diary.
+- **Each one stays until someone decides:**
+  - **Set a new date:** it's written to Event Index within 15 minutes and then appears in the diary.
+  - **Archive:** an active Event Index row is switched off in the sheet.
+  - **Finished, no new date**, for a one-off.
+  - **Leave as it is**, for a missing date.
+
+  Looking at an item never resolves it. Standard Diary dates are changed in the sheet by hand.
+- **It clears itself when the Logic Engine answers it:** a new date arrives, or a no-date event is switched off. One-off host sessions and markets are closed straight away, because the host is already invited to run it again.
+- **Also listed:** dates with no end time, which only show for an hour after they start.
+- **History:** "Sorted in the last 30 days" shows who decided what, and whether a new date is still waiting for the Logic Engine. Every step is in the audit log.
+- **Live data when switched on:** Bingo (date passed; you've decided to archive it), plus 7 events with no usable date: Dungeons & Dragons, Magic: The Gathering, Cleeples, Wednesdays, DM Alfie, MoreThanABitDicey, Brownies & Guides.
+- **No emails yet:** the expiry emails and daily reminders to info@ and Dan come in Stage 3c.
+- **Database:** migration `0017_attention.sql` (one new column, one new table). **Tests:** 339 (was 326).
+
 ## 2026-10-16 (finished events leave the app when they end)
 - **A date disappears from the public app the moment it ends,** not at midnight and not when n8n next syncs: the diary, Home, Book, event pages, Add to Calendar, link previews, the splash and markets. All-day dates (the Standard Diary) last until midnight. This is Stage 3a of the event control plan; see [docs/RTD_EVENT_CONTROL_AUDIT.md](docs/RTD_EVENT_CONTROL_AUDIT.md).
 - **Old links to a finished, cancelled or moved date** now say only that ("Quiz has finished", "… was cancelled", "… has moved"), with a button to the next date if there is one. They no longer show the description, photo, price or booking panel. Shared links to them get the plain café preview.

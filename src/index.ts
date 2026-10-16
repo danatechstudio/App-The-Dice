@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { detect } from './attention/attention';
 import { readImage } from './images/store';
 import { applyRetention } from './lib/privacy';
 import { autoReminder, drain } from './notify/alerts';
@@ -107,6 +108,10 @@ export default {
     ctx.waitUntil(eventAlerts(env, now).catch(err => console.error('alerts failed:', err)));
     // Hourly: make sure this week's Game of the Week is picked, even if nobody has looked yet.
     if (now.getUTCMinutes() === 5) ctx.waitUntil(currentGotw(env.DB, now).catch(err => console.error('gotw failed:', err)));
+    // Hourly: Needs attention picks up dates that have ended with nothing after them (src/attention/attention.ts).
+    if (now.getUTCMinutes() === 10) {
+      ctx.waitUntil(detect(env.DB, now).then(r => (r.opened || r.settled || r.blocked) && console.log('attention', JSON.stringify(r))).catch(err => console.error('attention failed:', err)));
+    }
     if (now.getUTCHours() === 3 && now.getUTCMinutes() === 23) {
       ctx.waitUntil(applyRetention(env.DB, now, env.IMAGES).then(erased => console.log('retention', JSON.stringify(erased))));
     }
