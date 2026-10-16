@@ -117,4 +117,6 @@ Nothing existing changes. Emails already in the outbox read as queued or sent, e
 - **Before:** 32 events, 56 occurrences, 0 bookings, 289 audit rows, 12 settings, 8 open items, 2 emails in the outbox (both sent); the 15:15 sync `ok`.
 - **After:** the same. The seven outbox columns, both tables (empty) and both indexes are present; the 2 emails read as untouched (no attempts, no claim).
 - **The 15:30 sync**, on the old code with the migrated database: `ok`.
+- **Deployed:** PR #5 merged at 15:31; the new code was confirmed live from the deployed Worker at 15:38 (the push outbox, `/outbox/:id/failed`, booking devices and the moved-date email are in it).
+- **First runs on the new code:** RTD Outbox at 15:40 and 15:45 succeeded; collect answered `{ messages: [] }` as before (nothing was waiting). The 15:45 sync: `ok`, 32 events, nothing changed, still 289 audit rows and 8 open items.
 - **The RTD Outbox change was not made:** the owner's go-ahead covered `0020` and the deploy only.
