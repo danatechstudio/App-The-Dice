@@ -119,4 +119,10 @@ Nothing existing changes. Emails already in the outbox read as queued or sent, e
 - **The 15:30 sync**, on the old code with the migrated database: `ok`.
 - **Deployed:** PR #5 merged at 15:31; the new code was confirmed live from the deployed Worker at 15:38 (the push outbox, `/outbox/:id/failed`, booking devices and the moved-date email are in it).
 - **First runs on the new code:** RTD Outbox at 15:40 and 15:45 succeeded; collect answered `{ messages: [] }` as before (nothing was waiting). The 15:45 sync: `ok`, 32 events, nothing changed, still 289 audit rows and 8 open items.
-- **The RTD Outbox change was not made:** the owner's go-ahead covered `0020` and the deploy only.
+- **The RTD Outbox change** waited for its own go-ahead, then was published at 17:23 UTC (version `e50af06e…`; rollback `a1b77acb…`). The 17:25 and 17:30 runs on it succeeded ([RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md)).
+
+## Stage 4c (no migration)
+
+- **Deployed:** PR #6 merged at 17:15 UTC, with the owner's go-ahead; the new code was confirmed live from the deployed Worker at 17:22 (the monthly `inactive:<date>` fix and the `cancelled` items are in it).
+- **Live data:** no cancelled dates, so nothing changed: the 17:30 sync was `ok`, 32 events, still 289 audit rows and 8 open items.
+- **Rollback:** `npx wrangler rollback`.

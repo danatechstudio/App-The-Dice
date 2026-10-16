@@ -20,7 +20,7 @@
 - **Emails that fail are retried and then given up on visibly**, instead of failing RTD Outbox every 5 minutes. They're retried after 5 minutes, 15 minutes, 1 hour, 4 hours and 12 hours.
   - A customer's email that fails opens a Needs attention item at once, with their details.
   - **Delivery** in the organiser shows how the last 7 days' emails and notifications went, with **Try again now**.
-  - This needs a change to n8n RTD Outbox, which waits for the owner's go-ahead.
+  - n8n RTD Outbox now reports each failure to the app (published 17:23); Dan is emailed only when one is given up on.
 - **Moved dates and failed customer emails** are in the attention emails too: a notice, then the morning reminder.
 - **Privacy:** a booking device's address is deleted the day after the date. The privacy notice says so.
 - **Database:** migration `0020_delivery.sql` (outbox columns, two new tables). **Tests:** 363 (was 351).
