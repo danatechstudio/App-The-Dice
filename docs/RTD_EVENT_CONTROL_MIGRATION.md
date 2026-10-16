@@ -38,4 +38,7 @@ Nothing existing changes. Sheet edits, bookings, the diary and n8n behave exactl
 
 **Rollback:** switch it off in the organiser, or `npx wrangler rollback`. The column and table can stay. A Time Travel restore isn't needed for this migration.
 
-**Applied to production:** _not yet; waiting for the owner's go-ahead._
+**Applied to production:** 2026-10-16 08:43 UTC, with the owner's go-ahead, through the Cloudflare connector, one statement at a time; recorded in `d1_migrations`.
+- **Restore point:** 2026-10-16T08:43:15Z.
+- **Before:** 32 events, 56 occurrences, 0 bookings, 276 audit rows, 9 settings.
+- **After:** the same, plus the `needs_attention = off` setting (10). The column, the empty `attention_items` table and both indexes are present.
