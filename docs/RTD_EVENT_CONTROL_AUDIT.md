@@ -429,9 +429,9 @@ The existing suite covers most app paths. n8n paths need dry runs (the Guard has
 | D-7 | Host self-service | Keep **host cancellation immediate** (a host who can't run it can't be made to), with admin notification. Place increases: immediate. Text / time / date changes: approval |
 | D-8 | Digest time | 09:00 London |
 | D-9 | Does "admin approval" include approvers (Michelle)? | Yes: approvers + admins, as today. Expiry emails go to the two fixed addresses regardless |
-| D-10 | Sheet edits to host-owned events | Treat sheet editors as admins (no approval queue), but log a change request for audit. Alternative: route them through approval |
+| D-10 | Sheet edits to host-owned events | Treat sheet editors as admins (no approval queue), but log a change request for audit. Alternative: route them through approval. **Decided 2026-10-16: no approval.** The owner is the only person with access to the sheet; their edits are applied and logged (each change the sync brings in is in the audit log as `event.updated`, with the values before and after). |
 | D-11 | Transactional email provider (Phase 0 item 11, still open) | Keep Gmail via n8n for now (state `sent` = accepted, never "delivered"). Consider Resend or Postmark for bounce webhooks and idempotency before cutover |
-| D-12 | Staging | Approve creating staging Cloudflare resources and a sheet copy. Who owns the copy? |
+| D-12 | Staging | Approve creating staging Cloudflare resources and a sheet copy. Who owns the copy? **Sheet copy made 2026-10-16** at the owner's request: in the same Drive folder, owned by the same Google account as the Logic Engine; its ID is in n8n `rtd_config` (`RTD_STAGING_LOGIC_ENGINE_ID`), not in this repository. A one-week read-only trial on the live sheet before any writes is approved. |
 | D-13 | Outbound writes to the Logic Engine | Approve a new n8n writer limited to mapped columns, by Event ID |
 | D-14 | Google Calendar "Roll The Dice Cafe" | Is it public? If so, approve the Status / visibility filter in Master V1 |
 | D-15 | Bingo (expired 9 Oct, unresolved) | Renew with a date, or archive. Separately: why did the date-picker close as `NO_RESPONSE` within hours? (Possibly a mail scanner opening the form link; execution data is pruned) |

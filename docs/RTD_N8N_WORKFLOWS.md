@@ -4,6 +4,13 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### 2026-10-16 (evening): a staging copy of the Logic Engine
+
+At the owner's request (Stage 6, D-12), a one-off workflow, **RTD Make Staging Copy (one-off)**, copied the Logic Engine spreadsheet with the `ATECHGoogleDrive` credential, then was archived.
+- **The copy:** "Logic Engine_RTD (STAGING COPY - not live, for testing the app sync)", in the same folder and owned by the same account. Nothing live reads or posts from it.
+- **Its ID** is in `rtd_config` as `RTD_STAGING_LOGIC_ENGINE_ID` (kept out of this public repository).
+- **Never point a live workflow at it,** and never point a test workflow at the live sheet.
+
 ### 2026-10-16 (evening): approved host changes into Event Index
 
 The owner approved this (Stage 5a). It was made after migration `0021_change_requests.sql` and the Stage 5a app were live.
