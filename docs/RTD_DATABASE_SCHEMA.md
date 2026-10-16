@@ -340,6 +340,22 @@ Added in `0020_delivery.sql` (Stage 4b; [RTD_BOOKINGS.md](RTD_BOOKINGS.md#tellin
 
 **`push_outbox`:** a notification to one booking device, written in the same batch as the change. `dedupe_key` (unique: `push:date-cancelled:<occurrence_id>:<device_id>`, `push:date-moved:…`), `kind`, `device_id`, `booking_id`, `occurrence_id`, `title`, `body`, `url`, `tag` (`booking-<booking_id>`), `attempts`, `last_status` (the push service's answer; 0 unreachable, -1 the device was turned off first), `last_error`, `last_attempt_at`, `next_attempt_at`, `claim`, `claimed_at`, `sent_at`, `dead_at`, `created_at`. Same retries as the outbox; a 404 or 410 is given up on at once. Kept 90 days.
 
+## Food & Drinks menu
+
+Added in `0022_food_menu.sql` ([RTD_FOOD_MENU.md](RTD_FOOD_MENU.md)). Additive: no existing table changes. Browse only; nothing about customers.
+
+| Table | Columns |
+| --- | --- |
+| `menu_categories` | `category_id` (primary key, a slug that is also the page anchor: `hot-food`), `name`, `description`, `alcohol` (1: the over-18s note), `image_url`, `image_alt` (reserved for a photo), `sort_order`, `visible`, `created_at`, `updated_at` |
+| `menu_items` | `item_id` (`RTD-MENU-00001`; never reused), `category_id`, `name`, `options` (the choices), `description`, `price_pence` (NULL when there's no single price; checked 0–100000), `price_note` (what to show instead: "Individually priced"), `alcohol` (1: marked 18+; 0% drinks are 0), `image_url`, `image_alt`, `sort_order`, `visible` (0: off the menu), `available` (0: listed as not available right now), `source_text` (the line as transcribed from the photographed menu), `created_at`, `updated_at` |
+| `menu_item_variants` | `variant_id`, `item_id`, `label` (`Single`, `Double`), `price_pence`, `sort_order`; unique `(item_id, label)`. When an item has these, they are its prices |
+
+**Index:** `menu_items (category_id, sort_order)`.
+
+**Setting:** `food_menu_status`: `off`, `preview` (where it starts) or `live`. Admins change it in the organiser; anything else reads as off.
+
+**Data:** 8 sections and 59 lines from the brief, with single £4 / double £6 for each of the 8 spirits. Three cold-food lines are "Individually priced", and Mixers' soft drinks point to Cold drinks.
+
 ## Coming in later phases
 
 `waitlist`, `hosts` profile fields, `games`, `game_of_week`, `notifications` (customer push). They are designed in the spec (§15, §18, §24, §29, §47) and will be added as new numbered migrations.

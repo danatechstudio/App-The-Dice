@@ -18,6 +18,7 @@ import { adminLibrary, applyImport, attachCover, confirmReview, confirmReviews, 
 import { gotwHistory } from '../games/gotw';
 import { deviceLabel, myDevices, notifyUser, parseSubscription, removeSubscription, saveSubscription, vapidKeys } from '../notify/push';
 import { londonDate } from '../lib/time';
+import { adminMenu, setMenuStatus } from '../menu/menu';
 import { applicationsForStaff, createMarket, decideApplication as decideVendor, markWithdrawn, marketsForStaff, parseMarketInput, readPhoto, updateMarket } from '../markets/markets';
 import { decideApplication, listApplications, listApprovers, removeAccess, setApprover, type ApplicationStatus } from '../team/applications';
 
@@ -437,4 +438,18 @@ staffRoutes.post('/game-review/:id/confirm', async c => {
 staffRoutes.post('/game-review/:id/reject', async c => {
   const body = ((await c.req.json().catch(() => ({}))) ?? {}) as { note?: unknown };
   return (await rejectReview(c.env.DB, c.get('user'), c.req.param('id'), body.note, new Date().toISOString())) ? c.json({ ok: true }) : c.json({ error: 'No open entry with that ID.' }, 404);
+});
+
+// --- The food and drinks menu (admins only; docs/RTD_FOOD_MENU.md) ---
+
+staffRoutes.use('/menu/*', async (c, next) => (adminsOnly(c.get('user')) ? next() : c.json({ error: 'Only admins can manage the menu.' }, 403)));
+staffRoutes.use('/menu', async (c, next) => (adminsOnly(c.get('user')) ? next() : c.json({ error: 'Only admins can manage the menu.' }, 403)));
+
+/** The whole menu, hidden lines included, each with the line as transcribed, and Off / Preview / Live. */
+staffRoutes.get('/menu', async c => c.json(await adminMenu(c.env.DB)));
+
+/** Body: { status: 'off' | 'preview' | 'live' } */
+staffRoutes.post('/menu/status', async c => {
+  const res = await setMenuStatus(c.env.DB, c.get('user'), await c.req.json().catch(() => null), new Date());
+  return res.ok ? c.json(res.value) : c.json({ error: res.error }, res.status);
 });

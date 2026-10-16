@@ -17,6 +17,7 @@ import { Home } from './pages/Home';
 import { Host } from './pages/Host';
 import { ManageBooking } from './pages/ManageBooking';
 import { MarketPage, Markets } from './pages/Markets';
+import { Menu } from './pages/Menu';
 import { NotFound } from './pages/NotFound';
 import { Organise } from './pages/Organise';
 import { Privacy } from './pages/Privacy';
@@ -34,6 +35,7 @@ function route(path: string) {
   if (path === '/organise') return <Organise />;
   if (path === '/privacy') return <Privacy />;
   if (path === '/markets') return <Markets />;
+  if (path === '/menu') return <Menu />;
   if (path === '/styleguide') return <StyleGuide />;
   if ((p = match('/event/:id', path))) return <EventPage key={p.id} occurrenceId={p.id!} />;
   if ((p = match('/events/:id', path))) return <SeriesPage key={p.id} eventId={p.id!} />;

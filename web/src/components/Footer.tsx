@@ -13,6 +13,9 @@ export function Footer() {
           <span>Roll The Dice Board Game Café</span>
         </div>
         <div class="cluster">
+          <a class="footer__link" href="/menu">
+            Food &amp; Drinks
+          </a>
           <a class="footer__link" href="/markets">
             Markets
           </a>

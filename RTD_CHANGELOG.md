@@ -1,5 +1,25 @@
 # RTD App Changelog
 
+## 2026-10-16 (Food & Drinks menu)
+- **New page: Food & Drinks** (`/menu`), the café's menu to browse. There's nothing to order or pay.
+  - **Contents:** eight sections, from Hot food to Wine & prosecco, with every price from the photographed menu.
+  - **Spirits** show Single £4.00 and Double £6.00.
+  - **Lines with no single price** say "Individually priced"; no price is guessed.
+  - **Alcohol:** alcoholic drinks are marked **18+**, and their sections say they're for over-18s only.
+  - **Allergies:** a note asks people to speak to the team before ordering. Nothing is labelled allergen-free.
+  - **Photos:** every line has a photo slot, with a neutral placeholder for now. No made-up food photos.
+  - **Getting around:** section links stay in reach while scrolling, and `/menu#spirits` opens at that section.
+  - **Offline:** the page works offline from the last copy, which says how old it is.
+- **Where it's linked:** a **Food & Drinks** button in the top bar (phones) and the top menu (computers), a card on Home, the footer, and the installed app's shortcuts. The bottom bar is unchanged.
+- **It starts in Preview,** with a note that the menu is still being checked and the café's price applies. In the organiser, admins switch it **Off**, **Preview** or **Live** (audited), and can check every line against the words it was transcribed from. **Before Live:**
+  - the café checks the prices;
+  - adds the measures the law requires for spirits, wine and draught;
+  - confirms "gluten-free" ([RTD_FOOD_MENU_AUDIT.md §6](docs/RTD_FOOD_MENU_AUDIT.md#6-before-launch-for-the-café)).
+- **Stats:** Food & Drinks page views.
+- **Audit and plan for offers:** [docs/RTD_FOOD_MENU_AUDIT.md](docs/RTD_FOOD_MENU_AUDIT.md). It covers roles and a per-person `offers.manage` permission for Michelle and Dan only, and how offer notifications will be opt-in and separate from event alerts. Offers are Stage 3; nothing about them is built yet.
+- **Unchanged:** events, bookings, hosts, notifications, the sheet sync and n8n.
+- **Database:** migration `0022_food_menu.sql` (three new tables, one setting). It must be applied before this is deployed. **Tests:** 399 (was 382).
+
 ## 2026-10-16 (Dates in the app)
 - **New in the organiser, for approvers and admins: Dates in the app.** It lists the next four weeks; each date can be changed without touching the Logic Engine:
   - **Hide this date in the app,** or show it again. It leaves the diary and its page. Hiding a date people have booked asks first, and their bookings stand.

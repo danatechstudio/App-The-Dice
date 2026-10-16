@@ -15,7 +15,8 @@ export type AppMetric =
   | 'gotw_view'
   | 'host_page_view'
   | 'host_apply_tap'
-  | 'markets_view';
+  | 'markets_view'
+  | 'menu_view';
 export type EventMetric = 'event_view' | 'book_tap' | 'calendar_tap' | 'share_tap';
 
 const MAX_BATCH = 10;

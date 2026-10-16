@@ -20,6 +20,7 @@ export const APP_METRICS = [
   'host_page_view',
   'host_apply_tap',
   'markets_view',
+  'menu_view', // the Food & Drinks page
 ] as const;
 
 /** Counts about one event, sent by the page. */
