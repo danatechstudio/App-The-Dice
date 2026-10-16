@@ -2,9 +2,11 @@
 // live session's places, for every date or one date; an approver sets a café
 // event's places (instead of App Capacity in the sheet), or any one date's.
 // Never below the number already booked on a date it applies to.
+// Approvers also set whether people need to book a café event (setBookingMode).
 
 import type { AuthUser } from '../lib/auth';
 import { shortDate } from '../lib/format';
+import { BOOKING_MODE, BOOKING_MODES, DEFAULT_BOOKING_MODE, type BookingMode } from '../lib/queries';
 import { londonDate } from '../lib/time';
 
 /** Most places on a date: a host's session (as Max players), or a café event. */
@@ -189,6 +191,12 @@ export interface EventPlaces {
   most_booked: number;
   /** Dates to come with their own number. */
   dates_with_own_places: number;
+  /** Whether people need to book: what applies, what was set here (null: the default), and the default. */
+  booking_mode: BookingMode;
+  booking_mode_set: BookingMode | null;
+  booking_mode_default: BookingMode;
+  /** Bookings still standing on dates to come. */
+  bookings: number;
 }
 
 /** For approvers: every café event people can book, with its places. */
@@ -198,7 +206,9 @@ export async function cafeEventPlaces(db: D1Database, today: string): Promise<Ev
       `SELECT e.event_id, e.display_name AS name, e.source, e.frequency, e.default_capacity AS sheet_places,
          e.capacity_override AS app_places, COALESCE(e.capacity_override, e.default_capacity) AS places,
          MIN(o.event_date) AS next_date, MAX(${BOOKED}) AS most_booked,
-         SUM(CASE WHEN o.capacity IS NOT NULL THEN 1 ELSE 0 END) AS dates_with_own_places
+         SUM(CASE WHEN o.capacity IS NOT NULL THEN 1 ELSE 0 END) AS dates_with_own_places,
+         ${BOOKING_MODE} AS booking_mode, e.booking_mode AS booking_mode_set, ${DEFAULT_BOOKING_MODE} AS booking_mode_default,
+         SUM((SELECT COUNT(*) FROM bookings b WHERE b.occurrence_id = o.occurrence_id AND b.status = 'confirmed')) AS bookings
        FROM events e JOIN occurrences o ON o.event_id = e.event_id AND o.status = 'scheduled' AND o.event_date >= ?1
        WHERE e.active = 1 AND e.host_session_id IS NULL AND e.market_id IS NULL AND e.visibility IN ('public', 'app_bookable')
        GROUP BY e.event_id
@@ -207,4 +217,53 @@ export async function cafeEventPlaces(db: D1Database, today: string): Promise<Ev
     .bind(today)
     .all<EventPlaces>();
   return results;
+}
+
+/**
+ * An approver sets whether people need to book a café event: 'none' (Not required),
+ * 'optional', 'required', or 'default' to go back to the default for its kind.
+ * Bookings already made always stand. Switching to Not required while people are
+ * booked on dates to come needs confirm: true; the answer says how many.
+ */
+export async function setBookingMode(
+  db: D1Database,
+  actor: AuthUser,
+  eventId: string,
+  body: unknown,
+  ctx: { now: string; today: string },
+): Promise<{ ok: true; booking_mode: BookingMode; booking_mode_set: BookingMode | null } | Fail | { ok: false; status: 409; warning: { bookings: number; people: number } }> {
+  const b = (body && typeof body === 'object' ? body : {}) as { mode?: unknown; confirm?: unknown };
+  const set = b.mode === 'default' ? null : BOOKING_MODES.includes(b.mode as BookingMode) ? (b.mode as BookingMode) : undefined;
+  if (set === undefined) return { ok: false, status: 400, error: 'Choose Not required, Optional, Required or the default.' };
+  const e = await db
+    .prepare(
+      `SELECT e.event_id, e.host_session_id, e.market_id, e.booking_mode AS current, ${DEFAULT_BOOKING_MODE} AS fallback
+       FROM events e WHERE e.event_id = ?1 AND e.active = 1`,
+    )
+    .bind(eventId)
+    .first<{ event_id: string; host_session_id: string | null; market_id: string | null; current: BookingMode | null; fallback: BookingMode }>();
+  if (!e) return { ok: false, status: 404, error: 'No event with that ID.' };
+  if (e.market_id) return { ok: false, status: 409, error: "Customers don't book markets set up in the app: vendors apply for pitches." };
+  if (e.host_session_id) return { ok: false, status: 409, error: "This is a host's session: people always book those." };
+  const next = set ?? e.fallback;
+  if (next === 'none' && b.confirm !== true) {
+    const booked = await db
+      .prepare(
+        `SELECT COUNT(*) AS bookings, COALESCE(SUM(b.party_size), 0) AS people FROM bookings b JOIN occurrences o ON o.occurrence_id = b.occurrence_id
+         WHERE o.event_id = ?1 AND o.status = 'scheduled' AND o.event_date >= ?2 AND b.status = 'confirmed'`,
+      )
+      .bind(eventId, ctx.today)
+      .first<{ bookings: number; people: number }>();
+    if (booked && booked.bookings > 0) return { ok: false, status: 409, warning: booked };
+  }
+  await db.batch([
+    db.prepare('UPDATE events SET booking_mode = ?2, updated_at = ?3 WHERE event_id = ?1').bind(eventId, set, ctx.now),
+    db
+      .prepare(
+        `INSERT INTO audit_log (entity_type, entity_id, actor_type, actor_id, action, previous_value, new_value, source, created_at)
+         VALUES ('event', ?1, 'staff', ?2, 'event.booking_mode_changed', ?3, ?4, 'organiser', ?5)`,
+      )
+      .bind(eventId, actor.email, e.current ?? `default (${e.fallback})`, set ?? `default (${e.fallback})`, ctx.now),
+  ]);
+  return { ok: true, booking_mode: next, booking_mode_set: set };
 }

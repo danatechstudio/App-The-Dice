@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import { attentionOverview, resolveItem, setAttention } from '../attention/attention';
 import { emailOverview, sendTest, setEmailSettings } from '../attention/reminders';
 import { upcomingBookedDates } from '../bookings/bookings';
-import { cafeEventPlaces, setEventPlaces } from '../bookings/places';
+import { cafeEventPlaces, setBookingMode, setEventPlaces } from '../bookings/places';
 import { decideSession, listHosts, listSessions, type SessionStatus } from '../host/sessions';
 import { afterResponse } from '../lib/background';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
@@ -128,6 +128,17 @@ staffRoutes.post('/events/:id/places', async c => {
   const now = new Date();
   const result = await setEventPlaces(c.env.DB, c.get('user'), c.req.param('id'), body.places, { now: now.toISOString(), today: londonDate(now) });
   return result.ok ? c.json({ capacity: result.capacity }) : c.json({ error: result.error, errors: result.errors }, result.status);
+});
+
+/**
+ * Whether people need to book a café event. Body: { mode: 'none' | 'optional' | 'required' | 'default', confirm? }.
+ * 409 { warning } when switching to Not required with people booked: send again with confirm: true.
+ */
+staffRoutes.post('/events/:id/booking-mode', async c => {
+  const now = new Date();
+  const result = await setBookingMode(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), { now: now.toISOString(), today: londonDate(now) });
+  if (result.ok) return c.json({ booking_mode: result.booking_mode, booking_mode_set: result.booking_mode_set });
+  return 'warning' in result ? c.json({ warning: result.warning }, 409) : c.json({ error: result.error, errors: result.errors }, result.status);
 });
 
 /** Hosts. Everyone joins through a join request; there's no adding people directly. */

@@ -91,7 +91,15 @@ export interface EventPlaces {
   places: number | null;
   most_booked: number;
   dates_with_own_places: number;
+  /** Whether people need to book: what applies, what was set in the organiser (null: the default), and the default. */
+  booking_mode: BookingMode;
+  booking_mode_set: BookingMode | null;
+  booking_mode_default: BookingMode;
+  /** Bookings standing on dates to come. */
+  bookings: number;
 }
+
+export type BookingMode = 'none' | 'optional' | 'required';
 
 /** Most places on a date (the server checks too). */
 export const MAX_PLACES = { hosted: 100, cafe: 500 } as const;

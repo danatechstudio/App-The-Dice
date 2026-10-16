@@ -1,6 +1,6 @@
 # RTD Bookings
 
-Customers can book places on **every public event** in the app: the café's own events and hosts' open sessions. Every booking and cancellation is emailed to the café's bookings inbox (info@). Hosts also hear about bookings on their own sessions.
+Customers can book places on public events in the app: hosts' open sessions, and the café's own events unless booking is set to **Not required**. Every booking and cancellation is emailed to the café's bookings inbox (info@). Hosts also hear about bookings on their own sessions.
 
 ## Status (2026-10-07)
 
@@ -17,14 +17,16 @@ Customers can book places on **every public event** in the app: the café's own 
 | Cancelled dates taken out of the Logic Engine, so they're never advertised | **Built** (one-off, weekly and fortnightly Event Index rows; n8n **RTD Host Sessions To Diary**) |
 | Hosts change their own sessions' places; approvers set café events' places, or any date's | **Built** (2026-10-07): see [Places](#places) |
 | Privacy notice, and booking details erased 12 months after the event | **Built**: see [RTD_PRIVACY.md](RTD_PRIVACY.md) |
+| Booking modes: Not required / Optional / Required, per event, set by approvers | **Built** (2026-10-16): see [Booking modes](#booking-modes) |
 | Waiting list, daily staff digest, editing a booking | Not built (spec §23, §33) |
 
 ## What can be booked
 
 | Event | Bookable? | Limit |
 | --- | --- | --- |
-| The café's own events with App Visibility **Public** or **App Bookable** (Event Index and Standard Diary) | Yes | The number set in the organiser, else the row's **App Capacity**. With neither, there's no limit. |
-| A host's **open** session | Yes | Its Max players, which the host can change once it's live |
+| The café's own Event Index events with App Visibility **Public** or **App Bookable** | Yes: booking **Optional** unless an approver changes it | The number set in the organiser, else the row's **App Capacity**. With neither, there's no limit. |
+| Standard Diary groups (Public) | Not unless an approver switches booking on: **Not required** by default | As above, once switched on |
+| A host's **open** session | Yes: booking **Required** | Its Max players, which the host can change once it's live |
 | **Private** events and host sessions | Never | |
 | **Hidden** or inactive events | Never (not shown) | |
 | Markets set up in the organiser | No: vendors apply for pitches instead ([RTD_MARKETS.md](RTD_MARKETS.md)) | |
@@ -32,7 +34,30 @@ Customers can book places on **every public event** in the app: the café's own 
 **Notes:**
 - **Booking per date:** a weekly or fortnightly event is booked one date at a time.
 - **The Book page** lists the next date of every bookable event. Every event page has the booking form.
-- **To limit numbers for a café event:** set its places under **Places for café events** in the organiser, or fill in App Capacity on its row. To stop bookings altogether, it has to be Private or Hidden.
+- **To limit numbers for a café event:** set its places under **Booking for café events** in the organiser, or fill in App Capacity on its row.
+- **To stop bookings for a café event** (people just turn up): set its booking to **Not required** there.
+
+## Booking modes
+
+Whether people need to book: set per event by approvers and admins under **Booking for café events** in the organiser (docs/RTD_EVENT_CONTROL_AUDIT.md G-5, D-6).
+
+| Mode | The event page | When the places run out |
+| --- | --- | --- |
+| **Not required** | "No booking needed: just come along." No booking form; nothing on the Book page | (no booking) |
+| **Optional** | **Reserve a place**: "Booking is optional: you can also just turn up." | "All the places you can reserve have gone, but you can still come along on the day." |
+| **Required** | **Book a place**: "Booking is required: you need a place to come." Chip: **Booking required** | "Sorry, this one is full." |
+
+**Defaults** (`events.booking_mode` NULL; `BOOKING_MODE` in `src/lib/queries.ts`):
+- the café's own Event Index events: **Optional**;
+- Standard Diary groups: **Not required** (they're room bookings);
+- hosts' sessions: **Required**, and only the host's places decide; approvers can't change it;
+- markets: **Not required** (vendors apply instead); approvers can't change it.
+
+**Changing it:**
+- **The default** puts an event back to the default for its kind.
+- **Bookings already made always stand.** Switching to **Not required** while people are booked on dates to come asks first: "1 booking (3 places) on dates to come. They stay booked and keep their emails and cancel links." Their Manage / Cancel link still works.
+- **The sheet sync never changes it.** It's set per event; there's no per-date mode.
+- Every change is in the audit log (`event.booking_mode_changed`, with the old and new mode).
 
 ## Booking
 
@@ -178,6 +203,7 @@ The app writes every booking email itself (`src/notify/emails.ts`) into the `out
 | `booking.cancelled` | `booking` | the customer, as above |
 | `occurrence.cancelled` | `occurrence` (with the occurrence ID) | the host (`host`) or an approver (`staff`). It keeps the message and how many bookings were cancelled. |
 | `…places_changed` | `host_session`, `event` or `occurrence` | the host or an approver, with the old and new numbers |
+| `event.booking_mode_changed` | `event` | an approver or admin (`staff`), with the old and new mode (`default (optional)` when it was the default) |
 
 Bookings are never deleted. A cancelled one keeps who cancelled it and why. Twelve months after the event, the person's name, email, mobile and note are erased ([RTD_PRIVACY.md](RTD_PRIVACY.md)).
 
@@ -185,8 +211,8 @@ Bookings are never deleted. A cancelled one keeps who cancelled it and why. Twel
 
 | Method | Path | Who | Purpose |
 | --- | --- | --- | --- |
-| GET | `/api/bookings/availability/:occurrenceId` | anyone | `{ bookable, open, reason, capacity, places_left, max_party }`. `capacity` / `places_left` are null when there's no limit. Never cached. |
-| POST | `/api/bookings` | anyone | `{ occurrence_id, lead_name, email, mobile?, party_size, notes? }`. 201 with `manage_path`, or 400 / 404 / 409 (full, closed, already booked) / 429. |
+| GET | `/api/bookings/availability/:occurrenceId` | anyone | `{ bookable, mode, open, reason, capacity, places_left, max_party }`. `mode` is `none`, `optional` or `required`; `{ bookable: false, mode: 'none' }` for a visible event that needs no booking, `mode: null` for anything else not bookable. `capacity` / `places_left` are null when there's no limit. Never cached. |
+| POST | `/api/bookings` | anyone | `{ occurrence_id, lead_name, email, mobile?, party_size, notes? }`. 201 with `manage_path`, or 400 / 404 (not bookable, or booking Not required) / 409 (full, closed, already booked) / 429. |
 | POST | `/api/bookings/:id/view` | the link holder | `{ token }`: the booking |
 | POST | `/api/bookings/:id/cancel` | the link holder | `{ token }`: cancel it |
 | GET | `/api/host/sessions` | host | Each live session has `dates`, each with its bookings (no contact details) |
@@ -194,7 +220,8 @@ Bookings are never deleted. A cancelled one keeps who cancelled it and why. Twel
 | GET | `/api/staff/booked-dates` | approver, admin | The next 3 weeks: hosted dates, and café dates people have booked, with contacts. Each date has `capacity` and `own_capacity`. |
 | POST | `/api/host/sessions/:id/places` | the session's host | `{ places }`: every date of their live session |
 | POST | `/api/host/occurrences/:occurrenceId/places` | the session's host; approvers and admins for any date | `{ places: number \| null }`: one date; null goes back to the event's number |
-| GET | `/api/staff/event-places` | approver, admin | Every café event that can be booked, with its places (sheet, app, applying), the most booked on a date, and how many dates have their own number |
+| GET | `/api/staff/event-places` | approver, admin | Every public café event with dates to come: its booking mode (applying, set, default), bookings to come, places (sheet, app, applying), the most booked on a date, and how many dates have their own number |
+| POST | `/api/staff/events/:eventId/booking-mode` | approver, admin | `{ mode: 'none' \| 'optional' \| 'required' \| 'default', confirm? }`. 409 `{ warning: { bookings, people } }` when switching to Not required with people booked, until `confirm: true`; 409 for hosts' sessions and markets |
 | POST | `/api/staff/events/:eventId/places` | approver, admin | `{ places: number \| null }`: every date of a café event; null goes back to the sheet |
 | POST | `/internal/outbox/collect` | n8n (bearer token) | Queues emails now due (numbers, warnings), then returns unsent emails |
 | POST | `/internal/outbox/:id/sent` | n8n | Mark one sent |

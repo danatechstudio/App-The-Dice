@@ -111,7 +111,7 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | GET / POST | `/api/staff/push/key`, `/devices`, `/subscribe`, `/unsubscribe`, `/test` | Access + approver/admin | Push notifications on this device ([RTD_PUSH.md](RTD_PUSH.md)) |
 | POST | `/api/host/occurrences/:id/cancel` | Access cookie + the session's host, approver or admin | Cancel a date |
 | POST | `/api/host/sessions/:id/places`, `/api/host/occurrences/:id/places` | Access cookie + the session's host (approvers and admins for any single date) | Places on every date of a live session, or on one date ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#places)) |
-| GET / POST | `/api/staff/event-places`, `/api/staff/events/:id/places` | Access + approver/admin | Places for café events |
+| GET / POST | `/api/staff/event-places`, `/api/staff/events/:id/places`, `/api/staff/events/:id/booking-mode` | Access + approver/admin | Booking for café events: places, and whether people need to book |
 | GET / POST | `/api/markets`, `/api/markets/:id`, `/api/markets/:id/apply` | none; applying is same-origin JSON | Markets vendors can apply to, and applying ([RTD_MARKETS.md](RTD_MARKETS.md)) |
 | GET / POST | `/api/staff/markets…`, `/api/staff/market-applications…`, `/api/staff/market-photos/:id` | Access + approver/admin (setting up markets: admins only) | Markets and vendor applications |
 | GET / POST | `/internal/market-applications/sheet`, `/internal/market-applications/:id/sheet-synced` | bearer | The market spreadsheet |

@@ -6,6 +6,7 @@ How each event-control migration reaches the live database ([RTD_EVENT_CONTROL_A
 - Every migration is **additive**: new tables, or new nullable columns. Nothing is renamed or dropped.
 - So every migration is applied **before** the code that uses it is deployed. The running code ignores the new column or table.
 - Nothing is applied to the live database without the owner's go-ahead.
+- **While the app is still being tested, no events are created or deleted in production** (the owner, 2026-10-16). The owner will clear the diary and start afresh before the app goes fully public. Checks in production use the events already there; anything new is tried locally.
 
 ## Order for every migration
 
@@ -61,4 +62,28 @@ Nothing existing changes. No email is sent until an admin enters the addresses a
 
 **Rollback:** **Switch off** in the organiser, or `npx wrangler rollback`. The columns and settings can stay.
 
-**Applied to production:** _not yet; waiting for the owner's go-ahead._
+**Applied to production:** 2026-10-16 13:10 UTC, with the owner's go-ahead, through the Cloudflare connector; recorded in `d1_migrations`.
+- **Restore point:** 2026-10-16T13:10:28Z.
+- **Before:** 32 events, 56 occurrences, 0 bookings, 285 audit rows, 10 settings, 8 open items, an empty outbox.
+- **After:** the same, plus `attention_emails = off` and `attention_email_to = ''` (12 settings). The three columns are present; the 8 items are untouched.
+- **Deployed:** PR #3 merged at 13:12; the new code was confirmed live from the deployed Worker.
+- **The same day, 13:15:** the Event Guard's date-picker email was switched off ([RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#2026-10-16-the-event-guard-no-longer-emails-the-date-picker)).
+- **Waiting for:** an admin to set the addresses and switch emails on in the organiser.
+
+## 0019_booking_mode.sql (Stage 4a: booking modes)
+
+**What it adds:** `events.booking_mode` (nullable; `none`, `optional` or `required`). NULL means the default for the kind of event, so no backfill is needed.
+
+**Why it must be applied before the deploy:** the new code reads the column in every public list.
+
+**What changes when the code is deployed** (live data on 2026-10-16, 0 bookings):
+- **The café's own Event Index events stay bookable (Optional),** with "Booking is optional: you can also just turn up." That includes Spooky Market, which is an Event Index row rather than a market set up in the app; set it to **Not required** if vendors' customers shouldn't book.
+- **The 5 public Standard Diary groups stop offering booking (Not required):** GirlsGetOut Ladies Night, Arkham Horror Card Game, DM Olivia, National Coastguard Institute. They show "No booking needed: just come along."
+- **Hosts' sessions:** unchanged, booking Required.
+
+**Rollback:** `npx wrangler rollback`. The column can stay; the old code ignores it.
+
+**Applied to production:** 2026-10-16 14:36 UTC, with the owner's go-ahead, through the Cloudflare connector; recorded in `d1_migrations`.
+- **Restore point:** 2026-10-16T14:36:36Z.
+- **Before:** 32 events, 56 occurrences, 0 bookings, 289 audit rows, 12 settings, 8 open items; the 14:30 sync `ok`.
+- **After:** the same; the column is present and empty on all 32 events.

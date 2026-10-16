@@ -127,6 +127,8 @@ describe('an approver sets places for café events', () => {
   });
 
   it('works for Standard Diary groups, which have no App Capacity column', async () => {
+    // They need no booking by default; this one takes bookings.
+    expect((await post('/api/staff/events/RTD-EVT-00024/booking-mode', { mode: 'optional' }, MICHELLE)).status).toBe(200);
     expect((await post('/api/staff/events/RTD-EVT-00024/places', { places: 16 }, MICHELLE)).status).toBe(200);
     expect(await availability(CLUB_1)).toMatchObject({ capacity: 16 });
     expect(await availability(CLUB_2)).toMatchObject({ capacity: 16 });

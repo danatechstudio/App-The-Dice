@@ -55,10 +55,10 @@ afterEach(() => vi.useRealTimers());
 
 describe('what can be booked', () => {
   it('takes bookings for every public event, but never private ones', async () => {
-    expect(await availability(ROOT)).toEqual({ bookable: true, open: true, reason: null, capacity: 4, places_left: 4, max_party: 4 });
-    expect(await availability(QUIZ)).toEqual({ bookable: true, open: true, reason: null, capacity: null, places_left: null, max_party: 10 });
-    expect(await availability(BIRTHDAY)).toEqual({ bookable: false });
-    expect(await availability('RTD-OCC-nonsense')).toEqual({ bookable: false });
+    expect(await availability(ROOT)).toEqual({ bookable: true, mode: 'required', open: true, reason: null, capacity: 4, places_left: 4, max_party: 4 });
+    expect(await availability(QUIZ)).toEqual({ bookable: true, mode: 'optional', open: true, reason: null, capacity: null, places_left: null, max_party: 10 });
+    expect(await availability(BIRTHDAY)).toEqual({ bookable: false, mode: null });
+    expect(await availability('RTD-OCC-nonsense')).toEqual({ bookable: false, mode: null });
     const { occurrences } = await (await request('/api/events')).json<{ occurrences: { occurrence_id: string; bookable: boolean }[] }>();
     expect(Object.fromEntries(occurrences.filter(o => [ROOT, BIRTHDAY, QUIZ].includes(o.occurrence_id)).map(o => [o.occurrence_id, o.bookable]))).toEqual({
       [ROOT]: true,

@@ -22,6 +22,7 @@ One row per permanent event identity, synced from the Logic Engine.
 | `default_capacity` | Places, from the sheet's `App Capacity` (host sessions fill it in) |
 | `capacity_override` | Places set in the organiser: by the host for their session, or by an approver for a café event. Wins over `default_capacity`; the sync clears it when App Capacity changes in the sheet, so the last change wins (0012) |
 | `price_display` | The sheet's `App Price` ("Free", "£5"). Added in `0006_host_publishing.sql`. |
+| `booking_mode` | Whether people need to book: `none` (Not required), `optional`, `required`; NULL = the default for its kind (café events Optional, hosts' sessions Required, Standard Diary groups and markets Not required). Set by approvers in the organiser; the sync never changes it (0019, [RTD_BOOKINGS.md](RTD_BOOKINGS.md#booking-modes)) |
 | `host_session_id` | The sheet's `App Host Session`: the organiser session this row came from (0006) |
 | `market_id` | The same column holding `RTD-MKT-…`: a market set up in the organiser (0013). Customers don't book these. |
 | `photo_folder_id` | Drive folder used by the poster generator |
@@ -52,6 +53,7 @@ Triggers abort any `UPDATE` or `DELETE`. Actions so far:
 - `event.created`, `event.updated`, `event.activated`, `event.deactivated`, `event.missing_from_source`
 - `occurrence.created`, `occurrence.time_changed`, `occurrence.completed`, `occurrence.rescheduled`, `occurrence.reinstated`
 - **Host sessions:** `host_session.*` (source `organiser`)
+- **Booking:** `event.places_changed`, `occurrence.places_changed`, `event.booking_mode_changed` (source `organiser`)
 - **Onboarding:**
   - **Requests:** `application.host.submitted`, `application.staff.submitted`, `application.withdrawn`, `application.approved`, `application.declined`
   - **Access:** `user.granted_host`, `user.granted_staff`, `user.removed_host`, `user.removed_staff`

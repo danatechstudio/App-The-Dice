@@ -22,6 +22,7 @@ export function occurrenceChips(o: Occurrence, today = todayLondon()) {
   if (o.date === today) {
     if (!hasEnded(o)) chips.push(o.start_time && o.start_time >= EVENING ? { kind: 'tonight', label: 'Tonight' } : { kind: 'today', label: 'Today' });
   }
+  if (o.booking_mode === 'required') chips.push({ kind: 'booking-open', label: 'Booking required' });
   if (o.price_display && /^free$/i.test(o.price_display.trim())) chips.push({ kind: 'free', label: 'Free' });
   return chips;
 }

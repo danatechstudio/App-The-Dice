@@ -112,7 +112,7 @@ describe('setting up a market', () => {
     // Its diary page: vendors apply; customers don't book it.
     const occ = await (await request('/api/occurrences/RTD-OCC-00009-20261205')).json<{ occurrence: Record<string, unknown> }>();
     expect(occ.occurrence).toMatchObject({ market_id: 'RTD-MKT-00001', bookable: false });
-    expect(await (await request('/api/bookings/availability/RTD-OCC-00009-20261205')).json()).toEqual({ bookable: false });
+    expect(await (await request('/api/bookings/availability/RTD-OCC-00009-20261205')).json()).toEqual({ bookable: false, mode: null });
     expect((await (await request('/api/markets/RTD-MKT-00001')).json<{ market: Record<string, unknown> }>()).market).toMatchObject({ occurrence_id: 'RTD-OCC-00009-20261205' });
   });
 

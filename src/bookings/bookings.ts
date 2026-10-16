@@ -14,7 +14,7 @@
 
 import type { AuthUser } from '../lib/auth';
 import { places, ukDate } from '../lib/format';
-import { CAPACITY, OCCURRENCE_ID, VISIBLE } from '../lib/queries';
+import { BOOKING_MODE, CAPACITY, OCCURRENCE_ID, VISIBLE, type BookingMode } from '../lib/queries';
 import { addDays, londonDate, londonHour } from '../lib/time';
 import {
   attendeeDateCancelled,
@@ -48,6 +48,7 @@ interface SlotRow extends Slot {
   host_session_id: string | null;
   /** A market set up in the organiser: vendors apply, customers don't book. */
   market_id: string | null;
+  booking_mode: BookingMode;
   host_user_id: string | null;
   host_email: string | null;
   host_active: number | null;
@@ -60,7 +61,7 @@ interface SlotRow extends Slot {
 const SLOT_SQL = `
   SELECT o.occurrence_id, o.event_id, o.event_date, o.start_time, o.end_time, o.starts_at, o.status,
     e.display_name AS name, e.source, e.frequency, COALESCE(o.price_display, e.price_display) AS price_display,
-    ${CAPACITY} AS capacity, e.host_session_id, e.market_id,
+    ${CAPACITY} AS capacity, e.host_session_id, e.market_id, ${BOOKING_MODE} AS booking_mode,
     h.host_user_id, h.access, u.email AS host_email, u.display_name AS host_name, u.active AS host_active,
     CASE WHEN ${VISIBLE} THEN 1 ELSE 0 END AS visible,
     (SELECT COALESCE(SUM(b.party_size), 0) FROM bookings b WHERE b.occurrence_id = o.occurrence_id AND b.status = 'confirmed') AS booked
@@ -91,9 +92,12 @@ const audit = (db: D1Database, type: string, id: string, occurrenceId: string | 
 // ---- Availability ----
 
 export type Availability =
-  | { bookable: false }
+  /** mode: why not, when it's a visible event that simply doesn't take bookings ('none'); otherwise null. */
+  | { bookable: false; mode: BookingMode | null }
   | {
       bookable: true;
+      /** Optional: people can also just turn up. Required: they must book to come. */
+      mode: BookingMode;
       open: boolean;
       reason: 'full' | 'closed' | 'cancelled' | null;
       /** null: no limit on numbers. */
@@ -103,12 +107,19 @@ export type Availability =
     };
 
 function availabilityOf(s: SlotRow | null, now: string): Availability {
-  // Every public event can be booked (private and hidden ones never reach here).
-  // A host's session also needs to be open, with its size set.
-  if (!s || !s.visible || s.market_id) return { bookable: false };
-  if (hosted(s) && (s.access !== 'open' || !s.capacity)) return { bookable: false };
+  // Public events whose booking is Optional or Required (private and hidden ones never
+  // reach here). A host's session also needs to be open, with its size set.
+  if (!s || !s.visible || s.market_id) return { bookable: false, mode: null };
+  if (s.booking_mode === 'none') return { bookable: false, mode: 'none' };
+  if (hosted(s) && (s.access !== 'open' || !s.capacity)) return { bookable: false, mode: null };
   const left = s.capacity ? Math.max(0, s.capacity - s.booked) : null;
-  const base = { bookable: true as const, capacity: s.capacity || null, places_left: left, max_party: left === null ? MAX_PARTY : Math.min(left, MAX_PARTY) };
+  const base = {
+    bookable: true as const,
+    mode: s.booking_mode,
+    capacity: s.capacity || null,
+    places_left: left,
+    max_party: left === null ? MAX_PARTY : Math.min(left, MAX_PARTY),
+  };
   if (s.status === 'cancelled') return { ...base, open: false, reason: 'cancelled' };
   if (s.status !== 'scheduled' || started(s, now)) return { ...base, open: false, reason: 'closed' };
   if (left === 0) return { ...base, open: false, reason: 'full' };
@@ -174,9 +185,12 @@ export async function createBooking(db: D1Database, body: unknown, ctx: { now: s
   const { now } = ctx;
   const s = await findSlot(db, b.occurrence_id);
   const before = availabilityOf(s, now);
-  if (!s || !before.bookable) return { ok: false, status: 404, error: "Online booking isn't open for this event." };
+  if (!s || !before.bookable) {
+    return { ok: false, status: 404, error: before.mode === 'none' ? 'No booking needed for this one: just come along.' : "Online booking isn't open for this event." };
+  }
   if (!before.open) {
-    const why = { full: 'Sorry, this one is full.', cancelled: 'This has been cancelled.', closed: 'Booking has closed for this one.' };
+    const full = before.mode === 'optional' ? "All the places you can reserve have gone, but you can still come along on the day." : 'Sorry, this one is full.';
+    const why = { full, cancelled: 'This has been cancelled.', closed: 'Booking has closed for this one.' };
     return { ok: false, status: 409, error: why[before.reason ?? 'closed'], availability: before };
   }
   if (before.places_left !== null && b.party_size > before.places_left) {

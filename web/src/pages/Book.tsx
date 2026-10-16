@@ -10,7 +10,7 @@ export function Book() {
   useTitle('Book a place');
   useCount('book_page_view');
   const { occurrences, error, loading, reload, today } = useUpcoming();
-  // The next date of each event that takes bookings (every public one).
+  // The next date of each event that takes bookings (Optional or Required).
   const bookable = firstPerEvent((occurrences ?? []).filter(o => isUpcoming(o) && o.bookable)).slice(0, 12);
   return (
     <div class="container">
@@ -22,8 +22,11 @@ export function Book() {
       <div class="notice notice--info">
         <Ticket size={22} aria-hidden="true" />
         <div>
-          <strong>Save your seats for any event, right here.</strong>
-          <p>Pick one, choose how many are coming, and we'll email you a confirmation. Booking is free; where there's a charge, you pay at the café on the day.</p>
+          <strong>Save your seats, right here.</strong>
+          <p>
+            Some events need booking; for others it's optional, and you can just turn up. Pick one, choose how many are coming, and we'll email you a
+            confirmation. Booking is free; where there's a charge, you pay at the café on the day.
+          </p>
         </div>
       </div>
 
