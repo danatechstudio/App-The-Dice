@@ -141,7 +141,7 @@ Nothing existing changes. Emails already in the outbox read as queued or sent, e
 
 ## Stage 5b (no migration)
 
-The per-date editor uses columns that already exist and that the sync never writes (`occurrences.visibility`, `description_override`, `price_display`). **Rollback:** `npx wrangler rollback`; any date hidden or changed keeps its setting, and can be put back from the organiser after a redeploy (or by setting those columns to NULL).
+The per-date editor uses columns that already exist and that the sync never writes (`occurrences.visibility`, `description_override`, `price_display`). Deployed: PR #8 merged at 18:48; the new code was confirmed live from the deployed Worker at 18:54. The 19:00 sync was `ok`, 32 events, nothing changed, 289 audit rows, 8 open items, and no date has an override yet. **Rollback:** `npx wrangler rollback`; any date hidden or changed keeps its setting, and can be put back from the organiser after a redeploy (or by setting those columns to NULL).
 
 ## Stage 4c (no migration)
 
