@@ -42,3 +42,7 @@ Nothing existing changes. Sheet edits, bookings, the diary and n8n behave exactl
 - **Restore point:** 2026-10-16T08:43:15Z.
 - **Before:** 32 events, 56 occurrences, 0 bookings, 276 audit rows, 9 settings.
 - **After:** the same, plus the `needs_attention = off` setting (10). The column, the empty `attention_items` table and both indexes are present.
+- **The 08:45 sync**, on the old code with the migrated database: `ok`.
+- **Deployed:** PR #2 merged at 08:45; the new code was confirmed live from the deployed Worker.
+- **The 09:00 sync, the first on the new code:** `ok`, 32 events, no audit noise (still 276 rows). `sheet_date_raw` filled for the 21 events with something in their date cell; for example Cleeples "Every Thursday" and Wednesdays "Open Wednesdays!"; Dungeons & Dragons and DM Alfie are blank.
+- **Ready for an admin to switch on.**
