@@ -35,6 +35,8 @@ export interface NormalisedEvent {
   market_id: string | null;
   /** The single date the Logic Engine currently holds for this event, if valid. */
   next: { date: string; start_time: string | null; end_time: string | null; all_day: boolean } | null;
+  /** The date cell as written (blank: null), so Needs Attention can say why there's no date. */
+  sheet_date_raw: string | null;
 }
 
 export interface SyncWarning {
@@ -158,6 +160,7 @@ export function normaliseRows(
       host_session_id: isIndex && HOST_SESSION_ID.test(text(row['App Host Session'])) ? text(row['App Host Session']) : null,
       market_id: isIndex && MARKET_ID.test(text(row['App Host Session'])) ? text(row['App Host Session']) : null,
       next: date ? { date, start_time: start, end_time: end, all_day: start === null } : null,
+      sheet_date_raw: orNull(text(dateRaw).slice(0, 60)),
     });
   }
 

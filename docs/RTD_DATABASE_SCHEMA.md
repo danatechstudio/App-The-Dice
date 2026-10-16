@@ -25,6 +25,7 @@ One row per permanent event identity, synced from the Logic Engine.
 | `host_session_id` | The sheet's `App Host Session`: the organiser session this row came from (0006) |
 | `market_id` | The same column holding `RTD-MKT-…`: a market set up in the organiser (0013). Customers don't book these. |
 | `photo_folder_id` | Drive folder used by the poster generator |
+| `sheet_date_raw` | The sheet's date cell as written ("Every Thursday", a past date; NULL when blank), so Needs attention can say why an event has no date (0017) |
 | `source_hash`, `last_synced_at` | Change detection |
 
 ## occurrences
@@ -273,6 +274,27 @@ Added in `0009_push.sql`: push notifications for approvers ([RTD_PUSH.md](RTD_PU
 | --- | --- |
 | `push_subscriptions` | `endpoint` (primary key: the push service address for one device; only its owner sees it), `user_id`, `p256dh` and `auth` (the browser's key and secret for encryption), `device_label`, `created_at`, `last_sent_at`, `failures` (5 in a row and the device is dropped) |
 | `push_keys` | One row: the app's VAPID `public_key` and `private_jwk`, made by the Worker on first use |
+
+## attention_items
+
+Added in `0017_attention.sql`: **Needs attention** ([RTD_EVENT_CONTROL_AUDIT.md](RTD_EVENT_CONTROL_AUDIT.md) G-2), for approvers and admins in the organiser.
+
+| Column | Notes |
+| --- | --- |
+| `item_id` | Shown as `RTD-ATT-00001` |
+| `item_key` | Unique: `expired:<occurrence_id>`, or `no_date:<event_id>:<sheet_date_raw>`. One item per situation, ever: once resolved, the same one never reopens |
+| `kind` | `expired` (its latest date ended with nothing after it) or `no_date` (active and listed, nothing to come, no usable date in the sheet) |
+| `event_id`, `occurrence_id` | The event, and (expired) the date that ended |
+| `detail` | no_date: the sheet's date cell, as written |
+| `status` | `open` or `resolved` |
+| `resolution` | `renewed`, `archived`, `completed` (a one-off, no new date needed) or `dismissed` (left as it is) |
+| `renew_date` | The new date an approver set; it reaches Event Index through `/internal/sheet-fixes` |
+| `new_occurrence_id` | The date that arrived from the Logic Engine, when that settled it |
+| `resolved_by` | The approver's email, `sheet` (the Logic Engine answered it) or `system` (a one-off host session or market, closed straight away) |
+| `resolution_note`, `opened_at`, `resolved_at` | |
+
+**Setting:** `needs_attention` (`off` until an admin switches it on).
+**Audit:** `attention.opened`, `attention.resolved`, `attention.switched_on` / `attention.switched_off`.
 
 ## Coming in later phases
 

@@ -65,6 +65,34 @@ Code only; no database change.
 - **Before it's merged:** nothing to undo.
 - **After it's deployed:** `npx wrangler rollback` to the previous Worker version, or revert the commit on `main`.
 
+## Stage 3b: Needs attention (2026-10-16)
+
+**Result:** `npm test`: 21 files, **339 passed** (13 new in `test/attention.test.ts`, 1 in `test/normalise.test.ts`, 1 updated). `tsc --noEmit` is clean for the Worker and the web app.
+
+| Behaviour | Test |
+| --- | --- |
+| Off until an admin switches it on; approvers can't switch it; hosts can't see it; the switch is audited | `is off until an admin switches it on…` |
+| Events with no usable date are listed at once (blank, free text; never Hidden rows), each with the right actions (the Standard Diary can't be renewed here) | `lists events with no usable date…` |
+| A date that ends with nothing after it opens **exactly one** item, however often the detector runs; one audit row; a weekly club whose next date exists never appears | `opens exactly one item…` |
+| A one-off host session closes by itself (`completed`, by `system`) | `closes a one-off host session by itself…` |
+| It settles itself when the Logic Engine answers: a new date arrives (renewed, with the new occurrence), a no-date event is switched off (archived), its date text changes (the old one dismissed, a new one opened) | `settles itself when the Logic Engine answers…` |
+| More than 50 new items at once opens none and says so | `opens nothing when far too much appears at once…` |
+| Dates with no end time are listed | `lists dates that will only show for an hour…` |
+| Setting a new date: validated (tomorrow to a year ahead); offered to n8n once as Status Active + the new Event Date (by Event ID); gone after `done`; stops "waiting" when the sync brings the date in; audited with the approver's email | `sets a new date…` |
+| Archive: an active Event Index row gets Status Inactive with its date cell written back unchanged; an already-inactive one (Bingo) changes nothing in the sheet | `archives…` |
+| No renewal from the app for the Standard Diary or hosts' sessions; no "finished" for a missing date | `doesn't renew what the app can't write…` |
+| Something sorted never reopens | `never reopens something that has been sorted` |
+| Access: hosts 403; unknown item 404; unknown action 400; already sorted 409 | `needs approver or admin access` and above |
+
+### Checked in the running app (2026-10-16, local `wrangler dev`, Chromium at 390 px)
+
+Seeded with a one-off that had ended that morning, a weekly club, an event with a blank date, one with "Every Thursday", a Standard Diary group with no date, and an event with no end time.
+- **After an admin pressed Switch on:** four items with the right buttons, plus the "No end time" note.
+- **Finished, no new date** (on the ended one-off) and **Set a new date** (14 Nov, on the blank one) each showed a confirmation message.
+- **Sorted in the last 30 days:** listed both, with the new date marked **Waiting for the Logic Engine**.
+- **`/internal/sheet-fixes`:** offered exactly `{ Status: Active, Event Date: 14/11/2026 }` for that event.
+- **Console:** no errors.
+
 ## Later stages
 
 | Brief §4 criterion | Stage |

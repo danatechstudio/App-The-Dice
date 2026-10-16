@@ -2,6 +2,7 @@
 // n8n credential and the INTERNAL_SYNC_TOKEN Worker secret.
 
 import { Hono } from 'hono';
+import { attentionSheetFixes } from '../attention/attention';
 import { markSheetFixed, queueDueEmails, sheetFixes } from '../bookings/bookings';
 import {
   decidedSessionsForHosts,
@@ -199,8 +200,18 @@ internalRoutes.post('/outbox/:id/sent', async c => {
   return c.json({ ok: true, already: result === 'already' });
 });
 
-/** Event Index changes for cancelled dates (Status, or a weekly row's next Event Date), matched on Event ID. */
-internalRoutes.get('/sheet-fixes', async c => c.json({ fixes: await sheetFixes(c.env.DB, londonDate(new Date())) }));
+/**
+ * Event Index changes, matched on Event ID: new dates and archives decided under Needs
+ * attention (src/attention/attention.ts), then cancelled dates (Status, or a weekly row's
+ * next Event Date). At most one change per event per run, so each one's key sticks.
+ */
+internalRoutes.get('/sheet-fixes', async c => {
+  const today = londonDate(new Date());
+  const decided = await attentionSheetFixes(c.env.DB, today);
+  const taken = new Set(decided.map(f => f.event_id));
+  const cancelled = (await sheetFixes(c.env.DB, today)).filter(f => !taken.has(f.event_id));
+  return c.json({ fixes: [...decided, ...cancelled] });
+});
 
 internalRoutes.post('/sheet-fixes/:eventId/done', async c => {
   const body = (await c.req.json().catch(() => ({}))) as { key?: unknown };

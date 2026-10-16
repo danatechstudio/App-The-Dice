@@ -1,6 +1,7 @@
 // Staff Control API (Phase 1: identity, sync health and audit history).
 
 import { Hono } from 'hono';
+import { attentionOverview, resolveItem, setAttention } from '../attention/attention';
 import { upcomingBookedDates } from '../bookings/bookings';
 import { cafeEventPlaces, setEventPlaces } from '../bookings/places';
 import { decideSession, listHosts, listSessions, type SessionStatus } from '../host/sessions';
@@ -26,6 +27,25 @@ staffRoutes.use('*', sameOriginJson);
 staffRoutes.use('*', requireRole('staff'));
 
 staffRoutes.get('/me', c => c.json({ user: c.get('user') }));
+
+// --- Needs attention (src/attention/attention.ts): approvers and admins ---
+
+/** Open items, what was sorted in the last 30 days, and dates with no end time. Brings the list up to date first. */
+staffRoutes.get('/attention', async c => c.json(await attentionOverview(c.env.DB, new Date())));
+
+/** Body: { action: 'renew' | 'archive' | 'complete' | 'dismiss', date? (renew), note? } */
+staffRoutes.post('/attention/:id/resolve', async c => {
+  const res = await resolveItem(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), new Date());
+  return res.ok ? c.json({ item: res.item }) : c.json({ error: res.error, errors: res.errors }, res.status);
+});
+
+/** Admins: switch Needs attention on or off. Body: { on: boolean } */
+staffRoutes.post('/attention/switch', async c => {
+  const body = ((await c.req.json().catch(() => ({}))) ?? {}) as { on?: unknown };
+  if (typeof body.on !== 'boolean') return c.json({ error: 'Send { on: true|false }.' }, 400);
+  const res = await setAttention(c.env.DB, c.get('user'), body.on, new Date());
+  return res.ok ? c.json({ enabled: res.enabled }) : c.json({ error: res.error }, res.status);
+});
 
 staffRoutes.get('/sync-runs', async c => {
   const { results } = await c.env.DB
