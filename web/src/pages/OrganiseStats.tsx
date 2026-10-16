@@ -341,6 +341,7 @@ function AroundTheApp({ s }: { s: Stats }) {
     ['Apply to host taps', fmt(t('host_apply_tap'))],
     ['Requests to host or join the team', fmt(t('join_requests'))],
     ['Markets page views', fmt(t('markets_view'))],
+    ['Food & Drinks page views', fmt(t('menu_view'))],
     ['Market stall applications', fmt(t('vendor_applications'))],
     ['Event reminders sent', `${fmt(t('reminders_sent'))} (reached ${plural(t('reminders_delivered'), 'device', 'devices')}, ${fmt(t('reminder_open'))} tapped)`],
   ];

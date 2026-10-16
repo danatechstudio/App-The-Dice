@@ -16,6 +16,7 @@ import { DatesPanel } from './OrganiseDateEditor';
 import { PushCard } from './OrganisePush';
 import { RemindersAdmin } from './OrganiseReminders';
 import { GamesAdmin } from './OrganiseGames';
+import { MenuAdmin } from './OrganiseMenu';
 import { StatsAdmin } from './OrganiseStats';
 import { ApproversPanel, JoinRequests, JoinScreen, removeAccess, setApprover } from './OrganiseTeam';
 import { useTitle } from '../lib/title';
@@ -558,6 +559,7 @@ function StaffDesk({ onDecided, me, isAdmin }: { onDecided: () => void; me: Host
       {isAdmin && <RemindersAdmin />}
       {isAdmin && <MarketsAdmin markets={markets} onChanged={load} />}
       {isAdmin && <GamesAdmin />}
+      {isAdmin && <MenuAdmin />}
       <HostsPanel hosts={hosts} isAdmin={isAdmin} onChanged={() => (load(), setRefresh(n => n + 1))} />
       {isAdmin && <ApproversPanel me={me} refresh={refresh} />}
     </div>

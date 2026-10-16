@@ -19,6 +19,7 @@
   ],
   "shortcuts": [
     { "name": "What's on", "url": "/diary?source=shortcut", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Roll Me a Game", "url": "/roll?source=shortcut", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Roll Me a Game", "url": "/roll?source=shortcut", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Food & Drinks", "url": "/menu?source=shortcut", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

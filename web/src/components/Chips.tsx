@@ -6,7 +6,7 @@ import { hasEnded } from '../lib/upcoming';
 
 export type ChipKind =
   | 'today' | 'tonight' | 'booking-open' | 'nearly-full' | 'full' | 'free' | 'new' | 'cancelled'
-  | 'category' | 'preview' | 'draft' | 'awaiting' | 'approved' | 'live' | 'completed';
+  | 'category' | 'preview' | 'age' | 'draft' | 'awaiting' | 'approved' | 'live' | 'completed';
 
 export function Chip({ kind, children }: { kind: ChipKind; children: ComponentChildren }) {
   return <span class={`chip chip--${kind}`}>{children}</span>;

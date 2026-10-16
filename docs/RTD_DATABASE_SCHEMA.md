@@ -340,6 +340,16 @@ Added in `0020_delivery.sql` (Stage 4b; [RTD_BOOKINGS.md](RTD_BOOKINGS.md#tellin
 
 **`push_outbox`:** a notification to one booking device, written in the same batch as the change. `dedupe_key` (unique: `push:date-cancelled:<occurrence_id>:<device_id>`, `push:date-moved:…`), `kind`, `device_id`, `booking_id`, `occurrence_id`, `title`, `body`, `url`, `tag` (`booking-<booking_id>`), `attempts`, `last_status` (the push service's answer; 0 unreachable, -1 the device was turned off first), `last_error`, `last_attempt_at`, `next_attempt_at`, `claim`, `claimed_at`, `sent_at`, `dead_at`, `created_at`. Same retries as the outbox; a 404 or 410 is given up on at once. Kept 90 days.
 
+## Food & Drinks menu
+
+No tables of its own: the menu lives in the RTD Food Menu Google Sheet ([RTD_FOOD_MENU.md](RTD_FOOD_MENU.md)), and the app keeps three `settings` rows. Browse only; nothing about customers.
+
+| Setting | Value |
+| --- | --- |
+| `food_menu` | JSON: the latest good copy of the sheet. `categories` (`category_id`: a slug of the name, also the page anchor; `name`, `description`, `alcohol`, `sort_order`, `visible`), `items` (`item_id`: `<section>--<slug of the name>`; `name`, `options`, `description`, `price_pence` or NULL, `price_note`, `alcohol`, `image_url`, `image_alt`, `sort_order`, `visible`, `available`, `source_text` = the sheet's Menu wording), `variants` (`item_id`, `label` Single/Double, `price_pence`), `synced_at` (when it last changed), `sheet_url` |
+| `food_menu_sync` | JSON: `at`, `ok`, `errors` (every problem with the latest copy, by row) |
+| `food_menu_status` | `off` (or missing), `preview` or `live`. Admins change it in the organiser; anything else reads as off |
+
 ## Coming in later phases
 
 `waitlist`, `hosts` profile fields, `games`, `game_of_week`, `notifications` (customer push). They are designed in the spec (§15, §18, §24, §29, §47) and will be added as new numbered migrations.

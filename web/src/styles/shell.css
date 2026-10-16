@@ -51,6 +51,49 @@
   display: none;
 }
 
+/* Phones and tablets: Food & Drinks beside the logo (the bottom bar has no room). */
+.topbar__food {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--rtd-touch-target);
+  padding: 0 var(--rtd-space-3);
+  border: 1.5px solid rgb(255 255 255 / 0.55);
+  border-radius: var(--rtd-radius-round);
+  color: var(--rtd-text-inverse);
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.topbar__food:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.topbar__food[aria-current='page'] {
+  border-color: var(--rtd-surface-elevated);
+  background: var(--rtd-surface-elevated);
+  color: var(--rtd-primary);
+}
+
+.topbar__food:focus-visible {
+  outline-color: var(--rtd-focus-inverse);
+}
+
+@media (max-width: 1023.98px) {
+  /* Home's bar folds away under the big logo; Home has its own Food & Drinks card. */
+  .topbar--home .topbar__food {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .topbar__food {
+    display: none;
+  }
+}
+
 @media (min-width: 1024px) {
   .topbar__inner {
     height: 72px;

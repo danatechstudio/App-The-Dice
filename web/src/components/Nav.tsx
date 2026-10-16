@@ -1,4 +1,4 @@
-import { CalendarDays, ChessKnight, Dices, House, Ticket } from 'lucide-preact';
+import { CalendarDays, ChessKnight, Coffee, Dices, House, Ticket } from 'lucide-preact';
 import { Logo } from './Brand';
 
 const ITEMS = [
@@ -24,12 +24,20 @@ export function TopBar({ path }: { path: string }) {
         <a class="topbar__logo" href="/" aria-label="Roll The Dice home">
           <Logo eager />
         </a>
+        {/* Phones: the bottom bar keeps its five places, so Food & Drinks sits up here. */}
+        <a class="topbar__food" href="/menu" aria-current={current === '/menu' ? 'page' : undefined}>
+          <Coffee size={18} aria-hidden="true" />
+          Food &amp; Drinks
+        </a>
         <nav class="topnav" aria-label="Main">
           {ITEMS.filter(i => !('roll' in i)).map(i => (
             <a key={i.href} href={i.href} aria-current={current === i.href ? 'page' : undefined}>
               {i.label}
             </a>
           ))}
+          <a href="/menu" aria-current={current === '/menu' ? 'page' : undefined}>
+            Food &amp; Drinks
+          </a>
           <a class="btn btn--roll btn--sm" href="/roll" aria-current={current === '/roll' ? 'page' : undefined}>
             <Dices class="wiggle" size={18} aria-hidden="true" />
             Roll Me a Game
