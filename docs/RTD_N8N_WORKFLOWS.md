@@ -305,7 +305,8 @@ This workflow does two jobs for the host organiser ([RTD_HOST_PORTAL.md](RTD_HOS
   1. `GET /internal/sheet-fixes`. The app works out the change for each cancelled date still in the sheet, for café events and host sessions alike (Event Index rows only):
      - **A one-off:** Status `Inactive`.
      - **A weekly or fortnightly event whose next date is cancelled:** Event Date moves on to the next date that isn't.
-     - **Monthly events and Standard Diary groups:** never changed here. The cancellation email tells the café to update the sheet.
+     - **A monthly event whose date in the sheet is cancelled** (from Stage 4c): Status Inactive, with the Event Date written back as it was. Its next date is set under Needs attention, which comes through here as Status Active and the new Event Date. Same shape as before, so the workflow needed no change.
+     - **Standard Diary groups:** never changed here (this branch writes Event Index only). Needs attention asks the café to change the tab.
   2. **Sheet Fixes To Apply:** keeps only fixes with a real Event ID (`RTD-EVT-` and digits), so a blank cell can never be matched.
   3. **Update Event Index Row:** updates `Status` and `Event Date` (RAW text) on the row whose `Event ID` matches.
   4. `POST /internal/sheet-fixes/:eventId/done` with the change's key, so it's made once.

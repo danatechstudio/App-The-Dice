@@ -13,6 +13,12 @@
 //   comes back, or once nobody is booked.
 // - undelivered (Stage 4b): an email to a customer about their booking failed
 //   (src/notify/outbox.ts markFailed). It settles itself if a later try goes.
+// - cancelled (Stage 4c, G-13): the date in the sheet of a monthly event or a Standard
+//   Diary group was cancelled in the app. A monthly row is switched off in the sheet
+//   for us (src/bookings/bookings.ts sheetFixes), so this asks for its next date. The
+//   Standard Diary can't be written, so this asks the café to change the tab; it
+//   settles itself when the sheet's date changes, or once the date has passed.
+//   An event whose date was cancelled is never a missing date or an expired one too.
 //
 // Approvers and admins resolve each one in the organiser: set a new date, archive
 // it, mark a one-off finished, or (no date) leave it as it is. Opening the
@@ -35,7 +41,7 @@ import { ukDate } from '../lib/format';
 import { upcoming } from '../lib/queries';
 import { addDays, londonDate, parseSheetDate } from '../lib/time';
 
-export type Kind = 'expired' | 'no_date' | 'moved' | 'undelivered';
+export type Kind = 'expired' | 'no_date' | 'moved' | 'undelivered' | 'cancelled';
 /** notified / cancelled: a moved date's bookings; sent: an undelivered email went on a later try. */
 export type Resolution = 'renewed' | 'archived' | 'completed' | 'dismissed' | 'notified' | 'cancelled' | 'sent';
 export type Action = 'renew' | 'archive' | 'complete' | 'dismiss' | 'tell' | 'cancel';
@@ -87,19 +93,24 @@ interface OpenRow {
   /** moved: the date's status now, and how many are still booked on it. */
   occ_status: string | null;
   booked: number;
+  /** cancelled: the date, and where the event comes from. */
+  occ_date: string | null;
+  source: string;
 }
 
 export async function detect(db: D1Database, now: Date): Promise<{ opened: number; settled: number; blocked: number }> {
   if (!(await enabled(db))) return { opened: 0, settled: 0, blocked: 0 };
   const iso = now.toISOString();
   const today = londonDate(now);
-  const [expiredRes, noDateRes, openRes, movedRes] = await db.batch([
+  const [expiredRes, noDateRes, openRes, movedRes, cancelledRes] = await db.batch([
     db
       .prepare(
         `SELECT o.occurrence_id, o.event_id, e.frequency, e.host_session_id, e.market_id
          FROM occurrences o JOIN events e ON e.event_id = o.event_id
          WHERE ${LISTED} AND o.status IN ('scheduled', 'completed') AND ${ENDED} AND ${LATEST}
            AND NOT EXISTS (SELECT 1 FROM attention_items a WHERE a.item_key = 'expired:' || o.occurrence_id)
+           -- Its next date was cancelled: that's handled as a cancellation.
+           AND NOT EXISTS (SELECT 1 FROM occurrences c WHERE c.event_id = o.event_id AND c.status = 'cancelled' AND c.event_date > o.event_date)
          ORDER BY o.event_date`,
       )
       .bind(iso, today),
@@ -113,6 +124,8 @@ export async function detect(db: D1Database, now: Date): Promise<{ opened: numbe
              WHERE a.kind = 'expired' AND a.event_id = e.event_id
                AND lo.event_date = (SELECT MAX(x.event_date) FROM occurrences x WHERE x.event_id = e.event_id AND x.status IN ('scheduled', 'completed')))
            AND NOT EXISTS (SELECT 1 FROM attention_items a WHERE a.item_key = 'no_date:' || e.event_id || ':' || COALESCE(e.sheet_date_raw, ''))
+           -- Its date was cancelled, and the cancellation is reaching the sheet: not a missing date.
+           AND NOT EXISTS (SELECT 1 FROM occurrences c WHERE c.event_id = e.event_id AND c.status = 'cancelled' AND c.event_date >= ?2)
          ORDER BY e.event_id`,
       )
       .bind(iso, today),
@@ -122,6 +135,7 @@ export async function detect(db: D1Database, now: Date): Promise<{ opened: numbe
            (SELECT o.occurrence_id FROM occurrences o WHERE o.event_id = a.event_id AND ${upcoming('?1', '?2')}
             ORDER BY o.event_date LIMIT 1) AS next_id,
            (SELECT m.status FROM occurrences m WHERE m.occurrence_id = a.occurrence_id) AS occ_status,
+           (SELECT m.event_date FROM occurrences m WHERE m.occurrence_id = a.occurrence_id) AS occ_date, e.source,
            (SELECT COUNT(*) FROM bookings b WHERE b.occurrence_id = a.occurrence_id AND b.status = 'confirmed') AS booked
          FROM attention_items a JOIN events e ON e.event_id = a.event_id
          WHERE a.status = 'open'`,
@@ -137,8 +151,22 @@ export async function detect(db: D1Database, now: Date): Promise<{ opened: numbe
          ORDER BY o.event_date`,
       )
       .bind(today),
+    // Cancelled dates still in the sheet (not projected) of monthly events and Standard Diary groups (G-13).
+    db
+      .prepare(
+        `SELECT o.occurrence_id, o.event_id, o.event_date, e.sheet_date_raw FROM occurrences o JOIN events e ON e.event_id = o.event_id
+         WHERE o.status = 'cancelled' AND o.event_date >= ?1 AND o.projected = 0 AND e.host_session_id IS NULL AND e.market_id IS NULL
+           AND ((e.source = 'event_index' AND e.frequency = 'monthly') OR e.source = 'standard_diary')
+           AND NOT EXISTS (SELECT 1 FROM attention_items a WHERE a.item_key = 'cancelled:' || o.occurrence_id)
+         ORDER BY o.event_date`,
+      )
+      .bind(today),
   ]);
   const moved = (movedRes?.results ?? []) as { occurrence_id: string; event_id: string }[];
+  // Only while it's still the sheet's date: once the sheet has moved on, nothing advertises it.
+  const cancelled = ((cancelledRes?.results ?? []) as { occurrence_id: string; event_id: string; event_date: string; sheet_date_raw: string | null }[]).filter(
+    x => parseSheetDate(x.sheet_date_raw) === x.event_date,
+  );
   const expired = (expiredRes?.results ?? []) as { occurrence_id: string; event_id: string; frequency: string; host_session_id: string | null; market_id: string | null }[];
   const expiredEvents = new Set(expired.map(x => x.event_id));
   // An event that has only just ended is an expired item, not a missing date as well.
@@ -170,6 +198,13 @@ export async function detect(db: D1Database, now: Date): Promise<{ opened: numbe
       else if (!r.booked) settle(r, 'dismissed', 'Nobody is booked on it any more.', null, 'system');
       else continue;
     } else if (r.kind === 'undelivered') continue; // settled when the email goes (src/notify/outbox.ts)
+    else if (r.kind === 'cancelled') {
+      const inSheet = parseSheetDate(r.sheet_date_raw);
+      if (inSheet && r.occ_date && inSheet > r.occ_date) settle(r, 'renewed', 'The Logic Engine has a new date.', r.next_id);
+      else if (r.source === 'standard_diary' && inSheet !== r.occ_date) settle(r, 'dismissed', 'The Standard Diary date was changed.');
+      else if (r.source === 'standard_diary' && r.occ_date && r.occ_date < today) settle(r, 'completed', "The date has passed, so it's no longer advertised.", null, 'system');
+      else continue;
+    }
     else if (r.next_id) settle(r, 'renewed', 'A new date arrived from the Logic Engine.', r.next_id);
     else if (r.kind === 'no_date' && (!r.active || !r.listed)) settle(r, 'archived', 'Switched off or hidden in the Logic Engine.');
     else if (r.kind === 'no_date' && r.item_key !== noDateKey(r.event_id, r.sheet_date_raw)) settle(r, 'dismissed', "The Logic Engine's date changed.");
@@ -177,7 +212,7 @@ export async function detect(db: D1Database, now: Date): Promise<{ opened: numbe
     settled++;
   }
 
-  const fresh = expired.length + noDate.length + moved.length;
+  const fresh = expired.length + noDate.length + moved.length + cancelled.length;
   const blocked = fresh > MAX_NEW ? fresh : 0;
   if (blocked) console.error(`attention: ${fresh} new items in one run; opening none (check the Logic Engine read)`);
   else {
@@ -199,6 +234,15 @@ export async function detect(db: D1Database, now: Date): Promise<{ opened: numbe
             iso,
             autoClose ? iso : null,
           ),
+        auditOpened(db, key, iso),
+      );
+    }
+    for (const x of cancelled) {
+      const key = `cancelled:${x.occurrence_id}`;
+      writes.push(
+        db
+          .prepare(`INSERT OR IGNORE INTO attention_items (item_key, kind, event_id, occurrence_id, status, opened_at) VALUES (?1, 'cancelled', ?2, ?3, 'open', ?4)`)
+          .bind(key, x.event_id, x.occurrence_id, iso),
         auditOpened(db, key, iso),
       );
     }
@@ -278,6 +322,8 @@ const canTell = (r: Pick<ItemRow, 'new_date' | 'new_status'>, today: string) => 
 export function actionsFor(r: Pick<ItemRow, 'kind' | 'source' | 'host_session_id' | 'market_id' | 'new_date' | 'new_status'>, today: string): Action[] {
   if (r.kind === 'moved') return [...(canTell(r, today) ? (['tell'] as const) : []), 'cancel', 'dismiss'];
   if (r.kind === 'undelivered') return ['dismiss'];
+  // A cancelled monthly date: set the next one (it reaches the sheet), or archive. The Standard Diary is changed by hand.
+  if (r.kind === 'cancelled') return r.source === 'event_index' ? ['renew', 'archive', 'dismiss'] : ['dismiss'];
   const fromApp = !!(r.host_session_id || r.market_id); // a host's session or a market: renewed by them, not here
   const writable = r.source === 'event_index';
   if (r.kind === 'expired') return [...(writable && !fromApp ? (['renew'] as const) : []), 'archive', 'complete'];

@@ -169,6 +169,31 @@ Seeded with a quiz with two bookings, and a murder mystery with one, whose confi
 
 - **A real phone receiving a booking notification:** Android Chrome, and an iPhone with the app on the Home Screen. The encryption and sending are the same code as event alerts, which are proven live.
 
+## Stage 4c: cancelled dates leave the sheet (2026-10-16)
+
+**Result:** `npm test`: 25 files, **371 passed** (8 new in `test/cancelled-dates.test.ts`). `tsc` is clean for the Worker and the web app.
+
+| Brief requirement (G-13) | Test |
+| --- | --- |
+| A cancelled monthly date: `/internal/sheet-fixes` offers Status Inactive with the date unchanged; the notice says so; Needs attention asks for the next date (renew / archive / leave); after n8n and the sync it waits; **renewing** sends Status Active and the new date; then nothing more | `is switched off in the sheet, and Needs attention asks…` |
+| The date before it has ended, but it isn't listed as expired as well | `is never also shown as expired…` |
+| A later month's cancellation is sent too (keyed by date) | `a later month is switched off too` |
+| A cancelled Standard Diary date: no sheet fix (can't be written); the notice says to change the tab; Needs attention can only be left (no renew); **clears itself when the sheet's date moves on** | `asks the café to change the tab…` |
+| …or once the date has passed | `clears itself once the date has passed` |
+| A cancelled later week that isn't the sheet's date yet: nothing | `asks nothing for a later week…` |
+| The attention addresses get a notice | `is emailed to the attention addresses` |
+| A cancelled one-off: switched off as before, and not listed as a missing date meanwhile | `is switched off in the sheet as before…` |
+
+### Checked in the running app (2026-10-16, local `wrangler dev`, Chromium at 390 px)
+
+A monthly event (12 Nov) and a weekly Standard Diary group (19 Oct, the sheet's date) were each cancelled by an admin.
+- **`/internal/sheet-fixes`:** offered exactly `{ Event ID: RTD-EVT-00006, Status: Inactive, Event Date: 12/11/2026 }`, and nothing for the Standard Diary.
+- **Board Game Social card:** "Cancelled. Thu, 12 Nov was cancelled. It's switched off in the Logic Engine so it isn't advertised: set its next date, or archive it." Buttons: **Set a new date**, **Archive**, **Leave as it is**.
+- **Chess Club card:** "Mon, 19 Oct was cancelled, but the Standard Diary tab still has that date, so it may still be advertised." With how to change the tab, and only **Leave as it is**.
+- **Console:** no errors.
+
+**Production check before the deploy:** there are no cancelled dates live, so the 8 open items are unaffected.
+
 ## Later stages
 
 | Brief §4 criterion | Stage |

@@ -4,7 +4,8 @@
 //   item per address: dedupe key 'expiry-new:<item_id>:<address>'. At most 5 items a
 //   run, so even a burst can't flood anyone; the rest follow in the next runs. The same
 //   goes for a booked date the Logic Engine moved (`moved`) and an email to a customer
-//   that didn't go (`undelivered`), from Stage 4b.
+//   that didn't go (`undelivered`), from Stage 4b, and a cancelled monthly or Standard
+//   Diary date that needs the sheet changing (`cancelled`), from Stage 4c.
 // - A reminder every morning from 09:00 London, at most once a day per address
 //   ('expiry-digest:<date>:<address>'), listing every such item still waiting
 //   that was announced before today. It stops when nothing is waiting.
@@ -31,7 +32,7 @@ export const DIGEST_HOUR = 9;
 /** An email still unsent after this long is shown to admins as stuck. */
 const STUCK_MS = 30 * 60_000;
 /** The kinds of item that are emailed. */
-const EMAILED = "('expired', 'moved', 'undelivered')";
+const EMAILED = "('expired', 'moved', 'undelivered', 'cancelled')";
 
 const SIGN_OFF = p('The Roll The Dice app');
 
@@ -43,8 +44,10 @@ export async function emailSettings(db: D1Database): Promise<{ on: boolean; to: 
 
 interface Waiting {
   item_id: number;
-  kind: 'expired' | 'moved' | 'undelivered';
+  kind: 'expired' | 'moved' | 'undelivered' | 'cancelled';
   name: string;
+  /** cancelled: a Standard Diary group (changed by hand) or an Event Index monthly. */
+  source: string;
   date: string | null;
   start_time: string | null;
   opened_at: string;
@@ -57,7 +60,7 @@ interface Waiting {
 }
 
 const WAITING_SQL = `
-  SELECT a.item_id, a.kind, e.display_name AS name, o.event_date AS date, o.start_time, a.opened_at, a.reminder_count, a.detail,
+  SELECT a.item_id, a.kind, e.display_name AS name, e.source, o.event_date AS date, o.start_time, a.opened_at, a.reminder_count, a.detail,
     nt.event_date AS new_date,
     (SELECT COUNT(*) FROM bookings b WHERE b.occurrence_id = a.occurrence_id AND b.status = 'confirmed') AS booked
   FROM attention_items a JOIN events e ON e.event_id = a.event_id
@@ -87,6 +90,28 @@ export function noticeEmail(w: Waiting, to: string, origin: string): Email {
         `<ul>${w.new_date ? '<li><strong>Tell them it has moved</strong>: their bookings for the old date are cancelled, and they\'re sent a link to book the new one</li>' : ''}<li><strong>Cancel their bookings</strong>: they're told it's cancelled</li><li><strong>Leave it</strong>, if you've told them yourself or the move was a mistake</li></ul>`,
         organiserLink(origin),
         p(`A reminder comes every morning until it's sorted. Opening this email doesn't sort it. Reference ${ref(w.item_id)}.`),
+        SIGN_OFF,
+      ]),
+    };
+  }
+  if (w.kind === 'cancelled') {
+    const diary = w.source === 'standard_diary';
+    return {
+      ...base,
+      kind: 'attention_cancelled',
+      subject: `Needs attention: ${w.name}${w.date ? ` (${shortDate(w.date)})` : ''} was cancelled${diary ? ': change the Standard Diary' : ': set its next date'}`,
+      html: join([
+        diary
+          ? p(
+              `<strong>${esc(w.name)}</strong> on ${when(w)} was cancelled in the app, but the Standard Diary tab still has that date, so it may still be advertised. ` +
+                "The app can't change that tab: please change its Date there (move it on to the next meeting, or clear it).",
+            )
+          : p(
+              `<strong>${esc(w.name)}</strong> on ${when(w)} was cancelled. It's switched off in the Logic Engine, so it isn't advertised. ` +
+                'Set its next date in the organiser, or archive it if it isn\'t coming back.',
+            ),
+        organiserLink(origin),
+        p(`${diary ? 'This clears itself when the sheet changes. ' : ''}A reminder comes every morning until it's sorted. Reference ${ref(w.item_id)}.`),
         SIGN_OFF,
       ]),
     };
@@ -131,6 +156,8 @@ export function digestEmail(list: Waiting[], noDate: number, day: string, to: st
       ? `<li><strong>${esc(w.name)}</strong>: moved from ${w.date ? shortDate(w.date) : 'its date'}${w.new_date ? ` to ${shortDate(w.new_date)}` : ''}, ${bookingsText(w.booked)} not told, ${waited(w)}</li>`
       : w.kind === 'undelivered'
         ? `<li><strong>${esc(w.name)}</strong>: an email to a customer didn't go ("${esc(w.detail ?? '')}"), ${waited(w)}</li>`
+        : w.kind === 'cancelled'
+          ? `<li><strong>${esc(w.name)}</strong>: ${w.date ? shortDate(w.date) : 'its date'} was cancelled, ${w.source === 'standard_diary' ? 'the Standard Diary tab still has that date' : 'needs its next date'}, ${waited(w)}</li>`
         : `<li><strong>${esc(w.name)}</strong>: finished ${w.date ? shortDate(w.date) : ''}, ${waited(w)}</li>`;
   const n = list.length;
   const onlyExpired = list.every(w => w.kind === 'expired');

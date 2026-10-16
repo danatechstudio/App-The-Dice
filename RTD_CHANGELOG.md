@@ -1,5 +1,13 @@
 # RTD App Changelog
 
+## 2026-10-16 (Cancelled dates leave the sheet)
+- **A cancelled monthly date is no longer advertised:** its Event Index row is switched off within 15 minutes (n8n RTD Host Sessions To Diary, as for one-offs), with its date left as it was.
+  - **Needs attention** then asks for its next date. Setting it there makes the row Active again with that date; **Archive** keeps it off.
+- **A cancelled Standard Diary date:** the app can't change that tab, so **Needs attention** asks the café to change the Date there (move it on, or clear it), and so does the cancellation notice. It clears itself when the sheet changes, or once the date has passed.
+- Both are in the attention emails: a notice, then the morning reminder.
+- **Fewer false alarms:** an event whose date was cancelled is no longer also listed as "no date" or "date passed" while the sheet catches up.
+- **No database change.** **Tests:** 371 (was 363).
+
 ## 2026-10-16 (Telling people booked, and email delivery)
 - **People booking can ask to be told on their device** if the date is cancelled or moved: "Tell this device if it's cancelled or moved" on the booking form, and on the booking's page. It's optional, for that one booking, and the email always goes too.
 - **Cancelling a booked date** now also notifies each device people asked for, within a minute. A device that has gone is never tried again; one that fails is retried, then given up on. Neither ever holds up an email.

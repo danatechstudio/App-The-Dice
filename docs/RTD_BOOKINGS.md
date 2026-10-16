@@ -176,7 +176,8 @@ Replies go to the café's general address.
 4. **The Logic Engine is updated within 15 minutes** (n8n **RTD Host Sessions To Diary**, matched on the row's **Event ID**), so the date isn't advertised:
    - **A one-off:** its Event Index row goes `Inactive`.
    - **A weekly or fortnightly event:** the row's Event Date moves on to its next date that isn't cancelled. The dates after carry on as normal.
-   - **Monthly events and Standard Diary groups:** left to the café. The cancellation notice says to update the sheet.
+   - **A monthly event** (Stage 4c): its row goes `Inactive`, with its date left as it was, and **Needs attention** asks for its next date. Setting it there makes the row Active again with that date.
+   - **A Standard Diary group:** the app can't write that tab. **Needs attention** asks the café to change the Date there (move it on, or clear it), and the cancellation notice says so too. It clears itself when the sheet changes, or once the date has passed.
 
 **Cancelled dates stay cancelled:** the Logic Engine sync never brings a cancelled date back.
 
