@@ -357,7 +357,7 @@ This workflow sends the onboarding emails and tells hosts what the café decided
 - **Setup:** reads `RTD_APP_BASE_URL` and `RTD_CAFE_NOTIFICATION_EMAIL` from `rtd_config`, then runs three branches.
 - **A. New join requests, to the approvers:**
   1. `GET /internal/applications/new`.
-  2. **Who gets it:** the café address. Since 2026-10-06 every request is a request to host, café staff included. The code still handles the old "café team" requests, which went to the admins.
+  2. **Who gets it:** the addresses the app lists in `notify`: since 2026-10-12, info@rollthedicecafe.co.uk and dan@atechstudio.co.uk (`notify_cafe` is false). Since 2026-10-06 every request is a request to host, café staff included.
   3. **The email:** subject "New host request: …" or "New café team request: …", with a link to `/organise`. It's sent as "Roll The Dice app", and replies go to the applicant.
   4. `POST /internal/applications/:id/approver-notified`.
 - **B. Outcomes, to the applicant:**
