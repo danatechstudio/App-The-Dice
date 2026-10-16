@@ -342,7 +342,7 @@ Added in `0020_delivery.sql` (Stage 4b; [RTD_BOOKINGS.md](RTD_BOOKINGS.md#tellin
 
 ## Food & Drinks menu
 
-Added in `0022_food_menu.sql` ([RTD_FOOD_MENU.md](RTD_FOOD_MENU.md)). Additive: no existing table changes. Browse only; nothing about customers.
+Added in `0023_food_menu.sql` ([RTD_FOOD_MENU.md](RTD_FOOD_MENU.md)). Additive: no existing table changes. Browse only; nothing about customers.
 
 | Table | Columns |
 | --- | --- |

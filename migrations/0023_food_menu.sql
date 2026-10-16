@@ -53,7 +53,7 @@ CREATE TABLE menu_item_variants (
 
 -- Off: the page says the menu isn't in the app. Preview: shown, marked as being
 -- checked. Live: shown. Admins change it in the organiser (audited).
-INSERT OR IGNORE INTO settings (key, value, updated_at, updated_by) VALUES ('food_menu_status', 'preview', '2026-10-16T00:00:00Z', 'migration 0022');
+INSERT OR IGNORE INTO settings (key, value, updated_at, updated_by) VALUES ('food_menu_status', 'preview', '2026-10-16T00:00:00Z', 'migration 0023');
 
 INSERT INTO menu_categories (category_id, name, description, alcohol, sort_order, created_at, updated_at) VALUES
   ('hot-food',    'Hot food',        NULL,                    0, 10, '2026-10-16T00:00:00Z', '2026-10-16T00:00:00Z'),

@@ -18,7 +18,7 @@
 - **Stats:** Food & Drinks page views.
 - **Audit and plan for offers:** [docs/RTD_FOOD_MENU_AUDIT.md](docs/RTD_FOOD_MENU_AUDIT.md). It covers roles and a per-person `offers.manage` permission for Michelle and Dan only, and how offer notifications will be opt-in and separate from event alerts. Offers are Stage 3; nothing about them is built yet.
 - **Unchanged:** events, bookings, hosts, notifications, the sheet sync and n8n.
-- **Database:** migration `0022_food_menu.sql` (three new tables, one setting). It must be applied before this is deployed. **Tests:** 399 (was 382).
+- **Database:** migration `0023_food_menu.sql` (three new tables, one setting). It must be applied before this is deployed. **Tests:** 399 (was 382).
 
 ## 2026-10-16 (Dates in the app)
 - **New in the organiser, for approvers and admins: Dates in the app.** It lists the next four weeks; each date can be changed without touching the Logic Engine:

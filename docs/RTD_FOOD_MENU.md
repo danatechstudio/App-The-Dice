@@ -44,7 +44,7 @@ The café's food and drinks menu in the app, to browse. Nobody orders or pays th
 
 ## Changing the menu
 
-The organiser can't edit lines yet: that comes with its own permission (`menu.manage`, see the audit §4). Until then, a change is a **new numbered migration**, reviewed like any other. Never edit `0022_food_menu.sql` once it has been applied.
+The organiser can't edit lines yet: that comes with its own permission (`menu.manage`, see the audit §4). Until then, a change is a **new numbered migration**, reviewed like any other. Never edit `0023_food_menu.sql` once it has been applied.
 
 ```sql
 -- A new price (pence)
@@ -74,7 +74,7 @@ UPDATE menu_items SET image_url = 'https://…', image_alt = 'A bacon bun in a f
 
 ## Rollout
 
-1. **Apply `0022_food_menu.sql` to production first**, with the owner's go-ahead, then merge. Applying it changes nothing visible: the menu only shows once the code that reads it is deployed.
+1. **Apply `0023_food_menu.sql` to production first**, with the owner's go-ahead, then merge. Applying it changes nothing visible: the menu only shows once the code that reads it is deployed.
    - **Check before:** counts of `events`, `occurrences`, `bookings` and `audit_log`; the latest sync `ok`.
    - **Check after:** the same counts, plus 8 sections, 59 lines, 16 serve prices, and `food_menu_status = preview`.
 2. **Merge the PR.** Workers Builds deploys it; check `/menu` and `/api/menu` on the live app.

@@ -65,7 +65,7 @@ The audit itself changed nothing in production. It read the repository: the Work
 | Stage | What | State |
 | --- | --- | --- |
 | 1 | This audit | Done |
-| 2 | Menu schema and data (`0022_food_menu.sql`), `GET /api/menu`, the public **Food & Drinks** page with placeholders, navigation, offline copy, the admin status switch, `menu_view` stats | **Built** (this change) |
+| 2 | Menu schema and data (`0023_food_menu.sql`), `GET /api/menu`, the public **Food & Drinks** page with placeholders, navigation, offline copy, the admin status switch, `menu_view` stats | **Built** (this change) |
 | 3 | `user_permissions`; `offers` + `offer_menu_items`; the protected offer editor (draft → scheduled → active → paused / expired / cancelled); server-time activation and expiry; the public offers area on the menu page and `/menu/offers/:id` deep links | Next |
 | 4 | Promotional opt-in (separate from event alerts) with unsubscribe; **Notify customers** with a preview and explicit confirmation; campaigns and per-device deliveries with idempotency keys, rate limits and logs; dispatch at start for scheduled offers | After 3 |
 | 5 | Progressive deploy, admin instructions, rollback | With each stage |

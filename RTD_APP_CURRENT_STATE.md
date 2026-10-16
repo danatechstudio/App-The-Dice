@@ -100,7 +100,7 @@ _Last updated: 2026-10-16_
 - **Linked from:** the top bar, Home, the footer and the app's shortcuts. The bottom bar is unchanged.
 - **Starts in Preview**, marked as being checked. Admins switch it Off / Preview / Live in the organiser.
 - **Waiting on:**
-  - migration `0022_food_menu.sql` applied to production (with your go-ahead), then the PR merged;
+  - migration `0023_food_menu.sql` applied to production (with your go-ahead), then the PR merged;
   - the café's checks in [docs/RTD_FOOD_MENU_AUDIT.md §6](docs/RTD_FOOD_MENU_AUDIT.md#6-before-launch-for-the-café) before Live.
 - **Next:** offers (Stage 3), then opt-in offer notifications (Stage 4).
 
