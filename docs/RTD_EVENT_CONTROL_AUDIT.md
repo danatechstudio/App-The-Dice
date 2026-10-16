@@ -416,7 +416,7 @@ The existing suite covers most app paths. n8n paths need dry runs (the Guard has
 
 ## 7. Decisions blocked on the owner
 
-**2026-10-16: the owner approved the staged plan and every recommendation below** ("Approved, go with your recommendations"). Two items still need the owner to act: D-15 (renew or archive Bingo) and D-16 (make the repository private, in GitHub settings).
+**2026-10-16: the owner approved the staged plan and every recommendation below** ("Approved, go with your recommendations"). Owner follow-ups: **D-15: Bingo archived** (2026-10-16). It stays Inactive in the Logic Engine, as it already was, so it's hidden everywhere and gets no posts or posters; Stage 3b records it as resolved (archived) rather than prompting for it. **D-16:** the owner is making the repository private.
 
 | # | Decision | Recommendation |
 | --- | --- | --- |
