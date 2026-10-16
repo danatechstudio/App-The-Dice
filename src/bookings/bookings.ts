@@ -461,8 +461,10 @@ export async function upcomingBookedDates(db: D1Database, today: string) {
 
 /** What to tell the café about the Logic Engine when one of its own dates is cancelled. */
 function sheetNote(s: SlotRow): string | null {
-  if (s.source === 'standard_diary') return 'This is a Standard Diary group: if the group isn\'t meeting that day, change the sheet so it isn\'t advertised.';
-  if (s.frequency === 'monthly') return 'This is a monthly event: set its next date in the Logic Engine, so the cancelled date isn\'t advertised.';
+  if (s.source === 'standard_diary') {
+    return "This is a Standard Diary group: the app can't change that tab, so change its Date there (move it on, or clear it) so the cancelled date isn't advertised. It's under Needs attention in the organiser until the sheet changes.";
+  }
+  if (s.frequency === 'monthly') return "This is a monthly event: it's switched off in the Logic Engine within 15 minutes, so it isn't advertised. Set its next date under Needs attention in the organiser.";
   if (s.frequency === 'fortnightly' || s.frequency === 'weekly' || s.frequency === 'one-off') return 'The Logic Engine is updated for you within 15 minutes, so it isn\'t advertised.';
   return null;
 }
@@ -654,16 +656,19 @@ export async function queueDueEmails(db: D1Database, ctx: { now: string; origin:
  * Event Index event (a host's or the café's own), matched on its Event ID:
  * - a cancelled one-off: its row goes Inactive;
  * - a weekly (or fortnightly) event whose next date, the one in the sheet, is
- *   cancelled: the row's Event Date moves on to the next date that isn't.
- * Monthly events and Standard Diary groups are left to the café (the cancel
- * notice says so). Each change is offered until n8n reports it done.
+ *   cancelled: the row's Event Date moves on to the next date that isn't;
+ * - a monthly event whose date in the sheet is cancelled (Stage 4c, G-13): its row
+ *   goes Inactive, with the date left as it was. Its next date is set under Needs
+ *   attention (src/attention/attention.ts, a 'cancelled' item), which makes it Active again.
+ * Standard Diary groups can't be written: Needs attention asks the café to change the
+ * tab. Each change is offered until n8n reports it done.
  */
 export async function sheetFixes(db: D1Database, today: string) {
   const { results: events } = await db
     .prepare(
       `SELECT e.event_id, e.frequency, f.fix_key AS sent FROM events e
        LEFT JOIN sheet_fixes f ON f.event_id = e.event_id
-       WHERE e.active = 1 AND e.source = 'event_index' AND e.frequency IN ('one-off', 'weekly', 'fortnightly')
+       WHERE e.active = 1 AND e.source = 'event_index' AND e.frequency IN ('one-off', 'weekly', 'fortnightly', 'monthly')
          AND EXISTS (SELECT 1 FROM occurrences o WHERE o.event_id = e.event_id AND o.status = 'cancelled' AND o.event_date >= ?1)`,
     )
     .bind(today)
@@ -685,6 +690,10 @@ export async function sheetFixes(db: D1Database, today: string) {
     if (e.frequency === 'one-off') {
       const c = mine.find(o => o.status === 'cancelled');
       if (c && !mine.some(o => o.status === 'scheduled')) fix = { key: 'inactive', status: 'Inactive', date: c.event_date };
+    } else if (e.frequency === 'monthly') {
+      // Keyed by date, so a later month's cancellation is sent too.
+      const inSheet = mine.filter(o => !o.projected).at(-1);
+      if (inSheet?.status === 'cancelled') fix = { key: `inactive:${inSheet.event_date}`, status: 'Inactive', date: inSheet.event_date };
     } else {
       const step = e.frequency === 'fortnightly' ? 14 : 7;
       const inSheet = mine.filter(o => !o.projected).at(-1);

@@ -188,7 +188,7 @@ Added in `0008_bookings.sql`: emails the app has written, waiting for n8n **RTD 
 | `dead_at` | Given up on after the sixth failed attempt; an admin can try again (0020) |
 
 **States** (derived, 0020): sent (`sent_at`), given up (`dead_at`), sending (claimed in the last 10 minutes), being tried again (`attempts` > 0), queued.
-**Also in 0020** (outbox `kind`): `attendee_date_moved` (dedupe `date-moved:<occurrence_id>:<booking_id>`), `attention_moved`, `attention_undelivered`.
+**Also in 0020** (outbox `kind`): `attendee_date_moved` (dedupe `date-moved:<occurrence_id>:<booking_id>`), `attention_moved`, `attention_undelivered`; and from Stage 4c (no migration) `attention_cancelled`.
 
 **Also in 0008:** `occurrences.cancelled_by` (`host` or `staff`) for a date cancelled in the organiser. A cancelled occurrence keeps its status through every sync.
 
@@ -292,7 +292,7 @@ Added in `0017_attention.sql`: **Needs attention** ([RTD_EVENT_CONTROL_AUDIT.md]
 | --- | --- |
 | `item_id` | Shown as `RTD-ATT-00001` |
 | `item_key` | Unique: `expired:<occurrence_id>`, or `no_date:<event_id>:<sheet_date_raw>`. One item per situation, ever: once resolved, the same one never reopens |
-| `kind` | `expired` (its latest date ended with nothing after it), `no_date` (active and listed, nothing to come, no usable date in the sheet), `moved` (a booked date the Logic Engine moved; key `moved:<occurrence_id>`) or `undelivered` (an email to a customer about their booking failed; key `undelivered:<message_id>`) |
+| `kind` | `expired` (its latest date ended with nothing after it), `no_date` (active and listed, nothing to come, no usable date in the sheet), `moved` (a booked date the Logic Engine moved; key `moved:<occurrence_id>`), `undelivered` (an email to a customer about their booking failed; key `undelivered:<message_id>`) or `cancelled` (the date in the sheet of a monthly event or a Standard Diary group was cancelled in the app; key `cancelled:<occurrence_id>`, Stage 4c) |
 | `event_id`, `occurrence_id` | The event, and (expired) the date that ended |
 | `detail` | no_date: the sheet's date cell, as written |
 | `status` | `open` or `resolved` |

@@ -18,7 +18,7 @@ type Action = 'renew' | 'archive' | 'complete' | 'dismiss' | 'tell' | 'cancel';
 interface Item {
   item_id: number;
   ref: string;
-  kind: 'expired' | 'no_date' | 'moved' | 'undelivered';
+  kind: 'expired' | 'no_date' | 'moved' | 'undelivered' | 'cancelled';
   name: string;
   source: 'event_index' | 'standard_diary' | 'app';
   frequency: string;
@@ -115,6 +115,11 @@ function waiting(openedAt: string): string {
 
 /** Why it's here, in a sentence. */
 function why(i: Item): string {
+  if (i.kind === 'cancelled') {
+    return i.source === 'standard_diary'
+      ? `${shortDate(i.date!)} was cancelled, but the Standard Diary tab still has that date, so it may still be advertised.`
+      : `${shortDate(i.date!)} was cancelled. It's switched off in the Logic Engine so it isn't advertised: set its next date, or archive it.`;
+  }
   if (i.kind === 'expired') return `Finished ${shortDate(i.date!)}${i.start_time ? ` (${formatTime(i.start_time)})` : ''}, and has no next date.`;
   if (i.detail_kind === 'past') return `Its date in the Logic Engine, ${i.detail}, has passed, so it isn't in the diary.`;
   if (i.detail_kind === 'text') return `The Logic Engine says "${i.detail}", which isn't a date, so it isn't in the diary.`;
@@ -362,7 +367,9 @@ function AttentionCard({ item, email, onDone }: { item: Item; email: string | nu
       <div class="stack" style={{ '--gap': '6px' }}>
         <div class="cluster" style={{ '--gap': '8px' }}>
           <h3>{item.name}</h3>
-          <Chip kind={item.kind === 'expired' ? 'completed' : 'awaiting'}>{item.kind === 'expired' ? 'Date passed' : 'No date'}</Chip>
+          <Chip kind={item.kind === 'expired' ? 'completed' : item.kind === 'cancelled' ? 'cancelled' : 'awaiting'}>
+            {item.kind === 'expired' ? 'Date passed' : item.kind === 'cancelled' ? 'Cancelled' : 'No date'}
+          </Chip>
         </div>
         <p>{why(item)}</p>
         <p class="meta">
@@ -378,7 +385,9 @@ function AttentionCard({ item, email, onDone }: { item: Item; email: string | nu
         {!item.actions.includes('renew') && (
           <p class="meta">
             {item.source === 'standard_diary'
-              ? 'To give it a new date, change it in the Standard Diary tab: this clears itself when the date arrives.'
+              ? item.kind === 'cancelled'
+                ? "Change its Date in the Standard Diary tab (move it on to the next meeting, or clear it): the app can't change that tab. This clears itself when the sheet changes."
+                : 'To give it a new date, change it in the Standard Diary tab: this clears itself when the date arrives.'
               : "Hosts' sessions and markets are run again from the organiser."}
           </p>
         )}
