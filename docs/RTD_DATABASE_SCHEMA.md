@@ -42,7 +42,8 @@ One row per dated occurrence. **Never re-dated, never deleted.** `UNIQUE (event_
 | `status` | `scheduled`, `completed`, `cancelled`, `rescheduled` |
 | `rescheduled_to` | The replacement occurrence, or null while a new date is awaited |
 | `capacity` | Places on this date alone, set in the organiser. Wins over the event's number; the sync never changes it ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#places)) |
-| `host_id`, `booking_enabled`, `booking_deadline`, `visibility`, `price_display`, `image_override`, `description_override` | App-owned overrides, Phases 5–8 |
+| `visibility`, `price_display`, `description_override` | App-owned, for this date only (Stage 5b, **Dates in the app**): `visibility` is only ever `hidden` or NULL (the event's); the others NULL mean the event's own. The sync never writes them. Audit `occurrence.edited`, with the values before and after. |
+| `host_id`, `booking_enabled`, `booking_deadline`, `image_override` | Unused so far |
 | `approved_at`, `completed_at`, `cancelled_at` | Lifecycle timestamps |
 
 ## audit_log (append-only)
@@ -54,6 +55,7 @@ Triggers abort any `UPDATE` or `DELETE`. Actions so far:
 - `occurrence.created`, `occurrence.time_changed`, `occurrence.completed`, `occurrence.rescheduled`, `occurrence.reinstated`
 - **Host sessions:** `host_session.*` (source `organiser`)
 - **Booking:** `event.places_changed`, `occurrence.places_changed`, `event.booking_mode_changed`, `occurrence.moved_bookings_cancelled` (source `organiser`)
+- **Dates in the app:** `occurrence.edited` (source `organiser`)
 - **Onboarding:**
   - **Requests:** `application.host.submitted`, `application.staff.submitted`, `application.withdrawn`, `application.approved`, `application.declined`
   - **Access:** `user.granted_host`, `user.granted_staff`, `user.removed_host`, `user.removed_staff`

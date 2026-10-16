@@ -4,15 +4,17 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
-### Proposed (Stage 5a, not made yet): approved host changes into Event Index
+### 2026-10-16 (evening): approved host changes into Event Index
 
-Waiting for the owner's go-ahead, and only after migration `0021_change_requests.sql` and the Stage 5a app are live.
+The owner approved this (Stage 5a). It was made after migration `0021_change_requests.sql` and the Stage 5a app were live.
 
-| Workflow | Change | Roll back to |
-| --- | --- | --- |
-| RTD Host Sessions To Diary (`rdS8LF56B9k170BY`) | **New branch D**, beside C and from the same start: **Get Host Changes From App** (`GET /internal/host-changes`), **Host Changes To Apply** (keeps only items whose `row['Event ID']` matches their `event_id`), **Update Event Index Row (Host Change)** (Google Sheets update on Event Index, matched on **Event ID**, columns mapped automatically from the row so **only the cells in it are written**, RAW), **Mark Host Change Applied In App** (`POST /internal/host-changes/:id/applied`). Branches A, B and C are unchanged. | `d9cad8de-364c-4c03-9849-ec626861fca7` |
+| Workflow | Change | New active version | Roll back to |
+| --- | --- | --- | --- |
+| RTD Host Sessions To Diary (`rdS8LF56B9k170BY`) | **New branch D**, beside C and from the same start: **Get Host Changes From App** (`GET /internal/host-changes`), **Host Changes To Apply** (keeps only items with a real Event ID and request number, whose `row['Event ID']` matches), **Row Cells** (just the cells), **Update Event Index Row (Host Change)** (Google Sheets update on Event Index, matched on **Event ID**, columns mapped automatically from the row so only the cells in it are written, RAW, an unknown column is an error rather than a new column), **Mark Host Change Applied In App** (`POST /internal/host-changes/:id/applied`). The version diff shows only these 5 nodes and their connections were added; A, B and C are unchanged. | `7ef4429d-cb2f-44b4-bc2f-c8fa43278607` (published 18:38 UTC) | `d9cad8de-364c-4c03-9849-ec626861fca7` |
 
 **The cells it can write:** Event Name, Base Details, Event Date and Day, Event Time, End Time, App Price, App Visibility, each only when that field changes. Never Status, Frequency, App Capacity or App Host Session.
+
+**Verified:** the 18:45 run succeeded; the app answered `{ changes: [] }`, so the branch stopped there. **Not yet seen live:** a real write. Check the first approved change's row in the sheet: only its changed cells should differ.
 
 ### 2026-10-16 (evening): RTD Outbox reports failed emails to the app
 

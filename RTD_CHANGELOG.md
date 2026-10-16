@@ -1,5 +1,15 @@
 # RTD App Changelog
 
+## 2026-10-16 (Dates in the app)
+- **New in the organiser, for approvers and admins: Dates in the app.** It lists the next four weeks; each date can be changed without touching the Logic Engine:
+  - **Hide this date in the app,** or show it again. It leaves the diary and its page. Hiding a date people have booked asks first, and their bookings stand.
+  - **A description for this date** (for example, "Halloween special"), and **a price for this date**. Empty means the event's own.
+- **It never makes public what the sheet hides,** and the sheet sync never undoes these. Every change is in the audit log with the before and after.
+- Dates, times and names are still changed in the Logic Engine; to stop a date being advertised, cancel it.
+- **A hidden last date** still raises Needs attention when it ends.
+- Also live today: **hosts' change requests** reach Event Index through a new n8n branch.
+- **No database change.** **Tests:** 382 (was 376).
+
 ## 2026-10-16 (Hosts' changes need approval)
 - **Hosts can ask to change a live session** in the organiser: its name, description, date, times, cost, or open or private. The form starts from what the diary shows now.
 - **Nothing public changes until an approver or admin approves it.** **Changes to approve** shows each change side by side with what's public now, and how many people are booked. Approvers get a push, and the approvers' inbox an email.

@@ -5,6 +5,7 @@ import { attentionOverview, resolveItem, setAttention } from '../attention/atten
 import { emailOverview, sendTest, setEmailSettings } from '../attention/reminders';
 import { upcomingBookedDates } from '../bookings/bookings';
 import { cafeEventPlaces, setBookingMode, setEventPlaces } from '../bookings/places';
+import { editDate, listDates } from '../events/dates';
 import { decideChange, listChanges } from '../host/changes';
 import { deliveryOverview } from '../notify/delivery';
 import { retryNow } from '../notify/outbox';
@@ -120,6 +121,19 @@ staffRoutes.get('/host-sessions', async c => {
   const status = c.req.query('status') ?? 'submitted';
   if (!SESSION_STATUSES.includes(status)) return c.json({ error: `status must be one of ${SESSION_STATUSES.join(', ')}` }, 400);
   return c.json({ sessions: await listSessions(c.env.DB, { status: status as SessionStatus }) });
+});
+
+/** Dates in the next four weeks, with what's set for each one in the app (src/events/dates.ts). */
+staffRoutes.get('/dates', async c => c.json({ dates: await listDates(c.env.DB, new Date()) }));
+
+/**
+ * Change one date in the app: { hidden?, description?, price?, confirm? }. 409 { warning } when
+ * hiding a date people have booked, until confirm: true.
+ */
+staffRoutes.post('/dates/:id', async c => {
+  const result = await editDate(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), new Date());
+  if (result.ok) return c.json({ date: result.date });
+  return 'warning' in result ? c.json({ warning: result.warning }, 409) : c.json({ error: result.error, errors: result.errors }, result.status);
 });
 
 /** Hosts' change requests: waiting (default), or decided in the last fortnight (src/host/changes.ts). */
