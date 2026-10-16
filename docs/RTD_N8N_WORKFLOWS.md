@@ -264,7 +264,7 @@ Payload shape:
 6. **Report Failure To App** (`POST /:id/failed` with `{ claim, error }`) takes every error output (reading, the guard, writing, reading back). The app retries at 5 m, 15 m, 1 h, 4 h and 12 h, then gives up visibly.
 
 **Credentials:** `rtd-app` (header auth), `ATECHGoogleSheets`. **Settings:** error workflow `Studio: Error Handler` (`IClMUs9ByRmVBYJf`), Europe/London, executions saved, 300 s timeout.
-**Versions:** created `308a5e79-d71b-4fa6-8153-7282beb2b0f1`; run settings added in the next version. Rolling back = unpublishing it.
+**Version:** `308a5e79-d71b-4fa6-8153-7282beb2b0f1` (the run settings didn't change the version ID). Rolling back = unpublishing it.
 **Verified:** a test run with the sheet and app calls simulated (see [RTD_EVENT_CONTROL_TESTS.md](RTD_EVENT_CONTROL_TESTS.md#stage-6-changing-events-from-the-organiser-2026-10-16)). **Not yet:** a real write to the test copy.
 
 ## RTD Event Images (`GeafnErtRe5ZMbiD`)

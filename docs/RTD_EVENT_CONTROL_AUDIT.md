@@ -6,6 +6,8 @@ _Audit date: 2026-10-16. Read-only. Brief: "Roll The Dice — Event Control Audi
 
 > **This repository is public.** This document names systems, workflows and tables, but deliberately contains no spreadsheet, calendar, Drive or credential IDs and no personal email addresses. Those belong in private environment documentation (see [G-17](#3-gap-analysis)).
 
+> **Picking this work up?** Start with [RTD_EVENT_CONTROL_HANDOFF.md](RTD_EVENT_CONTROL_HANDOFF.md): where each stage stands and what's next.
+
 **Stop point:** this is the Stage A deliverable. Stage B (any code, migration, workflow or sheet change) waits for explicit approval of §6 and answers to §7.
 
 ---
