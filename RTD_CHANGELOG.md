@@ -1,5 +1,22 @@
 # RTD App Changelog
 
+## 2026-10-16 (Telling people booked, and email delivery)
+- **People booking can ask to be told on their device** if the date is cancelled or moved: "Tell this device if it's cancelled or moved" on the booking form, and on the booking's page. It's optional, for that one booking, and the email always goes too.
+- **Cancelling a booked date** now also notifies each device people asked for, within a minute. A device that has gone is never tried again; one that fails is retried, then given up on. Neither ever holds up an email.
+- **A booked date moved in the Logic Engine is held under Needs attention.** Nobody booked is told until an approver chooses:
+  - **Tell them it has moved:** their bookings for the old date are cancelled, and they get a link to book the new one;
+  - **Cancel their bookings;**
+  - **Leave it.**
+
+  Bookings are never moved to another date. If the date comes back in the sheet, it settles itself and the bookings stand.
+- **Emails that fail are retried and then given up on visibly**, instead of failing RTD Outbox every 5 minutes. They're retried after 5 minutes, 15 minutes, 1 hour, 4 hours and 12 hours.
+  - A customer's email that fails opens a Needs attention item at once, with their details.
+  - **Delivery** in the organiser shows how the last 7 days' emails and notifications went, with **Try again now**.
+  - This needs a change to n8n RTD Outbox, which waits for the owner's go-ahead.
+- **Moved dates and failed customer emails** are in the attention emails too: a notice, then the morning reminder.
+- **Privacy:** a booking device's address is deleted the day after the date. The privacy notice says so.
+- **Database:** migration `0020_delivery.sql` (outbox columns, two new tables). **Tests:** 363 (was 351).
+
 ## 2026-10-16 (Booking modes)
 - **Each event now says whether people need to book:** **Not required**, **Optional** or **Required**. Approvers and admins set it under **Booking for café events** in the organiser (it was **Places for café events**).
   - **Not required:** "No booking needed: just come along." No booking form, and it's not on the Book page.

@@ -90,7 +90,7 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | GET / POST | `/internal/host-sessions/to-publish`, `/internal/host-sessions/:id/published` | bearer | Approved sessions with their Event Index row, and marking them Live |
 | GET / POST | `/internal/applications/new`, `/internal/applications/decided`, `…/:id/approver-notified`, `…/:id/applicant-notified` | bearer | Join request emails ([RTD_ONBOARDING.md](RTD_ONBOARDING.md)) |
 | GET / POST | `/internal/host-sessions/decided`, `/internal/host-sessions/:id/host-notified` | bearer | Emailing hosts the café's decision |
-| POST | `/internal/outbox/collect`, `/internal/outbox/:id/sent` | bearer | Booking emails for n8n RTD Outbox ([RTD_BOOKINGS.md](RTD_BOOKINGS.md)) |
+| POST | `/internal/outbox/collect`, `/internal/outbox/:id/sent`, `/internal/outbox/:id/failed` | bearer | Emails for n8n RTD Outbox: collect (claims for 10 minutes), sent, failed ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#the-outbox-and-the-bookings-inbox)) |
 | GET / POST | `/internal/sheet-fixes`, `/internal/sheet-fixes/:eventId/done` | bearer | Event Index changes, matched on Event ID: new dates and archives decided under Needs attention, then cancelled dates. At most one per event per run. The old `/internal/host-sessions/sheet-fixes` is retired and always empty. |
 | GET | `/api/bookings/availability/:occurrenceId` | none (never cached) | Whether a date can be booked, and places left (null when there's no limit) |
 | POST | `/api/bookings`, `/api/bookings/:id/view`, `/api/bookings/:id/cancel` | none; same-origin JSON; the cancel link's secret | Book, see or cancel a booking |
@@ -112,6 +112,8 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | POST | `/api/host/occurrences/:id/cancel` | Access cookie + the session's host, approver or admin | Cancel a date |
 | POST | `/api/host/sessions/:id/places`, `/api/host/occurrences/:id/places` | Access cookie + the session's host (approvers and admins for any single date) | Places on every date of a live session, or on one date ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#places)) |
 | GET / POST | `/api/staff/event-places`, `/api/staff/events/:id/places`, `/api/staff/events/:id/booking-mode` | Access + approver/admin | Booking for café events: places, and whether people need to book |
+| GET / POST | `/api/staff/delivery`, `/api/staff/outbox/:id/retry` | Access + approver/admin | Delivery: how emails and booking notifications have gone; try an email again |
+| POST | `/api/bookings/:id/device`, `/api/bookings/:id/device/remove`, `/api/bookings/devices/renew` | the booking's link (renew: the old address) | Tell this device about a booking ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#telling-this-device)) |
 | GET / POST | `/api/markets`, `/api/markets/:id`, `/api/markets/:id/apply` | none; applying is same-origin JSON | Markets vendors can apply to, and applying ([RTD_MARKETS.md](RTD_MARKETS.md)) |
 | GET / POST | `/api/staff/markets…`, `/api/staff/market-applications…`, `/api/staff/market-photos/:id` | Access + approver/admin (setting up markets: admins only) | Markets and vendor applications |
 | GET / POST | `/internal/market-applications/sheet`, `/internal/market-applications/:id/sheet-synced` | bearer | The market spreadsheet |
@@ -172,7 +174,9 @@ Everyone is moved onto the newest build (`web/src/lib/update.ts`):
 | `src/host/sessions.ts` | Host sessions: validation, numbering, withdraw, send again, delete, approver decisions, n8n feeds |
 | `src/team/applications.ts` | Onboarding: join requests, approvers, granting and removing access, email feeds |
 | `src/bookings/bookings.ts` | Bookings: availability, capacity-safe booking, the cancel link, host and approver views, cancelling a date, two-day emails, Event Index fixes |
-| `src/notify/emails.ts`, `src/notify/outbox.ts` | Booking email wording, and the outbox n8n sends from |
+| `src/notify/emails.ts`, `src/notify/outbox.ts` | Booking email wording, and the outbox n8n sends from: claims, failures, retries, giving up |
+| `src/bookings/devices.ts` | Telling a booker's device when a date is cancelled or moved: opt-in, the push outbox, sending it each minute |
+| `src/notify/delivery.ts` | The organiser's Delivery view |
 | `src/notify/push.ts` | Web Push: VAPID keys, RFC 8291 encryption, approvers' devices, sending |
 | `src/games/*` | The game library: model and checks, chooser rules, catalogue, Game of the Week, admin and importer, the preview shelf |
 | `src/stats/stats.ts` | Stats: counting page views and taps (daily totals), and the admins' overview |

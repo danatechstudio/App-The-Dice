@@ -18,6 +18,9 @@ Customers can book places on public events in the app: hosts' open sessions, and
 | Hosts change their own sessions' places; approvers set café events' places, or any date's | **Built** (2026-10-07): see [Places](#places) |
 | Privacy notice, and booking details erased 12 months after the event | **Built**: see [RTD_PRIVACY.md](RTD_PRIVACY.md) |
 | Booking modes: Not required / Optional / Required, per event, set by approvers | **Built** (2026-10-16): see [Booking modes](#booking-modes) |
+| Telling the booker's device (opt-in) when a date is cancelled or moved | **Built** (2026-10-16, Stage 4b): see [Telling this device](#telling-this-device) |
+| A booked date moved in the sheet: held under Needs attention until someone decides | **Built** (2026-10-16, Stage 4b): see [A booked date moved in the sheet](#a-booked-date-moved-in-the-sheet) |
+| Email delivery: retries, giving up visibly, a Delivery view | **Built** in the app (2026-10-16, Stage 4b); n8n RTD Outbox still to be switched to report failures |
 | Waiting list, daily staff digest, editing a booking | Not built (spec §23, §33) |
 
 ## What can be booked
@@ -167,7 +170,9 @@ Replies go to the café's general address.
    - **Bookings:** every booking on it is cancelled.
 3. **Emails go out within 5 minutes:**
    - **Everyone booked:** an email with the message.
+   - **Their devices:** a notification within a minute, on each device they asked to be told on ([Telling this device](#telling-this-device)). A device that fails never holds up the email.
    - **The other side:** the bookings inbox (or the host, if the café cancelled a host's session) gets a notice.
+   - **Nobody booked:** only the notice; no messages to people.
 4. **The Logic Engine is updated within 15 minutes** (n8n **RTD Host Sessions To Diary**, matched on the row's **Event ID**), so the date isn't advertised:
    - **A one-off:** its Event Index row goes `Inactive`.
    - **A weekly or fortnightly event:** the row's Event Date moves on to its next date that isn't cancelled. The dates after carry on as normal.
@@ -175,7 +180,30 @@ Replies go to the café's general address.
 
 **Cancelled dates stay cancelled:** the Logic Engine sync never brings a cancelled date back.
 
-**Cancel in the app, not just in the sheet:** that way, the people booked are told. If a booked date is changed or removed in the sheet instead, info@ gets a "Check bookings" warning.
+**Cancel in the app, not just in the sheet:** that way, the people booked are told. If a booked date is changed or removed in the sheet instead, info@ gets a "Check bookings" warning, and a moved date is held under Needs attention (below).
+
+## A booked date moved in the sheet
+
+When the Logic Engine moves a date people had booked (the old date becomes `rescheduled`), **nobody booked is told automatically** ([RTD_EVENT_CONTROL_AUDIT.md](RTD_EVENT_CONTROL_AUDIT.md) G-4). Within the hour it appears under **Needs attention** as **Moved, with bookings**, and the attention addresses get a notice. Approvers and admins choose:
+
+| Choice | What happens |
+| --- | --- |
+| **Tell them it has moved** (only when the new date is in the app and still to come) | Each booking for the old date is cancelled, and each person is emailed "Moved: Quiz, now Thu 15 Oct" with a link to book the new date, and notified on any device they opted in. An optional message goes with it. |
+| **Cancel their bookings** | Each booking is cancelled and each person gets the usual "Cancelled" email and notification. |
+| **Leave it** | Nothing is sent and the bookings stay (for example, the café has phoned everyone). |
+
+**Bookings are never moved to another date.** The old date is kept, marked as moved. If the date comes back in the sheet (the move was a mistake), the item settles itself and the bookings stand; it also settles once nobody is booked on it. Audit: `occurrence.moved_bookings_cancelled`, with how many bookings and people.
+
+## Telling this device
+
+Where the browser can show notifications, the booking form offers **Tell this device if it's cancelled or moved** (optional; ticked already only if the browser has already allowed notifications for the app). The booking's Manage page has **Tell this device too** / **Stop telling this device**.
+
+- **Opt-in, for that one booking:** the device's push address is stored in `booking_devices` against the booking, using the Manage link's secret. At most 3 devices a booking. It's never needed to book, and the email always goes too.
+- **What it says:** the event, the date and what happened, nothing else. "Cancelled: Quiz" / "Thu 8 Oct, 7:30pm. Your booking is cancelled; the email has the details." Tapping it opens the event page.
+- **How it's sent:** written to `push_outbox` in the same batch as the cancellation, one per booking and device, and sent by the every-minute Cron Trigger ahead of event alerts, from the same budget (20 a minute).
+- **When it fails:** a browser that has gone (404 / 410) is marked invalid and never used again. Anything else is tried again after 5 minutes, 15 minutes, 1 hour, 4 hours and 12 hours, then given up on and shown under **Delivery**.
+- **iPhone:** only once the app is added to the Home Screen and opened from there (as for event alerts).
+- **Privacy:** the device's address is deleted the day after the booked date ([RTD_PRIVACY.md](RTD_PRIVACY.md)). The record of each push stays 90 days with no contact details.
 
 ## The outbox and the bookings inbox
 
@@ -191,7 +219,11 @@ The app writes every booking email itself (`src/notify/emails.ts`) into the `out
 
 **How the outbox behaves:**
 - **Once only:** each email has a unique key (for example `booking-new-cafe:RTD-BK-00001`, `cafe-numbers:RTD-OCC-…`), so a retry never sends it twice. n8n marks each one sent after Gmail accepts it.
-- **Failures:** an email that fails stays queued and is tried again in 5 minutes; the rest still go. The run then fails, so the error handler emails Dan.
+- **Collected means claimed:** each collection holds the emails it returns for 10 minutes, so a run that dies part-way doesn't send them twice straight away. Unsent after that, they're offered again.
+- **Failures (Stage 4b):** n8n reports a failed email to `/internal/outbox/:id/failed` with Gmail's error. It's tried again after 5 minutes, 15 minutes, 1 hour, 4 hours and 12 hours, then given up on; the rest still go. A repeated report of the same attempt counts once.
+- **A customer's email that fails** (a booking confirmation, a cancellation, a moved date) opens an item under **Needs attention** at its first failure, with the person's details so the café can reach them another way. It settles itself if a later try goes.
+- **Delivery** in the organiser shows the last 7 days (sent, waiting, being tried again, given up on) and every failing or given-up email and booking notification of the last 30 days, with **Try again now**. "Sent" only ever means Gmail accepted it.
+- **Until RTD Outbox is switched to report failures,** a failed email is simply offered again 10 minutes later, and the run fails so the error handler emails Dan, as before.
 - **Retention:** sent emails are deleted from the outbox after 90 days.
 - **Escaping:** everything people typed is HTML-escaped.
 
@@ -204,6 +236,7 @@ The app writes every booking email itself (`src/notify/emails.ts`) into the `out
 | `occurrence.cancelled` | `occurrence` (with the occurrence ID) | the host (`host`) or an approver (`staff`). It keeps the message and how many bookings were cancelled. |
 | `…places_changed` | `host_session`, `event` or `occurrence` | the host or an approver, with the old and new numbers |
 | `event.booking_mode_changed` | `event` | an approver or admin (`staff`), with the old and new mode (`default (optional)` when it was the default) |
+| `occurrence.moved_bookings_cancelled` | `occurrence` (with the occurrence ID) | the approver or admin who chose under Needs attention: `{ how: tell \| cancel, bookings, people, new_occurrence }` |
 
 Bookings are never deleted. A cancelled one keeps who cancelled it and why. Twelve months after the event, the person's name, email, mobile and note are erased ([RTD_PRIVACY.md](RTD_PRIVACY.md)).
 
@@ -213,7 +246,10 @@ Bookings are never deleted. A cancelled one keeps who cancelled it and why. Twel
 | --- | --- | --- | --- |
 | GET | `/api/bookings/availability/:occurrenceId` | anyone | `{ bookable, mode, open, reason, capacity, places_left, max_party }`. `mode` is `none`, `optional` or `required`; `{ bookable: false, mode: 'none' }` for a visible event that needs no booking, `mode: null` for anything else not bookable. `capacity` / `places_left` are null when there's no limit. Never cached. |
 | POST | `/api/bookings` | anyone | `{ occurrence_id, lead_name, email, mobile?, party_size, notes? }`. 201 with `manage_path`, or 400 / 404 (not bookable, or booking Not required) / 409 (full, closed, already booked) / 429. |
-| POST | `/api/bookings/:id/view` | the link holder | `{ token }`: the booking |
+| POST | `/api/bookings/:id/view` | the link holder | `{ token, endpoint? }`: the booking, with `this_device` (whether this browser is set to be told) |
+| POST | `/api/bookings/:id/device` | the link holder | `{ token, subscription }`: tell this device if the date is cancelled or moved. 400 not a push subscription; 409 no longer coming up, or 3 devices already |
+| POST | `/api/bookings/:id/device/remove` | the link holder | `{ token, endpoint }`: stop telling it |
+| POST | `/api/bookings/devices/renew` | the service worker | `{ old_endpoint, subscription }`: the browser renewed its subscription |
 | POST | `/api/bookings/:id/cancel` | the link holder | `{ token }`: cancel it |
 | GET | `/api/host/sessions` | host | Each live session has `dates`, each with its bookings (no contact details) |
 | POST | `/api/host/occurrences/:occurrenceId/cancel` | the session's host; approvers and admins for any date | `{ message? }`: cancel a date |
@@ -225,6 +261,9 @@ Bookings are never deleted. A cancelled one keeps who cancelled it and why. Twel
 | POST | `/api/staff/events/:eventId/places` | approver, admin | `{ places: number \| null }`: every date of a café event; null goes back to the sheet |
 | POST | `/internal/outbox/collect` | n8n (bearer token) | Queues emails now due (numbers, warnings), then returns unsent emails |
 | POST | `/internal/outbox/:id/sent` | n8n | Mark one sent |
+| POST | `/internal/outbox/:id/failed` | n8n | `{ error? }`: Gmail refused it. `{ ok, already, dead }`; `dead`: that was the last try |
+| GET | `/api/staff/delivery` | approver, admin | The last 7 days' emails and booking notifications by state, and each failing or given up on in the last 30 days |
+| POST | `/api/staff/outbox/:id/retry` | approver, admin | Try a failing or given-up email again now |
 | GET | `/internal/sheet-fixes` | n8n | Event Index changes for cancelled dates, each with its Event ID |
 | POST | `/internal/sheet-fixes/:eventId/done` | n8n | `{ key }`: record it done |
 | GET | `/internal/host-sessions/sheet-fixes` | n8n | Retired: always empty |

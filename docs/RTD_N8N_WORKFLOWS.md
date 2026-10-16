@@ -4,6 +4,16 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### Proposed (Stage 4b, not made yet): RTD Outbox reports failed emails to the app
+
+Waiting for the owner's go-ahead, and only after migration `0020_delivery.sql` and the Stage 4b app are live (the old app has no `/failed`).
+
+| Workflow | Change | Roll back to |
+| --- | --- | --- |
+| RTD Outbox (`dJU9NJOh7aisAiFF`) | **Email Not Sent** (Stop and Error) is replaced by **Mark Failed In App**: `POST /internal/outbox/{message_id}/failed` with `{ "error": <Gmail's error, up to 300 characters> }` (header auth `rtd-app`, retries 3 times). Then **Given Up?**: only if the app answers `dead: true` does the run stop with an error (**Email Given Up**), so `Studio: Error Handler` emails Dan once per email given up on, not every 5 minutes. | `a1b77acb-fb1d-4f07-a8e1-a8e34a2ef125` |
+
+**Why:** today one failed email fails the whole run every 5 minutes, forever, and the app can't tell it failed. After the change the app retries it (5 m, 15 m, 1 h, 4 h, 12 h), gives up visibly under **Delivery**, and opens a Needs attention item at once when the email was to a customer.
+
 ### 2026-10-16: the Event Guard no longer emails the date-picker
 
 The owner approved this (decision D-4 in [RTD_EVENT_CONTROL_AUDIT.md](RTD_EVENT_CONTROL_AUDIT.md#7-decisions-blocked-on-the-owner)). The RTD app's **Needs attention** now covers what the date-picker did:

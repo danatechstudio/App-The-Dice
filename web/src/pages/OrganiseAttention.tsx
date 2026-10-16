@@ -3,21 +3,22 @@
 // with no usable date in the Logic Engine. Each one stays until someone sets a new date,
 // archives it, or closes it; looking at it never does. Admins switch it on and off, and
 // choose who gets the emails (Stage 3c): a notice when a date passes, and a reminder
-// every morning until it's sorted.
+// every morning until it's sorted. Stage 4b adds booked dates the Logic Engine moved
+// (nobody booked is told until someone chooses), and emails to customers that didn't go.
 
-import { CalendarPlus, Check, Mail, TriangleAlert } from 'lucide-preact';
+import { CalendarClock, CalendarPlus, Check, Mail, MailWarning, TriangleAlert } from 'lucide-preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { Chip } from '../components/Chips';
 import { addDays, daysBetween, formatTime, shortDate, todayLondon } from '../lib/dates';
 import { hostApi } from '../lib/hostApi';
 import { toast } from '../lib/toast';
 
-type Action = 'renew' | 'archive' | 'complete' | 'dismiss';
+type Action = 'renew' | 'archive' | 'complete' | 'dismiss' | 'tell' | 'cancel';
 
 interface Item {
   item_id: number;
   ref: string;
-  kind: 'expired' | 'no_date';
+  kind: 'expired' | 'no_date' | 'moved' | 'undelivered';
   name: string;
   source: 'event_index' | 'standard_diary' | 'app';
   frequency: string;
@@ -25,7 +26,7 @@ interface Item {
   start_time: string | null;
   detail: string | null;
   detail_kind: 'blank' | 'text' | 'past' | null;
-  resolution: 'renewed' | 'archived' | 'completed' | 'dismissed' | null;
+  resolution: 'renewed' | 'archived' | 'completed' | 'dismissed' | 'notified' | 'cancelled' | 'sent' | null;
   renew_date: string | null;
   renew_waiting: boolean;
   resolved_by: string | null;
@@ -35,9 +36,20 @@ interface Item {
   actions: Action[];
   sheet: 'auto' | 'manual';
   inactive: boolean;
+  occurrence_id: string | null;
+  moved: { new_occurrence_id: string | null; new_date: string | null; new_start_time: string | null; can_tell: boolean; bookings: number; people: number } | null;
+  undelivered: {
+    message_id: number | null;
+    subject: string | null;
+    attempts: number;
+    last_error: string | null;
+    next_attempt_at: string | null;
+    given_up: boolean;
+    contact: { name: string; email: string | null; mobile: string | null } | null;
+  } | null;
 }
 
-type Delivery = 'queued' | 'sent' | 'stuck' | null;
+type Delivery = 'queued' | 'sent' | 'stuck' | 'failing' | 'failed' | null;
 
 interface Emails {
   on: boolean;
@@ -52,27 +64,41 @@ type Overview =
   | { enabled: true; blocked: number; open: Item[]; resolved: Item[]; no_end_time: { event_id: string; name: string; date: string }[]; emails: Emails };
 
 const FREQUENCY: Record<string, string> = { weekly: 'Weekly', fortnightly: 'Fortnightly', monthly: 'Monthly', 'one-off': 'One-off' };
-const RESOLVED: Record<string, string> = { renewed: 'New date', archived: 'Archived', completed: 'Finished, no new date', dismissed: 'Left as it is' };
+const RESOLVED: Record<string, string> = {
+  renewed: 'New date',
+  archived: 'Archived',
+  completed: 'Finished, no new date',
+  dismissed: 'Left as it is',
+  notified: 'Told it has moved',
+  cancelled: 'Bookings cancelled',
+  sent: 'Went on a later try',
+};
 const DONE: Record<Action, (name: string) => string> = {
   renew: name => `${name}: new date saved.`,
   archive: name => `${name}: archived.`,
   complete: name => `${name}: marked finished.`,
   dismiss: name => `${name}: left as it is. It comes back here if its date changes.`,
+  tell: name => `${name}: everyone booked is being told it has moved.`,
+  cancel: name => `${name}: bookings cancelled, and everyone booked is being told.`,
 };
+const places = (n: number) => `${n} ${n === 1 ? 'place' : 'places'}`;
+const bookings = (n: number) => `${n} ${n === 1 ? 'booking' : 'bookings'}`;
 
 const londonDay = (iso: string) => todayLondon(new Date(iso));
 const by = (who: string | null) => (who === 'sheet' ? 'the Logic Engine' : who === 'system' ? 'the app' : (who ?? ''));
 
 /** "sent" only ever means Gmail accepted it: there's no proof it was delivered or read. */
-const DELIVERY: Record<'queued' | 'sent' | 'stuck', string> = {
+const DELIVERY: Record<'queued' | 'sent' | 'stuck' | 'failing' | 'failed', string> = {
   queued: 'queued, going out within 5 minutes',
   sent: 'sent (Gmail accepted it)',
   stuck: "not sent yet after 30 minutes: check RTD Outbox in n8n",
+  failing: "Gmail refused it; it's tried again by itself",
+  failed: "couldn't be sent: see Delivery",
 };
 
-/** How an expired item's emails have gone, in a line. */
+/** How an item's emails have gone, in a line. */
 function emailLine(i: Item, emails: Emails): string | null {
-  if (i.kind !== 'expired' || !emails.on) return null;
+  if (i.kind === 'no_date' || !emails.on) return null;
   const e = emails.items[i.item_id];
   const parts: string[] = [];
   if (e?.notice) parts.push(`Notice ${DELIVERY[e.notice]}`);
@@ -133,8 +159,8 @@ export function AttentionPanel({ isAdmin }: { isAdmin: boolean }) {
         <h2 id="attention">Needs attention {data.open.length > 0 && <span class="count-badge">{data.open.length}</span>}</h2>
       </div>
       <p class="meta" style={{ marginBottom: '12px' }}>
-        Events whose date has passed with nothing after it, and events with no usable date in the Logic Engine. Each one stays here until someone sets a
-        new date, archives it or closes it.
+        Events whose date has passed with nothing after it, events with no usable date in the Logic Engine, booked dates the Logic Engine moved, and
+        emails to customers that didn't go. Each one stays here until someone decides.
       </p>
       {isAdmin ? (
         <EmailSettings emails={data.emails} onChanged={load} />
@@ -152,9 +178,15 @@ export function AttentionPanel({ isAdmin }: { isAdmin: boolean }) {
       )}
       {!data.open.length && <p class="meta">Nothing needs attention.</p>}
       <div class="list">
-        {data.open.map(i => (
-          <AttentionCard key={i.item_id} item={i} email={emailLine(i, data.emails)} onDone={load} />
-        ))}
+        {data.open.map(i =>
+          i.kind === 'moved' ? (
+            <MovedCard key={i.item_id} item={i} email={emailLine(i, data.emails)} onDone={load} />
+          ) : i.kind === 'undelivered' ? (
+            <UndeliveredCard key={i.item_id} item={i} onDone={load} />
+          ) : (
+            <AttentionCard key={i.item_id} item={i} email={emailLine(i, data.emails)} onDone={load} />
+          ),
+        )}
       </div>
       {data.no_end_time.length > 0 && (
         <div class="stack" style={{ '--gap': '6px', marginTop: '16px' }}>
@@ -426,6 +458,160 @@ function AttentionCard({ item, email, onDone }: { item: Item; email: string | nu
           {error}
         </p>
       )}
+    </article>
+  );
+}
+
+/** Resolves one item, and says how it went. */
+function useResolve(item: Item, onDone: () => void) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const act = async (action: Action, note?: string) => {
+    setBusy(true);
+    setError(null);
+    const res = await hostApi<{ item: Item }>(`/api/staff/attention/${item.item_id}/resolve`, { action, ...(note?.trim() ? { note: note.trim() } : {}) });
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.errors?.note ?? res.error);
+      if (res.status === 409) onDone();
+      return;
+    }
+    toast(DONE[action](item.name));
+    onDone();
+  };
+  return { busy, error, act };
+}
+
+/** A booked date the Logic Engine moved (G-4): nobody booked is told until someone chooses. Bookings are never moved. */
+function MovedCard({ item, email, onDone }: { item: Item; email: string | null; onDone: () => void }) {
+  const m = item.moved!;
+  const [mode, setMode] = useState<'tell' | 'cancel' | null>(null);
+  const [note, setNote] = useState('');
+  const { busy, error, act } = useResolve(item, onDone);
+  const id = `att-${item.item_id}`;
+  const when = (date: string | null, time: string | null) => (date ? `${shortDate(date)}${time ? ` (${formatTime(time)})` : ''}` : '');
+  return (
+    <article class="card review-card">
+      <div class="stack" style={{ '--gap': '6px' }}>
+        <div class="cluster" style={{ '--gap': '8px' }}>
+          <h3>{item.name}</h3>
+          <Chip kind="awaiting">
+            <CalendarClock aria-hidden="true" /> Moved, with bookings
+          </Chip>
+        </div>
+        <p>
+          {when(item.date, item.start_time)} has moved in the Logic Engine{m.new_date ? ` to ${when(m.new_date, m.new_start_time)}` : ''}.{' '}
+          {bookings(m.bookings)} ({places(m.people)}) {m.bookings === 1 ? 'was' : 'were'} for the old date, and nobody has told them yet.
+        </p>
+        <p class="meta">{[`waiting ${waiting(item.opened_at)}`, item.ref].join(' · ')}</p>
+        {email && (
+          <p class="meta cluster" style={{ '--gap': '6px' }}>
+            <Mail size={14} aria-hidden="true" /> <span>{email}</span>
+          </p>
+        )}
+        <p class="meta">If the move was a mistake, put the date back in the sheet: this clears itself and the bookings stand.</p>
+      </div>
+      {mode ? (
+        <div class="stack" style={{ '--gap': '8px' }}>
+          <p class="meta">
+            {mode === 'tell'
+              ? `Their bookings for ${shortDate(item.date!)} are cancelled, and each person is emailed (and notified, if they asked) that it has moved to ${shortDate(m.new_date!)}, with a link to book it.`
+              : 'Their bookings are cancelled, and each person is emailed (and notified, if they asked) that it is cancelled.'}
+          </p>
+          <div class="field">
+            <label class="label" for={`${id}-note`}>
+              A message to them (optional)
+            </label>
+            <input id={`${id}-note`} class="input" maxLength={300} value={note} onInput={e => setNote(e.currentTarget.value)} />
+          </div>
+          {error && (
+            <p class="field__error" role="alert">
+              {error}
+            </p>
+          )}
+          <div class="cluster">
+            <button type="button" class={`btn btn--sm ${mode === 'tell' ? 'btn--primary' : 'btn--destructive'}`} disabled={busy} onClick={() => act(mode, note)}>
+              {busy ? 'Sending...' : mode === 'tell' ? `Tell ${m.bookings === 1 ? 'them' : `all ${m.bookings}`}` : 'Cancel their bookings'}
+            </button>
+            <button type="button" class="btn btn--text btn--sm" disabled={busy} onClick={() => setMode(null)}>
+              Back
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div class="cluster">
+          {item.actions.includes('tell') && (
+            <button type="button" class="btn btn--primary btn--sm" disabled={busy} onClick={() => setMode('tell')}>
+              Tell them it has moved
+            </button>
+          )}
+          {item.actions.includes('cancel') && (
+            <button type="button" class="btn btn--destructive-quiet btn--sm" disabled={busy} onClick={() => setMode('cancel')}>
+              Cancel their bookings
+            </button>
+          )}
+          <button type="button" class="btn btn--text btn--sm" disabled={busy} onClick={() => act('dismiss')}>
+            Leave it
+          </button>
+        </div>
+      )}
+    </article>
+  );
+}
+
+/** An email to a customer about their booking that didn't go. It's tried again by itself; this says who to reach. */
+function UndeliveredCard({ item, onDone }: { item: Item; onDone: () => void }) {
+  const u = item.undelivered!;
+  const { busy, error, act } = useResolve(item, onDone);
+  const [retrying, setRetrying] = useState(false);
+  const retry = async () => {
+    setRetrying(true);
+    const res = await hostApi(`/api/staff/outbox/${u.message_id}/retry`, {});
+    setRetrying(false);
+    toast(res.ok ? 'Trying again within 5 minutes.' : res.error);
+    onDone();
+  };
+  return (
+    <article class="card review-card">
+      <div class="stack" style={{ '--gap': '6px' }}>
+        <div class="cluster" style={{ '--gap': '8px' }}>
+          <h3>{item.name}</h3>
+          <Chip kind="cancelled">
+            <MailWarning aria-hidden="true" /> Email not sent
+          </Chip>
+        </div>
+        <p>
+          "{u.subject}" couldn't be sent{u.contact ? ` to ${u.contact.name}` : ''}
+          {item.date ? `, booked on ${shortDate(item.date)}` : ''}.
+        </p>
+        <p class="meta">
+          {u.given_up
+            ? `Given up after ${u.attempts} tries.`
+            : `Tried ${u.attempts === 1 ? 'once' : `${u.attempts} times`}; it's tried again by itself${u.next_attempt_at ? ` at ${formatTime(new Date(u.next_attempt_at).toLocaleTimeString('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit' }))}` : ''}.`}
+          {u.last_error ? ` Gmail said: ${u.last_error}` : ''}
+        </p>
+        {u.contact && (
+          <p class="meta">
+            To reach them another way: {[u.contact.email, u.contact.mobile].filter(Boolean).join(' · ')}
+          </p>
+        )}
+        <p class="meta">{item.ref}</p>
+      </div>
+      {error && (
+        <p class="field__error" role="alert">
+          {error}
+        </p>
+      )}
+      <div class="cluster">
+        {u.given_up && u.message_id && (
+          <button type="button" class="btn btn--secondary btn--sm" disabled={retrying} onClick={retry}>
+            Try again now
+          </button>
+        )}
+        <button type="button" class="btn btn--text btn--sm" disabled={busy} onClick={() => act('dismiss')}>
+          Sorted another way
+        </button>
+      </div>
     </article>
   );
 }

@@ -3,7 +3,8 @@ import { detect } from './attention/attention';
 import { remind } from './attention/reminders';
 import { readImage } from './images/store';
 import { applyRetention } from './lib/privacy';
-import { autoReminder, drain } from './notify/alerts';
+import { drainBookingPushes } from './bookings/devices';
+import { autoReminder, BATCH as ALERTS_BATCH, drain } from './notify/alerts';
 import { readCover } from './games/admin';
 import { currentGotw } from './games/gotw';
 import { alertRoutes } from './routes/alerts';
@@ -90,11 +91,18 @@ app.onError((err, c) => {
   return c.json({ error: 'Something went wrong' }, 500);
 });
 
-/** Every minute: queue the 8pm automatic reminder when it's due, then send a batch of queued ones. */
+/**
+ * Every minute: pushes to people booked on a date that was cancelled or moved
+ * (src/bookings/devices.ts) go first; then event alerts, queueing the 8pm automatic
+ * reminder when it's due and sending a batch, out of what's left of the same budget.
+ */
 async function eventAlerts(env: Env, now: Date) {
+  const ctx = { subject: env.APP_ORIGIN, now };
+  const booked = await drainBookingPushes(env.DB, ctx, ALERTS_BATCH);
+  if (booked.tried) console.log('booking pushes', JSON.stringify(booked));
   const auto = await autoReminder(env.DB, now);
   if (auto) console.log('alerts: automatic reminder', JSON.stringify(auto));
-  const sent = await drain(env.DB, { subject: env.APP_ORIGIN, now });
+  const sent = await drain(env.DB, ctx, ALERTS_BATCH - booked.tried);
   if (sent.sent || sent.failed) console.log('alerts: sent', JSON.stringify(sent));
 }
 
