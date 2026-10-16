@@ -2,6 +2,7 @@
 // event records. Pure: no I/O, so every rule here is unit-tested.
 
 import { parseClock, parseSheetDate } from '../lib/time';
+import { sheetValuesOf } from './sheetValues';
 
 export const CATEGORIES = ['Gaming', 'Quiz', 'Social', 'Club', 'Tournament', 'Market', 'Workshop', 'Other'] as const;
 export type Category = (typeof CATEGORIES)[number];
@@ -37,6 +38,8 @@ export interface NormalisedEvent {
   next: { date: string; start_time: string | null; end_time: string | null; all_day: boolean } | null;
   /** The date cell as written (blank: null), so Needs Attention can say why there's no date. */
   sheet_date_raw: string | null;
+  /** The columns the organiser can change, canonical (src/sync/sheetValues.ts): left out of source_hash. */
+  sheet_values: Record<string, string>;
 }
 
 export interface SyncWarning {
@@ -161,6 +164,7 @@ export function normaliseRows(
       market_id: isIndex && MARKET_ID.test(text(row['App Host Session'])) ? text(row['App Host Session']) : null,
       next: date ? { date, start_time: start, end_time: end, all_day: start === null } : null,
       sheet_date_raw: orNull(text(dateRaw).slice(0, 60)),
+      sheet_values: sheetValuesOf(source, row),
     });
   }
 

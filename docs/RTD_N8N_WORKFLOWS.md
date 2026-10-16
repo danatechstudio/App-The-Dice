@@ -4,6 +4,10 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### 2026-10-16 (evening): RTD Sheet Writer (new, not published)
+
+Approved by the owner (D-13): a new writer limited to mapped columns, by Event ID, on the staging copy first. **Created unpublished**; it does nothing until the app has migration `0022_sheet_edits.sql` and the Stage 6 code, an admin sets **Logic Engine changes** to something other than Off, and the workflow is published (owner's go-ahead). See [RTD Sheet Writer](#rtd-sheet-writer-taa4f7wkzzeidkm8) below.
+
 ### 2026-10-16 (evening): a staging copy of the Logic Engine
 
 At the owner's request (Stage 6, D-12), a one-off workflow, **RTD Make Staging Copy (one-off)**, copied the Logic Engine spreadsheet with the `ATECHGoogleDrive` credential, then was archived.
@@ -247,6 +251,21 @@ Payload shape:
   }
 }
 ```
+
+## RTD Sheet Writer (`TAa4F7wKzzeIDKm8`)
+
+**Not published yet.** Writes the changes admins make under **Logic Engine changes** in the organiser to the Logic Engine ([RTD_EVENT_CONTROL_AUDIT.md §4.4](RTD_EVENT_CONTROL_AUDIT.md#44-as-built-stage-6-sheet-first-editing)). The app decides everything; the workflow only reads, writes what it's told and reports back.
+
+1. **Every 5 Minutes** (and **Run By Hand**) → read rtd_config: `RTD_APP_BASE_URL`, `RTD_STAGING_LOGIC_ENGINE_ID`, `RTD_LOGIC_ENGINE_ID` (not set until the trial).
+2. **Claim Edits From App:** `POST /internal/sheet-edits/claim` → `{ mode, edits: [{ edit_id, claim, event_id, target, tab }] }`. Off: none.
+3. **Edits To Work On** picks each change's spreadsheet from its target: **staging** → the test copy only (refused if that ID is the live sheet); **shadow** and **live** → `RTD_LOGIC_ENGINE_ID` (refused if it isn't set). A refusal goes to the app as a failed try.
+4. **Loop Over Edits**, one at a time: **Read Tab** (the whole tab, by name) → **Rows For This Event** (the rows with its Event ID) → **Check With App** (`POST /internal/sheet-edits/:id/check` with `{ claim, rows }`).
+5. **Write It?** only when the app answers `write` **and** the target isn't shadow. **Cells To Write** refuses cells for another Event ID or any column outside the mapped list. **Update Row (by Event ID):** Google Sheets update, matched on **Event ID**, columns mapped from the cells, RAW, an unknown column is an error. **Read Tab Again** → **Rows After Writing** → **Mark Written In App** (`POST /:id/written`).
+6. **Report Failure To App** (`POST /:id/failed` with `{ claim, error }`) takes every error output (reading, the guard, writing, reading back). The app retries at 5 m, 15 m, 1 h, 4 h and 12 h, then gives up visibly.
+
+**Credentials:** `rtd-app` (header auth), `ATECHGoogleSheets`. **Settings:** error workflow `Studio: Error Handler` (`IClMUs9ByRmVBYJf`), Europe/London, executions saved, 300 s timeout.
+**Versions:** created `308a5e79-d71b-4fa6-8153-7282beb2b0f1`; run settings added in the next version. Rolling back = unpublishing it.
+**Verified:** a test run with the sheet and app calls simulated (see [RTD_EVENT_CONTROL_TESTS.md](RTD_EVENT_CONTROL_TESTS.md#stage-6-changing-events-from-the-organiser-2026-10-16)). **Not yet:** a real write to the test copy.
 
 ## RTD Event Images (`GeafnErtRe5ZMbiD`)
 

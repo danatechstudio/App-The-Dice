@@ -33,6 +33,8 @@ export interface EventRow {
   market_id: string | null;
   sheet_date_raw: string | null;
   source_hash: string | null;
+  /** JSON (src/sync/sheetValues.ts). Only written, never planned on. */
+  sheet_values?: string | null;
 }
 
 export interface OccurrenceRow {
@@ -124,6 +126,7 @@ function toEventRow(e: NormalisedEvent & { source_hash: string }): EventRow {
     market_id: e.market_id,
     sheet_date_raw: e.sheet_date_raw,
     source_hash: e.source_hash,
+    sheet_values: JSON.stringify(e.sheet_values),
   };
 }
 

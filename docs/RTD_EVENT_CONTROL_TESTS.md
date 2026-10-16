@@ -236,6 +236,44 @@ A weekly quiz, with one booking on 23 October.
 - **Afterwards:** the row showed **Hidden in the app**, **Own description** and **Own price: £3**, and `/api/events` no longer listed 23 October (30 October onwards still listed).
 - **Console:** only the expected 409 for the warning.
 
+## Stage 6: changing events from the organiser (2026-10-16)
+
+**Result:** `npm test`: 28 files, **400 passed** (18 new in `test/sheet-edits.test.ts`; `test/normalise.test.ts` now checks the sheet values). `tsc` is clean for the Worker and the web app.
+
+| Brief requirement (G-6, D-13) | Test |
+| --- | --- |
+| Canonical values: `6:30 PM` = `18:30`, sheet time fractions and serial dates, `App Bookable`, blank visibility = hidden, case of Status and category, line endings | `treats the same value written two ways as equal` |
+| Cells written as the sheet holds them (DD/MM/YYYY, `App Bookable`), Day with a date | `writes cells the way the sheet holds them…` |
+| Checking a row: write only what still holds `from`; a column already changed the same way is left alone; anything else is a conflict; no row, a duplicate Event ID or a renamed column is an error | `checks a row: write, nothing to do, conflict, or an error` |
+| The sync stores the sheet values without changing any event's hash | `stores them on each event without changing its hash` |
+| Closed while off; admins only (approvers get 403 for the setting, the list and changes); the setting is audited | `is closed while switched off, and only for admins` |
+| The café's events with their sheet values; host sessions are not offered | `lists the café’s events with their sheet values…` |
+| **An app edit reaches the sheet, then the app at the next sync, with no echo:** only changed columns queued; nothing public changes before the sheet does; claimed once; the check offers just the cells; read back; the sync shows it and marks it synced; nothing goes back | `reaches the sheet, then the app at the next sync, with no echo` |
+| **Concurrent edits are a conflict with neither overwritten:** nothing to write; the admin is emailed; a stale run can't settle it; another change waits; **write mine** checks again against the sheet's new value | `records a conflict when the sheet moved on…` |
+| Keep the sheet's value | `keeps the sheet’s value when asked` |
+| Both sides made the same change: nothing written | `writes nothing when the sheet already has the change` |
+| The sheet changed again before the app read it: overtaken, the sheet's value stands; a sync that may have read before the write proves nothing | `marks a written change overtaken…` |
+| Shadow writes nothing; staging writes only the test copy and never touches the app | `only tries it out in shadow mode, and only writes the test copy in staging mode` |
+| Live changes wait while the mode is off or a trial; withdraw | `holds live changes while the mode is off or a trial` |
+| **Recovery after an n8n / Google outage:** retries at 5 m, 15 m, 1 h, 4 h, 12 h; not claimable before its time; a failure counts once per claim; given up on with an email; **Try again** | `tries again after a failure, then gives up…` |
+| A cell that reads back wrong is given up on at once | `gives up at once when the cells read back wrong` |
+| The form is checked: a name another row has, past or invalid dates, an end with no start, unknown values, columns that can't be changed, nothing changed, host sessions, unknown events | `checks the form` |
+| Moving a booked date or switching an event off asks first, with the numbers | `asks first when people have booked` |
+| The overview for admins: mode, counts, the last sync; claims never shown | `shows the queue and the last sync to admins` |
+
+### Checked in the running app (2026-10-16, local `wrangler dev`, Chromium at 390 px)
+
+Seeded with a weekly Quiz Night (one booking on 23 October).
+- **Logic Engine changes:** Off at first. **Test copy**, then **Save**.
+- **Find an event:** "quiz" found Quiz Night. **Change:** Ends 22:30 and new base details, then **Send to the sheet**. It warned "1 booking (2 places) on Friday 23 October…"; **Change it anyway** queued it: "Waiting to be written · Test copy", only End Time and Base Details listed.
+- **The writer, by hand** (`/internal/sheet-edits/claim`, then `/check` with a row whose Base Details had been changed by hand): `{ action: skip, status: conflict }`. The card showed "The sheet changed", "the sheet now has Teams of up to six, bring a pen.", and **Keep the sheet's** / **Write mine over it**.
+- **Write mine over it:** back to waiting, now from the sheet's value. The next `/check` answered `write` with exactly `{ Event ID, Base Details, End Time }`; `/written` with the row read back: "In the sheet".
+- **Console:** only the expected 409 for the warning.
+
+### n8n RTD Sheet Writer (2026-10-16, a test run with the sheet and app calls simulated)
+
+Three changes: a staging one, a live one (no `RTD_LOGIC_ENGINE_ID` set) and a Standard Diary one whose simulated check answer named another event. Each was handled on its own pass of the loop with its own Event ID; the live one was reported to the app as a failed try ("rtd_config has no RTD_LOGIC_ENGINE_ID…"); the third was refused by **Cells To Write** ("The cells are for a different Event ID") and reported, so nothing would have been written. The rtd_config reads were real; the staging ID resolved to the test copy.
+
 ## Later stages
 
 | Brief §4 criterion | Stage |

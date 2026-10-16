@@ -23,6 +23,7 @@ import { changesToApply, markChangeApplied } from '../host/changes';
 import { markFailed, markSent, unsent } from '../notify/outbox';
 import { decidedApplicationsForApplicants, markApplicationNotified, newApplicationsForApprovers } from '../team/applications';
 import { applySync, parsePayload } from '../sync/apply';
+import { checkEdit, claimEdits, markEditFailed, markEditWritten, parseWriterBody } from '../sync/edits';
 
 const MAX_BODY_BYTES = 1_000_000;
 
@@ -245,6 +246,47 @@ internalRoutes.post('/sheet-fixes/:eventId/done', async c => {
   if (typeof body.key !== 'string' || !body.key) return c.json({ error: 'key is required' }, 400);
   const done = await markSheetFixed(c.env.DB, c.req.param('eventId'), body.key, new Date().toISOString());
   return done ? c.json({ ok: true }) : c.json({ error: 'No event with that ID' }, 404);
+});
+
+// --- Changes made in the organiser (n8n RTD Sheet Writer, src/sync/edits.ts) ---
+
+async function writerBody(c: { req: { text(): Promise<string> } }) {
+  const text = await c.req.text();
+  if (text.length > MAX_BODY_BYTES) return 'Body too large';
+  try {
+    return parseWriterBody(JSON.parse(text));
+  } catch {
+    return 'Body must be JSON';
+  }
+}
+
+/** Edits due: { mode, edits: [{ edit_id, claim, event_id, target, tab }] }. target picks the spreadsheet. */
+internalRoutes.post('/sheet-edits/claim', async c => c.json(await claimEdits(c.env.DB, new Date())));
+
+/** Body: { claim, rows } (the rows read from the tab). Answers { action: 'write', tab, cells } or { action: 'skip', status }. */
+internalRoutes.post('/sheet-edits/:id/check', async c => {
+  const body = await writerBody(c);
+  if (typeof body === 'string') return c.json({ error: body }, 400);
+  const res = await checkEdit(c.env.DB, c.req.param('id'), body.claim, body.rows, new Date(), new URL(c.req.url).origin);
+  return res ? c.json(res) : c.json({ error: 'No change with that number' }, 404);
+});
+
+/** Body: { claim, rows } (the row read back after writing). */
+internalRoutes.post('/sheet-edits/:id/written', async c => {
+  const body = await writerBody(c);
+  if (typeof body === 'string') return c.json({ error: body }, 400);
+  const res = await markEditWritten(c.env.DB, c.req.param('id'), body.claim, body.rows, new Date(), new URL(c.req.url).origin);
+  if (res === 'not_found') return c.json({ error: 'No change with that number' }, 404);
+  return c.json({ ok: res !== 'mismatch', result: res });
+});
+
+/** Body: { claim, error } (what Google or n8n said). */
+internalRoutes.post('/sheet-edits/:id/failed', async c => {
+  const body = ((await c.req.json().catch(() => ({}))) ?? {}) as { claim?: unknown; error?: unknown };
+  if (typeof body.claim !== 'string' || !body.claim) return c.json({ error: 'claim is required' }, 400);
+  const res = await markEditFailed(c.env.DB, c.req.param('id'), body.claim, body.error, new Date(), new URL(c.req.url).origin);
+  if (res === 'not_found') return c.json({ error: 'No change with that number' }, 404);
+  return c.json({ ok: true, result: res });
 });
 
 /**

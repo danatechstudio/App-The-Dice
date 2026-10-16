@@ -313,6 +313,30 @@ Added in `0017_attention.sql`: **Needs attention** ([RTD_EVENT_CONTROL_AUDIT.md]
 **Emails** (outbox `kind`): `attention_expired` (dedupe `expiry-new:<item_id>:<address>`), `attention_digest` (`expiry-digest:<date>:<address>`) and `attention_test`.
 **Audit:** `attention.opened`, `attention.resolved`, `attention.switched_on` / `attention.switched_off`.
 
+## sheet_edits
+
+Added in `0022_sheet_edits.sql` (Stage 6; [RTD_EVENT_CONTROL_AUDIT.md §4.4](RTD_EVENT_CONTROL_AUDIT.md#44-as-built-stage-6-sheet-first-editing)): an admin's change to an event's Logic Engine columns, on its way to the sheet. The app never applies it itself: the sync brings it in once the sheet has it.
+
+| Column | Notes |
+| --- | --- |
+| `edit_id` | `RTD-SE-00001` upwards |
+| `event_id`, `source` | The event, and its tab (`event_index` or `standard_diary`) |
+| `target` | Fixed when made, from the `sheet_writes` setting: `staging` (the test copy), `shadow` (a trial on the live sheet: nothing written) or `live` |
+| `fields` | JSON `{column: {from, to}}`, canonical (dates `YYYY-MM-DD`, times `HH:MM`, App Visibility `public` / `app_bookable` / `private` / `hidden`). Only columns that change |
+| `note`, `requested_by` | The admin's note, and their sign-in email |
+| `status` | `queued`, `written` (in the sheet and read back), `synced` (a live change the app now shows), `overtaken` (the sheet changed again before the app read it), `dry_run` (a trial), `conflict`, `dead` (given up on) or `cancelled` |
+| `cells` | JSON: the cells written (or that a trial would write), as the sheet holds them: Event ID, each column, and Day with a date |
+| `found` | JSON: what the writer found in the sheet for those columns (shown for a conflict) |
+| `attempts`, `last_error`, `last_attempt_at`, `next_attempt_at` | Failed tries: again after 5 m, 15 m, 1 h, 4 h and 12 h, then `dead` |
+| `claim`, `claimed_at` | n8n's hold while it works on it (10 minutes) |
+| `written_at`, `settled_at` | When it reached the sheet; when it reached a final state |
+| `resolved_by`, `resolution` | `withdrawn`, `kept_sheet`, `kept_mine` or `retried`, and who chose |
+
+**`events.sheet_values`** (also 0022): JSON of the editable columns as the last sync read them, canonical. Left out of `source_hash`.
+**Setting** `sheet_writes`: `off` (default), `staging`, `shadow` or `live`. Admins change it in the organiser.
+**Emails** (outbox `kind`, to the admin who made the change): `sheet_edit_conflict`, `sheet_edit_dead`.
+**Audit:** `sheet_writes.changed` (setting); on the event: `sheet_edit.requested`, `.written`, `.already_in_sheet`, `.dry_run`, `.conflict`, `.dead`, `.withdraw`, `.keep_sheet`, `.write_mine`, `.retry`.
+
 ## event_change_requests
 
 Added in `0021_change_requests.sql` (Stage 5a; [RTD_HOST_PORTAL.md](RTD_HOST_PORTAL.md#changing-a-live-session)): a host's change to their live session, which an approver decides.

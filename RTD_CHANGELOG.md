@@ -1,5 +1,15 @@
 # RTD App Changelog
 
+## 2026-10-16 (Changing events from the organiser: built, not yet live)
+- **New in the organiser, for admins: Logic Engine changes.** Change an event's name, details, next date, times, Status, who can see it, category or price, and it's written to its row in the Logic Engine, found by **Event ID**. Host sessions (their hosts ask for changes) and markets are left out; so are Frequency and App Capacity.
+- **The sheet stays the master.** Nothing changes in the app straight away: n8n writes just the changed cells, reads them back, and the next sync brings them into the diary, like an edit typed into the sheet. So a change can't echo back and forth.
+- **Nothing is overwritten silently.** Before writing, the app checks the row still holds what you saw. If the sheet changed since, nothing is written and you choose: **keep the sheet's** or **write mine over it**. You're emailed when that happens, or when a change can't be written after five tries (5 m, 15 m, 1 h, 4 h, 12 h).
+- **Moving a booked date or switching an event off asks first,** and says what happens to the bookings (Needs attention picks them up, as for an edit in the sheet).
+- **Where changes go, set by an admin:** **Off** (the start), **Test copy** (the staging copy of the sheet only), **Trial** (checked against the real sheet and shows what it would write, but writes nothing) and **Live**. The plan: test copy, then at least a week's trial, then Live with the owner's go-ahead.
+- **The sync now keeps each event's sheet values** (canonical: dates, times, visibility), so a change records exactly what it changes from. It doesn't change any event's hash.
+- **New n8n workflow RTD Sheet Writer** (every 5 minutes once published; not published yet).
+- **Database:** migration `0022_sheet_edits.sql` (one column, one table, one setting, off). Not applied to production yet. **Tests:** 400 (was 382).
+
 ## 2026-10-16 (Dates in the app)
 - **New in the organiser, for approvers and admins: Dates in the app.** It lists the next four weeks; each date can be changed without touching the Logic Engine:
   - **Hide this date in the app,** or show it again. It leaves the diary and its page. Hiding a date people have booked asks first, and their bookings stand.
