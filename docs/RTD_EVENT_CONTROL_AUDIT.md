@@ -416,6 +416,8 @@ The existing suite covers most app paths. n8n paths need dry runs (the Guard has
 
 ## 7. Decisions blocked on the owner
 
+**2026-10-16: the owner approved the staged plan and every recommendation below** ("Approved, go with your recommendations"). Two items still need the owner to act: D-15 (renew or archive Bingo) and D-16 (make the repository private, in GitHub settings).
+
 | # | Decision | Recommendation |
 | --- | --- | --- |
 | D-1 | Unknown end time rule | Keep **start + 1 h** (matches the calendar mirror). Mark `end_inferred` and list those rows in admin. All-day = visible until London midnight. Live: 0 timed rows lack an end; all Standard Diary rows are all-day |

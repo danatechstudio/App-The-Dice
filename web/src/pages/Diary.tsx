@@ -4,7 +4,8 @@ import { DiceLoader, EmptyState, ErrorState } from '../components/States';
 import type { Category } from '../lib/api';
 import { CATEGORY } from '../lib/categories';
 import { addDays, longDate } from '../lib/dates';
-import { groupByDate, notOver, useUpcoming } from '../lib/events';
+import { groupByDate, useUpcoming } from '../lib/events';
+import { isUpcoming } from '../lib/upcoming';
 import { useCount } from '../lib/stats';
 import { read, write } from '../lib/storage';
 import { useTitle } from '../lib/title';
@@ -27,7 +28,7 @@ export function Diary() {
 
   const days = RANGES.find(r => r.id === range)!.days;
   const end = addDays(today, days);
-  const inRange = (occurrences ?? []).filter(o => notOver(o, today) && o.date <= end);
+  const inRange = (occurrences ?? []).filter(o => isUpcoming(o) && o.date <= end);
   const categories = [...new Set(inRange.map(o => o.category))].sort();
   const shown = category ? inRange.filter(o => o.category === category) : inRange;
 

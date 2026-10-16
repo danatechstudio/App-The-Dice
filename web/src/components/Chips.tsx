@@ -1,7 +1,8 @@
 import { Ban, Moon, Sparkles } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import type { Occurrence } from '../lib/api';
-import { nowLondonTime, todayLondon } from '../lib/dates';
+import { todayLondon } from '../lib/dates';
+import { hasEnded } from '../lib/upcoming';
 
 export type ChipKind =
   | 'today' | 'tonight' | 'booking-open' | 'nearly-full' | 'full' | 'free' | 'new' | 'cancelled'
@@ -19,8 +20,7 @@ export function occurrenceChips(o: Occurrence, today = todayLondon()) {
   const chips: { kind: ChipKind; label: string }[] = [];
   if (o.status === 'cancelled') return [{ kind: 'cancelled' as const, label: 'Cancelled' }];
   if (o.date === today) {
-    const ended = o.end_time && o.end_time <= nowLondonTime();
-    if (!ended) chips.push(o.start_time && o.start_time >= EVENING ? { kind: 'tonight', label: 'Tonight' } : { kind: 'today', label: 'Today' });
+    if (!hasEnded(o)) chips.push(o.start_time && o.start_time >= EVENING ? { kind: 'tonight', label: 'Tonight' } : { kind: 'today', label: 'Today' });
   }
   if (o.price_display && /^free$/i.test(o.price_display.trim())) chips.push({ kind: 'free', label: 'Free' });
   return chips;

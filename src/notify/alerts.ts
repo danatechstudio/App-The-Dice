@@ -13,7 +13,7 @@ import { clean, sha256 } from '../bookings/bookings';
 import { withImages } from '../images/store';
 import type { AuthUser } from '../lib/auth';
 import { shortDate, timeLabel } from '../lib/format';
-import { OCCURRENCE_FIELDS, OCCURRENCE_ID, VISIBLE, findOccurrence, shape, type PublicOccurrence, type Row } from '../lib/queries';
+import { OCCURRENCE_FIELDS, OCCURRENCE_ID, VISIBLE, findOccurrence, goneReason, shape, upcoming, type PublicOccurrence, type Row } from '../lib/queries';
 import { addDays, londonDate, londonHour } from '../lib/time';
 import { countApp } from '../stats/stats';
 import { deviceLabel, parseSubscription, sendPush, vapidHeader, vapidKeys, type PushContext, type PushMessage } from './push';
@@ -202,7 +202,7 @@ export async function sendReminder(db: D1Database, admin: AuthUser, input: Remin
   if (admin.role !== 'admin') return { ok: false, status: 403, error: 'Only admins can send reminders.' };
   const found = await findOccurrence(db, input.occurrence_id);
   if (!found) return { ok: false, status: 404, error: 'No public event on that date.' };
-  if (found.status !== 'scheduled' || found.date < londonDate(ctx.now)) return { ok: false, status: 409, error: "That date isn't coming up any more." };
+  if (goneReason(found, ctx.now)) return { ok: false, status: 409, error: "That date isn't coming up any more." };
   const recent = await recentFor(db, found.event_id, ctx.now);
   if (recent && !input.confirm) return { ok: false, status: 409, warning: recent };
 
@@ -354,7 +354,7 @@ export interface ReminderEvent {
 /** Devices with alerts on, the latest reminders, and the next date of every public event in the next fortnight. */
 export async function overview(db: D1Database, now: Date) {
   const today = londonDate(now);
-  const [devices, recent, lastAuto, upcoming] = await db.batch([
+  const [devices, recent, lastAuto, coming] = await db.batch([
     db.prepare('SELECT COUNT(*) AS n FROM alert_subscriptions'),
     db.prepare(
       `SELECT send_id, kind, event_id, occurrence_id, title, body, sent_by, devices, delivered, failed, opened, social, social_error, social_at, created_at
@@ -365,13 +365,13 @@ export async function overview(db: D1Database, now: Date) {
       .prepare(
         `SELECT ${OCCURRENCE_FIELDS}, (SELECT MAX(p.created_at) FROM push_sends p WHERE p.event_id = e.event_id) AS last_sent_at
          FROM occurrences o JOIN events e ON e.event_id = o.event_id
-         WHERE ${VISIBLE} AND o.status = 'scheduled' AND o.event_date BETWEEN ?1 AND ?2
+         WHERE ${VISIBLE} AND ${upcoming('?3', '?1')} AND o.event_date BETWEEN ?1 AND ?2
          ORDER BY o.event_date, o.start_time LIMIT 200`,
       )
-      .bind(today, addDays(today, 14)),
+      .bind(today, addDays(today, 14), now.toISOString()),
   ]);
   const seen = new Set<string>();
-  const events: ReminderEvent[] = (upcoming!.results as Row[])
+  const events: ReminderEvent[] = (coming!.results as Row[])
     .map(r => ({ o: shape(r), last: (r.last_sent_at as string | null) ?? null }))
     .filter(({ o }) => !seen.has(o.event_id) && seen.add(o.event_id))
     .slice(0, 40)

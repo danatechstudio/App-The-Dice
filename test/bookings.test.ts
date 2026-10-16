@@ -238,8 +238,10 @@ describe('the host', () => {
     expect(await availability(ROOT)).toMatchObject({ open: false, reason: 'cancelled' });
     const diary = await (await request('/api/events')).json<{ occurrences: { occurrence_id: string }[] }>();
     expect(diary.occurrences.map(o => o.occurrence_id)).not.toContain(ROOT);
-    const occ = await (await request(`/api/occurrences/${ROOT}`)).json<{ occurrence: { status: string } }>();
-    expect(occ.occurrence.status).toBe('cancelled');
+    // An old link only says it was cancelled (docs/RTD_EVENT_CONTROL_AUDIT.md, G-1).
+    const occ = await request(`/api/occurrences/${ROOT}`);
+    expect(occ.status).toBe(410);
+    expect(await occ.json()).toMatchObject({ gone: { occurrence_id: ROOT, reason: 'cancelled' } });
 
     // The next sync of the unchanged sheet doesn't bring it back.
     await sync({ run_id: 'after-cancel', sources: { event_index: rows() } });

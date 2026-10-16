@@ -5,7 +5,8 @@ import { Chip } from '../components/Chips';
 import { EventCard } from '../components/EventCard';
 import { DiceLoader, EmptyState, ErrorState } from '../components/States';
 import { addDays } from '../lib/dates';
-import { firstPerEvent, isPrivate, notOver, useUpcoming } from '../lib/events';
+import { firstPerEvent, isPrivate, useUpcoming } from '../lib/events';
+import { isUpcoming } from '../lib/upcoming';
 import { useTitle } from '../lib/title';
 import { useApi } from '../lib/api';
 import { gameName, playersLabel, timeLabel, type Gotw } from '../lib/games';
@@ -13,7 +14,7 @@ import { gameName, playersLabel, timeLabel, type Gotw } from '../lib/games';
 export function Home() {
   useTitle(null);
   const { occurrences, withPrivate, error, loading, reload, today } = useUpcoming();
-  const upcoming = (occurrences ?? []).filter(o => notOver(o, today));
+  const upcoming = (occurrences ?? []).filter(o => isUpcoming(o));
   const tonight = upcoming.filter(o => o.date === today);
   // Lead with tonight (one with a photo, if any); otherwise the next event that
   // has a time (a proper event, rather than a regular room booking).
@@ -23,7 +24,7 @@ export function Home() {
   const comingUp = firstPerEvent(upcoming.filter(o => o.date <= addDays(today, 14)), feature ? [feature] : []).slice(0, 8);
   const heading = tonight.length ? 'Tonight at Roll The Dice' : 'Next up at Roll The Dice';
   // Private sessions are never featured, but they do show the café is busy.
-  const busyToday = (withPrivate ?? []).filter(o => isPrivate(o) && o.date === today && notOver(o, today)).length;
+  const busyToday = (withPrivate ?? []).filter(o => isPrivate(o) && o.date === today && isUpcoming(o)).length;
 
   return (
     <>

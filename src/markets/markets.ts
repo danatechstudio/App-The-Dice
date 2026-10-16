@@ -9,7 +9,8 @@ import { EMAIL, MOBILE, clean, sha256 } from '../bookings/bookings';
 import { priceLabel } from '../host/sessions';
 import type { AuthUser } from '../lib/auth';
 import { ukDate, weekdayOf } from '../lib/format';
-import { addDays, londonDate, parseSheetDate } from '../lib/time';
+import { publicCache, publicUntil } from '../lib/queries';
+import { addDays, londonDate, occurrenceInstants, parseSheetDate } from '../lib/time';
 import type { Email } from '../notify/emails';
 import { queue } from '../notify/outbox';
 import { insuranceText, marketApplicationToApprove, vendorApplied, vendorApproved, vendorDeclined, type MarketFacts, type VendorFacts } from './emails';
@@ -221,19 +222,29 @@ const toPublic = (r: PublicRow, today: string): PublicMarket => ({
   occurrence_id: r.occurrence_id,
 });
 
-/** Markets still to come, for vendors. Never says who has applied. */
-export async function publicMarkets(db: D1Database, today: string): Promise<PublicMarket[]> {
+/** Same rule as the diary: a market is public until it ends (docs/RTD_EVENT_CONTROL_AUDIT.md, G-1). */
+const marketEnds = (m: Pick<PublicMarket, 'event_date' | 'start_time' | 'end_time'>) => ({
+  date: m.event_date,
+  ends_at: occurrenceInstants(m.event_date, m.start_time, m.end_time).endsAt,
+});
+
+/** Markets still to come or running, for vendors, and how long the list can be cached. Never says who has applied. */
+export async function publicMarkets(db: D1Database, now: Date): Promise<{ markets: PublicMarket[]; cache: { 'Cache-Control': string } }> {
+  const today = londonDate(now);
   const { results } = await db
     .prepare(`SELECT ${PUBLIC_FIELDS} FROM markets m WHERE m.event_date >= ?1 ORDER BY m.event_date, m.market_id LIMIT 20`)
     .bind(today)
     .all<PublicRow>();
-  return results.map(r => toPublic(r, today));
+  const live = results.filter(r => Date.parse(publicUntil(marketEnds(r))) > now.getTime());
+  return { markets: live.map(r => toPublic(r, today)), cache: publicCache(live.map(marketEnds), now) };
 }
 
-export async function publicMarket(db: D1Database, id: string, today: string): Promise<PublicMarket | null> {
+/** One market, until it ends. */
+export async function publicMarket(db: D1Database, id: string, now: Date): Promise<{ market: PublicMarket; cache: { 'Cache-Control': string } } | null> {
   if (!MARKET_ID.test(id)) return null;
   const row = await db.prepare(`SELECT ${PUBLIC_FIELDS} FROM markets m WHERE m.market_id = ?1`).bind(id).first<PublicRow>();
-  return row ? toPublic(row, today) : null;
+  if (!row || Date.parse(publicUntil(marketEnds(row))) <= now.getTime()) return null;
+  return { market: toPublic(row, londonDate(now)), cache: publicCache([marketEnds(row)], now) };
 }
 
 // ---- Into the Logic Engine (n8n RTD Host Sessions To Diary, with the host sessions) ----

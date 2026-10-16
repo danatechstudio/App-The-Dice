@@ -1,5 +1,13 @@
 # RTD App Changelog
 
+## 2026-10-16 (finished events leave the app when they end)
+- **A date disappears from the public app the moment it ends,** not at midnight and not when n8n next syncs: the diary, Home, Book, event pages, Add to Calendar, link previews, the splash and markets. All-day dates (the Standard Diary) last until midnight. This is Stage 3a of the event control plan; see [docs/RTD_EVENT_CONTROL_AUDIT.md](docs/RTD_EVENT_CONTROL_AUDIT.md).
+- **Old links to a finished, cancelled or moved date** now say only that ("Quiz has finished", "… was cancelled", "… has moved"), with a button to the next date if there is one. They no longer show the description, photo, price or booking panel. Shared links to them get the plain café preview.
+- **Caching:** public lists are cached only until the first date in them ends (at most 60 seconds, as before).
+- **Fixed:** an event running past midnight (say 19:00–01:00) was hidden from the diary all evening on its own date. One with no end time was hidden from its start time.
+- **Admins:** an event that has ended can't be chosen for a reminder.
+- **No database change.** **Tests:** 326 (was 313); evidence in [docs/RTD_EVENT_CONTROL_TESTS.md](docs/RTD_EVENT_CONTROL_TESTS.md).
+
 ## 2026-10-15 (template covers)
 - **Every game has a cover now:** a game without a box image shows a template cover with its title, in its category's colour and icon (for example green with blocks for Children's & Educational, orange with a party popper for Party, Trivia & Social). The catalogue had no images, only search links, so all 124 games use it until a real cover is added under **Library → Cover**.
 - **No rights to clear:** the app draws the template itself; there's no image file.

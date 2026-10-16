@@ -7,10 +7,6 @@ export function todayLondon(now = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: LONDON, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
 }
 
-export function nowLondonTime(now = new Date()): string {
-  return new Intl.DateTimeFormat('en-GB', { timeZone: LONDON, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now);
-}
-
 const asUtc = (iso: string) => new Date(`${iso}T12:00:00Z`);
 
 export function addDays(iso: string, days: number): string {
