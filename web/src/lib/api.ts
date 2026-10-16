@@ -23,7 +23,9 @@ export interface Occurrence {
   price_display: string | null;
   /** Max players, when known (host sessions set it). */
   capacity: number | null;
-  /** Takes bookings in the app (every public event, except markets set up in the app). */
+  /** Whether people need to book: Not required, Optional or Required. */
+  booking_mode?: 'none' | 'optional' | 'required';
+  /** Takes bookings in the app: public, and booking Optional or Required. */
   bookable?: boolean;
   /** A market set up in the organiser: vendors apply for pitches instead. */
   market_id?: string | null;

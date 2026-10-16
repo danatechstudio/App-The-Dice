@@ -1,5 +1,15 @@
 # RTD App Changelog
 
+## 2026-10-16 (Booking modes)
+- **Each event now says whether people need to book:** **Not required**, **Optional** or **Required**. Approvers and admins set it under **Booking for café events** in the organiser (it was **Places for café events**).
+  - **Not required:** "No booking needed: just come along." No booking form, and it's not on the Book page.
+  - **Optional:** **Reserve a place**, "you can also just turn up". When the places run out: "you can still come along on the day".
+  - **Required:** **Book a place**, with a **Booking required** chip. When the places run out, it's full.
+- **Defaults:** the café's own events Optional; Standard Diary groups Not required (they no longer show a booking form); hosts' sessions Required; markets Not required.
+- **Bookings already made always stand.** Switching to Not required while people are booked asks first, and their Manage / Cancel links keep working.
+- **The sheet sync never changes it.** Every change is in the audit log.
+- **Database:** migration `0019_booking_mode.sql` (one column). **Tests:** 351 (was 346).
+
 ## 2026-10-16 (Needs attention emails)
 - **Emails about events that need attention,** to the addresses an admin sets under **Needs attention → Email reminders**. It's off until switched on. They go out through the usual outbox (n8n RTD Outbox, Gmail).
   - **A notice when a date passes with nothing after it:** the event, when it finished, and what to do. One per event per address, however often the check runs.

@@ -1,6 +1,7 @@
-// Booking places on an event page (docs/RTD_BOOKINGS.md): every public café
-// event and open host session. No account: name, email, how many. The
-// confirmation email has a link to cancel.
+// Booking places on an event page (docs/RTD_BOOKINGS.md): public events whose
+// booking is Optional (reserve a place, or just turn up) or Required (book to come).
+// Not required: no form, just "come along". No account: name, email, how many.
+// The confirmation email has a link to cancel.
 
 import { CircleCheck, Info, Minus, Plus, Ticket } from 'lucide-preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
@@ -10,9 +11,11 @@ import { hostApi } from '../lib/hostApi';
 import { count } from '../lib/stats';
 import { toast } from '../lib/toast';
 
+type Mode = 'none' | 'optional' | 'required';
+
 export type Availability =
-  | { bookable: false }
-  | { bookable: true; open: boolean; reason: 'full' | 'closed' | 'cancelled' | null; capacity: number | null; places_left: number | null; max_party: number };
+  | { bookable: false; mode: Mode | null }
+  | { bookable: true; mode: Mode; open: boolean; reason: 'full' | 'closed' | 'cancelled' | null; capacity: number | null; places_left: number | null; max_party: number };
 
 const placesText = (n: number) => `${n} ${n === 1 ? 'place' : 'places'}`;
 
@@ -21,7 +24,7 @@ export function BookingPanel({ o }: { o: Occurrence }) {
   const [done, setDone] = useState<{ email: string; party: number; manage: string } | null>(null);
   const load = useCallback(async () => {
     const res = await hostApi<Availability>(`/api/bookings/availability/${encodeURIComponent(o.occurrence_id)}`);
-    setAvail(res.ok ? res.data : { bookable: false });
+    setAvail(res.ok ? res.data : { bookable: false, mode: null });
   }, [o.occurrence_id]);
   useEffect(() => void load(), [load]);
 
@@ -30,7 +33,9 @@ export function BookingPanel({ o }: { o: Occurrence }) {
     return (
       <div class="notice">
         <Info size={20} aria-hidden="true" color="var(--rtd-secondary)" />
-        <p class="meta">Online booking isn't open for this event. Ask the café team to save you a place.</p>
+        <p class="meta">
+          {avail.mode === 'none' ? 'No booking needed: just come along.' : "Online booking isn't open for this event. Ask the café team to save you a place."}
+        </p>
       </div>
     );
   }
@@ -55,7 +60,13 @@ export function BookingPanel({ o }: { o: Occurrence }) {
     return (
       <div class="notice notice--warning">
         <Info size={20} aria-hidden="true" />
-        <p>{avail.reason === 'full' ? 'This session is full. Ask the café if a place frees up.' : 'Booking has closed for this session.'}</p>
+        <p>
+          {avail.reason !== 'full'
+            ? 'Booking has closed for this session.'
+            : avail.mode === 'optional'
+              ? 'All the places you can reserve have gone, but you can still come along on the day.'
+              : 'This one is full, and you need to book to come. Ask the café if a place frees up.'}
+        </p>
       </div>
     );
   }
@@ -112,8 +123,9 @@ function BookingForm({
     <section class="booking" aria-labelledby="book-title">
       <div class="booking__head">
         <h2 id="book-title" class="display">
-          <Ticket size={20} aria-hidden="true" /> Book a place
+          <Ticket size={20} aria-hidden="true" /> {avail.mode === 'optional' ? 'Reserve a place' : 'Book a place'}
         </h2>
+        <p class="meta">{avail.mode === 'optional' ? 'Booking is optional: you can also just turn up.' : 'Booking is required: you need a place to come.'}</p>
         {avail.places_left !== null && avail.capacity !== null && (
           <p class="meta">
             {placesText(avail.places_left)} left of {avail.capacity}

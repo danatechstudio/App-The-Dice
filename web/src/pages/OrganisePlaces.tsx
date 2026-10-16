@@ -1,18 +1,25 @@
 // Places in the organiser (docs/RTD_BOOKINGS.md#places):
 // - PlacesEditor: a number of places, with an optional "clear" choice;
 // - SessionPlaces: a host changes every date of their own live session;
-// - EventPlacesPanel: approvers set places for the café's own events.
+// - EventPlacesPanel: approvers set whether people need to book the café's own events
+//   (Not required / Optional / Required) and their places.
 // The server refuses a number below what's already booked, and says on which date.
 
 import { Minus, Plus, UsersRound } from 'lucide-preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { DiceLoader } from '../components/States';
 import { shortDate } from '../lib/dates';
-import { hostApi, MAX_PLACES, type EventPlaces } from '../lib/hostApi';
+import { hostApi, MAX_PLACES, type BookingMode, type EventPlaces } from '../lib/hostApi';
 import { toast } from '../lib/toast';
 
 const placesText = (n: number) => `${n} ${n === 1 ? 'place' : 'places'}`;
 const FREQUENCY: Record<string, string> = { weekly: 'Weekly', fortnightly: 'Fortnightly', monthly: 'Monthly', 'one-off': 'One-off' };
+const MODE: Record<BookingMode, string> = { none: 'Not required', optional: 'Optional', required: 'Required' };
+const MODE_HINT: Record<BookingMode, string> = {
+  none: 'No booking form; people just come along.',
+  optional: 'People can reserve a place, or just turn up.',
+  required: 'People must book to come; when it\'s full, it\'s full.',
+};
 
 /** Saves places, or clears them (null). Resolves to an error message, or null when saved. */
 type Save = (places: number | null) => Promise<string | null>;
@@ -153,10 +160,82 @@ export function DatePlaces({
   );
 }
 
-/** Approvers: places for the café's own events, instead of App Capacity in the sheet. */
+/** Approvers: whether people need to book a café event. Bookings already made always stand. */
+function BookingModeEditor({ e, onDone, onClose }: { e: EventPlaces; onDone: () => void; onClose: () => void }) {
+  const [choice, setChoice] = useState<BookingMode | 'default'>(e.booking_mode_set ?? 'default');
+  const [warning, setWarning] = useState<{ bookings: number; people: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const save = async (confirm: boolean) => {
+    setBusy(true);
+    setError(null);
+    const res = await hostApi<{ booking_mode: BookingMode }>(`/api/staff/events/${e.event_id}/booking-mode`, { mode: choice, confirm });
+    setBusy(false);
+    if (res.ok) {
+      toast(`${e.name}: booking ${MODE[res.data.booking_mode].toLowerCase()}.`);
+      return onDone();
+    }
+    const w = res.status === 409 ? (res.body as { warning?: { bookings: number; people: number } } | undefined)?.warning : undefined;
+    if (w) return setWarning(w);
+    setError(res.error);
+  };
+  const name = `mode-${e.event_id}`;
+  const options: (BookingMode | 'default')[] = ['default', 'none', 'optional', 'required'];
+  return (
+    <fieldset class="field stack" style={{ '--gap': '8px' }}>
+      <legend class="label">Does {e.name} need booking?</legend>
+      {options.map(o => (
+        <label key={o} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '10px', alignItems: 'start' }}>
+          <input type="radio" name={name} value={o} checked={choice === o} onChange={() => (setChoice(o), setWarning(null))} style={{ marginTop: '4px' }} />
+          <span>
+            <strong>{o === 'default' ? `The default (${MODE[e.booking_mode_default]})` : MODE[o]}</strong>
+            <span class="meta" style={{ display: 'block' }}>
+              {o === 'default' ? MODE_HINT[e.booking_mode_default] : MODE_HINT[o]}
+            </span>
+          </span>
+        </label>
+      ))}
+      {warning ? (
+        <div class="notice notice--warning" role="alert">
+          <div>
+            <strong>
+              {warning.bookings === 1 ? '1 booking' : `${warning.bookings} bookings`} ({placesText(warning.people)}) on dates to come.
+            </strong>
+            <p>They stay booked and keep their emails and cancel links; the booking form just stops showing. Switch anyway?</p>
+            <div class="cluster">
+              <button type="button" class="btn btn--primary btn--sm" disabled={busy} onClick={() => save(true)}>
+                Switch to Not required
+              </button>
+              <button type="button" class="btn btn--text btn--sm" disabled={busy} onClick={() => setWarning(null)}>
+                Back
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div class="cluster">
+          <button type="button" class="btn btn--primary btn--sm" disabled={busy || choice === (e.booking_mode_set ?? 'default')} onClick={() => save(false)}>
+            {busy ? 'Saving...' : 'Save'}
+          </button>
+          <button type="button" class="btn btn--text btn--sm" disabled={busy} onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      )}
+      {error && (
+        <p class="field__error" role="alert">
+          {error}
+        </p>
+      )}
+    </fieldset>
+  );
+}
+
+/** Approvers: whether people need to book the café's own events, and their places (instead of App Capacity in the sheet). */
 export function EventPlacesPanel({ refresh }: { refresh?: number }) {
   const [events, setEvents] = useState<EventPlaces[] | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const [editingMode, setEditingMode] = useState<string | null>(null);
   const load = useCallback(async () => {
     const res = await hostApi<{ events: EventPlaces[] }>('/api/staff/event-places');
     if (res.ok) setEvents(res.data.events);
@@ -166,14 +245,15 @@ export function EventPlacesPanel({ refresh }: { refresh?: number }) {
   return (
     <section class="section" aria-labelledby="event-places">
       <div class="section-head">
-        <h2 id="event-places">Places for café events</h2>
+        <h2 id="event-places">Booking for café events</h2>
       </div>
       <p class="meta" style={{ marginBottom: '12px' }}>
-        How many people can book each of the café's own events. With no number, there's no limit. A number set here is used instead of App Capacity in the
-        sheet, until someone changes App Capacity there. Hosts set their own sessions' places.
+        Whether people need to book each of the café's own events (Not required, Optional or Required), and how many can book. With no number, there's no
+        limit. A number set here is used instead of App Capacity in the sheet, until someone changes App Capacity there. People always book hosts'
+        sessions, and hosts set their places.
       </p>
       {events === null && <DiceLoader label="Loading events..." />}
-      {events && !events.length && <p class="meta">No café events can be booked at the moment.</p>}
+      {events && !events.length && <p class="meta">No café events coming up.</p>}
       <div class="date-list date-list--staff" role="list">
         {events?.map(e => {
           const from = e.app_places !== null ? 'set here' : e.sheet_places !== null ? 'from the sheet' : null;
@@ -187,10 +267,15 @@ export function EventPlacesPanel({ refresh }: { refresh?: number }) {
                   </span>
                 </div>
                 <span class="date-row__count">
-                  <UsersRound size={16} aria-hidden="true" /> {e.places === null ? 'No limit' : placesText(e.places)}
-                  {from && <span class="meta"> ({from})</span>}
+                  <UsersRound size={16} aria-hidden="true" /> {e.booking_mode === 'none' ? 'No booking' : e.places === null ? 'No limit' : placesText(e.places)}
+                  {e.booking_mode !== 'none' && from && <span class="meta"> ({from})</span>}
                 </span>
               </div>
+              <p class="meta">
+                Booking: <strong>{MODE[e.booking_mode]}</strong>
+                {e.booking_mode_set === null ? ' (the default)' : ''}
+                {e.bookings > 0 ? ` · ${e.bookings === 1 ? '1 booking' : `${e.bookings} bookings`} to come` : ''}
+              </p>
               {(e.most_booked > 0 || e.dates_with_own_places > 0) && (
                 <p class="meta">
                   {[
@@ -203,7 +288,9 @@ export function EventPlacesPanel({ refresh }: { refresh?: number }) {
                     .join('. ')}
                 </p>
               )}
-              {editing === e.event_id ? (
+              {editingMode === e.event_id ? (
+                <BookingModeEditor e={e} onClose={() => setEditingMode(null)} onDone={() => (setEditingMode(null), load())} />
+              ) : editing === e.event_id ? (
                 <PlacesEditor
                   id={`event-places-${e.event_id}`}
                   label={`Places on every date of ${e.name}`}
@@ -222,10 +309,15 @@ export function EventPlacesPanel({ refresh }: { refresh?: number }) {
                   onClose={() => setEditing(null)}
                 />
               ) : (
-                <div>
-                  <button type="button" class="btn btn--secondary btn--sm" onClick={() => setEditing(e.event_id)}>
-                    {e.places === null ? 'Set a limit' : 'Change places'}
+                <div class="cluster">
+                  <button type="button" class="btn btn--secondary btn--sm" onClick={() => (setEditing(null), setEditingMode(e.event_id))}>
+                    Change booking
                   </button>
+                  {e.booking_mode !== 'none' && (
+                    <button type="button" class="btn btn--secondary btn--sm" onClick={() => (setEditingMode(null), setEditing(e.event_id))}>
+                      {e.places === null ? 'Set a limit' : 'Change places'}
+                    </button>
+                  )}
                 </div>
               )}
             </div>

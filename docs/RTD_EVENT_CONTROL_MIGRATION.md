@@ -68,3 +68,16 @@ Nothing existing changes. No email is sent until an admin enters the addresses a
 - **Deployed:** PR #3 merged at 13:12; the new code was confirmed live from the deployed Worker.
 - **The same day, 13:15:** the Event Guard's date-picker email was switched off ([RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#2026-10-16-the-event-guard-no-longer-emails-the-date-picker)).
 - **Waiting for:** an admin to set the addresses and switch emails on in the organiser.
+
+## 0019_booking_mode.sql (Stage 4a: booking modes)
+
+**What it adds:** `events.booking_mode` (nullable; `none`, `optional` or `required`). NULL means the default for the kind of event, so no backfill is needed.
+
+**Why it must be applied before the deploy:** the new code reads the column in every public list.
+
+**What changes when the code is deployed** (live data on 2026-10-16, 0 bookings):
+- **The café's own Event Index events stay bookable (Optional),** with "Booking is optional: you can also just turn up." That includes Spooky Market, which is an Event Index row rather than a market set up in the app; set it to **Not required** if vendors' customers shouldn't book.
+- **The 5 public Standard Diary groups stop offering booking (Not required):** GirlsGetOut Ladies Night, Arkham Horror Card Game, DM Olivia, National Coastguard Institute. They show "No booking needed: just come along."
+- **Hosts' sessions:** unchanged, booking Required.
+
+**Rollback:** `npx wrangler rollback`. The column can stay; the old code ignores it.

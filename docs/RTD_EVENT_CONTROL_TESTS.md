@@ -115,12 +115,33 @@ As an admin: entered two addresses, **Save addresses**, **Switch on**, **Send a 
 - **An expired monthly event already waiting:** showed "In the morning reminder".
 - **Console:** no errors.
 
+## Stage 4a: booking modes (2026-10-16)
+
+**Result:** `npm test`: 23 files, **351 passed** (5 new in `test/booking-modes.test.ts`; `test/bookings.test.ts`, `test/markets.test.ts` and `test/places.test.ts` updated for the mode). `tsc` is clean for the Worker and the web app.
+
+| Brief requirement | Test |
+| --- | --- |
+| Defaults by kind: café events Optional, hosts' sessions Required, Standard Diary groups Not required; a private event says nothing; Not required refuses a booking with "No booking needed" | `defaults by kind…` |
+| An approver changes it, and back to the default; the sync leaves it alone; each change audited with the old and new mode | `lets an approver change it…` |
+| Switching to Not required with people booked: a warning with the numbers and nothing changed; with `confirm` it switches; **the old booking stays confirmed and its link still shows and cancels it** | `warns before switching to Not required…` |
+| Capacity: Optional full says "you can still come along on the day"; Required full says "full" | `says it differently when the places run out…` |
+| Refused: hosts' sessions and markets (409), unknown event (404), unknown mode (400), hosts (403), signed out (401) | `refuses hosts' sessions, markets…` |
+
+### Checked in the running app (2026-10-16, local `wrangler dev`, Chromium at 390 px)
+
+Seeded with a weekly quiz (40 places, one booking for 3), a one-off murder mystery and a weekly Standard Diary chess club.
+- **Booking for café events:** Chess Club "Not required (the default)", Quiz Night "Optional (the default) · 1 booking to come", Murder Mystery "Optional (the default)".
+- **Quiz Night → Not required:** warned "1 booking (3 places) on dates to come…", then **Switch to Not required**; its page then said "No booking needed: just come along."
+- **Murder Mystery → Required:** its page showed the **Booking required** chip and "Booking is required: you need a place to come."
+- **Chess Club → Optional:** the toast said "Chess Club: booking optional." and **Set a limit** appeared.
+- **Console:** no errors apart from the expected 409 for the warning.
+
 ## Later stages
 
 | Brief §4 criterion | Stage |
 | --- | --- |
 | Expiry creates exactly one attention item; both recipients; daily reminders until resolved; no multiplication on retry | 3b / 3c |
-| Booking modes none / optional / required; capacity; old bookings survive | 4 |
+| Booking modes none / optional / required; capacity; old bookings survive | 4a |
 | Cancellation: email + eligible push per booking contact, no duplicates, invalid push doesn't block email, zero bookings → no attendee messages | 4 |
 | Reschedule preserves history and notifies bookers; a fresh recurrence doesn't migrate bookings | 4 |
 | Host edit needs approval; reject with reason | 5 |
