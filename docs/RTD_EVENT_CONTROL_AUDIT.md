@@ -24,7 +24,7 @@ _Audit date: 2026-10-16. Read-only. Brief: "Roll The Dice — Event Control Audi
 | G-4 | **P0** (latent) | **When the sheet moves a booked date** (the occurrence becomes `rescheduled`), only the café gets a "check bookings" email. The bookers are never told. **Built 2026-10-16 (Stage 4b):** held under Needs attention until someone tells them or cancels; bookings never moved. |
 | G-5 | P1 | **No booking mode.** Every public event is bookable (`bookable` is derived), including Standard Diary groups that never take bookings. There's no `none / optional / required`. **Built 2026-10-16 (Stage 4a)** per event with the D-6 defaults; a per-date override wasn't needed and isn't built. |
 | G-6 | P1 | **The sheet → app flow is one-way, with silent overwrite.** There's no revision, base snapshot or conflict record, and no two-way sync. ID write-back and Guard updates match on **row number**. |
-| G-7 | P1 | **Hosts can't propose edits to a live session.** They can change places and cancel dates **immediately, with no approval**. |
+| G-7 | P1 | **Hosts can't propose edits to a live session.** They can change places and cancel dates **immediately, with no approval**. **Built 2026-10-16 (Stage 5a):** change requests with approval and a reason to decline; places and cancelling stay immediate (D-7). Reaching the sheet needs n8n branch D. |
 | G-8 | P1 | **n8n keeps only the current version of each workflow.** Every "roll back to `<versionId>`" in `RTD_N8N_WORKFLOWS.md` and `RTD_RECOVERY.md` points at a version that no longer exists. |
 
 **What is solid and must be kept:**

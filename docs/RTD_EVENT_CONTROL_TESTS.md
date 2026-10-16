@@ -194,6 +194,27 @@ A monthly event (12 Nov) and a weekly Standard Diary group (19 Oct, the sheet's 
 
 **Production check before the deploy:** there are no cancelled dates live, so the 8 open items are unaffected.
 
+## Stage 5a: hosts' changes need approval (2026-10-16)
+
+**Result:** `npm test`: 26 files, **376 passed** (5 new in `test/changes.test.ts`). `tsc` is clean for the Worker and the web app.
+
+| Brief requirement (G-7, D-7) | Test |
+| --- | --- |
+| **A host edit doesn't change public content until approved:** the request shows "now" against "proposed" and the bookings; the approvers' inbox is emailed; the diary is unchanged and nothing is offered to the sheet. Approving: the host and each person booked (new time) are emailed; only the changed cells are offered for Event Index; the diary changes only once the sheet does; `applied` is idempotent; audit rows for each step | `changes nothing public until an approver approves it…` |
+| **Reject with reason:** declining without one is refused; the host is emailed it; nothing reaches the sheet; can't then be approved | `needs a reason to decline…` |
+| Asking again replaces a waiting request; only the host can withdraw it, once | `replaces a waiting request…` |
+| Approving is refused when the sheet changed that field since it was asked for (no silent overwrite) | `refuses to approve when the sheet changed that field…` |
+| A new date is written with its day; the form is checked (nothing changed, a name another event uses, a past date); another host can't ask; a host can't decide | `writes a new date with its day…` |
+
+### Checked in the running app (2026-10-16, local `wrangler dev`, Chromium at 390 px)
+
+Seeded with a live weekly host session (Catan Club, Tuesdays 6:30pm, free) with one booking.
+- **The host's card:** **Ask for a change**. The form opened filled in with the diary's details. Start set to 7pm, Paid £3, and a note, then **Send to the café**.
+- **Then:** the card showed "Change waiting for the café" with 6:30 PM → 7 PM and Free → £3, and **Withdraw this request**.
+- **Changes to approve:** the same side by side, the note, and "1 booking (2 places) on dates to come. They are emailed the new time when you approve." **Approve** emptied the list.
+- **After approving:** the card said "Change approved: reaching the diary within about half an hour". The outbox held the approvers' email, Ava's "New time" email and the host's "Change approved". `/internal/host-changes` offered exactly `{ Event ID, Event Time: 19:00, App Price: £3 }`.
+- **Console:** no errors.
+
 ## Later stages
 
 | Brief §4 criterion | Stage |
@@ -202,7 +223,7 @@ A monthly event (12 Nov) and a weekly Standard Diary group (19 Oct, the sheet's 
 | Booking modes none / optional / required; capacity; old bookings survive | 4a |
 | Cancellation: email + eligible push per booking contact, no duplicates, invalid push doesn't block email, zero bookings → no attendee messages | 4b |
 | Reschedule preserves history and notifies bookers; a fresh recurrence doesn't migrate bookings | 4b |
-| Host edit needs approval; reject with reason | 5 |
+| Host edit needs approval; reject with reason | 5a |
 | Sheet ↔ app: uncontested edits apply both ways; concurrent edits → conflict; recovery after outages | 6 |
 | Audit trail records changes and delivery outcomes; no attendee data leaks | 3b–6 |
 | Regression: game chooser, library, bookings, host auth, PWA, deployments | Every stage (the full suite) |

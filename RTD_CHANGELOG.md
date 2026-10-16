@@ -1,5 +1,16 @@
 # RTD App Changelog
 
+## 2026-10-16 (Hosts' changes need approval)
+- **Hosts can ask to change a live session** in the organiser: its name, description, date, times, cost, or open or private. The form starts from what the diary shows now.
+- **Nothing public changes until an approver or admin approves it.** **Changes to approve** shows each change side by side with what's public now, and how many people are booked. Approvers get a push, and the approvers' inbox an email.
+- **Declining needs a reason,** which the host is emailed. Approving emails the host too.
+- **Once approved,** just the changed cells are written to the session's Event Index row, and the diary follows within about half an hour. This needs a new n8n branch, which waits for the owner's go-ahead.
+  - **A new time** is emailed to everyone booked on dates to come.
+  - **A new date** for a booked date is held under Needs attention, as for any moved date.
+- **Hosts see how their request is going** on the session's card, and can withdraw one still waiting. Asking again replaces it.
+- **Still straight away, with no approval:** changing places, and cancelling a date.
+- **Database:** migration `0021_change_requests.sql` (one table). **Tests:** 376 (was 371).
+
 ## 2026-10-16 (Cancelled dates leave the sheet)
 - **A cancelled monthly date is no longer advertised:** its Event Index row is switched off within 15 minutes (n8n RTD Host Sessions To Diary, as for one-offs), with its date left as it was.
   - **Needs attention** then asks for its next date. Setting it there makes the row Active again with that date; **Archive** keeps it off.

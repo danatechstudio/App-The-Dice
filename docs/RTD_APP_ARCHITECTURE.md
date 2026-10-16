@@ -112,6 +112,9 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | POST | `/api/host/occurrences/:id/cancel` | Access cookie + the session's host, approver or admin | Cancel a date |
 | POST | `/api/host/sessions/:id/places`, `/api/host/occurrences/:id/places` | Access cookie + the session's host (approvers and admins for any single date) | Places on every date of a live session, or on one date ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#places)) |
 | GET / POST | `/api/staff/event-places`, `/api/staff/events/:id/places`, `/api/staff/events/:id/booking-mode` | Access + approver/admin | Booking for café events: places, and whether people need to book |
+| GET / POST | `/api/staff/change-requests`, `/api/staff/change-requests/:id/decision` | Access + approver/admin | Hosts' changes to approve or decline |
+| POST | `/api/host/sessions/:id/changes`, `/api/host/changes/:id/withdraw` | Access + the session's host | Ask for a change to a live session; withdraw it |
+| GET / POST | `/internal/host-changes`, `/internal/host-changes/:id/applied` | bearer | Approved host changes for Event Index (n8n branch D) |
 | GET / POST | `/api/staff/delivery`, `/api/staff/outbox/:id/retry` | Access + approver/admin | Delivery: how emails and booking notifications have gone; try an email again |
 | POST | `/api/bookings/:id/device`, `/api/bookings/:id/device/remove`, `/api/bookings/devices/renew` | the booking's link (renew: the old address) | Tell this device about a booking ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#telling-this-device)) |
 | GET / POST | `/api/markets`, `/api/markets/:id`, `/api/markets/:id/apply` | none; applying is same-origin JSON | Markets vendors can apply to, and applying ([RTD_MARKETS.md](RTD_MARKETS.md)) |
@@ -175,6 +178,7 @@ Everyone is moved onto the newest build (`web/src/lib/update.ts`):
 | `src/team/applications.ts` | Onboarding: join requests, approvers, granting and removing access, email feeds |
 | `src/bookings/bookings.ts` | Bookings: availability, capacity-safe booking, the cancel link, host and approver views, cancelling a date, two-day emails, Event Index fixes |
 | `src/notify/emails.ts`, `src/notify/outbox.ts` | Booking email wording, and the outbox n8n sends from: claims, failures, retries, giving up |
+| `src/host/changes.ts` | Hosts' change requests to live sessions: asking, deciding, and the cells n8n writes to Event Index |
 | `src/bookings/devices.ts` | Telling a booker's device when a date is cancelled or moved: opt-in, the push outbox, sending it each minute |
 | `src/notify/delivery.ts` | The organiser's Delivery view |
 | `src/notify/push.ts` | Web Push: VAPID keys, RFC 8291 encryption, approvers' devices, sending |

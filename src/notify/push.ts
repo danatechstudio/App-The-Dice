@@ -288,6 +288,13 @@ export const sessionToApprove = (s: {
   tag: `session-${s.session_id}`,
 });
 
+export const changeToApprove = (c: { request_id: string; host: string; name: string }): PushMessage => ({
+  title: 'Change to approve',
+  body: `${c.host}: ${c.name}`,
+  url: '/organise#changes',
+  tag: `change-${c.request_id}`,
+});
+
 export const joinRequestToApprove = (a: { application_id: string; display_name: string }): PushMessage => ({
   title: 'Join request',
   body: `${a.display_name} has asked to host games`,

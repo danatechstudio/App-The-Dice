@@ -4,6 +4,16 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### Proposed (Stage 5a, not made yet): approved host changes into Event Index
+
+Waiting for the owner's go-ahead, and only after migration `0021_change_requests.sql` and the Stage 5a app are live.
+
+| Workflow | Change | Roll back to |
+| --- | --- | --- |
+| RTD Host Sessions To Diary (`rdS8LF56B9k170BY`) | **New branch D**, beside C and from the same start: **Get Host Changes From App** (`GET /internal/host-changes`), **Host Changes To Apply** (keeps only items whose `row['Event ID']` matches their `event_id`), **Update Event Index Row (Host Change)** (Google Sheets update on Event Index, matched on **Event ID**, columns mapped automatically from the row so **only the cells in it are written**, RAW), **Mark Host Change Applied In App** (`POST /internal/host-changes/:id/applied`). Branches A, B and C are unchanged. | `d9cad8de-364c-4c03-9849-ec626861fca7` |
+
+**The cells it can write:** Event Name, Base Details, Event Date and Day, Event Time, End Time, App Price, App Visibility, each only when that field changes. Never Status, Frequency, App Capacity or App Host Session.
+
 ### 2026-10-16 (evening): RTD Outbox reports failed emails to the app
 
 The owner approved this (Stage 4b). It was made after migration `0020_delivery.sql` and the Stage 4b app were live, so `/internal/outbox/:id/failed` existed first.

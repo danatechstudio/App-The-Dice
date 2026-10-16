@@ -121,6 +121,16 @@ Nothing existing changes. Emails already in the outbox read as queued or sent, e
 - **First runs on the new code:** RTD Outbox at 15:40 and 15:45 succeeded; collect answered `{ messages: [] }` as before (nothing was waiting). The 15:45 sync: `ok`, 32 events, nothing changed, still 289 audit rows and 8 open items.
 - **The RTD Outbox change** waited for its own go-ahead, then was published at 17:23 UTC (version `e50af06e…`; rollback `a1b77acb…`). The 17:25 and 17:30 runs on it succeeded ([RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md)).
 
+## 0021_change_requests.sql (Stage 5a: host change requests)
+
+**What it adds:** table `event_change_requests` and two indexes, empty. Nothing existing changes.
+
+**Why it must be applied before the deploy:** the organiser's session list reads it.
+
+**What changes when the code is deployed:** hosts see **Ask for a change** on a live session; approvers see **Changes to approve** when there are any. Live: one published host session (a private weekly). Approved changes wait for n8n branch D before they reach Event Index ([RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md)).
+
+**Rollback:** `npx wrangler rollback`; the table can stay.
+
 ## Stage 4c (no migration)
 
 - **Deployed:** PR #6 merged at 17:15 UTC, with the owner's go-ahead; the new code was confirmed live from the deployed Worker at 17:22 (the monthly `inactive:<date>` fix and the `cancelled` items are in it).

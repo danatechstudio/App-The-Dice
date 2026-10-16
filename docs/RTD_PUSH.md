@@ -21,6 +21,7 @@ Customers' **event alerts** (reminders about events, sent by admins or at 8pm) u
 | A host sends a session | **Session to approve**: "Sam: D&D One Shot, Sat 24 Oct" (weekly: "every Tuesday from…"; private ones say "(private)") | `/organise`, at Sessions awaiting approval |
 | A host sends a declined or withdrawn session again | **Session sent again**, worded the same | The same |
 | Someone asks to host | **Join request**: "Nina Newbie has asked to host games" | `/organise`, at Join requests |
+| A host asks to change a live session | **Change to approve**: "Sam Host: Catan Club" | `/organise`, at Changes to approve |
 | A vendor applies for a market pitch | **Market application**: "Dice & Slice: Christmas Makers Market, Sat 5 Dec" ("(waiting list)" if every pitch is taken) | `/organise`, at Market applications |
 
 **How it behaves:**
