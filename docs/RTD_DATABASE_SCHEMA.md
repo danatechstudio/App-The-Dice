@@ -292,8 +292,14 @@ Added in `0017_attention.sql`: **Needs attention** ([RTD_EVENT_CONTROL_AUDIT.md]
 | `new_occurrence_id` | The date that arrived from the Logic Engine, when that settled it |
 | `resolved_by` | The approver's email, `sheet` (the Logic Engine answered it) or `system` (a one-off host session or market, closed straight away) |
 | `resolution_note`, `opened_at`, `resolved_at` | |
+| `first_notified_at` | expired: when its notice was queued, or (already waiting when emails were switched on) when it joined the morning reminder (0018) |
+| `last_reminded_at`, `reminder_count` | The morning reminders it has been in, counted once a day (0018) |
 
-**Setting:** `needs_attention` (`off` until an admin switches it on).
+**Settings:**
+- `needs_attention`: `off` until an admin switches it on.
+- `attention_emails` (`off` / `on`) and `attention_email_to` (addresses, comma-separated; set in the organiser, never in this repository) (0018).
+
+**Emails** (outbox `kind`): `attention_expired` (dedupe `expiry-new:<item_id>:<address>`), `attention_digest` (`expiry-digest:<date>:<address>`) and `attention_test`.
 **Audit:** `attention.opened`, `attention.resolved`, `attention.switched_on` / `attention.switched_off`.
 
 ## Coming in later phases

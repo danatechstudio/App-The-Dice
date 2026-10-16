@@ -1,9 +1,11 @@
 // Needs attention in the organiser (docs/RTD_EVENT_CONTROL_AUDIT.md G-2, Stage 3b), for
 // approvers and admins: events whose date has passed with nothing after it, and events
 // with no usable date in the Logic Engine. Each one stays until someone sets a new date,
-// archives it, or closes it; looking at it never does. Admins switch it on and off.
+// archives it, or closes it; looking at it never does. Admins switch it on and off, and
+// choose who gets the emails (Stage 3c): a notice when a date passes, and a reminder
+// every morning until it's sorted.
 
-import { CalendarPlus, Check, TriangleAlert } from 'lucide-preact';
+import { CalendarPlus, Check, Mail, TriangleAlert } from 'lucide-preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { Chip } from '../components/Chips';
 import { addDays, daysBetween, formatTime, shortDate, todayLondon } from '../lib/dates';
@@ -35,9 +37,19 @@ interface Item {
   inactive: boolean;
 }
 
+type Delivery = 'queued' | 'sent' | 'stuck' | null;
+
+interface Emails {
+  on: boolean;
+  to: string[];
+  digest: { queued_at: string; state: Delivery } | null;
+  test: { queued_at: string; state: Delivery } | null;
+  items: Record<string, { first_notified_at: string | null; notice: Delivery; reminder_count: number; last_reminded_at: string | null }>;
+}
+
 type Overview =
   | { enabled: false }
-  | { enabled: true; blocked: number; open: Item[]; resolved: Item[]; no_end_time: { event_id: string; name: string; date: string }[] };
+  | { enabled: true; blocked: number; open: Item[]; resolved: Item[]; no_end_time: { event_id: string; name: string; date: string }[]; emails: Emails };
 
 const FREQUENCY: Record<string, string> = { weekly: 'Weekly', fortnightly: 'Fortnightly', monthly: 'Monthly', 'one-off': 'One-off' };
 const RESOLVED: Record<string, string> = { renewed: 'New date', archived: 'Archived', completed: 'Finished, no new date', dismissed: 'Left as it is' };
@@ -50,6 +62,25 @@ const DONE: Record<Action, (name: string) => string> = {
 
 const londonDay = (iso: string) => todayLondon(new Date(iso));
 const by = (who: string | null) => (who === 'sheet' ? 'the Logic Engine' : who === 'system' ? 'the app' : (who ?? ''));
+
+/** "sent" only ever means Gmail accepted it: there's no proof it was delivered or read. */
+const DELIVERY: Record<'queued' | 'sent' | 'stuck', string> = {
+  queued: 'queued, going out within 5 minutes',
+  sent: 'sent (Gmail accepted it)',
+  stuck: "not sent yet after 30 minutes: check RTD Outbox in n8n",
+};
+
+/** How an expired item's emails have gone, in a line. */
+function emailLine(i: Item, emails: Emails): string | null {
+  if (i.kind !== 'expired' || !emails.on) return null;
+  const e = emails.items[i.item_id];
+  const parts: string[] = [];
+  if (e?.notice) parts.push(`Notice ${DELIVERY[e.notice]}`);
+  else if (e?.first_notified_at) parts.push('In the morning reminder');
+  else parts.push('Notice goes out within the hour');
+  if (e && e.reminder_count > 0) parts.push(`reminded ${e.reminder_count === 1 ? 'once' : `${e.reminder_count} times`}, last ${shortDate(londonDay(e.last_reminded_at!))}`);
+  return parts.join(' · ');
+}
 
 function waiting(openedAt: string): string {
   const days = daysBetween(londonDay(openedAt), todayLondon());
@@ -105,6 +136,11 @@ export function AttentionPanel({ isAdmin }: { isAdmin: boolean }) {
         Events whose date has passed with nothing after it, and events with no usable date in the Logic Engine. Each one stays here until someone sets a
         new date, archives it or closes it.
       </p>
+      {isAdmin ? (
+        <EmailSettings emails={data.emails} onChanged={load} />
+      ) : (
+        data.emails.on && <p class="meta" style={{ marginBottom: '12px' }}>Reminders are emailed to {data.emails.to.join(' and ')}.</p>
+      )}
       {data.blocked > 0 && (
         <div class="notice notice--warning" role="alert">
           <TriangleAlert size={22} aria-hidden="true" />
@@ -117,7 +153,7 @@ export function AttentionPanel({ isAdmin }: { isAdmin: boolean }) {
       {!data.open.length && <p class="meta">Nothing needs attention.</p>}
       <div class="list">
         {data.open.map(i => (
-          <AttentionCard key={i.item_id} item={i} onDone={load} />
+          <AttentionCard key={i.item_id} item={i} email={emailLine(i, data.emails)} onDone={load} />
         ))}
       </div>
       {data.no_end_time.length > 0 && (
@@ -171,7 +207,89 @@ export function AttentionPanel({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-function AttentionCard({ item, onDone }: { item: Item; onDone: () => void }) {
+/** Admins: who gets the emails, on or off, and a test. */
+function EmailSettings({ emails, onChanged }: { emails: Emails; onChanged: () => void }) {
+  const [to, setTo] = useState(emails.to.join(', '));
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const save = async (body: { to?: string; on?: boolean }, done: string) => {
+    setBusy(true);
+    setError(null);
+    const res = await hostApi<{ on: boolean; to: string[] }>('/api/staff/attention/emails', body);
+    setBusy(false);
+    if (!res.ok) return setError(res.errors?.to ?? res.error);
+    toast(done);
+    onChanged();
+  };
+  const test = async () => {
+    setBusy(true);
+    const res = await hostApi<{ to: string[] }>('/api/staff/attention/emails/test', {});
+    setBusy(false);
+    toast(res.ok ? `Test queued for ${res.data.to.join(' and ')}. It goes out within 5 minutes.` : res.error);
+    onChanged();
+  };
+  const changed = to.trim() !== emails.to.join(', ');
+  return (
+    <div class="card card--pad stack" style={{ '--gap': '8px', marginBottom: '16px' }}>
+      <h3 class="cluster" style={{ '--gap': '8px' }}>
+        <Mail size={18} aria-hidden="true" /> Email reminders {emails.on ? <Chip kind="live">On</Chip> : <Chip kind="draft">Off</Chip>}
+      </h3>
+      <p class="meta">
+        A notice when a date passes with nothing after it, then a reminder every morning at about 9am listing everything still waiting, until it's sorted.
+        Opening an email doesn't sort anything.
+      </p>
+      <div class={`field${error ? ' field--error' : ''}`}>
+        <label class="label" for="att-email-to">
+          Send them to
+        </label>
+        <p id="att-email-to-hint" class="field__hint">
+          Up to 5 addresses, separated by commas.
+        </p>
+        <input id="att-email-to" class="input" type="text" inputMode="email" autoComplete="off" value={to} aria-describedby="att-email-to-hint"
+          aria-invalid={!!error} onInput={e => setTo(e.currentTarget.value)} />
+        {error && (
+          <p class="field__error" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+      <div class="cluster">
+        {changed && (
+          <button type="button" class="btn btn--primary btn--sm" disabled={busy} onClick={() => save({ to }, 'Addresses saved.')}>
+            Save addresses
+          </button>
+        )}
+        {emails.on ? (
+          <button type="button" class="btn btn--secondary btn--sm" disabled={busy} onClick={() => save({ on: false }, 'Email reminders are off.')}>
+            Switch off
+          </button>
+        ) : (
+          <button type="button" class="btn btn--primary btn--sm" disabled={busy || changed || !emails.to.length}
+            onClick={() => save({ on: true }, 'Email reminders are on.')}>
+            Switch on
+          </button>
+        )}
+        {emails.to.length > 0 && (
+          <button type="button" class="btn btn--text btn--sm" disabled={busy} onClick={test}>
+            Send a test
+          </button>
+        )}
+      </div>
+      {(emails.digest || emails.test) && (
+        <p class="meta">
+          {[
+            emails.digest && `Latest morning reminder: ${shortDate(londonDay(emails.digest.queued_at))}, ${DELIVERY[emails.digest.state ?? 'queued']}`,
+            emails.test && `Latest test: ${DELIVERY[emails.test.state ?? 'queued']}`,
+          ]
+            .filter(Boolean)
+            .join('. ')}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function AttentionCard({ item, email, onDone }: { item: Item; email: string | null; onDone: () => void }) {
   const [mode, setMode] = useState<'renew' | 'archive' | null>(null);
   const [date, setDate] = useState('');
   const [note, setNote] = useState('');
@@ -220,6 +338,11 @@ function AttentionCard({ item, onDone }: { item: Item; onDone: () => void }) {
             .filter(Boolean)
             .join(' · ')}
         </p>
+        {email && (
+          <p class="meta cluster" style={{ '--gap': '6px' }}>
+            <Mail size={14} aria-hidden="true" /> <span>{email}</span>
+          </p>
+        )}
         {!item.actions.includes('renew') && (
           <p class="meta">
             {item.source === 'standard_diary'

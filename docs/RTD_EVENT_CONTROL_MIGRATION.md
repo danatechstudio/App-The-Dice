@@ -46,3 +46,19 @@ Nothing existing changes. Sheet edits, bookings, the diary and n8n behave exactl
 - **Deployed:** PR #2 merged at 08:45; the new code was confirmed live from the deployed Worker.
 - **The 09:00 sync, the first on the new code:** `ok`, 32 events, no audit noise (still 276 rows). `sheet_date_raw` filled for the 21 events with something in their date cell; for example Cleeples "Every Thursday" and Wednesdays "Open Wednesdays!"; Dungeons & Dragons and DM Alfie are blank.
 - **Ready for an admin to switch on.**
+
+## 0018_attention_emails.sql (Stage 3c: Needs attention emails)
+
+**What it adds:**
+- `attention_items.first_notified_at`, `last_reminded_at` and `reminder_count` (default 0);
+- settings `attention_emails = off` and `attention_email_to = ''`.
+
+Nothing existing changes. No email is sent until an admin enters the addresses and switches emails on in the organiser.
+
+**Why it must be applied before the deploy:** the new hourly run reads the new columns.
+
+**After the deploy:** an admin enters the addresses under **Needs attention → Email reminders**, presses **Switch on**, then **Send a test**. The items already waiting go into the next morning's reminder (about 9am).
+
+**Rollback:** **Switch off** in the organiser, or `npx wrangler rollback`. The columns and settings can stay.
+
+**Applied to production:** _not yet; waiting for the owner's go-ahead._

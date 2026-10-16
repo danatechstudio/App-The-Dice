@@ -2,6 +2,7 @@
 
 import { Hono } from 'hono';
 import { attentionOverview, resolveItem, setAttention } from '../attention/attention';
+import { emailOverview, sendTest, setEmailSettings } from '../attention/reminders';
 import { upcomingBookedDates } from '../bookings/bookings';
 import { cafeEventPlaces, setEventPlaces } from '../bookings/places';
 import { decideSession, listHosts, listSessions, type SessionStatus } from '../host/sessions';
@@ -30,13 +31,30 @@ staffRoutes.get('/me', c => c.json({ user: c.get('user') }));
 
 // --- Needs attention (src/attention/attention.ts): approvers and admins ---
 
-/** Open items, what was sorted in the last 30 days, and dates with no end time. Brings the list up to date first. */
-staffRoutes.get('/attention', async c => c.json(await attentionOverview(c.env.DB, new Date())));
+/** Open items, what was sorted in the last 30 days, dates with no end time, and the emails. Brings the list up to date first. */
+staffRoutes.get('/attention', async c => {
+  const now = new Date();
+  const base = await attentionOverview(c.env.DB, now);
+  if (!base.enabled) return c.json(base);
+  return c.json({ ...base, emails: await emailOverview(c.env.DB, base.open.map(i => i.item_id), now) });
+});
 
 /** Body: { action: 'renew' | 'archive' | 'complete' | 'dismiss', date? (renew), note? } */
 staffRoutes.post('/attention/:id/resolve', async c => {
   const res = await resolveItem(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), new Date());
   return res.ok ? c.json({ item: res.item }) : c.json({ error: res.error, errors: res.errors }, res.status);
+});
+
+/** Admins: who gets the emails, and on or off. Body: { to?: 'a@x, b@y', on?: boolean } */
+staffRoutes.post('/attention/emails', async c => {
+  const res = await setEmailSettings(c.env.DB, c.get('user'), await c.req.json().catch(() => null), new Date());
+  return res.ok ? c.json({ on: res.on, to: res.to }) : c.json({ error: res.error, errors: res.errors }, res.status);
+});
+
+/** Admins: a test email to every address. */
+staffRoutes.post('/attention/emails/test', async c => {
+  const res = await sendTest(c.env.DB, c.get('user'), new Date(), new URL(c.req.url).origin);
+  return res.ok ? c.json({ to: res.to }) : c.json({ error: res.error }, res.status);
 });
 
 /** Admins: switch Needs attention on or off. Body: { on: boolean } */
