@@ -6,6 +6,7 @@ How each event-control migration reaches the live database ([RTD_EVENT_CONTROL_A
 - Every migration is **additive**: new tables, or new nullable columns. Nothing is renamed or dropped.
 - So every migration is applied **before** the code that uses it is deployed. The running code ignores the new column or table.
 - Nothing is applied to the live database without the owner's go-ahead.
+- **While the app is still being tested, no events are created or deleted in production** (the owner, 2026-10-16). The owner will clear the diary and start afresh before the app goes fully public. Checks in production use the events already there; anything new is tried locally.
 
 ## Order for every migration
 
@@ -81,3 +82,8 @@ Nothing existing changes. No email is sent until an admin enters the addresses a
 - **Hosts' sessions:** unchanged, booking Required.
 
 **Rollback:** `npx wrangler rollback`. The column can stay; the old code ignores it.
+
+**Applied to production:** 2026-10-16 14:36 UTC, with the owner's go-ahead, through the Cloudflare connector; recorded in `d1_migrations`.
+- **Restore point:** 2026-10-16T14:36:36Z.
+- **Before:** 32 events, 56 occurrences, 0 bookings, 289 audit rows, 12 settings, 8 open items; the 14:30 sync `ok`.
+- **After:** the same; the column is present and empty on all 32 events.
