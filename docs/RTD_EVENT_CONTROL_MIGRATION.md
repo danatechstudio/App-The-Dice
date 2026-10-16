@@ -131,6 +131,12 @@ Nothing existing changes. Emails already in the outbox read as queued or sent, e
 
 **Rollback:** `npx wrangler rollback`; the table can stay.
 
+**Applied to production:** 2026-10-16 18:29 UTC, with the owner's go-ahead, through the Cloudflare connector; recorded in `d1_migrations`.
+- **Restore point:** 2026-10-16T18:29:02Z.
+- **Before:** 32 events, 56 occurrences, 0 bookings, 289 audit rows, 2 host sessions, 8 open items; the 18:15 sync `ok`.
+- **After:** the same; the table (empty) and both indexes are present.
+- **The 18:30 sync**, on the old code with the migrated database: `ok`.
+
 ## Stage 4c (no migration)
 
 - **Deployed:** PR #6 merged at 17:15 UTC, with the owner's go-ahead; the new code was confirmed live from the deployed Worker at 17:22 (the monthly `inactive:<date>` fix and the `cancelled` items are in it).
