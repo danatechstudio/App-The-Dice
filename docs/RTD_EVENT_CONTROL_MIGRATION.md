@@ -111,3 +111,10 @@ Nothing existing changes. Emails already in the outbox read as queued or sent, e
 **Then, with the owner's go-ahead:** the RTD Outbox change ([RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#proposed-stage-4b-not-made-yet-rtd-outbox-reports-failed-emails-to-the-app)).
 
 **Rollback:** `npx wrangler rollback` (the old code ignores the new columns and tables). Roll the n8n change back first if it was made: the old app has no `/failed`.
+
+**Applied to production:** 2026-10-16 15:19 UTC, with the owner's go-ahead, through the Cloudflare connector, one statement at a time; recorded in `d1_migrations`.
+- **Restore point:** 2026-10-16T15:18:54Z.
+- **Before:** 32 events, 56 occurrences, 0 bookings, 289 audit rows, 12 settings, 8 open items, 2 emails in the outbox (both sent); the 15:15 sync `ok`.
+- **After:** the same. The seven outbox columns, both tables (empty) and both indexes are present; the 2 emails read as untouched (no attempts, no claim).
+- **The 15:30 sync**, on the old code with the migrated database: `ok`.
+- **The RTD Outbox change was not made:** the owner's go-ahead covered `0020` and the deploy only.
