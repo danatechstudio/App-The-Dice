@@ -1,5 +1,5 @@
 import { useApi, type Occurrence } from './api';
-import { addDays, nowLondonTime, todayLondon } from './dates';
+import { addDays, todayLondon } from './dates';
 
 export const DIARY_DAYS = 60;
 
@@ -15,13 +15,6 @@ export function useUpcoming() {
   const res = useApi<{ occurrences: Occurrence[] }>(`/api/events?from=${today}&to=${addDays(today, DIARY_DAYS)}`);
   const all = res.data?.occurrences;
   return { ...res, today, withPrivate: all, occurrences: all?.filter(o => !isPrivate(o)) };
-}
-
-/** Still to come (or still running) today. */
-export function notOver(o: Occurrence, today: string, now = nowLondonTime()): boolean {
-  if (o.date !== today) return o.date > today;
-  const end = o.end_time ?? o.start_time;
-  return !end || end > now;
 }
 
 /**

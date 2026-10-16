@@ -41,8 +41,21 @@ export interface EventSummary {
   images: string[];
 }
 
+/**
+ * A date that's no longer public (410 from /api/occurrences/:id): it finished, was
+ * cancelled or moved. Only its name and date, and the event's next date if there is one.
+ */
+export interface GoneOccurrence {
+  occurrence_id: string;
+  event_id: string;
+  name: string;
+  date: string;
+  reason: 'finished' | 'cancelled' | 'moved';
+  next: { occurrence_id: string; date: string; start_time: string | null } | null;
+}
+
 export class ApiError extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(readonly status: number, message: string, readonly body: unknown = null) {
     super(message);
   }
 }
@@ -59,7 +72,7 @@ export async function getJson<T>(url: string): Promise<T> {
   }
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new ApiError(res.status, body?.error ?? `Request failed (${res.status})`);
+    throw new ApiError(res.status, body?.error ?? `Request failed (${res.status})`, body);
   }
   const data = (await res.json()) as T;
   cache.set(url, { at: Date.now(), data });

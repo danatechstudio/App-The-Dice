@@ -1,7 +1,8 @@
 import { ArrowRight, X } from 'lucide-preact';
 import { useEffect, useRef } from 'preact/hooks';
 import type { Occurrence } from '../lib/api';
-import { addDays, longDate, nowLondonTime, timeRange, todayLondon } from '../lib/dates';
+import { addDays, longDate, timeRange, todayLondon } from '../lib/dates';
+import { isUpcoming } from '../lib/upcoming';
 import { navigate } from '../lib/router';
 import { read, write } from '../lib/storage';
 import { Logo } from './Brand';
@@ -18,12 +19,11 @@ export const SPLASH_WINDOW_DAYS = 14; // matches settings.splash_window_days
  * start time (regular room bookings in the Standard Diary don't). Prefers
  * artwork, and avoids the last few events shown.
  */
-export function pickSplash(occurrences: Occurrence[], today = todayLondon(), now = nowLondonTime()): Occurrence | null {
-  const end = addDays(today, SPLASH_WINDOW_DAYS);
+export function pickSplash(occurrences: Occurrence[], now = new Date()): Occurrence | null {
+  const end = addDays(todayLondon(now), SPLASH_WINDOW_DAYS);
   const firstPerEvent = new Map<string, Occurrence>();
   for (const o of occurrences) {
-    if (o.status !== 'scheduled' || o.visibility === 'private' || !o.start_time || o.date < today || o.date > end) continue;
-    if (o.date === today && (o.end_time ?? o.start_time) <= now) continue;
+    if (!isUpcoming(o, now) || o.visibility === 'private' || !o.start_time || o.date > end) continue;
     if (!firstPerEvent.has(o.event_id)) firstPerEvent.set(o.event_id, o);
   }
   let pool = [...firstPerEvent.values()];

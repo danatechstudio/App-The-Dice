@@ -1,4 +1,4 @@
-import { CalendarDays, CalendarPlus, ChevronDown, ChevronLeft, Clock, Info, MapPin, PoundSterling, Share2, TriangleAlert, UsersRound } from 'lucide-preact';
+import { CalendarDays, CalendarPlus, ChevronDown, ChevronLeft, Clock, MapPin, PoundSterling, Share2, UsersRound } from 'lucide-preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { AlertsInline } from '../components/Alerts';
 import { BookingPanel } from '../components/BookingPanel';
@@ -8,9 +8,10 @@ import { eventHref } from '../components/EventCard';
 import { EventArt } from '../components/EventArt';
 import { Gallery } from '../components/Gallery';
 import { DiceLoader, EmptyState, ErrorState } from '../components/States';
-import { useApi, type EventSummary, type Occurrence } from '../lib/api';
+import { useApi, type EventSummary, type GoneOccurrence, type Occurrence } from '../lib/api';
 import { CATEGORY } from '../lib/categories';
 import { longDate, shortDate, timeRange, todayLondon } from '../lib/dates';
+import { isUpcoming } from '../lib/upcoming';
 import { back } from '../lib/router';
 import { share } from '../lib/share';
 import { count } from '../lib/stats';
@@ -18,20 +19,29 @@ import { useTitle } from '../lib/title';
 
 type Series = { event: EventSummary; occurrences: Occurrence[] };
 
-/** /event/:occurrenceId — one date of an event (the link people share). */
+/**
+ * /event/:occurrenceId — one date of an event (the link people share). A date that
+ * has finished, was cancelled or has moved shows only that, never its details
+ * (docs/RTD_EVENT_CONTROL_AUDIT.md, G-1): the server says so with a 410, and a copy
+ * from the offline cache that has since passed is caught here.
+ */
 export function EventPage({ occurrenceId }: { occurrenceId: string }) {
   const res = useApi<{ occurrence: Occurrence }>(`/api/occurrences/${encodeURIComponent(occurrenceId)}`);
   const o = res.data?.occurrence;
-  const series = useApi<Series>(o ? `/api/events/${o.event_id}` : null);
-  useTitle(o?.name);
+  const gone = res.error?.status === 410 ? (res.error.body as { gone?: GoneOccurrence } | null)?.gone : undefined;
+  const live = !gone && o && isUpcoming(o) ? o : undefined;
+  const series = useApi<Series>(live ? `/api/events/${live.event_id}` : null);
+  useTitle(gone?.name ?? o?.name);
+  if (gone) return <GoneEvent gone={gone} />;
   if (res.loading && !o) return <DiceLoader label="Finding that event..." />;
   if (res.error?.status === 404) return <MissingEvent />;
-  if (!o) return <ErrorState error={res.error} onRetry={res.reload} />;
+  if (o && !live) return <GoneEvent gone={goneFromCopy(o)} />;
+  if (!live) return <ErrorState error={res.error} onRetry={res.reload} />;
   return (
     <EventDetail
-      o={o}
-      others={(series.data?.occurrences ?? []).filter(x => x.occurrence_id !== o.occurrence_id)}
-      images={o.images ?? series.data?.event.images ?? []}
+      o={live}
+      others={(series.data?.occurrences ?? []).filter(x => x.occurrence_id !== live.occurrence_id && isUpcoming(x))}
+      images={live.images ?? series.data?.event.images ?? []}
     />
   );
 }
@@ -43,7 +53,7 @@ export function SeriesPage({ eventId }: { eventId: string }) {
   if (res.loading && !res.data) return <DiceLoader label="Finding that event..." />;
   if (res.error?.status === 404) return <MissingEvent />;
   if (!res.data) return <ErrorState error={res.error} onRetry={res.reload} />;
-  const [next, ...others] = res.data.occurrences;
+  const [next, ...others] = res.data.occurrences.filter(x => isUpcoming(x));
   if (!next) {
     return (
       <div class="container">
@@ -56,6 +66,39 @@ export function SeriesPage({ eventId }: { eventId: string }) {
   return <EventDetail o={next} others={others} images={res.data.event.images ?? []} />;
 }
 
+/** A cached copy of a date that has since passed: say what happened to it, without its details. */
+const goneFromCopy = (o: Occurrence): GoneOccurrence => ({
+  occurrence_id: o.occurrence_id,
+  event_id: o.event_id,
+  name: o.name,
+  date: o.date,
+  reason: o.status === 'cancelled' ? 'cancelled' : o.status === 'rescheduled' ? 'moved' : 'finished',
+  next: null,
+});
+
+/** What an old link shows: what happened to that date, and the event's next date if there is one. */
+function GoneEvent({ gone }: { gone: GoneOccurrence }) {
+  const when = longDate(gone.date);
+  const title =
+    gone.reason === 'cancelled' ? `${gone.name} on ${when} was cancelled.` : gone.reason === 'moved' ? `${gone.name} on ${when} has moved.` : `${gone.name} has finished.`;
+  return (
+    <div class="container">
+      <EmptyState title={title} text={gone.next ? `The next date is ${longDate(gone.next.date)}.` : 'Keep an eye on the diary for new dates.'}>
+        <div class="cluster" style={{ justifyContent: 'center' }}>
+          {gone.next && (
+            <a class="btn btn--primary" href={`/event/${gone.next.occurrence_id}`}>
+              See the next date
+            </a>
+          )}
+          <a class={`btn ${gone.next ? 'btn--secondary' : 'btn--primary'}`} href="/diary">
+            See what's on
+          </a>
+        </div>
+      </EmptyState>
+    </div>
+  );
+}
+
 function MissingEvent() {
   return (
     <div class="container">
@@ -66,11 +109,9 @@ function MissingEvent() {
   );
 }
 
+/** One date that's still to come or still running. */
 function EventDetail({ o, others, images }: { o: Occurrence; others: Occurrence[]; images: string[] }) {
   const today = todayLondon();
-  const cancelled = o.status === 'cancelled';
-  const moved = o.status === 'rescheduled';
-  const finished = o.status === 'completed' || o.date < today;
   const range = timeRange(o.start_time, o.end_time);
   const Icon = CATEGORY[o.category]?.icon ?? CATEGORY.Other.icon;
   const url = `${location.origin}${eventHref(o)}`;
@@ -95,36 +136,9 @@ function EventDetail({ o, others, images }: { o: Occurrence; others: Occurrence[
                 {CATEGORY[o.category]?.label}
               </Chip>
             </div>
-            <h1 class={cancelled ? 'event-page__title--cancelled' : undefined}>{o.name}</h1>
+            <h1>{o.name}</h1>
           </header>
           <div class="stack" style={{ '--gap': '16px', marginTop: '16px' }}>
-            {cancelled && (
-              <div class="notice notice--danger" role="alert">
-                <TriangleAlert size={22} aria-hidden="true" />
-                <div>
-                  <strong>This event has been cancelled.</strong>
-                  <p>Sorry about that. {others.length ? 'Other dates are below.' : 'Keep an eye on the diary for new dates.'}</p>
-                </div>
-              </div>
-            )}
-            {moved && (
-              <div class="notice notice--warning" role="alert">
-                <Info size={22} aria-hidden="true" />
-                <div>
-                  <strong>This date has moved.</strong>
-                  <p>{others[0] ? `The next date is ${longDate(others[0].date)}.` : 'The new date will appear in the diary soon.'}</p>
-                </div>
-              </div>
-            )}
-            {!cancelled && !moved && finished && (
-              <div class="notice notice--info">
-                <Info size={22} aria-hidden="true" />
-                <div>
-                  <strong>This one has finished.</strong>
-                  {others[0] && <p>The next date is {longDate(others[0].date)}.</p>}
-                </div>
-              </div>
-            )}
             {o.description && <p class="event-page__desc reading">{o.description}</p>}
           </div>
           <Gallery images={images} name={o.name} />
@@ -161,9 +175,9 @@ function EventDetail({ o, others, images }: { o: Occurrence; others: Occurrence[
                 <span><strong>Roll The Dice</strong>Board Game Café</span>
               </div>
             </div>
-            {!cancelled && !finished && !moved && (o.market_id ? <MarketVendorPanel marketId={o.market_id} /> : <BookingPanel key={o.occurrence_id} o={o} />)}
+            {o.market_id ? <MarketVendorPanel marketId={o.market_id} /> : <BookingPanel key={o.occurrence_id} o={o} />}
             <div class="event-page__actions">
-              {!cancelled && !finished && !moved ? <CalendarMenu o={o} /> : <span />}
+              <CalendarMenu o={o} />
               <button type="button" class="btn btn--secondary" onClick={() => (count('share_tap', o.event_id), share({ title: o.name, text: `${o.name} at Roll The Dice, ${shortDate(o.date)}`, url }))}>
                 <Share2 size={18} aria-hidden="true" /> Share
               </button>

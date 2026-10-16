@@ -1,6 +1,9 @@
 // Shared public-read SQL. Visible = event active and effective visibility
 // public/app_bookable. Hidden never leaves the database; Private only reaches
 // the diary list, as a "Private session" with its time (see redactPrivate).
+// The public only ever sees dates still to come or still running (`upcoming`).
+
+import { addDays, londonDate, londonToUtc } from './time';
 
 export const OCCURRENCE_ID = /^RTD-OCC-\d{5,}-\d{8}$/;
 export const EVENT_ID = /^RTD-EVT-\d{5,}$/;
@@ -9,6 +12,38 @@ export const VISIBLE = `e.active = 1 AND COALESCE(o.visibility, e.visibility) IN
 
 /** The diary list also shows private sessions, so the café looks as busy as it is. */
 export const LISTED = `e.active = 1 AND COALESCE(o.visibility, e.visibility) IN ('public', 'app_bookable', 'private')`;
+
+/**
+ * Still to come or still running (docs/RTD_EVENT_CONTROL_AUDIT.md, G-1): scheduled, and
+ * its end is in the future. A date with no times is all day and lasts until London
+ * midnight; a missing end time was stored as start + 1 hour (src/lib/time.ts). The
+ * arguments are the placeholders bound to now (UTC ISO) and today (London date).
+ * Mirrors `hasEnded` below and web/src/lib/upcoming.ts.
+ */
+export const upcoming = (now: string, today: string) =>
+  `o.status = 'scheduled' AND CASE WHEN o.ends_at IS NOT NULL THEN o.ends_at > ${now} ELSE o.event_date >= ${today} END`;
+
+type Ends = { date: string; ends_at: string | null };
+
+/** When a date stops being public: its end, or London midnight after an all-day date. */
+export const publicUntil = (o: Ends) => o.ends_at ?? londonToUtc(addDays(o.date, 1), '00:00');
+
+export const hasEnded = (o: Ends, now: Date) => Date.parse(publicUntil(o)) <= now.getTime();
+
+/** Public caching that never outlasts what it shows: 60 seconds at most, and never past the first end among them. */
+export function publicCache(list: Ends[], now: Date): { 'Cache-Control': string } {
+  const seconds = Math.min(60, ...list.map(o => Math.floor((Date.parse(publicUntil(o)) - now.getTime()) / 1000)));
+  return { 'Cache-Control': `public, max-age=${Math.max(0, seconds)}` };
+}
+
+export type GoneReason = 'finished' | 'cancelled' | 'moved';
+
+/** Why a visible event's date is no longer public, or null while it's still to come. */
+export function goneReason(o: PublicOccurrence, now: Date): GoneReason | null {
+  if (o.status === 'cancelled') return 'cancelled';
+  if (o.status === 'rescheduled') return 'moved';
+  return o.status !== 'scheduled' || hasEnded(o, now) ? 'finished' : null;
+}
 
 /**
  * Places on a date (o = occurrences, e = events): that date's own number, else
@@ -58,7 +93,11 @@ export function shape(r: Row): PublicOccurrence {
   return { ...r, all_day: r.all_day === 1, projected: r.projected === 1, bookable: r.bookable === 1 } as unknown as PublicOccurrence;
 }
 
-/** One visible occurrence (any status, so old links can explain what happened). */
+/**
+ * One occurrence of a visible event, whatever its status. Callers check
+ * `goneReason` before showing anything: an old link only learns that the date
+ * has finished, was cancelled or has moved.
+ */
 export async function findOccurrence(db: D1Database, id: string): Promise<PublicOccurrence | null> {
   if (!OCCURRENCE_ID.test(id)) return null;
   const row = await db
@@ -68,16 +107,16 @@ export async function findOccurrence(db: D1Database, id: string): Promise<Public
   return row ? shape(row) : null;
 }
 
-/** The next scheduled, visible occurrence of an event. */
-export async function nextOccurrence(db: D1Database, eventId: string, today: string): Promise<PublicOccurrence | null> {
+/** The next date of a visible event that's still to come or still running. */
+export async function nextOccurrence(db: D1Database, eventId: string, now: Date): Promise<PublicOccurrence | null> {
   if (!EVENT_ID.test(eventId)) return null;
   const row = await db
     .prepare(
       `SELECT ${OCCURRENCE_FIELDS} FROM occurrences o JOIN events e ON e.event_id = o.event_id
-       WHERE o.event_id = ?1 AND ${VISIBLE} AND o.status = 'scheduled' AND o.event_date >= ?2
-       ORDER BY o.event_date LIMIT 1`,
+       WHERE o.event_id = ?1 AND ${VISIBLE} AND ${upcoming('?2', '?3')}
+       ORDER BY o.event_date, COALESCE(o.start_time, '00:00') LIMIT 1`,
     )
-    .bind(eventId, today)
+    .bind(eventId, now.toISOString(), londonDate(now))
     .first<Row>();
   return row ? shape(row) : null;
 }

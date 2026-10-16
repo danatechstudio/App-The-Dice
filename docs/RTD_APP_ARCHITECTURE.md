@@ -50,6 +50,7 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 - **Moved dates.** If a future scheduled occurrence is no longer implied by the sheet, it becomes `rescheduled`. It points at the new date, or at nothing while a new date is awaited. If the date moves back, it is reinstated.
 - **Nothing is lost.** Nothing is deleted or re-dated. Staff cancellations are never overridden by a sync.
 - **Visibility.** Only active events with `Public` or `App Bookable` visibility are served in full. `Hidden` never appears.
+  - **Only dates still to come or still running are public** (`upcoming` in `src/lib/queries.ts`). A date leaves every public response the moment it ends (`ends_at`), not at midnight and not when n8n next syncs. An all-day date lasts until London midnight; a missing end time counts as start + 1 hour. Cancelled and moved dates are never public. See [RTD_EVENT_CONTROL_AUDIT.md](RTD_EVENT_CONTROL_AUDIT.md) (G-1).
   - **`Private` events appear only in the diary list (`/api/events`):** they show as "Private session" with their date and time, so the café looks as busy as it is.
   - **Their details never leave the server:** not the name, description, photo or price.
   - **No other pages:** they have no event page, link preview or calendar file, and the app never features them (Home feature, Coming Up, Book, splash).
@@ -63,7 +64,7 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 - **One Cron Trigger, every minute.** It sends queued event reminders in batches of 20 and the 8pm automatic one ([RTD_ALERTS.md](RTD_ALERTS.md)). At 03:23 UTC the same run erases old details (next point).
 - **Erasing old details.** Daily at 03:23 UTC, the Cron Trigger erases booking contact details 12 months after the event, network hashes after 2 days, and declined join requests after 12 months, and event alert network codes after 2 days ([RTD_PRIVACY.md](RTD_PRIVACY.md)).
 - **Caching.**
-  - Public responses: `Cache-Control: public, max-age=60`.
+  - Public responses: `Cache-Control: public, max-age=60` at most. Lists of dates are cached only until the first date in them ends (`publicCache`), so a finished date is never served from a cache.
   - Staff responses, including refusals: `no-store`.
 - **Security headers** on every response: `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`.
 
@@ -75,7 +76,7 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | GET | `/api/privacy` | none (cached 5 min) | Who the privacy notice names, its contact address, and how long booking details are kept |
 | GET | `/api/events?from&to&category` | none | Diary listing: upcoming occurrences, max 120-day range. Private ones are redacted to "Private session" and their time. |
 | GET | `/api/events/:eventId` | none | Event page with upcoming occurrences |
-| GET | `/api/occurrences/:occurrenceId` | none | Deep link. Still returns cancelled/rescheduled status so old links explain themselves |
+| GET | `/api/occurrences/:occurrenceId` | none | Deep link. A date that has finished, was cancelled or has moved returns `410` with only `{ gone: { name, date, reason, next } }`, never its details |
 | GET | `/api/occurrences/:occurrenceId/calendar.ics` | none | Add to Calendar file (scheduled occurrences only) |
 | GET | `/api/occurrences/:occurrenceId/google-calendar` | none | Redirect to a prefilled Google Calendar event |
 | GET | `/images/:imageId` | none | An event photo from KV. Served only while its event is visible; cached for a year (content-addressed). |

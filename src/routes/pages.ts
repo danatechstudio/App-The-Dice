@@ -1,11 +1,12 @@
 // App pages that need the Worker: the shell HTML with link-preview tags, so
 // an event shared on Facebook or WhatsApp shows its own title, date and
 // picture (spec §40). Everything else is served straight from static assets.
+// A date that has finished, was cancelled or has moved gets the plain site
+// preview and a 410, never its details (docs/RTD_EVENT_CONTROL_AUDIT.md, G-1).
 
 import { Hono, type Context } from 'hono';
 import { withImages } from '../images/store';
-import { findOccurrence, nextOccurrence, type PublicOccurrence } from '../lib/queries';
-import { londonDate } from '../lib/time';
+import { findOccurrence, goneReason, nextOccurrence, publicCache, type PublicOccurrence } from '../lib/queries';
 
 export const pageRoutes = new Hono<{ Bindings: Env }>();
 
@@ -34,18 +35,22 @@ function clock(hhmm: string | null): string | null {
 
 export function eventMeta(o: PublicOccurrence, origin: string): Meta {
   const when = [DAY.format(new Date(`${o.date}T12:00:00Z`)), clock(o.start_time)].filter(Boolean).join(', ');
-  const status = o.status === 'cancelled' ? 'Cancelled: ' : '';
   // Our own photos are relative (/images/…); previews need absolute URLs.
   const image = o.image && /^(https:\/\/|\/images\/)/.test(o.image) ? new URL(o.image, origin).href : `${origin}/brand/og-default.png`;
   return {
-    title: `${status}${o.name} · ${when}`,
+    title: `${o.name} · ${when}`,
     description: o.description ? `${o.description} At Roll The Dice.` : `${when} at Roll The Dice Board Game Café.`,
     image,
     url: `${origin}/event/${o.occurrence_id}`,
   };
 }
 
-async function shell(c: Context<{ Bindings: Env }>, meta: Meta | null, status: 200 | 404 = 200): Promise<Response> {
+async function shell(
+  c: Context<{ Bindings: Env }>,
+  meta: Meta | null,
+  status: 200 | 404 | 410 = 200,
+  cache: { 'Cache-Control': string } = { 'Cache-Control': 'public, max-age=60' },
+): Promise<Response> {
   const origin = new URL(c.req.url).origin;
   const page = await c.env.ASSETS.fetch(new URL('/', c.req.url));
   const m: Meta = meta ?? { title: SITE, description: SITE_DESCRIPTION, image: `${origin}/brand/og-default.png`, url: origin + new URL(c.req.url).pathname };
@@ -74,7 +79,7 @@ async function shell(c: Context<{ Bindings: Env }>, meta: Meta | null, status: 2
     status,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'public, max-age=60',
+      ...cache,
       'Content-Security-Policy': CSP,
     },
   });
@@ -83,13 +88,18 @@ async function shell(c: Context<{ Bindings: Env }>, meta: Meta | null, status: 2
 pageRoutes.get('/', c => shell(c, null));
 
 pageRoutes.get('/event/:occurrenceId', async c => {
+  const now = new Date();
   const found = await findOccurrence(c.env.DB, c.req.param('occurrenceId'));
-  const [o] = found ? await withImages(c.env.DB, [found]) : [];
-  return shell(c, o ? eventMeta(o, new URL(c.req.url).origin) : null, o ? 200 : 404);
+  if (!found) return shell(c, null, 404);
+  if (goneReason(found, now)) return shell(c, null, 410);
+  const [o] = await withImages(c.env.DB, [found]);
+  return shell(c, eventMeta(o!, new URL(c.req.url).origin), 200, publicCache([found], now));
 });
 
 pageRoutes.get('/events/:eventId', async c => {
-  const next = await nextOccurrence(c.env.DB, c.req.param('eventId'), londonDate(new Date()));
+  const now = new Date();
+  const next = await nextOccurrence(c.env.DB, c.req.param('eventId'), now);
   const [o] = next ? await withImages(c.env.DB, [next]) : [];
-  return shell(c, o ? { ...eventMeta(o, new URL(c.req.url).origin), url: new URL(c.req.url).href } : null, o ? 200 : 404);
+  if (!o) return shell(c, null, 404);
+  return shell(c, { ...eventMeta(o, new URL(c.req.url).origin), url: new URL(c.req.url).href }, 200, publicCache([o], now));
 });

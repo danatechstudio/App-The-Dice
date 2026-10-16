@@ -5,7 +5,6 @@
 import { Hono } from 'hono';
 import { afterResponse } from '../lib/background';
 import { sameOriginJson } from '../lib/auth';
-import { londonDate } from '../lib/time';
 import { createApplication, getMarket, MAX_PHOTO_BYTES, MAX_PHOTOS, publicMarket, publicMarkets } from '../markets/markets';
 import { marketApplicationToApprove, notifyApprovers } from '../notify/push';
 
@@ -17,12 +16,15 @@ marketRoutes.use('*', sameOriginJson);
 const MAX_BODY = Math.ceil((MAX_PHOTOS * MAX_PHOTO_BYTES * 4) / 3) + 64 * 1024;
 
 /** Markets still to come: dates, pitch fee, pitches left. Never who has applied. */
-marketRoutes.get('/', async c => c.json({ markets: await publicMarkets(c.env.DB, londonDate(new Date())) }, 200, { 'Cache-Control': 'public, max-age=60' }));
+marketRoutes.get('/', async c => {
+  const { markets, cache } = await publicMarkets(c.env.DB, new Date());
+  return c.json({ markets }, 200, cache);
+});
 
 marketRoutes.get('/:id', async c => {
-  const market = await publicMarket(c.env.DB, c.req.param('id'), londonDate(new Date()));
-  if (!market) return c.json({ error: 'No market with that ID.' }, 404, { 'Cache-Control': 'no-store' });
-  return c.json({ market }, 200, { 'Cache-Control': 'public, max-age=60' });
+  const found = await publicMarket(c.env.DB, c.req.param('id'), new Date());
+  if (!found) return c.json({ error: 'No market with that ID.' }, 404, { 'Cache-Control': 'no-store' });
+  return c.json({ market: found.market }, 200, found.cache);
 });
 
 /** Apply for a pitch. Body: the form, and photos: [{ data: base64 }] (up to 3). */

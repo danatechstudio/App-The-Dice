@@ -78,15 +78,15 @@ export function App() {
 /** The promotional splash, once per visit, only when the app opens on Home. */
 function LaunchSplash({ path }: { path: string }) {
   const [opened] = useState(() => path === '/' && !splashSeenThisSession() && !new URLSearchParams(location.search).has('nosplash'));
-  const { occurrences, today } = useUpcoming();
+  const { occurrences } = useUpcoming();
   const [chosen, setChosen] = useState<Occurrence | null | undefined>(undefined);
 
   useEffect(() => {
     if (!opened || chosen !== undefined || !occurrences) return;
-    const pick = pickSplash(occurrences, today);
+    const pick = pickSplash(occurrences);
     if (pick) markSplashShown(pick);
     setChosen(pick);
-  }, [opened, occurrences, chosen, today]);
+  }, [opened, occurrences, chosen]);
 
   const close = useCallback(() => setChosen(null), []);
   return chosen ? <Splash o={chosen} onClose={close} /> : null;
