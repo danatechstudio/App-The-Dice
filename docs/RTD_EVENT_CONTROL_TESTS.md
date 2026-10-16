@@ -215,6 +215,27 @@ Seeded with a live weekly host session (Catan Club, Tuesdays 6:30pm, free) with 
 - **After approving:** the card said "Change approved: reaching the diary within about half an hour". The outbox held the approvers' email, Ava's "New time" email and the host's "Change approved". `/internal/host-changes` offered exactly `{ Event ID, Event Time: 19:00, App Price: £3 }`.
 - **Console:** no errors.
 
+## Stage 5b: dates in the app (2026-10-16)
+
+**Result:** `npm test`: 27 files, **382 passed** (6 new in `test/dates.test.ts`). `tsc` is clean for the Worker and the web app.
+
+| Requirement | Test |
+| --- | --- |
+| The next four weeks are listed, never what the sheet hides; hosts can't see it | `lists the dates coming up…` |
+| **Unpublish / publish one date:** it leaves the diary and its page, only that date; the sync leaves it alone; shown again; each change audited with before and after | `hides a date in the app and shows it again…` |
+| Hiding a booked date asks first, with the numbers; the booking stands, and its link still shows it | `asks before hiding a date people have booked…` |
+| **Edit app-owned fields:** a description and price for one date; other dates unchanged; the sync leaves them; empty or the same as the event's goes back to the event's | `gives one date its own description and price…` |
+| The form is checked; hosts can't; only dates still to come | `checks the form, and only changes dates still to come` |
+| A hidden last date still raises Needs attention when it ends | `still raises Needs attention when a hidden last date ends` |
+
+### Checked in the running app (2026-10-16, local `wrangler dev`, Chromium at 390 px)
+
+A weekly quiz, with one booking on 23 October.
+- **Dates in the app:** listed the next four weeks.
+- **Change this date** on 23 October: description, price £3, and **Hide this date in the app**, then **Save**. It warned "1 booking (2 places) on this date…". **Hide it** saved.
+- **Afterwards:** the row showed **Hidden in the app**, **Own description** and **Own price: £3**, and `/api/events` no longer listed 23 October (30 October onwards still listed).
+- **Console:** only the expected 409 for the warning.
+
 ## Later stages
 
 | Brief §4 criterion | Stage |

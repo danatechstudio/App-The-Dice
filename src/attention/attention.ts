@@ -107,7 +107,7 @@ export async function detect(db: D1Database, now: Date): Promise<{ opened: numbe
       .prepare(
         `SELECT o.occurrence_id, o.event_id, e.frequency, e.host_session_id, e.market_id
          FROM occurrences o JOIN events e ON e.event_id = o.event_id
-         WHERE ${LISTED} AND o.status IN ('scheduled', 'completed') AND ${ENDED} AND ${LATEST}
+         WHERE ${EVENT_LISTED} AND o.status IN ('scheduled', 'completed') AND ${ENDED} AND ${LATEST}
            AND NOT EXISTS (SELECT 1 FROM attention_items a WHERE a.item_key = 'expired:' || o.occurrence_id)
            -- Its next date was cancelled: that's handled as a cancellation.
            AND NOT EXISTS (SELECT 1 FROM occurrences c WHERE c.event_id = o.event_id AND c.status = 'cancelled' AND c.event_date > o.event_date)

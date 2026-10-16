@@ -12,6 +12,7 @@ import type { StaffMarket } from '../lib/markets';
 import { AttentionPanel } from './OrganiseAttention';
 import { DeliveryPanel } from './OrganiseDelivery';
 import { ChangeForm, ChangesPanel, ChangeStatus } from './OrganiseChanges';
+import { DatesPanel } from './OrganiseDateEditor';
 import { PushCard } from './OrganisePush';
 import { RemindersAdmin } from './OrganiseReminders';
 import { GamesAdmin } from './OrganiseGames';
@@ -552,6 +553,7 @@ function StaffDesk({ onDecided, me, isAdmin }: { onDecided: () => void; me: Host
       <MarketApplicationsPanel markets={markets} refresh={refresh} onChanged={load} />
       <HostedDatesPanel refresh={refresh} />
       <EventPlacesPanel refresh={refresh} />
+      <DatesPanel />
       {isAdmin && <StatsAdmin />}
       {isAdmin && <RemindersAdmin />}
       {isAdmin && <MarketsAdmin markets={markets} onChanged={load} />}

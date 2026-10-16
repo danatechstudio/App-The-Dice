@@ -20,7 +20,7 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 | Bookings on open sessions, who's coming, and cancelling a date | **Built**: see [RTD_BOOKINGS.md](RTD_BOOKINGS.md) |
 | Host emailed for each booking, and the numbers two days before | **Built** (n8n **RTD Outbox**). The café's info@ gets a copy of every booking too. |
 | Host changes the places on a live session (every date or one date), with no new approval | **Built** (2026-10-07): see [RTD_BOOKINGS.md](RTD_BOOKINGS.md#places) |
-| Host asks to change a live session (name, description, date, times, price, who can come); the café approves it first | **Built** in the app (2026-10-16, Stage 5a): see [Changing a live session](#changing-a-live-session). Reaching Event Index needs n8n branch D (proposed). |
+| Host asks to change a live session (name, description, date, times, price, who can come); the café approves it first | **Built** (2026-10-16, Stage 5a): see [Changing a live session](#changing-a-live-session). Approved changes reach Event Index through n8n branch D (live since 18:38 that day). |
 
 ## The session form
 
