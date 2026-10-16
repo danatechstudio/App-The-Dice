@@ -61,4 +61,10 @@ Nothing existing changes. No email is sent until an admin enters the addresses a
 
 **Rollback:** **Switch off** in the organiser, or `npx wrangler rollback`. The columns and settings can stay.
 
-**Applied to production:** _not yet; waiting for the owner's go-ahead._
+**Applied to production:** 2026-10-16 13:10 UTC, with the owner's go-ahead, through the Cloudflare connector; recorded in `d1_migrations`.
+- **Restore point:** 2026-10-16T13:10:28Z.
+- **Before:** 32 events, 56 occurrences, 0 bookings, 285 audit rows, 10 settings, 8 open items, an empty outbox.
+- **After:** the same, plus `attention_emails = off` and `attention_email_to = ''` (12 settings). The three columns are present; the 8 items are untouched.
+- **Deployed:** PR #3 merged at 13:12; the new code was confirmed live from the deployed Worker.
+- **The same day, 13:15:** the Event Guard's date-picker email was switched off ([RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#2026-10-16-the-event-guard-no-longer-emails-the-date-picker)).
+- **Waiting for:** an admin to set the addresses and switch emails on in the organiser.

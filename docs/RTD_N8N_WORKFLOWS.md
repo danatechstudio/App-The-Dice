@@ -4,6 +4,24 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### 2026-10-16: the Event Guard no longer emails the date-picker
+
+The owner approved this (decision D-4 in [RTD_EVENT_CONTROL_AUDIT.md](RTD_EVENT_CONTROL_AUDIT.md#7-decisions-blocked-on-the-owner)). The RTD app's **Needs attention** now covers what the date-picker did:
+- it lists each event whose date has passed with nothing after it;
+- it emails a notice to the addresses set in the organiser, then a reminder every morning until someone sets a new date, archives it or marks it finished.
+
+The date-picker went to one personal address, never reminded anyone, and its only live use (Bingo, 10 Oct) closed as "no response" within hours.
+
+| Workflow | Change | New active version | Roll back to |
+| --- | --- | --- | --- |
+| RTD Event Guard (sub) (`RtdEventGuardSub1`) | **Local edit:** the node `Request New Date (Sub)` is **disabled**. The version diff shows that this is the only change. | `4f73e19b-0f69-4abe-ae3e-2aa1b94c71c8` | `d3c74b27-dfa8-4e02-8f1d-d609751f9537` (publish it, or re-enable the node) |
+
+**What still happens when a one-off or monthly event passes:** the Guard sets it Inactive at 01:15, logs it in the RTD Event Automation Log, and makes posters as before. Only the date-picker email (RTD Event Date Change) no longer starts.
+
+**New dates** are set with **Set a new date** under Needs attention in the organiser; it reaches Event Index within 15 minutes. They can still be set in the sheet by hand.
+
+> **Local edit.** Mirror this in `rtd-poster-automation` (don't start the date change from the Guard), or its next build will bring the email back.
+
 ### 2026-10-08 (later): event reminders on Facebook
 
 Dan's request: admins send a push reminder about an event whenever they like, and "this should also trigger a social post at the same time". Dan chose Facebook, with the same text and the event's photo. See [RTD_ALERTS.md](RTD_ALERTS.md).

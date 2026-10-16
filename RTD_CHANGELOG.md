@@ -10,6 +10,7 @@
 - **Never a flood:** at most 5 notices per hourly run.
 - **Admins see how each email went:** queued; "sent" (Gmail accepted it; there's no proof it was read); or "not sent yet after 30 minutes", which means check RTD Outbox. There's also **Send a test**.
 - **Database:** migration `0018_attention_emails.sql` (three columns, two settings). **Tests:** 346 (was 339).
+- **n8n:** the Event Guard no longer emails its date-picker form when a one-off or monthly event passes; Needs attention covers it. It still sets the event Inactive and makes posters. See [docs/RTD_N8N_WORKFLOWS.md](docs/RTD_N8N_WORKFLOWS.md).
 
 ## 2026-10-16 (Needs attention)
 - **New in the organiser, for approvers and admins: Needs attention.** It's switched off until an admin presses **Switch on**. It lists:

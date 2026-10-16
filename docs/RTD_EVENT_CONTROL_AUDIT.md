@@ -423,7 +423,7 @@ The existing suite covers most app paths. n8n paths need dry runs (the Guard has
 | D-1 | Unknown end time rule | Keep **start + 1 h** (matches the calendar mirror). Mark `end_inferred` and list those rows in admin. All-day = visible until London midnight. Live: 0 timed rows lack an end; all Standard Diary rows are all-day |
 | D-2 | Deep link to a finished occurrence | Minimal "This event has finished" stub with a link to the next date; no details. Alternative: 404 |
 | D-3 | Expiry recipients | Both addresses from the brief, held in live config. Confirm whether Michelle should also get them, and from which address |
-| D-4 | Event Guard after app expiry is live | Stop its date-picker email and keep posters. Later, stop its Inactive flip (the app handles visibility). Needs `rtd-poster-automation` in Git, or a documented local edit |
+| D-4 | Event Guard after app expiry is live | Stop its date-picker email and keep posters. Later, stop its Inactive flip (the app handles visibility). Needs `rtd-poster-automation` in Git, or a documented local edit. **Done 2026-10-16 (date-picker email stopped; local edit, see [RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#2026-10-16-the-event-guard-no-longer-emails-the-date-picker)).** |
 | D-5 | Backlog at enable | Import Bingo + active events with no usable date (about 9). Exclude long-inactive history |
 | D-6 | Booking mode defaults | Event Index café events: **Optional**. Standard Diary groups: **Not required**. Open host sessions (capacity set): **Required**. Markets: **Not required** |
 | D-7 | Host self-service | Keep **host cancellation immediate** (a host who can't run it can't be made to), with admin notification. Place increases: immediate. Text / time / date changes: approval |
