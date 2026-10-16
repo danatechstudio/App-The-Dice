@@ -20,6 +20,7 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 | Bookings on open sessions, who's coming, and cancelling a date | **Built**: see [RTD_BOOKINGS.md](RTD_BOOKINGS.md) |
 | Host emailed for each booking, and the numbers two days before | **Built** (n8n **RTD Outbox**). The café's info@ gets a copy of every booking too. |
 | Host changes the places on a live session (every date or one date), with no new approval | **Built** (2026-10-07): see [RTD_BOOKINGS.md](RTD_BOOKINGS.md#places) |
+| Host asks to change a live session (name, description, date, times, price, who can come); the café approves it first | **Built** in the app (2026-10-16, Stage 5a): see [Changing a live session](#changing-a-live-session). Reaching Event Index needs n8n branch D (proposed). |
 
 ## The session form
 
@@ -70,8 +71,8 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 
 | Role | Can |
 | --- | --- |
-| Host (everyone who joins, café staff included) | Use `/organise`; create, see and withdraw **their own** sessions, send a declined or withdrawn one again, or delete it; see who's booked; cancel a date. Nothing else. |
-| Approver (role `staff`: Michelle) | Everything a host can, plus approve or decline join requests and sessions, remove hosts, and cancel any hosted date |
+| Host (everyone who joins, café staff included) | Use `/organise`; create, see and withdraw **their own** sessions, send a declined or withdrawn one again, or delete it; ask for a change to a live one; see who's booked; change places; cancel a date. Nothing else. |
+| Approver (role `staff`: Michelle) | Everything a host can, plus approve or decline join requests, sessions and hosts' changes, remove hosts, and cancel any hosted date |
 | Admin (Dan) | As an approver, plus choose approvers and remove them |
 
 The `users` table decides roles. Cloudflare Access only proves the email address.
@@ -107,6 +108,21 @@ The n8n workflow **RTD Host Follow-up** (`FFy0lBTZCm4A5p08`, daily at 10:00) ema
 
 **What the email says:** it thanks the host and links to the organiser to run it again. Each host gets it once: n8n marks the session (`followup_sent_at`) after sending.
 
+## Changing a live session
+
+A host can't edit a live session directly: they **Ask for a change** on its card ([RTD_EVENT_CONTROL_AUDIT.md](RTD_EVENT_CONTROL_AUDIT.md) G-7, D-7).
+
+- **What can change:** the name, description, date (for a weekly session, the day it moves to from that date), start and end time, cost, and open or private. The form starts from what the diary shows now, so a change made in the sheet isn't undone.
+- **Nothing public changes until an approver or admin approves it.** It's listed under **Changes to approve** in the organiser, side by side with what's public now, with how many are booked; approvers get a push and the approvers' inbox an email.
+- **Approve:** the session's own record changes, and n8n writes just the changed cells to its Event Index row, matched on Event ID (branch D of RTD Host Sessions To Diary; `/internal/host-changes`). The next sync puts them in the diary, within about half an hour in all.
+  - **A new time:** everyone booked on dates to come is emailed it.
+  - **A new date:** a booked date that moves is held under Needs attention, so the café decides how to tell them ([RTD_BOOKINGS.md](RTD_BOOKINGS.md#a-booked-date-moved-in-the-sheet)).
+  - **If a field being changed has moved on since it was asked for** (say, someone edited the sheet), approving is refused: decline it, and the host asks again.
+- **Decline:** needs a reason, which the host is emailed. The session stays as it was.
+- **The host** sees each request on the session's card (waiting, approved, or not approved with the reason) and can withdraw one still waiting. Asking again before a decision replaces it.
+- **Straight away, with no approval** (D-7): changing places, and cancelling a date (the café or the host is told).
+- **Audit:** `host_session.change_requested`, `change_approved`, `change_declined`, `change_withdrawn`, `change_applied`, with the values before and after.
+
 ## API
 
 `/api/host` and `/api/staff` need an Access sign-in. Changes must be JSON from our own pages: requests from other sites are refused (403), and non-JSON bodies get 415.
@@ -119,6 +135,12 @@ The n8n workflow **RTD Host Follow-up** (`FFy0lBTZCm4A5p08`, daily at 10:00) ema
 | POST | `/api/host/sessions/:id/withdraw` | the session's host | Withdraw before it's live |
 | POST | `/api/host/sessions/:id/resubmit` | the session's host | Declined or withdrawn only: the same fields as creating one. Back to Awaiting approval (409 otherwise). |
 | POST | `/api/host/sessions/:id/delete` | the session's host | Declined or withdrawn only: hide it (409 otherwise) |
+| POST | `/api/host/sessions/:id/changes` | the session's host | Live only: ask for a change (the change form, `note?`). 201 with the request; 400 with `errors` (nothing changed, a name another event uses, a date in the past) |
+| POST | `/api/host/changes/:id/withdraw` | the request's host | Take back a request still waiting |
+| GET | `/api/staff/change-requests?status=` | staff, admin | `pending` (default) or `decided` (last 14 days), each with `changes` side by side and bookings to come |
+| POST | `/api/staff/change-requests/:id/decision` | staff, admin | `{ decision: "approve" \| "decline", note? }`; declining needs the note. 409 if already decided, or a changed field moved on since |
+| GET | `/internal/host-changes` | n8n (bearer token) | Approved changes not yet in Event Index, each with only the cells that change |
+| POST | `/internal/host-changes/:id/applied` | n8n (bearer token) | Record it written (idempotent) |
 | GET | `/api/staff/host-sessions?status=` | staff, admin | Sessions by status (default `submitted`) |
 | POST | `/api/staff/host-sessions/:id/decision` | staff, admin | `{ decision: "approve" \| "decline", note? }` |
 | GET | `/api/staff/hosts` | approver, admin | List hosts |

@@ -4,15 +4,29 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
-### Proposed (Stage 4b, not made yet): RTD Outbox reports failed emails to the app
+### Proposed (Stage 5a, not made yet): approved host changes into Event Index
 
-Waiting for the owner's go-ahead, and only after migration `0020_delivery.sql` and the Stage 4b app are live (the old app has no `/failed`).
+Waiting for the owner's go-ahead, and only after migration `0021_change_requests.sql` and the Stage 5a app are live.
 
 | Workflow | Change | Roll back to |
 | --- | --- | --- |
-| RTD Outbox (`dJU9NJOh7aisAiFF`) | **Email Not Sent** (Stop and Error) is replaced by **Mark Failed In App**: `POST /internal/outbox/{message_id}/failed` with `{ "error": <Gmail's error, up to 300 characters> }` (header auth `rtd-app`, retries 3 times). Then **Given Up?**: only if the app answers `dead: true` does the run stop with an error (**Email Given Up**), so `Studio: Error Handler` emails Dan once per email given up on, not every 5 minutes. | `a1b77acb-fb1d-4f07-a8e1-a8e34a2ef125` |
+| RTD Host Sessions To Diary (`rdS8LF56B9k170BY`) | **New branch D**, beside C and from the same start: **Get Host Changes From App** (`GET /internal/host-changes`), **Host Changes To Apply** (keeps only items whose `row['Event ID']` matches their `event_id`), **Update Event Index Row (Host Change)** (Google Sheets update on Event Index, matched on **Event ID**, columns mapped automatically from the row so **only the cells in it are written**, RAW), **Mark Host Change Applied In App** (`POST /internal/host-changes/:id/applied`). Branches A, B and C are unchanged. | `d9cad8de-364c-4c03-9849-ec626861fca7` |
 
-**Why:** today one failed email fails the whole run every 5 minutes, forever, and the app can't tell it failed. After the change the app retries it (5 m, 15 m, 1 h, 4 h, 12 h), gives up visibly under **Delivery**, and opens a Needs attention item at once when the email was to a customer.
+**The cells it can write:** Event Name, Base Details, Event Date and Day, Event Time, End Time, App Price, App Visibility, each only when that field changes. Never Status, Frequency, App Capacity or App Host Session.
+
+### 2026-10-16 (evening): RTD Outbox reports failed emails to the app
+
+The owner approved this (Stage 4b). It was made after migration `0020_delivery.sql` and the Stage 4b app were live, so `/internal/outbox/:id/failed` existed first.
+
+| Workflow | Change | New active version | Roll back to |
+| --- | --- | --- | --- |
+| RTD Outbox (`dJU9NJOh7aisAiFF`) | **Email Not Sent** (Stop and Error) is replaced by **Mark Failed In App**: `POST /internal/outbox/{message_id}/failed` with `{ "error": <Gmail's error, up to 300 characters> }` (header auth `rtd-app`, retries 3 times). Then **Given Up?**: only if the app answers `dead: true` does the run stop with an error (**Email Given Up**), so `Studio: Error Handler` emails Dan once per email given up on, not every 5 minutes. The version diff shows only these nodes and their connections changed. | `e50af06e-0bd5-4e48-b63b-960a3ea3e343` (published 17:23 UTC) | `a1b77acb-fb1d-4f07-a8e1-a8e34a2ef125` |
+
+**Why:** one failed email used to fail the whole run every 5 minutes, forever, and the app couldn't tell it had failed. Now the app retries it (5 m, 15 m, 1 h, 4 h, 12 h), gives up visibly under **Delivery**, and opens a Needs attention item at once when the email was to a customer.
+
+**Verified:** the 17:25 and 17:30 runs on the new version succeeded (nothing was waiting). The failure branch hasn't run live yet: no email has failed since. The app side of it is covered by `test/delivery.test.ts`.
+
+**Built with the n8n connector, not generated from a repository,** so there's nothing to mirror locally.
 
 ### 2026-10-16: the Event Guard no longer emails the date-picker
 
@@ -370,7 +384,9 @@ This workflow sends the emails the app writes for bookings ([RTD_BOOKINGS.md](RT
      - **Empty `to` or `reply_to`:** the café address.
   4. **Send Email:** Gmail (`ATech GMAIL`), sent as "Roll The Dice". If one email fails, the rest still go.
   5. `POST /internal/outbox/:id/sent` for each one sent.
-  6. **Email Not Sent:** if any email failed, the run then stops with an error naming it, so `Studio: Error Handler` emails Dan. The email stays queued and is tried again in 5 minutes.
+  6. **Mark Failed In App** (since 2026-10-16): `POST /internal/outbox/:id/failed` with Gmail's error, for each one that failed. The app tries it again after 5 minutes, 15 minutes, 1 hour, 4 hours and 12 hours.
+  7. **Given Up? / Email Given Up:** only when the app says that was the last try does the run stop with an error, so `Studio: Error Handler` emails Dan once. The email is listed under **Delivery** in the organiser, with **Try again now**.
+  - **Collecting claims:** the app holds each email it returns for 10 minutes, so an overlapping or half-finished run doesn't send it twice.
 - **What it sends:**
   - **To the person who booked:** the booking confirmation (replies go to info@).
   - **To info@:** a copy of every booking and cancellation, the numbers two days before each booked café event, and a warning when a booked date leaves the Logic Engine.

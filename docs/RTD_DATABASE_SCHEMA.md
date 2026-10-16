@@ -311,6 +311,25 @@ Added in `0017_attention.sql`: **Needs attention** ([RTD_EVENT_CONTROL_AUDIT.md]
 **Emails** (outbox `kind`): `attention_expired` (dedupe `expiry-new:<item_id>:<address>`), `attention_digest` (`expiry-digest:<date>:<address>`) and `attention_test`.
 **Audit:** `attention.opened`, `attention.resolved`, `attention.switched_on` / `attention.switched_off`.
 
+## event_change_requests
+
+Added in `0021_change_requests.sql` (Stage 5a; [RTD_HOST_PORTAL.md](RTD_HOST_PORTAL.md#changing-a-live-session)): a host's change to their live session, which an approver decides.
+
+| Column | Notes |
+| --- | --- |
+| `request_id` | `RTD-CR-00001` upwards |
+| `session_id`, `event_id` | The session, and the Event Index row the change is written to |
+| `origin`, `requested_by` | `host`, and the host's sign-in email |
+| `published` | JSON: what the diary showed when it was asked for (name, description, event_date, start_time, end_time, price, access) |
+| `proposed` | JSON: only the fields that change (with `price_pence` when the price does) |
+| `note` | The host's note to the café |
+| `status` | `pending`, `approved`, `declined`, `withdrawn`, or `superseded` (asked again before a decision) |
+| `decided_by`, `decided_at`, `decision_note` | Who decided; the note is the reason when declined |
+| `applied_at` | n8n wrote it to Event Index |
+
+**Emails** (outbox `kind`): `cafe_change_request` (to `@approvals`, dedupe `change-request:<id>`), `host_change_decided` (`change-decided:<id>`), `attendee_time_changed` (`time-changed:<id>:<booking_id>`).
+**Audit:** `host_session.change_requested`, `.change_approved`, `.change_declined`, `.change_withdrawn`, `.change_applied`.
+
 ## booking_devices and push_outbox
 
 Added in `0020_delivery.sql` (Stage 4b; [RTD_BOOKINGS.md](RTD_BOOKINGS.md#telling-this-device)).

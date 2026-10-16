@@ -11,6 +11,7 @@ import { MarketApplicationsPanel, MarketsAdmin } from './OrganiseMarkets';
 import type { StaffMarket } from '../lib/markets';
 import { AttentionPanel } from './OrganiseAttention';
 import { DeliveryPanel } from './OrganiseDelivery';
+import { ChangeForm, ChangesPanel, ChangeStatus } from './OrganiseChanges';
 import { PushCard } from './OrganisePush';
 import { RemindersAdmin } from './OrganiseReminders';
 import { GamesAdmin } from './OrganiseGames';
@@ -206,6 +207,7 @@ function SessionFacts({ s }: { s: HostSession }) {
 function SessionCard({ s, onChange, onSendAgain }: { s: HostSession; onChange: () => void; onSendAgain: () => void }) {
   const [busy, setBusy] = useState(false);
   const [changingPlaces, setChangingPlaces] = useState(false);
+  const [askingChange, setAskingChange] = useState(false);
   const status = STATUS[s.status];
   // A weekly session keeps going until it's stopped, so only one-offs finish.
   const past = s.frequency === 'one-off' && s.event_date < todayLondon();
@@ -238,6 +240,8 @@ function SessionCard({ s, onChange, onSendAgain }: { s: HostSession; onChange: (
         {changingPlaces && (
           <SessionPlaces sessionId={s.session_id} current={s.max_players} onClose={() => setChangingPlaces(false)} onSaved={() => (setChangingPlaces(false), onChange())} />
         )}
+        {s.change && !askingChange && <ChangeStatus c={s.change} onChanged={onChange} />}
+        {askingChange && s.live && <ChangeForm s={s} onDone={sent => (setAskingChange(false), sent && onChange())} />}
         {s.dates && <SessionDates dates={s.dates} onChanged={onChange} />}
       </div>
       <div class="host-event__side">
@@ -245,6 +249,11 @@ function SessionCard({ s, onChange, onSendAgain }: { s: HostSession; onChange: (
         {s.status === 'published' && !finished && !changingPlaces && (
           <button type="button" class="btn btn--secondary btn--sm" onClick={() => setChangingPlaces(true)}>
             <UsersRound size={16} aria-hidden="true" /> Change places
+          </button>
+        )}
+        {s.status === 'published' && !finished && s.live && !askingChange && (
+          <button type="button" class="btn btn--secondary btn--sm" onClick={() => setAskingChange(true)}>
+            Ask for a change
           </button>
         )}
         {(s.status === 'submitted' || s.status === 'approved') && !past && (
@@ -539,6 +548,7 @@ function StaffDesk({ onDecided, me, isAdmin }: { onDecided: () => void; me: Host
           ))}
         </div>
       </section>
+      <ChangesPanel />
       <MarketApplicationsPanel markets={markets} refresh={refresh} onChanged={load} />
       <HostedDatesPanel refresh={refresh} />
       <EventPlacesPanel refresh={refresh} />

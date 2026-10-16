@@ -20,7 +20,7 @@ Customers can book places on public events in the app: hosts' open sessions, and
 | Booking modes: Not required / Optional / Required, per event, set by approvers | **Built** (2026-10-16): see [Booking modes](#booking-modes) |
 | Telling the booker's device (opt-in) when a date is cancelled or moved | **Built** (2026-10-16, Stage 4b): see [Telling this device](#telling-this-device) |
 | A booked date moved in the sheet: held under Needs attention until someone decides | **Built** (2026-10-16, Stage 4b): see [A booked date moved in the sheet](#a-booked-date-moved-in-the-sheet) |
-| Email delivery: retries, giving up visibly, a Delivery view | **Built** in the app (2026-10-16, Stage 4b); n8n RTD Outbox still to be switched to report failures |
+| Email delivery: retries, giving up visibly, a Delivery view | **Built** (2026-10-16, Stage 4b); n8n RTD Outbox reports failures since 17:23 that day |
 | Waiting list, daily staff digest, editing a booking | Not built (spec §23, §33) |
 
 ## What can be booked
@@ -224,7 +224,7 @@ The app writes every booking email itself (`src/notify/emails.ts`) into the `out
 - **Failures (Stage 4b):** n8n reports a failed email to `/internal/outbox/:id/failed` with Gmail's error. It's tried again after 5 minutes, 15 minutes, 1 hour, 4 hours and 12 hours, then given up on; the rest still go. A repeated report of the same attempt counts once.
 - **A customer's email that fails** (a booking confirmation, a cancellation, a moved date) opens an item under **Needs attention** at its first failure, with the person's details so the café can reach them another way. It settles itself if a later try goes.
 - **Delivery** in the organiser shows the last 7 days (sent, waiting, being tried again, given up on) and every failing or given-up email and booking notification of the last 30 days, with **Try again now**. "Sent" only ever means Gmail accepted it.
-- **Until RTD Outbox is switched to report failures,** a failed email is simply offered again 10 minutes later, and the run fails so the error handler emails Dan, as before.
+- **Dan is emailed** (n8n's error handler) only when an email is given up on, not on every failed try.
 - **Retention:** sent emails are deleted from the outbox after 90 days.
 - **Escaping:** everything people typed is HTML-escaped.
 

@@ -19,6 +19,7 @@ import { checkBearer } from '../lib/auth';
 import { londonDate } from '../lib/time';
 import { MARKET_ID, markMarketPublished, markSheetSynced, marketsToPublish, sheetRows } from '../markets/markets';
 import { markSocial, socialQueue } from '../notify/alerts';
+import { changesToApply, markChangeApplied } from '../host/changes';
 import { markFailed, markSent, unsent } from '../notify/outbox';
 import { decidedApplicationsForApplicants, markApplicationNotified, newApplicationsForApprovers } from '../team/applications';
 import { applySync, parsePayload } from '../sync/apply';
@@ -212,6 +213,18 @@ internalRoutes.post('/outbox/:id/failed', async c => {
   const result = await markFailed(c.env.DB, id, body.error, new Date().toISOString());
   if (result === 'not_found') return c.json({ error: 'No email with that ID' }, 404);
   return c.json({ ok: true, already: result === 'already', dead: result === 'dead' });
+});
+
+/**
+ * Approved host changes for Event Index (n8n RTD Host Sessions To Diary, branch D): each
+ * with only the cells that change, matched on Event ID (src/host/changes.ts).
+ */
+internalRoutes.get('/host-changes', async c => c.json({ changes: await changesToApply(c.env.DB) }));
+
+internalRoutes.post('/host-changes/:id/applied', async c => {
+  const result = await markChangeApplied(c.env.DB, c.req.param('id'), new Date().toISOString());
+  if (result === 'not_found') return c.json({ error: 'No change request with that number' }, 404);
+  return c.json({ ok: true, already: result === 'already' });
 });
 
 /**

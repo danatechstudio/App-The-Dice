@@ -39,6 +39,42 @@ export interface HostSession {
   resubmissions?: number;
   /** Live sessions: upcoming dates, with who's booked. */
   dates?: SessionDate[];
+  /** Live sessions: what the diary shows now, which a change request starts from. */
+  live?: LiveDetails | null;
+  /** Live sessions: the latest change request, while waiting or decided in the last fortnight. */
+  change?: ChangeRequest | null;
+}
+
+export interface LiveDetails {
+  name: string;
+  description: string | null;
+  event_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  price: string;
+  price_pence: number;
+  access: Access;
+}
+
+export type ChangeField = 'name' | 'description' | 'event_date' | 'start_time' | 'end_time' | 'price' | 'access';
+
+/** A host's change to a live session (src/host/changes.ts). */
+export interface ChangeRequest {
+  request_id: string;
+  session_id: string;
+  host: string;
+  frequency: Frequency;
+  name: string;
+  note: string | null;
+  status: 'pending' | 'approved' | 'declined' | 'withdrawn' | 'superseded';
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  applied: boolean;
+  created_at: string;
+  changes: { field: ChangeField; label: string; now: string | null; proposed: string | null }[];
+  bookings: number;
+  people: number;
 }
 
 export interface DateBooking {

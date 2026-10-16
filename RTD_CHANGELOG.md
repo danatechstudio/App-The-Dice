@@ -1,5 +1,16 @@
 # RTD App Changelog
 
+## 2026-10-16 (Hosts' changes need approval)
+- **Hosts can ask to change a live session** in the organiser: its name, description, date, times, cost, or open or private. The form starts from what the diary shows now.
+- **Nothing public changes until an approver or admin approves it.** **Changes to approve** shows each change side by side with what's public now, and how many people are booked. Approvers get a push, and the approvers' inbox an email.
+- **Declining needs a reason,** which the host is emailed. Approving emails the host too.
+- **Once approved,** just the changed cells are written to the session's Event Index row, and the diary follows within about half an hour. This needs a new n8n branch, which waits for the owner's go-ahead.
+  - **A new time** is emailed to everyone booked on dates to come.
+  - **A new date** for a booked date is held under Needs attention, as for any moved date.
+- **Hosts see how their request is going** on the session's card, and can withdraw one still waiting. Asking again replaces it.
+- **Still straight away, with no approval:** changing places, and cancelling a date.
+- **Database:** migration `0021_change_requests.sql` (one table). **Tests:** 376 (was 371).
+
 ## 2026-10-16 (Cancelled dates leave the sheet)
 - **A cancelled monthly date is no longer advertised:** its Event Index row is switched off within 15 minutes (n8n RTD Host Sessions To Diary, as for one-offs), with its date left as it was.
   - **Needs attention** then asks for its next date. Setting it there makes the row Active again with that date; **Archive** keeps it off.
@@ -20,7 +31,7 @@
 - **Emails that fail are retried and then given up on visibly**, instead of failing RTD Outbox every 5 minutes. They're retried after 5 minutes, 15 minutes, 1 hour, 4 hours and 12 hours.
   - A customer's email that fails opens a Needs attention item at once, with their details.
   - **Delivery** in the organiser shows how the last 7 days' emails and notifications went, with **Try again now**.
-  - This needs a change to n8n RTD Outbox, which waits for the owner's go-ahead.
+  - n8n RTD Outbox now reports each failure to the app (published 17:23); Dan is emailed only when one is given up on.
 - **Moved dates and failed customer emails** are in the attention emails too: a notice, then the morning reminder.
 - **Privacy:** a booking device's address is deleted the day after the date. The privacy notice says so.
 - **Database:** migration `0020_delivery.sql` (outbox columns, two new tables). **Tests:** 363 (was 351).

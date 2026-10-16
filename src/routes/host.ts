@@ -4,10 +4,11 @@
 import { Hono } from 'hono';
 import { cancelDate, datesForSessions } from '../bookings/bookings';
 import { setDatePlaces, setSessionPlaces } from '../bookings/places';
+import { latestChanges, liveDetails, requestChange, withdrawChange } from '../host/changes';
 import { createSession, deleteSession, listSessions, parseSessionInput, resubmitSession, withdrawSession } from '../host/sessions';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
 import { afterResponse } from '../lib/background';
-import { notifyApprovers, sessionToApprove } from '../notify/push';
+import { changeToApprove, notifyApprovers, sessionToApprove } from '../notify/push';
 import { londonDate } from '../lib/time';
 
 export const hostRoutes = new Hono<{ Bindings: Env; Variables: { user: AuthUser } }>();
@@ -24,12 +25,53 @@ hostRoutes.get('/me', c => {
   return c.json({ user, can_review: user.role === 'staff' || user.role === 'admin', is_admin: user.role === 'admin' });
 });
 
-/** My sessions; live ones carry their upcoming dates, with who's booked (names and party sizes). */
+/**
+ * My sessions; live ones carry their upcoming dates, with who's booked (names and party
+ * sizes), what the diary shows now (`live`, for asking for a change) and their latest change request.
+ */
 hostRoutes.get('/sessions', async c => {
   const sessions = await listSessions(c.env.DB, { hostUserId: c.get('user').user_id });
   const live = sessions.filter(s => s.status === 'published').map(s => s.session_id);
-  const dates = await datesForSessions(c.env.DB, live, londonDate(new Date()));
-  return c.json({ sessions: sessions.map(s => ({ ...s, dates: dates.filter(d => d.host_session_id === s.session_id) })) });
+  const today = londonDate(new Date());
+  const [dates, changes, details] = await Promise.all([
+    datesForSessions(c.env.DB, live, today),
+    latestChanges(c.env.DB, live, today),
+    Promise.all(live.map(id => liveDetails(c.env.DB, id, today))),
+  ]);
+  const shown = Object.fromEntries(
+    details.filter(d => d).map(d => [d!.session_id, { name: d!.name, description: d!.description, event_date: d!.event_date, start_time: d!.start_time, end_time: d!.end_time, price: d!.price, price_pence: d!.price_pence, access: d!.access }]),
+  );
+  return c.json({
+    sessions: sessions.map(s => ({
+      ...s,
+      dates: dates.filter(d => d.host_session_id === s.session_id),
+      live: shown[s.session_id] ?? null,
+      change: changes[s.session_id] ?? null,
+    })),
+  });
+});
+
+/**
+ * Ask for a change to my live session (name, description, date, times, price, who can
+ * come). Nothing changes in the diary until the café approves it (src/host/changes.ts).
+ * Body: the change form, plus note?.
+ */
+hostRoutes.post('/sessions/:id/changes', async c => {
+  const user = c.get('user');
+  const result = await requestChange(c.env.DB, user, c.req.param('id'), await c.req.json().catch(() => null), {
+    now: new Date().toISOString(),
+    origin: new URL(c.req.url).origin,
+  });
+  if (!result.ok) return c.json({ error: result.error, errors: result.errors }, result.status);
+  const ctx = { subject: new URL(c.req.url).origin, now: new Date(), exceptUserId: user.user_id };
+  await afterResponse(c, () => notifyApprovers(c.env.DB, changeToApprove(result.request), ctx));
+  return c.json({ request: result.request }, 201);
+});
+
+/** Take back a change request still waiting for a decision. */
+hostRoutes.post('/changes/:id/withdraw', async c => {
+  const result = await withdrawChange(c.env.DB, c.get('user'), c.req.param('id'), new Date().toISOString());
+  return result.ok ? c.json({ ok: true }) : c.json({ error: result.error }, result.status);
 });
 
 hostRoutes.post('/sessions', async c => {

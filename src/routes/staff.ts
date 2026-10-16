@@ -5,6 +5,7 @@ import { attentionOverview, resolveItem, setAttention } from '../attention/atten
 import { emailOverview, sendTest, setEmailSettings } from '../attention/reminders';
 import { upcomingBookedDates } from '../bookings/bookings';
 import { cafeEventPlaces, setBookingMode, setEventPlaces } from '../bookings/places';
+import { decideChange, listChanges } from '../host/changes';
 import { deliveryOverview } from '../notify/delivery';
 import { retryNow } from '../notify/outbox';
 import { decideSession, listHosts, listSessions, type SessionStatus } from '../host/sessions';
@@ -119,6 +120,21 @@ staffRoutes.get('/host-sessions', async c => {
   const status = c.req.query('status') ?? 'submitted';
   if (!SESSION_STATUSES.includes(status)) return c.json({ error: `status must be one of ${SESSION_STATUSES.join(', ')}` }, 400);
   return c.json({ sessions: await listSessions(c.env.DB, { status: status as SessionStatus }) });
+});
+
+/** Hosts' change requests: waiting (default), or decided in the last fortnight (src/host/changes.ts). */
+staffRoutes.get('/change-requests', async c => {
+  const status = c.req.query('status') === 'decided' ? 'decided' : 'pending';
+  return c.json({ requests: await listChanges(c.env.DB, status, londonDate(new Date())) });
+});
+
+/** Approve, or decline with a reason. Body: { decision: 'approve' | 'decline', note? (required to decline) } */
+staffRoutes.post('/change-requests/:id/decision', async c => {
+  const result = await decideChange(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), {
+    now: new Date().toISOString(),
+    origin: new URL(c.req.url).origin,
+  });
+  return result.ok ? c.json({ request: result.request }) : c.json({ error: result.error, errors: result.errors }, result.status);
 });
 
 /** Approve or decline. Body: { decision: 'approve' | 'decline', note? } */
