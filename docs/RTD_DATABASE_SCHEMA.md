@@ -342,19 +342,13 @@ Added in `0020_delivery.sql` (Stage 4b; [RTD_BOOKINGS.md](RTD_BOOKINGS.md#tellin
 
 ## Food & Drinks menu
 
-Added in `0023_food_menu.sql` ([RTD_FOOD_MENU.md](RTD_FOOD_MENU.md)). Additive: no existing table changes. Browse only; nothing about customers.
+No tables of its own: the menu lives in the RTD Food Menu Google Sheet ([RTD_FOOD_MENU.md](RTD_FOOD_MENU.md)), and the app keeps three `settings` rows. Browse only; nothing about customers.
 
-| Table | Columns |
+| Setting | Value |
 | --- | --- |
-| `menu_categories` | `category_id` (primary key, a slug that is also the page anchor: `hot-food`), `name`, `description`, `alcohol` (1: the over-18s note), `image_url`, `image_alt` (reserved for a photo), `sort_order`, `visible`, `created_at`, `updated_at` |
-| `menu_items` | `item_id` (`RTD-MENU-00001`; never reused), `category_id`, `name`, `options` (the choices), `description`, `price_pence` (NULL when there's no single price; checked 0–100000), `price_note` (what to show instead: "Individually priced"), `alcohol` (1: marked 18+; 0% drinks are 0), `image_url`, `image_alt`, `sort_order`, `visible` (0: off the menu), `available` (0: listed as not available right now), `source_text` (the line as transcribed from the photographed menu), `created_at`, `updated_at` |
-| `menu_item_variants` | `variant_id`, `item_id`, `label` (`Single`, `Double`), `price_pence`, `sort_order`; unique `(item_id, label)`. When an item has these, they are its prices |
-
-**Index:** `menu_items (category_id, sort_order)`.
-
-**Setting:** `food_menu_status`: `off`, `preview` (where it starts) or `live`. Admins change it in the organiser; anything else reads as off.
-
-**Data:** 8 sections and 59 lines from the brief, with single £4 / double £6 for each of the 8 spirits. Three cold-food lines are "Individually priced", and Mixers' soft drinks point to Cold drinks.
+| `food_menu` | JSON: the latest good copy of the sheet. `categories` (`category_id`: a slug of the name, also the page anchor; `name`, `description`, `alcohol`, `sort_order`, `visible`), `items` (`item_id`: `<section>--<slug of the name>`; `name`, `options`, `description`, `price_pence` or NULL, `price_note`, `alcohol`, `image_url`, `image_alt`, `sort_order`, `visible`, `available`, `source_text` = the sheet's Menu wording), `variants` (`item_id`, `label` Single/Double, `price_pence`), `synced_at` (when it last changed), `sheet_url` |
+| `food_menu_sync` | JSON: `at`, `ok`, `errors` (every problem with the latest copy, by row) |
+| `food_menu_status` | `off` (or missing), `preview` or `live`. Admins change it in the organiser; anything else reads as off |
 
 ## Coming in later phases
 

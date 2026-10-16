@@ -98,9 +98,10 @@ _Last updated: 2026-10-16_
 
   See [docs/RTD_FOOD_MENU.md](docs/RTD_FOOD_MENU.md).
 - **Linked from:** the top bar, Home, the footer and the app's shortcuts. The bottom bar is unchanged.
-- **Starts in Preview**, marked as being checked. Admins switch it Off / Preview / Live in the organiser.
+- **Kept in the RTD Food Menu Google Sheet** (Atechstudio Drive › Roll The Dice › Business), copied into the app every 15 minutes by n8n **RTD Menu Sync**. A copy with a bad row is refused and the last good menu stays.
+- **Starts Off.** Admins switch it Off / Preview / Live in the organiser.
 - **Waiting on:**
-  - migration `0023_food_menu.sql` applied to production (with your go-ahead), then the PR merged;
+  - the PR merged (no database change), then RTD Menu Sync published and an admin switching it to Preview;
   - the café's checks in [docs/RTD_FOOD_MENU_AUDIT.md §6](docs/RTD_FOOD_MENU_AUDIT.md#6-before-launch-for-the-café) before Live.
 - **Next:** offers (Stage 3), then opt-in offer notifications (Stage 4).
 

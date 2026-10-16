@@ -55,7 +55,7 @@ const ICONS = {
   spirits: Martini,
   'beer-cider': Beer,
   mixers: GlassWater,
-  wine: Wine,
+  'wine-prosecco': Wine,
 } as const;
 
 export const categoryIcon = (id: string) => ICONS[id as keyof typeof ICONS] ?? UtensilsCrossed;

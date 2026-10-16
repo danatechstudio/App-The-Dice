@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { safeImage, type PublicMenu } from '../src/menu/menu';
+import { menuSheet } from './fixtures/menuSheet';
 import { env, freshDb, request } from './helpers';
 
 const as = (email: string) => ({ ENVIRONMENT: 'development', DEV_AUTH_EMAIL: email });
@@ -9,12 +10,24 @@ const SAM = as('sam@example.com'); // host
 const json = (body: unknown) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
 const menu = async () => (await request('/api/menu')).json<PublicMenu>();
+
+/** n8n RTD Menu Sync posting a copy of the sheet. */
+const sheetSync = (body: unknown, token = 'test-sync-token') =>
+  request('/internal/menu', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+
+/** The sheet as first filled in, with one change made to some rows. */
+function editedSheet(edit: (items: Record<string, unknown>[], sections: Record<string, unknown>[]) => void) {
+  const sheet = menuSheet();
+  edit(sheet.items, sheet.sections);
+  return sheet;
+}
+const row = (items: Record<string, unknown>[], name: string) => items.find(r => r.Item === name)!;
 const items = (m: PublicMenu) => m.categories.flatMap(c => c.items);
 const byName = (m: PublicMenu, name: string) => items(m).find(i => i.name === name)!;
 
 /**
  * Every price in the brief (RTD_FOOD_MENU_OFFERS-1.md), written out again here
- * rather than read from the migration, so a typo in either shows up.
+ * rather than read from the sheet's starting rows, so a typo in either shows up.
  */
 const BRIEF_PRICES: [string, number][] = [
   ['Bacon bun', 350],
@@ -74,7 +87,9 @@ beforeEach(async () => {
     env.DB.prepare("INSERT INTO users VALUES ('u-dan', 'dan@example.com', 'Dan', 'admin', 1, ?1, ?1)").bind(now),
     env.DB.prepare("INSERT INTO users VALUES ('u-mich', 'michelle@example.com', 'Michelle', 'staff', 1, ?1, ?1)").bind(now),
     env.DB.prepare("INSERT INTO users VALUES ('u-sam', 'sam@example.com', 'Sam Host', 'host', 1, ?1, ?1)").bind(now),
+    env.DB.prepare("INSERT INTO settings (key, value, updated_at, updated_by) VALUES ('food_menu_status', 'preview', ?1, 'test')").bind(now),
   ]);
+  expect((await sheetSync(menuSheet())).status).toBe(200);
 });
 
 describe('the public menu', () => {
@@ -114,6 +129,7 @@ describe('the public menu', () => {
   it('prices every spirit by the single and the double', async () => {
     const m = await menu();
     const spirits = m.categories.find(c => c.id === 'spirits')!;
+    expect(spirits.items.map(i => i.name)).toHaveLength(8);
     expect(spirits.items.map(i => i.name)).toEqual(SPIRITS);
     for (const s of spirits.items) {
       expect(s.prices).toEqual([
@@ -135,7 +151,7 @@ describe('the public menu', () => {
 
   it('marks alcohol, but not the 0% drinks', async () => {
     const m = await menu();
-    expect(m.categories.filter(c => c.alcohol).map(c => c.id)).toEqual(['spirits', 'beer-cider', 'wine']);
+    expect(m.categories.filter(c => c.alcohol).map(c => c.id)).toEqual(['spirits', 'beer-cider', 'wine-prosecco']);
     const alcoholic = items(m)
       .filter(i => i.alcohol)
       .map(i => i.name);
@@ -162,31 +178,33 @@ describe('the public menu', () => {
       expect(i.image).toBeNull();
       expect(Object.keys(i).sort()).toEqual(['alcohol', 'available', 'description', 'id', 'image', 'image_alt', 'name', 'options', 'price_note', 'prices']);
     }
-    expect((await request('/api/menu', json({ item: 'RTD-MENU-00001' }))).status).toBe(404);
+    expect((await request('/api/menu', json({ item: 'hot-food--bacon-bun' }))).status).toBe(404);
   });
 
   it('leaves out hidden items and hidden categories, and marks unavailable ones', async () => {
-    await env.DB.batch([
-      env.DB.prepare("UPDATE menu_items SET visible = 0 WHERE name = 'Toast'"),
-      env.DB.prepare("UPDATE menu_items SET available = 0 WHERE name = 'Iced latte'"),
-      env.DB.prepare("UPDATE menu_categories SET visible = 0 WHERE category_id = 'wine'"),
-      env.DB.prepare("UPDATE menu_items SET visible = 0 WHERE category_id = 'mixers'"),
-    ]);
+    const sheet = editedSheet((items, sections) => {
+      row(items, 'Toast').Show = 'N';
+      row(items, 'Iced latte').Available = 'no';
+      sections.find(r => r.Section === 'Wine & prosecco')!.Show = 'N';
+      for (const r of items.filter(r => r.Section === 'Mixers')) r.Show = false;
+    });
+    expect((await sheetSync(sheet)).status).toBe(200);
     const m = await menu();
     expect(items(m).map(i => i.name)).not.toContain('Toast');
     expect(byName(m, 'Iced latte').available).toBe(false);
     expect(byName(m, 'Tea').available).toBe(true);
     // A hidden category, and one with nothing visible, are left out altogether.
-    expect(m.categories.map(c => c.id)).not.toContain('wine');
+    expect(m.categories.map(c => c.id)).not.toContain('wine-prosecco');
     expect(m.categories.map(c => c.id)).not.toContain('mixers');
     expect(items(m)).toHaveLength(59 - 1 - 4 - 3);
   });
 
-  it('follows the sort order set for categories and items', async () => {
-    await env.DB.batch([
-      env.DB.prepare("UPDATE menu_categories SET sort_order = 5 WHERE category_id = 'hot-drinks'"),
-      env.DB.prepare("UPDATE menu_items SET sort_order = 1 WHERE name = 'Iced latte'"),
-    ]);
+  it('follows the order of the rows in the sheet', async () => {
+    const sheet = editedSheet((items, sections) => {
+      sections.unshift(sections.splice(sections.findIndex(r => r.Section === 'Hot drinks'), 1)[0]!);
+      items.unshift(items.splice(items.findIndex(r => r.Item === 'Iced latte'), 1)[0]!);
+    });
+    expect((await sheetSync(sheet)).status).toBe(200);
     const m = await menu();
     expect(m.categories[0]!.id).toBe('hot-drinks');
     expect(m.categories[0]!.items[0]!.name).toBe('Iced latte');
@@ -202,15 +220,16 @@ describe('the public menu', () => {
   });
 
   it('only passes on safe image addresses', async () => {
-    await env.DB.batch([
-      env.DB.prepare("UPDATE menu_items SET image_url = '/images/abc123', image_alt = 'A bacon bun' WHERE name = 'Bacon bun'"),
-      env.DB.prepare("UPDATE menu_items SET image_url = 'javascript:alert(1)' WHERE name = 'Toast'"),
-      env.DB.prepare("UPDATE menu_categories SET image_url = 'https://example.com/hot.jpg' WHERE category_id = 'hot-food'"),
-    ]);
+    const sheet = editedSheet(items => {
+      Object.assign(row(items, 'Bacon bun'), { Photo: '/images/abc123', 'Photo description': 'A bacon bun' });
+      row(items, 'Toast').Photo = 'javascript:alert(1)';
+      row(items, 'Fries').Photo = 'https://example.com/fries.jpg';
+    });
+    expect((await sheetSync(sheet)).status).toBe(200);
     const m = await menu();
     expect(byName(m, 'Bacon bun')).toMatchObject({ image: '/images/abc123', image_alt: 'A bacon bun' });
     expect(byName(m, 'Toast').image).toBeNull();
-    expect(m.categories[0]!.image).toBe('https://example.com/hot.jpg');
+    expect(byName(m, 'Fries').image).toBe('https://example.com/fries.jpg');
   });
 
   it('checks image addresses', () => {
@@ -251,10 +270,11 @@ describe('the menu for admins', () => {
   });
 
   it('counts hidden lines, including those in a hidden category', async () => {
-    await env.DB.batch([
-      env.DB.prepare("UPDATE menu_items SET visible = 0 WHERE name = 'Toast'"),
-      env.DB.prepare("UPDATE menu_categories SET visible = 0 WHERE category_id = 'wine'"),
-    ]);
+    const sheet = editedSheet((items, sections) => {
+      row(items, 'Toast').Show = 'N';
+      sections.find(r => r.Section === 'Wine & prosecco')!.Show = 'N';
+    });
+    expect((await sheetSync(sheet)).status).toBe(200);
     const admin = await (await request('/api/staff/menu', {}, DAN)).json<{ counts: Record<string, number> }>();
     expect(admin.counts.hidden).toBe(1 + 4);
   });
@@ -292,6 +312,111 @@ describe('the menu for admins', () => {
     );
     expect(res.status).toBe(403);
     expect((await menu()).status).toBe('preview');
+  });
+});
+
+describe('copying the menu from the sheet', () => {
+  type Admin = { counts: Record<string, number>; sheet: { url: string | null; changed_at: string | null; checked_at: string | null; ok: boolean | null; errors: string[] } };
+  const admin = async () => (await request('/api/staff/menu', {}, DAN)).json<Admin>();
+  const audits = async () =>
+    (await env.DB.prepare("SELECT actor_type, actor_id, action, new_value FROM audit_log WHERE entity_id = 'food_menu' ORDER BY audit_id").all()).results;
+
+  it('only takes copies from n8n', async () => {
+    expect((await sheetSync(menuSheet(), 'wrong-token')).status).toBe(401);
+    expect((await request('/internal/menu', json(menuSheet()))).status).toBe(401);
+    expect((await request('/internal/menu', json(menuSheet()), DAN)).status).toBe(401);
+  });
+
+  it('changes the menu when the sheet changes, and audits what changed', async () => {
+    const sheet = editedSheet(items => {
+      row(items, 'Tea').Price = '£2.30';
+      items.push({ Section: 'Hot food', Item: 'Halloween pizza', Price: 7, 'Menu wording': 'Halloween pizza — £7.00' });
+    });
+    const res = await sheetSync(sheet);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, items: 60, changed: true });
+    const m = await menu();
+    expect(byName(m, 'Tea').prices).toEqual([{ label: null, price_pence: 230 }]);
+    expect(byName(m, 'Halloween pizza').prices).toEqual([{ label: null, price_pence: 700 }]);
+    const rows = await audits();
+    expect(rows).toHaveLength(2); // the first copy, then this one
+    expect(rows[1]).toMatchObject({ actor_type: 'n8n', actor_id: 'RTD Menu Sync', action: 'menu.updated' });
+    expect(JSON.parse(rows[1]!.new_value as string)).toEqual({ items: 60, added: ['Halloween pizza'], removed: [], changed: ['Tea'] });
+  });
+
+  it('leaves the audit log alone when nothing changed', async () => {
+    const res = await sheetSync(menuSheet());
+    expect(await res.json()).toEqual({ ok: true, items: 59, changed: false });
+    expect(await audits()).toHaveLength(1);
+    expect((await admin()).sheet).toMatchObject({ ok: true, errors: [] });
+  });
+
+  it('refuses a copy with a bad row, keeps the menu it had, and says which rows', async () => {
+    const sheet = editedSheet(items => {
+      row(items, 'Toast').Price = '1,25';
+      row(items, 'Fries').Price = '';
+      row(items, 'Gin').Price = '5.00';
+      row(items, 'Tea').Section = 'Brews';
+      row(items, 'Stella').Alcohol = 'maybe';
+    });
+    const res = await sheetSync(sheet);
+    expect(res.status).toBe(422);
+    const body = await res.json<{ error: string; errors: string[] }>();
+    expect(body.errors).toEqual([
+      'Menu row 5 (Toast): Price "1,25" isn\'t a price. Write it like 3.50.',
+      'Menu row 7 (Fries): there\'s no price. Give one, or say why in the Price note (for example "Individually priced").',
+      'Menu row 17 (Tea): the Section "Brews" isn\'t on the Sections tab.',
+      'Menu row 34 (Gin): give a Price, or Single and Double prices, not both.',
+      'Menu row 50 (Stella): Alcohol must be Y or N.',
+    ]);
+    expect(body.error).toContain('the app kept its menu');
+    // The menu is untouched.
+    const m = await menu();
+    expect(byName(m, 'Toast').prices).toEqual([{ label: null, price_pence: 125 }]);
+    expect(items(m)).toHaveLength(59);
+    // Admins see the problems in the organiser.
+    expect((await admin()).sheet).toMatchObject({ ok: false, errors: body.errors });
+    // Fixed: back to ok.
+    expect((await sheetSync(menuSheet())).status).toBe(200);
+    expect((await admin()).sheet).toMatchObject({ ok: true, errors: [] });
+  });
+
+  it('never empties the menu, and checks the sections', async () => {
+    expect((await sheetSync({ sections: menuSheet().sections, items: [] })).status).toBe(422);
+    expect((await sheetSync({})).status).toBe(422);
+    expect((await sheetSync('not a menu')).status).toBe(422);
+    const twice = editedSheet((_, sections) => sections.push({ Section: 'hot food', Show: 'Y', row_number: 99 }));
+    expect((await sheetSync(twice)).status).toBe(422);
+    expect(items(await menu())).toHaveLength(59);
+  });
+
+  it('skips empty rows, and reads prices, ticks and Y / N the way people type them', async () => {
+    const sheet = editedSheet(items => {
+      items.splice(3, 0, { Section: '', Item: '', Price: '', row_number: 0 });
+      Object.assign(row(items, 'Toast'), { Price: 1.2, Show: true, Available: 'FALSE' });
+      Object.assign(row(items, 'Fries'), { Price: '£ 2.6' });
+      Object.assign(row(items, 'Gin'), { Single: 4.5, Double: '' });
+    });
+    expect((await sheetSync(sheet)).status).toBe(200);
+    const m = await menu();
+    expect(byName(m, 'Toast')).toMatchObject({ prices: [{ label: null, price_pence: 120 }], available: false });
+    expect(byName(m, 'Fries').prices).toEqual([{ label: null, price_pence: 260 }]);
+    expect(byName(m, 'Gin').prices).toEqual([{ label: 'Single', price_pence: 450 }]);
+  });
+
+  it('keeps the sheet link for the organiser, but only a Google Sheets one', async () => {
+    const url = 'https://docs.google.com/spreadsheets/d/abc_DEF-123/edit';
+    expect((await sheetSync({ ...menuSheet(), sheet_url: url })).status).toBe(200);
+    expect((await admin()).sheet.url).toBe(url);
+    expect((await sheetSync({ ...menuSheet(), sheet_url: 'javascript:alert(1)' })).status).toBe(200);
+    expect((await admin()).sheet.url).toBe(url);
+  });
+
+  it('shows nothing until the first copy arrives, and is Off until an admin switches it', async () => {
+    await freshDb();
+    expect(await menu()).toMatchObject({ status: 'off', categories: [] });
+    await env.DB.prepare("INSERT INTO settings (key, value, updated_at, updated_by) VALUES ('food_menu_status', 'preview', 'x', 'test')").run();
+    expect(await menu()).toMatchObject({ status: 'preview', categories: [] });
   });
 });
 

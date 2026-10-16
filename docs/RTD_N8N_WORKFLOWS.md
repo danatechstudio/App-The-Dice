@@ -241,6 +241,19 @@ Payload shape:
 }
 ```
 
+## RTD Menu Sync (`Oq7gMVsYGOn9HS3Z`)
+
+**Created 2026-10-16, not yet published:** publish it once the app with `/internal/menu` is deployed ([RTD_FOOD_MENU.md](RTD_FOOD_MENU.md#rollout)).
+- **Triggers:** every 15 minutes (Europe/London), plus **Run By Hand**.
+- **Steps:**
+  1. Read the app URL from `rtd_config` (`RTD_APP_BASE_URL`).
+  2. Read the **Sections** and **Menu** tabs of the RTD Food Menu sheet (Atechstudio Drive › Roll The Dice › Business; the document ID is in the nodes).
+  3. **Build Menu Copy:** `{ sections, items, sheet_url }`, the rows as read (`row_number` included).
+  4. `POST /internal/menu`. The app checks every row: `200 { ok, items, changed }`, or `422` listing every problem, and the app keeps its last good menu.
+- **Errors:** retried 3 times, then `Studio: Error Handler` (`IClMUs9ByRmVBYJf`), which emails. A `422` fails the same way, so a mistake in the sheet is emailed; the organiser lists the rows too.
+- **Credentials:** `ATECHGoogleSheets`, `rtd-app` (Header Auth). **Settings:** Europe/London, executions saved, 300 s timeout.
+- **Rolling back** = unpublishing it; the app keeps the last menu it was sent.
+
 ## RTD Event Images (`GeafnErtRe5ZMbiD`)
 
 This workflow copies event photos from Drive into the app. Each Event Index row's **Photo Folder ID** (the folders the poster automation already uses) is the source.

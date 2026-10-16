@@ -34,61 +34,67 @@ The café's food and drinks menu in the app, to browse. Nobody orders or pays th
 
 | Status | The public sees |
 | --- | --- |
-| **Off** | "The menu isn't in the app just now." The link stays, so nobody hits a missing page. |
-| **Preview** (where it starts) | The menu, with the "still checking" note |
+| **Off** (where it starts) | "The menu isn't in the app just now." The link stays, so nobody hits a missing page. |
+| **Preview** | The menu, with the "still checking" note |
 | **Live** | The menu, as the café's own |
 
 - **Changes:** each one asks for confirmation. Who changed it and when shows on the card, and every change is in the audit log (`menu.status_changed`).
-- **Check every line against the board:** opens a table with each line as the app shows it, its price, and the original line as transcribed from the photographed menu. Use it before switching to Live, along with the checklist in [RTD_FOOD_MENU_AUDIT.md §6](RTD_FOOD_MENU_AUDIT.md#6-before-launch-for-the-café).
+- **From the sheet:** when the menu last changed, the **Edit the menu in Google Sheets** link, and, if the latest copy was refused, every row to fix.
+- **Check every line against the board:** opens a table with each line as the app shows it, its price, and its **Menu wording** from the sheet (the line as on the board). Use it before switching to Live, along with the checklist in [RTD_FOOD_MENU_AUDIT.md §6](RTD_FOOD_MENU_AUDIT.md#6-before-launch-for-the-café).
 - **Who can:** only admins, checked on the server for every request (`/api/staff/menu`, `/api/staff/menu/status`). Approvers and hosts get 403.
 
-## Changing the menu
+## Changing the menu: the RTD Food Menu sheet
 
-The organiser can't edit lines yet: that comes with its own permission (`menu.manage`, see the audit §4). Until then, a change is a **new numbered migration**, reviewed like any other. Never edit `0023_food_menu.sql` once it has been applied.
+The menu is the **RTD Food Menu** Google Sheet, in Atechstudio's Drive under *Roll The Dice › Business* (its ID is in n8n, not here: this repository is public). Anyone the sheet is shared with can change it; the app copies it every 15 minutes (n8n **RTD Menu Sync**, [RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#rtd-menu-sync-oq7gmvsygon9hs3z)). Its **How to use** tab says the same as this section, for the café.
 
-```sql
--- A new price (pence)
-UPDATE menu_items SET price_pence = 375, updated_at = '<now>' WHERE item_id = 'RTD-MENU-00003';
--- Sold out for now / back again
-UPDATE menu_items SET available = 0, updated_at = '<now>' WHERE item_id = 'RTD-MENU-00025';
--- Off the menu (kept, so its ID is never reused)
-UPDATE menu_items SET visible = 0, updated_at = '<now>' WHERE item_id = 'RTD-MENU-00032';
--- A new line, after the last in its section
-INSERT INTO menu_items (item_id, category_id, name, price_pence, sort_order, source_text, created_at, updated_at)
-VALUES ('RTD-MENU-00060', 'hot-drinks', 'Chai latte', 300, 110, 'Added by the café, <date>', '<now>', '<now>');
--- A photo: the app's own (/images/…) or an https address, with a description
-UPDATE menu_items SET image_url = 'https://…', image_alt = 'A bacon bun in a floured bap' WHERE item_id = 'RTD-MENU-00001';
-```
+**Sections tab:** one row per section, in the order shown. **Show** = N hides the whole section. Its page anchor comes from the name (`Beer & cider` → `/menu#beer-cider`), so renaming a section changes its link.
 
-- **Prices are pence**, between 0 and £1,000.
-- **Several prices for one line** (Single/Double, Small/Large) go in `menu_item_variants`, which then replace `price_pence`.
-- **A photo address that isn't `/images/…` or `https://`** is ignored, and the placeholder shows.
+**Menu tab:** one row per line, in the order shown.
+
+| Column | |
+| --- | --- |
+| Section | Must match a name on the Sections tab (a dropdown) |
+| Item | The name. Required |
+| Options, Description | The choices ("Cheese or pepperoni"); anything else ("Served with side salad") |
+| Price | In pounds: `3.50`, `3.5` and `£3.50` all work |
+| Single, Double | Serve prices (spirits). Not with Price |
+| Price note | Instead of a price: "Individually priced". **Every line needs a Price, a Single or Double price, or a Price note** |
+| Alcohol | Y: marked 18+. 0% drinks are N |
+| Show | N: off the menu, row kept |
+| Available | N: listed, greyed as not available right now |
+| Photo, Photo description | An `/images/…` or `https://` address and what it shows; anything else is ignored and the placeholder shows |
+| Menu wording | The line as on the board, for checking. Not shown to customers |
+
+**A copy with any bad row is refused whole:** the app keeps the menu it had, the organiser lists each problem by row ("Menu row 5 (Toast): Price "1,25" isn't a price. Write it like 3.50."), and the n8n execution fails, so `Studio: Error Handler` emails. Fix the row and the next copy goes in. An empty Menu tab is refused too, so a bad read never empties the menu.
+
+**Every change is audited:** a copy that changes anything writes `menu.updated` to the audit log, with the names of the lines added, removed and changed. Copies with no change write nothing.
 
 ## How it works
 
-- **Tables:** `menu_categories`, `menu_items`, `menu_item_variants` ([RTD_DATABASE_SCHEMA.md](RTD_DATABASE_SCHEMA.md#food--drinks-menu)). The switch is the setting `food_menu_status`.
-- **API:** `GET /api/menu`, public, cached for 60 seconds. It returns visible sections in `sort_order`, each with its visible lines in `sort_order`, and `status` and `as_of`. A section with nothing visible is left out. Off returns no sections.
+- **No menu tables.** The latest good copy of the sheet is the setting `food_menu` (JSON: sections, lines, serve prices, when it last changed, the sheet's link); how the latest copy went is `food_menu_sync`; the switch is `food_menu_status`. No setting yet reads as Off and empty. See [RTD_DATABASE_SCHEMA.md](RTD_DATABASE_SCHEMA.md#food--drinks-menu).
+- **Sync:** n8n RTD Menu Sync reads both tabs and posts them to `POST /internal/menu` (bearer token, like every n8n call). `src/menu/sheet.ts` checks every row and turns it into the menu; 422 with every problem listed when it refuses.
+- **API:** `GET /api/menu`, public, cached for 60 seconds. It returns visible sections in sheet order, each with its visible lines in sheet order, and `status` and `as_of`. A section with nothing visible is left out. Off returns no sections.
 - **Service worker:** `/api/menu` is network first, like the diary and the games: online always gets the current menu, offline the last copy.
 - **Stats:** `menu_view` counts page views, shown under **Stats → Around the app**.
-- **Untouched:** events, bookings, hosts, notifications, the Logic Engine sync and n8n.
+- **Untouched:** events, bookings, hosts, notifications and the Logic Engine sync.
 
 ## Rollout
 
-1. **Apply `0023_food_menu.sql` to production first**, with the owner's go-ahead, then merge. Applying it changes nothing visible: the menu only shows once the code that reads it is deployed.
-   - **Check before:** counts of `events`, `occurrences`, `bookings` and `audit_log`; the latest sync `ok`.
-   - **Check after:** the same counts, plus 8 sections, 59 lines, 16 serve prices, and `food_menu_status = preview`.
-2. **Merge the PR.** Workers Builds deploys it; check `/menu` and `/api/menu` on the live app.
-3. **When the café has checked the menu** (audit §6), an admin switches it to **Live**.
+No database change, so merging is safe at any time: the menu starts **Off**, and the page says the menu isn't in the app until it's switched on.
 
-**If the code is deployed before the migration:** `/menu` shows "That didn't roll properly" with **Try again**, and nothing else is affected. Apply the migration and it works.
+1. **Merge the PR.** Workers Builds deploys it. Check the deployed Worker has `/internal/menu`.
+2. **Publish n8n RTD Menu Sync** and run it by hand once. It should end `{ ok: true, items: 59, changed: true }`.
+3. **An admin switches the menu to Preview** in the organiser, and checks `/menu`.
+4. **When the café has checked the menu** (audit §6), an admin switches it to **Live**.
 
 ## Rollback
 
 | If… | Do |
 | --- | --- |
-| A price or line is wrong | Switch the menu to **Off** or keep it in **Preview** (it says the café's price applies), then fix it with a migration |
+| A price or line is wrong | Fix it in the sheet; it's in the app within 15 minutes. Meanwhile switch to **Off**, or keep it in **Preview** (it says the café's price applies) |
+| The sheet copy keeps failing | The app keeps the last good menu. Fix the rows the organiser lists; or unpublish RTD Menu Sync |
 | The page itself misbehaves | Switch to **Off**, or `npx wrangler rollback` to the version before it |
-| The tables have to go | Switch to Off and roll back the code first, then `DROP TABLE menu_item_variants; DROP TABLE menu_items; DROP TABLE menu_categories; DELETE FROM settings WHERE key = 'food_menu_status';`. Nothing else refers to them |
+| Remove the menu's data | Switch to Off, then `DELETE FROM settings WHERE key IN ('food_menu', 'food_menu_sync', 'food_menu_status');` |
 
 ## Next
 

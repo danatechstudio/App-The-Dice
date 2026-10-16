@@ -1,9 +1,11 @@
 // The café's food and drinks menu (docs/RTD_FOOD_MENU.md). Browse only: the
 // public reads it, nobody orders through it. Prices are in pence; an item
 // without a single price shows its price note instead, never a guess.
-// Admins switch the whole menu Off, Preview or Live; every change is audited.
+// The menu itself is the RTD Food Menu Google Sheet (sheet.ts), copied here by
+// n8n; admins switch the whole menu Off, Preview or Live. Every change is audited.
 
 import type { AuthUser } from '../lib/auth';
+import { parseMenuSheet, type MenuCategoryRow, type MenuData, type MenuItemRow, type MenuVariantRow } from './sheet';
 
 export type MenuStatus = 'off' | 'preview' | 'live';
 export const MENU_STATUSES: MenuStatus[] = ['off', 'preview', 'live'];
@@ -46,39 +48,9 @@ export interface PublicMenu {
   categories: PublicMenuCategory[];
 }
 
-interface CategoryRow {
-  category_id: string;
-  name: string;
-  description: string | null;
-  alcohol: number;
-  image_url: string | null;
-  image_alt: string | null;
-  sort_order: number;
-  visible: number;
-}
-
-interface ItemRow {
-  item_id: string;
-  category_id: string;
-  name: string;
-  options: string | null;
-  description: string | null;
-  price_pence: number | null;
-  price_note: string | null;
-  alcohol: number;
-  image_url: string | null;
-  image_alt: string | null;
-  sort_order: number;
-  visible: number;
-  available: number;
-  source_text: string;
-}
-
-interface VariantRow {
-  item_id: string;
-  label: string;
-  price_pence: number;
-}
+type CategoryRow = MenuCategoryRow;
+type ItemRow = MenuItemRow;
+type VariantRow = MenuVariantRow;
 
 /**
  * Only the app's own images or an https address reach the page; anything else
@@ -103,17 +75,40 @@ export async function menuStatus(db: D1Database): Promise<MenuStatus> {
   return MENU_STATUSES.includes(row?.value as MenuStatus) ? (row!.value as MenuStatus) : 'off';
 }
 
+/** The menu as last copied from the sheet, stored in settings; none yet reads as empty. */
+interface StoredMenu extends MenuData {
+  synced_at: string;
+  sheet_url: string | null;
+}
+
+/** How the last copy from the sheet went, for the organiser. */
+interface SyncState {
+  at: string;
+  ok: boolean;
+  errors: string[];
+}
+
+async function setting<T>(db: D1Database, key: string): Promise<T | null> {
+  const row = await db.prepare('SELECT value FROM settings WHERE key = ?1').bind(key).first<{ value: string }>();
+  if (!row) return null;
+  try {
+    return JSON.parse(row.value) as T;
+  } catch {
+    return null;
+  }
+}
+
+const bySort = <T extends { sort_order: number; name: string }>(a: T, b: T) => a.sort_order - b.sort_order || a.name.localeCompare(b.name);
+
 async function readMenu(db: D1Database, withHidden: boolean) {
-  const shown = withHidden ? '' : 'WHERE visible = 1';
-  const [cats, items, variants] = await db.batch([
-    db.prepare(`SELECT * FROM menu_categories ${shown} ORDER BY sort_order, name`),
-    db.prepare(`SELECT * FROM menu_items ${shown} ORDER BY sort_order, name`),
-    db.prepare('SELECT item_id, label, price_pence FROM menu_item_variants ORDER BY sort_order, label'),
-  ]);
+  const stored = await setting<StoredMenu>(db, 'food_menu');
+  const shown = <T extends { visible: number }>(rows: T[] | undefined) => (rows ?? []).filter(r => withHidden || r.visible === 1);
   return {
-    categories: cats!.results as unknown as CategoryRow[],
-    items: items!.results as unknown as ItemRow[],
-    variants: variants!.results as unknown as VariantRow[],
+    categories: shown(stored?.categories).sort(bySort),
+    items: shown(stored?.items).sort(bySort),
+    variants: stored?.variants ?? [],
+    synced_at: stored?.synced_at ?? null,
+    sheet_url: stored?.sheet_url ?? null,
   };
 }
 
@@ -169,12 +164,13 @@ export async function publicMenu(db: D1Database, now: Date): Promise<PublicMenu>
 
 // ---- For admins ----
 
-/** Everything, hidden rows included, with each line as transcribed, for checking against the board. */
+/** Everything, hidden rows included, with each line's menu wording, for checking against the board; and how the sheet copy went. */
 export async function adminMenu(db: D1Database) {
-  const [status, setting, rows] = await Promise.all([
+  const [status, statusRow, rows, sync] = await Promise.all([
     menuStatus(db),
     db.prepare("SELECT updated_at, updated_by FROM settings WHERE key = 'food_menu_status'").first<{ updated_at: string; updated_by: string | null }>(),
     readMenu(db, true),
+    setting<SyncState>(db, 'food_menu_sync'),
   ]);
   const { variants, byCategory } = group(rows);
   const categories = rows.categories.map(c => ({
@@ -188,8 +184,16 @@ export async function adminMenu(db: D1Database) {
   const items = categories.flatMap(c => c.items);
   return {
     status,
-    status_changed_at: setting?.updated_at ?? null,
-    status_changed_by: setting?.updated_by ?? null,
+    status_changed_at: statusRow?.updated_at ?? null,
+    status_changed_by: statusRow?.updated_by ?? null,
+    sheet: {
+      url: rows.sheet_url,
+      // When the menu in the app last changed, and how the latest copy went.
+      changed_at: rows.synced_at,
+      checked_at: sync?.at ?? null,
+      ok: sync?.ok ?? null,
+      errors: sync?.errors ?? [],
+    },
     counts: {
       categories: categories.length,
       items: items.length,
@@ -228,4 +232,78 @@ export async function setMenuStatus(db: D1Database, admin: AuthUser, body: unkno
       .bind(admin.email, JSON.stringify({ status: before }), JSON.stringify({ status }), at),
   ]);
   return { ok: true, value: { status } };
+}
+
+// ---- From the sheet (n8n RTD Menu Sync) ----
+
+const SHEET_URL = /^https:\/\/docs\.google\.com\/spreadsheets\/d\/[A-Za-z0-9_-]+(\/[A-Za-z0-9_#=?&/-]*)?$/;
+
+const upsertSetting = (db: D1Database, key: string, value: string, at: string) =>
+  db
+    .prepare(
+      `INSERT INTO settings (key, value, updated_at, updated_by) VALUES (?1, ?2, ?3, 'n8n')
+       ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+    )
+    .bind(key, value, at);
+
+/** Names of lines added, removed or changed between two copies, for the audit log. */
+function changedLines(before: MenuData | null, after: MenuData): { added: string[]; removed: string[]; changed: string[] } {
+  const line = (m: MenuData | null) => {
+    const out = new Map<string, string>();
+    for (const i of m?.items ?? [])
+      out.set(i.item_id, JSON.stringify([i, (m?.variants ?? []).filter(v => v.item_id === i.item_id), m?.categories.find(c => c.category_id === i.category_id)]));
+    return out;
+  };
+  const was = line(before);
+  const now = line(after);
+  const name = (id: string, m: MenuData | null) => m?.items.find(i => i.item_id === id)?.name ?? id;
+  return {
+    added: [...now.keys()].filter(id => !was.has(id)).map(id => name(id, after)),
+    removed: [...was.keys()].filter(id => !now.has(id)).map(id => name(id, before)),
+    changed: [...now.keys()].filter(id => was.has(id) && was.get(id) !== now.get(id)).map(id => name(id, after)),
+  };
+}
+
+/**
+ * A full copy of the RTD Food Menu sheet. A good copy replaces the menu (and is
+ * audited when anything changed); a bad one changes nothing and is reported,
+ * to n8n and in the organiser, row by row.
+ */
+export async function storeMenuFromSheet(
+  db: D1Database,
+  body: unknown,
+  now: Date,
+): Promise<{ ok: true; items: number; changed: boolean } | { ok: false; errors: string[] }> {
+  const at = now.toISOString();
+  const parsed = parseMenuSheet(body);
+  if (!parsed.ok) {
+    await upsertSetting(db, 'food_menu_sync', JSON.stringify({ at, ok: false, errors: parsed.errors } satisfies SyncState), at).run();
+    return { ok: false, errors: parsed.errors };
+  }
+  const rawUrl = (body as { sheet_url?: unknown }).sheet_url;
+  const before = await setting<StoredMenu>(db, 'food_menu');
+  const sheet_url = typeof rawUrl === 'string' && SHEET_URL.test(rawUrl) ? rawUrl : (before?.sheet_url ?? null);
+  const diff = changedLines(before, parsed.menu);
+  const sections = (m: MenuData | null) => JSON.stringify(m?.categories ?? []);
+  const changed = diff.added.length + diff.removed.length + diff.changed.length > 0 || sections(before) !== sections(parsed.menu);
+  const writes = [upsertSetting(db, 'food_menu_sync', JSON.stringify({ at, ok: true, errors: [] } satisfies SyncState), at)];
+  if (changed || sheet_url !== (before?.sheet_url ?? null)) {
+    const stored: StoredMenu = { ...parsed.menu, synced_at: changed ? at : (before?.synced_at ?? at), sheet_url };
+    writes.push(upsertSetting(db, 'food_menu', JSON.stringify(stored), at));
+  }
+  if (changed)
+    writes.push(
+      db
+        .prepare(
+          `INSERT INTO audit_log (entity_type, entity_id, actor_type, actor_id, action, previous_value, new_value, source, created_at)
+           VALUES ('setting', 'food_menu', 'n8n', 'RTD Menu Sync', 'menu.updated', ?1, ?2, 'sheet', ?3)`,
+        )
+        .bind(
+          JSON.stringify({ items: before?.items.length ?? 0 }),
+          JSON.stringify({ items: parsed.menu.items.length, added: diff.added.slice(0, 50), removed: diff.removed.slice(0, 50), changed: diff.changed.slice(0, 50) }),
+          at,
+        ),
+    );
+  await db.batch(writes);
+  return { ok: true, items: parsed.menu.items.length, changed };
 }

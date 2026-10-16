@@ -11,7 +11,7 @@ The audit itself changed nothing in production. It read the repository: the Work
 | # | Finding | Effect |
 | --- | --- | --- |
 | F1 | **Nothing about food or drink exists.** No table, route, page or stats count refers to a menu, an item or an offer. | Everything is additive. No data to migrate or orphan. |
-| F2 | **One production D1 database, no staging** (`rtd-app`). Migrations are applied by hand, through the Cloudflare connector or `wrangler d1 migrations apply --remote`, before the code that needs them is merged; Workers Builds deploys `main` on every push. | Each stage is one new migration file, applied (with the owner's go-ahead) before its PR is merged. The public menu also has an **Off / Preview / Live** switch in `settings`, so it can be hidden without a deploy. |
+| F2 | **One production D1 database, no staging** (`rtd-app`). Migrations are applied by hand, through the Cloudflare connector or `wrangler d1 migrations apply --remote`, before the code that needs them is merged; Workers Builds deploys `main` on every push. | The menu needs no migration: it lives in a Google Sheet and the app keeps the latest copy in `settings` (decided 2026-10-16, when the production database couldn't be reached to apply one). The public menu also has an **Off / Preview / Live** switch in `settings`, so it can be hidden without a deploy. |
 | F3 | **Roles are `users.role`: `host`, `staff` (shown as Approver) and `admin`.** Cloudflare Access proves the email; the `users` row decides. `requireRole('staff')` also admits admins; admin-only checks compare `role === 'admin'` on the server. Today Michelle is the approver and Dan the admin. | Offers must not follow the role ladder: the brief says neither all admins nor all approvers get them. A per-person permission is needed (§4). |
 | F4 | **There is no per-person permission today**, only roles. | Stage 3 adds `user_permissions` (one row per person and permission, granted by the owner in the database, audited). Nothing in the organiser can grant it, so no admin can give it to themselves. |
 | F5 | **Three separate push audiences already exist:** `push_subscriptions` (approvers' devices, signed in), `alert_subscriptions` (anyone's device, no account: event reminders), and booking devices (one booking's cancel/move notice). They share one VAPID key and one every-minute Cron Trigger with a 20-message budget (`BATCH`). | Customers opted in to **event reminders**, not marketing. Promotional offers need a **separate, explicit opt-in** per device (Stage 4), on the same `alert_subscriptions` devices, and offer pushes must take their turn inside the existing per-minute budget so event and booking alerts aren't delayed. |
@@ -21,8 +21,8 @@ The audit itself changed nothing in production. It read the repository: the Work
 | F9 | **The mobile bottom bar has five slots, with Roll raised in the middle.** A sixth would push Roll off-centre and squeeze every label at 320px. The top bar shows only the logo on phones. | **Food & Drinks** goes in the desktop top navigation, in the phone top bar (a labelled button beside the logo), on the Home page and in the footer. The bottom bar is unchanged. |
 | F10 | **Images:** event photos and game covers live in Workers KV (`IMAGES`). The Content Security Policy allows images from the app and any `https:` address. | Menu items and categories get `image_url` / `image_alt` columns now (reserved, empty). Uploads can later use the same KV namespace. Until then every item shows a neutral placeholder. |
 | F11 | **Stats count page views as daily totals** with an allow-list of metric names. | A `menu_view` count is added, shown in the organiser's Stats. |
-| F12 | **Google Sheets / n8n:** the Logic Engine sync, RTD Outbox, Team Notices and every other workflow only touch events, bookings, hosts and markets. | The menu and offers need no n8n or sheet change. Event, booking and host behaviour is untouched. |
-| F13 | **The brief's menu was transcribed from photographs.** Some lines are ambiguous, and the menu doesn't state the legal measures for alcohol. | The data is loaded exactly as transcribed (with the original line kept in `source_text`). The menu starts in **Preview**, marked as being checked, until an admin switches it to Live (§6). |
+| F12 | **Google Sheets / n8n:** the Logic Engine sync, RTD Outbox, Team Notices and every other workflow only touch events, bookings, hosts and markets. | The menu is read from its own Google Sheet, RTD Food Menu, by a new n8n workflow (RTD Menu Sync, every 15 minutes, posting to `/internal/menu`). Nothing else changes in n8n or the Logic Engine. |
+| F13 | **The brief's menu was transcribed from photographs.** Some lines are ambiguous, and the menu doesn't state the legal measures for alcohol. | The sheet started from the transcription exactly, with the original line in its **Menu wording** column. The menu starts **Off**, then Preview, marked as being checked, until an admin switches it to Live (§6). |
 
 ## 2. What the existing app gives us
 
@@ -43,7 +43,7 @@ The audit itself changed nothing in production. It read the repository: the Work
 | D5 | **No dietary or allergen labels.** Item text is the café's own; the page tells people to ask at the counter about allergens before ordering. | "Do not label any item allergen-free without validated information." |
 | D6 | **Browse only.** No basket, quantity, order, checkout or payment controls anywhere. | Brief scope. |
 | D7 | **The menu has a status:** Off (the page says the menu isn't in the app), Preview (shown, with a note that prices are being checked and the counter price applies), Live. It starts at **Preview**; only admins change it, and every change is audited. | Prices must be confirmed with the café before the menu is relied on (§6), without holding back the page. |
-| D8 | **Menu editing** (prices, wording, hiding items) isn't in Stage 2. Until there's an editor, corrections are made by a reviewed migration. The editor, when built, uses its own permission (`menu.manage`), granted like `offers.manage`. | "Menu content editing may be separately permissioned after audit." |
+| D8 | **Menu editing** (prices, wording, hiding items) is done in the RTD Food Menu Google Sheet, by whoever it's shared with; every change that reaches the app is audited (`menu.updated`). An in-app editor, if ever wanted, would use its own permission (`menu.manage`), granted like `offers.manage`. | "Menu content editing may be separately permissioned after audit." |
 
 ## 4. Roles and permissions (for review)
 
@@ -65,7 +65,7 @@ The audit itself changed nothing in production. It read the repository: the Work
 | Stage | What | State |
 | --- | --- | --- |
 | 1 | This audit | Done |
-| 2 | Menu schema and data (`0023_food_menu.sql`), `GET /api/menu`, the public **Food & Drinks** page with placeholders, navigation, offline copy, the admin status switch, `menu_view` stats | **Built** (this change) |
+| 2 | Menu from the RTD Food Menu sheet (n8n RTD Menu Sync → `POST /internal/menu`, kept in `settings`), `GET /api/menu`, the public **Food & Drinks** page with placeholders, navigation, offline copy, the admin status switch and sheet status, `menu_view` stats | **Built** (this change) |
 | 3 | `user_permissions`; `offers` + `offer_menu_items`; the protected offer editor (draft → scheduled → active → paused / expired / cancelled); server-time activation and expiry; the public offers area on the menu page and `/menu/offers/:id` deep links | Next |
 | 4 | Promotional opt-in (separate from event alerts) with unsubscribe; **Notify customers** with a preview and explicit confirmation; campaigns and per-device deliveries with idempotency keys, rate limits and logs; dispatch at start for scheduled offers | After 3 |
 | 5 | Progressive deploy, admin instructions, rollback | With each stage |
@@ -91,7 +91,7 @@ The menu goes live in **Preview** until these are done; then an admin switches i
    - **Wine:** glass sizes, 125ml, 175ml or 250ml;
    - **Draught beer and cider:** pint or half.
 
-   The transcription has none of these, and they haven't been guessed. Send them and they'll be added.
+   The transcription has none of these, and they haven't been guessed. Add them in the sheet (in Options, or in the Item name).
 3. **"Gluten-free cakes":** the menu's own wording, kept as written. Confirm it is validated: gluten-free is a regulated claim. Otherwise it changes to "cakes (ask about gluten)".
 4. **Allergen and dietary information:** the page says to ask at the counter before ordering. Confirm that's how the café wants to handle it.
 5. **The over-18s wording on alcohol:** the page says "Over-18s only". If the café uses Challenge 25, the wording can say so.
