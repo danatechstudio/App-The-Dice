@@ -87,3 +87,27 @@ Nothing existing changes. No email is sent until an admin enters the addresses a
 - **Restore point:** 2026-10-16T14:36:36Z.
 - **Before:** 32 events, 56 occurrences, 0 bookings, 289 audit rows, 12 settings, 8 open items; the 14:30 sync `ok`.
 - **After:** the same; the column is present and empty on all 32 events.
+- **The 14:45 sync**, on the old code with the migrated database: `ok`.
+- **Deployed:** PR #4 merged at 14:47; the new code was confirmed live from the deployed Worker (the booking-mode SQL and copy are in it).
+- **Live modes:** 6 café events Optional (Spooky Market, Home Education Support Club, Kids Chess Club, Quiz, Blood on the Clocktower); 5 Standard Diary groups Not required.
+- **The 15:00 sync, the first on the new code:** `ok`, 32 events, nothing changed, no audit noise (still 289 rows).
+
+## 0020_delivery.sql (Stage 4b: telling people booked, and email delivery)
+
+**What it adds:**
+- seven nullable columns on `outbox` (`booking_id`, `attempts` default 0, `last_error`, `last_attempt_at`, `next_attempt_at`, `claim`, `claimed_at`, `dead_at`);
+- tables `booking_devices` and `push_outbox`, both empty.
+
+Nothing existing changes. Emails already in the outbox read as queued or sent, exactly as before.
+
+**Why it must be applied before the deploy:** the new code claims emails and records failures in the new columns, and every cancellation writes to `push_outbox`.
+
+**What changes when the code is deployed:**
+- **Collecting claims:** an email RTD Outbox collects is held for 10 minutes. Until RTD Outbox is changed, a failed email is offered again after 10 minutes (it was 5), and the run still fails so Dan is emailed.
+- **The booking form** offers "Tell this device if it's cancelled or moved" where the browser can show notifications. The privacy notice says what that keeps.
+- **Needs attention** can list "Moved, with bookings" and "Email not sent" items. There are 0 bookings live, so none are expected.
+- **Delivery** appears in the organiser.
+
+**Then, with the owner's go-ahead:** the RTD Outbox change ([RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#proposed-stage-4b-not-made-yet-rtd-outbox-reports-failed-emails-to-the-app)).
+
+**Rollback:** `npx wrangler rollback` (the old code ignores the new columns and tables). Roll the n8n change back first if it was made: the old app has no `/failed`.

@@ -1,13 +1,16 @@
 // Booking places on an event page (docs/RTD_BOOKINGS.md): public events whose
 // booking is Optional (reserve a place, or just turn up) or Required (book to come).
 // Not required: no form, just "come along". No account: name, email, how many.
-// The confirmation email has a link to cancel.
+// The confirmation email has a link to cancel. Where the browser can, people can also
+// ask for this device to be told if the date is cancelled or moved (src/lib/bookingPush.ts).
 
-import { CircleCheck, Info, Minus, Plus, Ticket } from 'lucide-preact';
-import { useCallback, useEffect, useState } from 'preact/hooks';
+import { BellRing, CircleCheck, Info, Minus, Plus, Ticket } from 'lucide-preact';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { Occurrence } from '../lib/api';
+import { canTellDevice, deviceSubscription, tellDevice } from '../lib/bookingPush';
 import { longDate, timeRange } from '../lib/dates';
 import { hostApi } from '../lib/hostApi';
+import { permission } from '../lib/push';
 import { count } from '../lib/stats';
 import { toast } from '../lib/toast';
 
@@ -21,7 +24,7 @@ const placesText = (n: number) => `${n} ${n === 1 ? 'place' : 'places'}`;
 
 export function BookingPanel({ o }: { o: Occurrence }) {
   const [avail, setAvail] = useState<Availability | null>(null);
-  const [done, setDone] = useState<{ email: string; party: number; manage: string } | null>(null);
+  const [done, setDone] = useState<Booked | null>(null);
   const load = useCallback(async () => {
     const res = await hostApi<Availability>(`/api/bookings/availability/${encodeURIComponent(o.occurrence_id)}`);
     setAvail(res.ok ? res.data : { bookable: false, mode: null });
@@ -49,6 +52,12 @@ export function BookingPanel({ o }: { o: Occurrence }) {
           {timeRange(o.start_time, o.end_time) ? `, ${timeRange(o.start_time, o.end_time)}` : ''}.
         </p>
         <p class="meta">We've emailed {done.email} a confirmation, with a link to cancel if your plans change.</p>
+        {done.device === 'on' && (
+          <p class="meta">
+            <BellRing size={16} aria-hidden="true" /> This device will also be told if it's cancelled or moved.
+          </p>
+        )}
+        {done.device === 'failed' && <p class="meta">We couldn't set this device to be told, but we'll email you if anything changes.</p>}
         <a class="btn btn--secondary btn--sm" href={done.manage}>
           See your booking
         </a>
@@ -73,6 +82,8 @@ export function BookingPanel({ o }: { o: Occurrence }) {
   return <BookingForm o={o} avail={avail} onBooked={setDone} onChanged={load} />;
 }
 
+type Booked = { email: string; party: number; manage: string; device: 'on' | 'failed' | null };
+
 function BookingForm({
   o,
   avail,
@@ -81,10 +92,26 @@ function BookingForm({
 }: {
   o: Occurrence;
   avail: Extract<Availability, { bookable: true }>;
-  onBooked: (d: { email: string; party: number; manage: string }) => void;
+  onBooked: (d: Booked) => void;
   onChanged: () => void;
 }) {
   const [f, setF] = useState({ lead_name: '', email: '', mobile: '', party_size: 1, notes: '', website: '' });
+  // Telling this device: offered where the browser can notify; ticked already if it has permission.
+  const [offerDevice] = useState(canTellDevice);
+  const [tell, setTell] = useState(() => offerDevice && permission() === 'granted');
+  const [tellNote, setTellNote] = useState<string | null>(null);
+  const sub = useRef<PushSubscription | null>(null);
+  const toggleTell = async (on: boolean) => {
+    setTellNote(null);
+    if (!on) return setTell(false);
+    setTell(true);
+    // Straight from the tap, so the browser can ask.
+    sub.current = await deviceSubscription();
+    if (!sub.current) {
+      setTell(false);
+      setTellNote(permission() === 'denied' ? 'Notifications are blocked for this site in your browser settings. We will still email you.' : "This device can't be told, but we'll email you.");
+    }
+  };
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF(x => ({ ...x, [k]: v }));
@@ -94,12 +121,21 @@ function BookingForm({
     e.preventDefault();
     count('book_tap', o.event_id);
     setBusy(true);
-    const res = await hostApi<{ manage_path: string; booking: { email: string; party_size: number } }>('/api/bookings', {
+    const res = await hostApi<{ manage_path: string; booking: { booking_id: string; email: string; party_size: number } }>('/api/bookings', {
       occurrence_id: o.occurrence_id,
       ...f,
     });
+    if (res.ok) {
+      let device: Booked['device'] = null;
+      if (tell) {
+        const s = sub.current ?? (await deviceSubscription());
+        const token = res.data.manage_path.split('#t=')[1] ?? '';
+        device = s && !(await tellDevice(res.data.booking.booking_id, token, s)) ? 'on' : 'failed';
+      }
+      setBusy(false);
+      return onBooked({ email: res.data.booking.email, party: res.data.booking.party_size, manage: res.data.manage_path, device });
+    }
     setBusy(false);
-    if (res.ok) return onBooked({ email: res.data.booking.email, party: res.data.booking.party_size, manage: res.data.manage_path });
     if (res.kind === 'invalid' && res.errors) {
       setErrors(res.errors);
       requestAnimationFrame(() => document.querySelector<HTMLElement>('.booking .field--error input, .booking .field--error textarea')?.focus());
@@ -177,6 +213,20 @@ function BookingForm({
             placeholder="e.g. First time playing" onInput={e => set('notes', e.currentTarget.value)} />
           {notes.error}
         </div>
+        {offerDevice && (
+          <div class="field">
+            <label class="cluster" style={{ '--gap': '8px', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
+              <input type="checkbox" checked={tell} onChange={e => toggleTell(e.currentTarget.checked)} style={{ marginTop: '4px' }} />
+              <span>
+                Tell this device if it's cancelled or moved <span class="field__optional">optional</span>
+                <span class="field__hint" style={{ display: 'block', fontWeight: 400 }}>
+                  A notification on this phone or computer, as well as the email. Only about this booking.
+                </span>
+              </span>
+            </label>
+            {tellNote && <p class="field__hint">{tellNote}</p>}
+          </div>
+        )}
         {/* Robots fill in every field; people never see this one. */}
         <div class="visually-hidden" aria-hidden="true">
           <label for="b-website">Leave this empty</label>

@@ -1,6 +1,7 @@
 // Privacy (docs/RTD_PRIVACY.md): who the privacy notice names, and erasing
 // people's details once the app no longer needs them. Runs daily (Cron Trigger).
 
+import { forgetDevices } from '../bookings/devices';
 import { eraseMarketApplications } from '../markets/markets';
 import { londonDate } from './time';
 
@@ -86,6 +87,8 @@ export async function applyRetention(db: D1Database, now: Date, kv?: KVNamespace
     db
       .prepare('DELETE FROM push_deliveries WHERE send_id IN (SELECT send_id FROM push_sends WHERE created_at < ?1)')
       .bind(new Date(now.getTime() - 86_400_000).toISOString()),
+    // Devices people asked to be told on about a booking: only until the day after its date.
+    ...forgetDevices(db, now),
   ]);
   if (staleDeliveries!.meta.changes) console.warn('alerts: dropped', staleDeliveries!.meta.changes, 'reminders unsent after a day');
   const vendors = await eraseMarketApplications(db, kv, monthsBefore(londonDate(now), DEFAULT_RETENTION_MONTHS), stamp);

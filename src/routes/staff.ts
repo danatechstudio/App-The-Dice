@@ -5,6 +5,8 @@ import { attentionOverview, resolveItem, setAttention } from '../attention/atten
 import { emailOverview, sendTest, setEmailSettings } from '../attention/reminders';
 import { upcomingBookedDates } from '../bookings/bookings';
 import { cafeEventPlaces, setBookingMode, setEventPlaces } from '../bookings/places';
+import { deliveryOverview } from '../notify/delivery';
+import { retryNow } from '../notify/outbox';
 import { decideSession, listHosts, listSessions, type SessionStatus } from '../host/sessions';
 import { afterResponse } from '../lib/background';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
@@ -41,8 +43,20 @@ staffRoutes.get('/attention', async c => {
 
 /** Body: { action: 'renew' | 'archive' | 'complete' | 'dismiss', date? (renew), note? } */
 staffRoutes.post('/attention/:id/resolve', async c => {
-  const res = await resolveItem(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), new Date());
+  const res = await resolveItem(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), new Date(), new URL(c.req.url).origin);
   return res.ok ? c.json({ item: res.item }) : c.json({ error: res.error, errors: res.errors }, res.status);
+});
+
+/** How emails and booking pushes have gone: the last 7 days, and each failing or given up on (src/notify/delivery.ts). */
+staffRoutes.get('/delivery', async c => c.json(await deliveryOverview(c.env.DB, new Date())));
+
+/** Try a failing or given-up email again now. */
+staffRoutes.post('/outbox/:id/retry', async c => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isInteger(id) || id < 1 || !(await retryNow(c.env.DB, id, new Date().toISOString()))) {
+    return c.json({ error: "That email can't be tried again: it has gone, or it hasn't failed." }, 409);
+  }
+  return c.json({ ok: true });
 });
 
 /** Admins: who gets the emails, and on or off. Body: { to?: 'a@x, b@y', on?: boolean } */

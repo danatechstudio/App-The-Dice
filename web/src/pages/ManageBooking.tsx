@@ -1,11 +1,13 @@
 // /booking/:id#t=<secret>: the link in a booking confirmation. Shows the
-// booking and lets the person cancel it. The secret stays in the # part, so
-// it's never sent in a page request or kept in server logs.
+// booking and lets the person cancel it, or have this device told if the date is
+// cancelled or moved. The secret stays in the # part, so it's never sent in a page
+// request or kept in server logs.
 
-import { Ban, CalendarDays, ChevronLeft, Clock, Ticket, UsersRound } from 'lucide-preact';
+import { Ban, BellRing, CalendarDays, ChevronLeft, Clock, Ticket, UsersRound } from 'lucide-preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { Chip } from '../components/Chips';
 import { DiceLoader, EmptyState } from '../components/States';
+import { canTellDevice, deviceSubscription, stopTellingDevice, tellDevice, thisEndpoint } from '../lib/bookingPush';
 import { longDate, timeRange } from '../lib/dates';
 import { hostApi } from '../lib/hostApi';
 import { useTitle } from '../lib/title';
@@ -25,6 +27,8 @@ interface BookingView {
   end_time: string | null;
   price_display: string | null;
   can_cancel: boolean;
+  /** This browser is set to be told if the date is cancelled or moved. */
+  this_device: boolean;
 }
 
 export function ManageBooking({ bookingId }: { bookingId: string }) {
@@ -35,7 +39,7 @@ export function ManageBooking({ bookingId }: { bookingId: string }) {
   const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
     if (!token) return;
-    const res = await hostApi<{ booking: BookingView }>(`/api/bookings/${encodeURIComponent(bookingId)}/view`, { token });
+    const res = await hostApi<{ booking: BookingView }>(`/api/bookings/${encodeURIComponent(bookingId)}/view`, { token, endpoint: await thisEndpoint() });
     if (res.ok) setBooking(res.data.booking);
     else setError(res.error);
   }, [bookingId, token]);
@@ -58,6 +62,14 @@ export function ManageBooking({ bookingId }: { bookingId: string }) {
     const res = await hostApi(`/api/bookings/${encodeURIComponent(bookingId)}/cancel`, { token });
     setBusy(false);
     toast(res.ok ? 'Your booking is cancelled.' : res.error);
+    load();
+  };
+  const device = async (on: boolean) => {
+    setBusy(true);
+    const s = on ? await deviceSubscription() : null;
+    const error = on ? (s ? await tellDevice(bookingId, token!, s) : "This device can't show notifications. We'll still email you.") : await stopTellingDevice(bookingId, token!);
+    setBusy(false);
+    toast(error ?? (on ? "This device will be told if it's cancelled or moved." : 'This device will no longer be told.'));
     load();
   };
   const cancelled = booking.status === 'cancelled';
@@ -115,6 +127,21 @@ export function ManageBooking({ bookingId }: { bookingId: string }) {
             <div>
               <button type="button" class="btn btn--destructive" onClick={cancel} disabled={busy}>
                 {busy ? 'Cancelling...' : 'Cancel my booking'}
+              </button>
+            </div>
+          </div>
+        )}
+        {booking.can_cancel && (booking.this_device || canTellDevice()) && (
+          <div class="stack" style={{ '--gap': '8px' }}>
+            <p class="meta">
+              <BellRing size={16} aria-hidden="true" />{' '}
+              {booking.this_device
+                ? "This device will be told if it's cancelled or moved, as well as by email."
+                : "We'll email you if it's cancelled or moved. This device can be told too."}
+            </p>
+            <div>
+              <button type="button" class="btn btn--secondary btn--sm" onClick={() => device(!booking.this_device)} disabled={busy}>
+                {booking.this_device ? 'Stop telling this device' : 'Tell this device too'}
               </button>
             </div>
           </div>

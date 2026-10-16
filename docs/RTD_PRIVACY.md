@@ -54,6 +54,8 @@ UPDATE settings SET value = 'Roll The Dice Ltd (company 01234567)', updated_at =
 | Booking name, email, mobile, note | `bookings` | 12 months after the event (`booking_retention_months`) | Daily: replaced with "Erased" / `erased-RTD-BK-…`; `erased_at` set. The booking number, party size and status stay, so numbers still add up. |
 | Scrambled network address (`ip_hash`) | `bookings` | 2 days | Daily: set to NULL |
 | Emails about bookings | `outbox` | 90 days after sending | Deleted each time n8n collects (every 5 minutes) |
+| A device someone asked to be told on about a booking (push address and keys) | `booking_devices` | Until the day after the booked date, or until they turn it off | Daily: deleted. The notice says so (Stage 4b). |
+| Notifications sent to booking devices (event, date, booking number; no contact details) | `push_outbox` | 90 days | Daily: deleted |
 | Declined or withdrawn join requests | `applications` | 12 months after the decision | Daily: name, email, what they wrote and the café's note erased; `erased_at` set |
 | Market stall applications | `market_applications`, `market_photos`, KV `vendor:…`, the RTD Market Vendors spreadsheet | 12 months after the market | Daily: details erased and photos deleted; the next spreadsheet sync writes the row as Erased. Google Sheets' version history keeps old values until cleared. |
 | Hosts and approvers | `users`, `host_sessions` | While they have access | **By hand, on request:** the notice says so |

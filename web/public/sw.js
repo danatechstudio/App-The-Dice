@@ -120,7 +120,7 @@ self.addEventListener('notificationclick', event => {
 });
 
 // Browsers occasionally renew a subscription: send the new one to the app, for
-// event alerts (docs/RTD_ALERTS.md) and, if an approver is signed in, their notifications.
+// event alerts (docs/RTD_ALERTS.md), bookings, and, if an approver is signed in, their notifications.
 self.addEventListener('pushsubscriptionchange', event => {
   event.waitUntil(
     (async () => {
@@ -136,6 +136,8 @@ self.addEventListener('pushsubscriptionchange', event => {
         );
       await Promise.all([
         event.oldSubscription ? post('/api/alerts/renew', { old_endpoint: event.oldSubscription.endpoint, subscription: sub }) : undefined,
+        // Bookings this device is set to be told about (docs/RTD_BOOKINGS.md#telling-this-device).
+        event.oldSubscription ? post('/api/bookings/devices/renew', { old_endpoint: event.oldSubscription.endpoint, subscription: sub }) : undefined,
         post('/api/staff/push/subscribe', sub),
       ]);
     })().catch(() => undefined),

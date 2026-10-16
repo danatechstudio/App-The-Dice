@@ -26,6 +26,8 @@ export interface Email {
   reply_to: string | null;
   subject: string;
   html: string;
+  /** The booking a customer's email is about (src/notify/outbox.ts). */
+  booking_id?: string;
 }
 
 /** One date of an event (the café's own, or a host's session), as the emails describe it. */
@@ -224,8 +226,8 @@ export function orphanedBookings(s: Slot, bookings: Contact[], l: Links): Email 
       ),
       `<ul>${bookings.map(b => `<li>${contactLine(b)}</li>`).join('')}</ul>`,
       p(
-        `If it's cancelled, cancel the date in ${link(`${l.origin}/organise`, 'the organiser')} so everyone booked is emailed. ` +
-          "If it's moved, put the date back in the sheet, or let the people booked know.",
+        `Nobody booked has been told yet. Under ${link(`${l.origin}/organise#attention`, 'Needs attention in the organiser')}, choose whether to ` +
+          "tell them it has moved, cancel their bookings, or leave it (if you've told them yourself). If the move was a mistake, put the date back in the sheet.",
       ),
     ]),
   };
@@ -242,6 +244,7 @@ export function attendeeDateCancelled(
   return {
     dedupe_key: `date-cancelled:${s.occurrence_id}:${b.booking_id}`,
     kind: 'attendee_date_cancelled',
+    booking_id: b.booking_id,
     to: b.email,
     reply_to: BOOKINGS_INBOX,
     subject: `Cancelled: ${s.name}, ${shortDate(s.event_date)}`,
@@ -254,6 +257,36 @@ export function attendeeDateCancelled(
       message && p(`A message from ${by === 'host' ? esc(firstName(s.host_name)) : 'the café'}: "${esc(message)}"`),
       p(link(`${l.origin}/diary`, 'See what else is on')),
       p('Sorry again,<br>The Roll The Dice team'),
+    ]),
+  };
+}
+
+/**
+ * To each person booked on a date the Logic Engine moved, once the café chooses to
+ * tell them (Needs attention, G-4). Their booking was for the old date, so it's
+ * cancelled; they're pointed at the new date to book again. Bookings are never moved.
+ */
+export function attendeeDateMoved(
+  s: Slot,
+  to: Slot,
+  b: { booking_id: string; lead_name: string; email: string; party_size: number },
+  message: string | null,
+  l: Links,
+): Email {
+  return {
+    dedupe_key: `date-moved:${s.occurrence_id}:${b.booking_id}`,
+    kind: 'attendee_date_moved',
+    booking_id: b.booking_id,
+    to: b.email,
+    reply_to: BOOKINGS_INBOX,
+    subject: `Moved: ${s.name}, now ${shortDate(to.event_date)}`,
+    html: join([
+      p(`Hi ${esc(firstName(b.lead_name))},`),
+      p(`<strong>${esc(s.name)}</strong> on ${when(s)} has moved to <strong>${when(to)}</strong>.`),
+      p(`Your booking for ${places(b.party_size)} was for the old date, so it's been cancelled. If you'd still like to come, please book the new date:`),
+      p(link(`${l.origin}/event/${to.occurrence_id}`, `Book ${esc(s.name)} on ${shortDate(to.event_date)}`)),
+      message && p(`A message from the café: "${esc(message)}"`),
+      p('Sorry for the change,<br>The Roll The Dice team'),
     ]),
   };
 }

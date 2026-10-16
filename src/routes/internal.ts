@@ -19,7 +19,7 @@ import { checkBearer } from '../lib/auth';
 import { londonDate } from '../lib/time';
 import { MARKET_ID, markMarketPublished, markSheetSynced, marketsToPublish, sheetRows } from '../markets/markets';
 import { markSocial, socialQueue } from '../notify/alerts';
-import { markSent, unsent } from '../notify/outbox';
+import { markFailed, markSent, unsent } from '../notify/outbox';
 import { decidedApplicationsForApplicants, markApplicationNotified, newApplicationsForApprovers } from '../team/applications';
 import { applySync, parsePayload } from '../sync/apply';
 
@@ -198,6 +198,20 @@ internalRoutes.post('/outbox/:id/sent', async c => {
   const result = await markSent(c.env.DB, id, new Date().toISOString());
   if (result === 'not_found') return c.json({ error: 'No email with that ID' }, 404);
   return c.json({ ok: true, already: result === 'already' });
+});
+
+/**
+ * Gmail refused one. Body: { error? } (what Gmail said). It's tried again later, then
+ * given up on where admins can see it (src/notify/outbox.ts), so one bad address never
+ * holds up the rest. `dead`: that was the last try.
+ */
+internalRoutes.post('/outbox/:id/failed', async c => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isInteger(id) || id < 1) return c.json({ error: 'No email with that ID' }, 404);
+  const body = (await c.req.json().catch(() => ({}))) as { error?: unknown };
+  const result = await markFailed(c.env.DB, id, body.error, new Date().toISOString());
+  if (result === 'not_found') return c.json({ error: 'No email with that ID' }, 404);
+  return c.json({ ok: true, already: result === 'already', dead: result === 'dead' });
 });
 
 /**

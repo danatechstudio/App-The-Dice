@@ -75,6 +75,12 @@ export function Privacy() {
             and you can turn them off at any time (on the home page). When you turn them on, we also keep a scrambled code made from your network address for 2
             days, to stop the button being misused.
           </p>
+          <h3>If you ask us to tell this device about a booking</h3>
+          <p>
+            When you book, or from your booking's page, you can ask for a notification on that device if the date is cancelled or moved. Your browser gives
+            us the same kind of address as for event alerts. We use it only for that one booking, because you asked us to, and the email goes as well. You
+            can turn it off from your booking's page.
+          </p>
           <h3>Counting visits</h3>
           <p>
             The app counts how often its pages are viewed and its buttons pressed (for example, how many times an event was opened or shared), so the café
@@ -101,7 +107,7 @@ export function Privacy() {
               <strong>Market applications</strong> are seen only by the café team, photos included. They're also kept in the café's market list.
             </li>
             <li>
-              <strong>Event alerts</strong> travel through your browser's own notification service (Google for Chrome and Android, Apple for Safari and iPhone,
+              <strong>Event alerts and booking notifications</strong> travel through your browser's own notification service (Google for Chrome and Android, Apple for Safari and iPhone,
               Mozilla for Firefox, Microsoft for Edge on Windows). They're locked so that only your device can read them.
             </li>
             <li>
@@ -143,6 +149,9 @@ export function Privacy() {
             <li>
               <strong>Event alerts:</strong> the notification address is deleted when you turn alerts off, or as soon as your browser tells us it no longer works
               (for example, after you remove the app).
+            </li>
+            <li>
+              <strong>Booking notifications:</strong> the device's address is deleted the day after the booked date, or sooner if you turn it off.
             </li>
             <li>
               <strong>Visit counts</strong> are daily totals with nothing about anyone in them, so we keep them.

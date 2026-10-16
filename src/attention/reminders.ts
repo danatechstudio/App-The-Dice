@@ -2,9 +2,11 @@
 //
 // - A notice when a date passes with nothing after it (an `expired` item), once per
 //   item per address: dedupe key 'expiry-new:<item_id>:<address>'. At most 5 items a
-//   run, so even a burst can't flood anyone; the rest follow in the next runs.
+//   run, so even a burst can't flood anyone; the rest follow in the next runs. The same
+//   goes for a booked date the Logic Engine moved (`moved`) and an email to a customer
+//   that didn't go (`undelivered`), from Stage 4b.
 // - A reminder every morning from 09:00 London, at most once a day per address
-//   ('expiry-digest:<date>:<address>'), listing every expired item still waiting
+//   ('expiry-digest:<date>:<address>'), listing every such item still waiting
 //   that was announced before today. It stops when nothing is waiting.
 // - Events with no usable date aren't emailed; the reminder only counts them.
 //
@@ -28,6 +30,8 @@ export const MAX_RECIPIENTS = 5;
 export const DIGEST_HOUR = 9;
 /** An email still unsent after this long is shown to admins as stuck. */
 const STUCK_MS = 30 * 60_000;
+/** The kinds of item that are emailed. */
+const EMAILED = "('expired', 'moved', 'undelivered')";
 
 const SIGN_OFF = p('The Roll The Dice app');
 
@@ -39,24 +43,68 @@ export async function emailSettings(db: D1Database): Promise<{ on: boolean; to: 
 
 interface Waiting {
   item_id: number;
+  kind: 'expired' | 'moved' | 'undelivered';
   name: string;
   date: string | null;
   start_time: string | null;
   opened_at: string;
   reminder_count: number;
+  /** undelivered: the email's subject. */
+  detail: string | null;
+  /** moved: where to, and how many are booked on the old date. */
+  new_date: string | null;
+  booked: number;
 }
 
 const WAITING_SQL = `
-  SELECT a.item_id, e.display_name AS name, o.event_date AS date, o.start_time, a.opened_at, a.reminder_count
+  SELECT a.item_id, a.kind, e.display_name AS name, o.event_date AS date, o.start_time, a.opened_at, a.reminder_count, a.detail,
+    nt.event_date AS new_date,
+    (SELECT COUNT(*) FROM bookings b WHERE b.occurrence_id = a.occurrence_id AND b.status = 'confirmed') AS booked
   FROM attention_items a JOIN events e ON e.event_id = a.event_id
   LEFT JOIN occurrences o ON o.occurrence_id = a.occurrence_id
-  WHERE a.kind = 'expired' AND a.status = 'open'`;
+  LEFT JOIN occurrences nt ON nt.occurrence_id = o.rescheduled_to
+  WHERE a.kind IN ${EMAILED} AND a.status = 'open'`;
+
+const bookingsText = (n: number) => (n === 1 ? '1 booking' : `${n} bookings`);
 
 const organiserLink = (origin: string) => p(link(`${origin}/organise#attention`, 'Open Needs attention in the organiser'));
 const when = (w: Waiting) => (w.date ? `${longDate(w.date)}${w.start_time ? ` at ${clock(w.start_time)}` : ''}` : 'its last date');
 
-/** One expired item, to one address. */
+/** One item, to one address. */
 export function noticeEmail(w: Waiting, to: string, origin: string): Email {
+  const base = { dedupe_key: `expiry-new:${w.item_id}:${to}`, to, reply_to: null };
+  if (w.kind === 'moved') {
+    return {
+      ...base,
+      kind: 'attention_moved',
+      subject: `Needs attention: ${w.name}${w.date ? ` (${shortDate(w.date)})` : ''} has moved, with ${bookingsText(w.booked)}`,
+      html: join([
+        p(
+          `<strong>${esc(w.name)}</strong> on ${when(w)} has moved in the Logic Engine${w.new_date ? ` to ${longDate(w.new_date)}` : ''}, ` +
+            `and ${bookingsText(w.booked)} ${w.booked === 1 ? 'was' : 'were'} for the old date. Nobody booked has been told yet.`,
+        ),
+        p('In the organiser, choose one:'),
+        `<ul>${w.new_date ? '<li><strong>Tell them it has moved</strong>: their bookings for the old date are cancelled, and they\'re sent a link to book the new one</li>' : ''}<li><strong>Cancel their bookings</strong>: they're told it's cancelled</li><li><strong>Leave it</strong>, if you've told them yourself or the move was a mistake</li></ul>`,
+        organiserLink(origin),
+        p(`A reminder comes every morning until it's sorted. Opening this email doesn't sort it. Reference ${ref(w.item_id)}.`),
+        SIGN_OFF,
+      ]),
+    };
+  }
+  if (w.kind === 'undelivered') {
+    return {
+      ...base,
+      kind: 'attention_undelivered',
+      subject: `Needs attention: an email to a customer didn't go (${w.name})`,
+      html: join([
+        p(`The email "${esc(w.detail ?? '')}" to someone booked on <strong>${esc(w.name)}</strong> couldn't be sent, so they may not know.`),
+        p("It's tried again by itself. The organiser has their details, if you'd rather reach them another way."),
+        organiserLink(origin),
+        p(`Reference ${ref(w.item_id)}.`),
+        SIGN_OFF,
+      ]),
+    };
+  }
   return {
     dedupe_key: `expiry-new:${w.item_id}:${to}`,
     kind: 'attention_expired',
@@ -77,21 +125,33 @@ export function noticeEmail(w: Waiting, to: string, origin: string): Email {
 /** Everything still waiting, to one address, once a day. */
 export function digestEmail(list: Waiting[], noDate: number, day: string, to: string, origin: string, now: Date): Email {
   const days = (w: Waiting) => Math.max(0, Math.floor((now.getTime() - Date.parse(w.opened_at)) / 86_400_000));
+  const waited = (w: Waiting) => `waiting ${days(w) === 1 ? '1 day' : `${days(w)} days`} (${ref(w.item_id)})`;
+  const line = (w: Waiting) =>
+    w.kind === 'moved'
+      ? `<li><strong>${esc(w.name)}</strong>: moved from ${w.date ? shortDate(w.date) : 'its date'}${w.new_date ? ` to ${shortDate(w.new_date)}` : ''}, ${bookingsText(w.booked)} not told, ${waited(w)}</li>`
+      : w.kind === 'undelivered'
+        ? `<li><strong>${esc(w.name)}</strong>: an email to a customer didn't go ("${esc(w.detail ?? '')}"), ${waited(w)}</li>`
+        : `<li><strong>${esc(w.name)}</strong>: finished ${w.date ? shortDate(w.date) : ''}, ${waited(w)}</li>`;
   const n = list.length;
+  const onlyExpired = list.every(w => w.kind === 'expired');
   return {
     dedupe_key: `expiry-digest:${day}:${to}`,
     kind: 'attention_digest',
     to,
     reply_to: null,
-    subject: `Needs attention: ${n} ${n === 1 ? 'event' : 'events'} still waiting`,
+    subject: `Needs attention: ${n} ${onlyExpired ? (n === 1 ? 'event' : 'events') : n === 1 ? 'thing' : 'things'} still waiting`,
     html: join([
-      p(`${n === 1 ? 'This event has' : 'These events have'} finished with no next date, and ${n === 1 ? "hasn't" : "haven't"} been sorted yet:`),
-      `<ul>${list
-        .map(w => `<li><strong>${esc(w.name)}</strong>: finished ${w.date ? shortDate(w.date) : ''}, waiting ${days(w) === 1 ? '1 day' : `${days(w)} days`} (${ref(w.item_id)})</li>`)
-        .join('')}</ul>`,
+      onlyExpired
+        ? p(`${n === 1 ? 'This event has' : 'These events have'} finished with no next date, and ${n === 1 ? "hasn't" : "haven't"} been sorted yet:`)
+        : p(`${n === 1 ? 'This still needs' : 'These still need'} someone to decide:`),
+      `<ul>${list.map(line).join('')}</ul>`,
       noDate > 0 && p(`Also ${noDate} ${noDate === 1 ? 'event has' : 'events have'} no usable date in the Logic Engine; they're listed in the organiser too.`),
       organiserLink(origin),
-      p('For each one: set a new date, archive it, or mark it finished. This reminder comes every morning while anything is waiting.'),
+      p(
+        onlyExpired
+          ? 'For each one: set a new date, archive it, or mark it finished. This reminder comes every morning while anything is waiting.'
+          : 'Each one is sorted in the organiser. This reminder comes every morning while anything is waiting.',
+      ),
       SIGN_OFF,
     ]),
   };
@@ -197,7 +257,7 @@ export async function setEmailSettings(db: D1Database, admin: AuthUser, body: un
     set('attention_email_to', to.join(',')),
     set('attention_emails', on ? 'on' : 'off'),
     ...(on && !current.on
-      ? [db.prepare("UPDATE attention_items SET first_notified_at = ?1 WHERE kind = 'expired' AND status = 'open' AND first_notified_at IS NULL").bind(iso)]
+      ? [db.prepare(`UPDATE attention_items SET first_notified_at = ?1 WHERE kind IN ${EMAILED} AND status = 'open' AND first_notified_at IS NULL`).bind(iso)]
       : []),
     db
       .prepare(
@@ -221,12 +281,19 @@ export async function sendTest(db: D1Database, admin: AuthUser, now: Date, origi
 
 // ---- What the organiser shows ----
 
-type Delivery = 'queued' | 'sent' | 'stuck';
+type Delivery = 'queued' | 'sent' | 'stuck' | 'failing' | 'failed';
+type DeliveryRow = { created_at: string; sent_at: string | null; attempts: number; dead_at: string | null };
 
-/** How each email has gone: Gmail accepted it (sent), it's waiting (queued), or it's been waiting too long (stuck). */
-function delivery(rows: { created_at: string; sent_at: string | null }[], now: Date): Delivery | null {
+/**
+ * How each email has gone: Gmail accepted it (sent), it's waiting (queued), it's been
+ * waiting too long (stuck), Gmail refused it and it's being tried again (failing), or it
+ * was given up on (failed).
+ */
+function delivery(rows: DeliveryRow[], now: Date): Delivery | null {
   if (!rows.length) return null;
   if (rows.every(r => r.sent_at)) return 'sent';
+  if (rows.some(r => r.dead_at && !r.sent_at)) return 'failed';
+  if (rows.some(r => r.attempts > 0 && !r.sent_at)) return 'failing';
   return rows.some(r => !r.sent_at && now.getTime() - Date.parse(r.created_at) > STUCK_MS) ? 'stuck' : 'queued';
 }
 
@@ -238,10 +305,10 @@ export async function emailOverview(db: D1Database, itemIds: number[], now: Date
       .prepare('SELECT item_id, first_notified_at, last_reminded_at, reminder_count FROM attention_items WHERE item_id IN (SELECT value FROM json_each(?1))')
       .bind(JSON.stringify(itemIds)),
     db.prepare(
-      "SELECT dedupe_key, created_at, sent_at FROM outbox WHERE dedupe_key LIKE 'expiry-new:%' OR dedupe_key LIKE 'expiry-digest:%' OR dedupe_key LIKE 'expiry-test:%' ORDER BY message_id DESC LIMIT 500",
+      "SELECT dedupe_key, created_at, sent_at, attempts, dead_at FROM outbox WHERE dedupe_key LIKE 'expiry-new:%' OR dedupe_key LIKE 'expiry-digest:%' OR dedupe_key LIKE 'expiry-test:%' ORDER BY message_id DESC LIMIT 500",
     ),
   ]);
-  const rows = (outboxRes?.results ?? []) as { dedupe_key: string; created_at: string; sent_at: string | null }[];
+  const rows = (outboxRes?.results ?? []) as (DeliveryRow & { dedupe_key: string })[];
   const latest = (prefix: string) => {
     const first = rows.find(r => r.dedupe_key.startsWith(prefix));
     if (!first) return null;

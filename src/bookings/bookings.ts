@@ -13,11 +13,12 @@
 // Emails go through the outbox (src/notify/outbox.ts) in the same transaction.
 
 import type { AuthUser } from '../lib/auth';
-import { places, ukDate } from '../lib/format';
+import { places, shortDate, ukDate } from '../lib/format';
 import { BOOKING_MODE, CAPACITY, OCCURRENCE_ID, VISIBLE, type BookingMode } from '../lib/queries';
 import { addDays, londonDate, londonHour } from '../lib/time';
 import {
   attendeeDateCancelled,
+  attendeeDateMoved,
   bookingConfirmed,
   cafeBookingCancelled,
   cafeNewBooking,
@@ -32,6 +33,7 @@ import {
   type Slot,
 } from '../notify/emails';
 import { queue, queueForBooking } from '../notify/outbox';
+import { cancelledPush, movedPush, queuePushes } from './devices';
 
 export const MAX_PARTY = 10;
 /** Bookings one email address can make in a day, and one network address in an hour. */
@@ -505,19 +507,83 @@ export async function cancelDate(
   const booked = await confirmed();
   const people = booked.reduce((n, b) => n + b.party_size, 0);
   const who = actor.display_name ?? actor.email;
+  const push = cancelledPush(s);
   await db.batch([
     db
       .prepare("UPDATE occurrences SET status = 'cancelled', cancelled_at = ?2, cancelled_by = ?3, updated_at = ?2 WHERE occurrence_id = ?1 AND status = 'scheduled'")
       .bind(occurrenceId, ctx.now, by),
     cancelBookings(booked),
     ...booked.map(b => queue(db, attendeeDateCancelled(s, b, by, note, l), ctx.now)),
+    // And each device the people booked asked to be told on (src/bookings/devices.ts).
+    queuePushes(db, 'date-cancelled', occurrenceId, booked.map(b => b.booking_id), push, ctx.now),
     queue(db, dateCancelledNotice(s, by, who, hosted(s) ? s.host_email : null, { bookings: booked.length, people }, note, hosted(s) ? null : sheetNote(s), l), ctx.now),
     audit(db, 'occurrence', s.event_id, occurrenceId, by, actor.email, 'occurrence.cancelled', { by, message: note, bookings: booked.length, people }, ctx.now),
   ]);
   // Someone who booked in the moment before the cancel landed is told too.
   const late = await confirmed();
-  if (late.length) await db.batch([cancelBookings(late), ...late.map(b => queue(db, attendeeDateCancelled(s, b, by, note, l), ctx.now))]);
+  if (late.length) {
+    await db.batch([
+      cancelBookings(late),
+      ...late.map(b => queue(db, attendeeDateCancelled(s, b, by, note, l), ctx.now)),
+      queuePushes(db, 'date-cancelled', occurrenceId, late.map(b => b.booking_id), push, ctx.now),
+    ]);
+  }
   return { ok: true, cancelled_bookings: booked.length + late.length };
+}
+
+/**
+ * The café's decision on a booked date the Logic Engine moved (Needs attention, G-4;
+ * src/attention/attention.ts). Bookings are never moved to another date:
+ * - 'tell': each booking for the old date is cancelled, and each person is emailed
+ *   (and pushed) that it has moved, with a link to book the new date;
+ * - 'cancel': each booking is cancelled and each person is told so, as for a cancelled date.
+ * Returns the statements to run in the same batch as the decision. Running them twice
+ * changes nothing: only confirmed bookings are cancelled, and each message is once-only.
+ */
+export async function movedDateDecision(
+  db: D1Database,
+  actor: AuthUser,
+  occurrenceId: string,
+  how: 'tell' | 'cancel',
+  note: string | null,
+  ctx: { now: string; origin: string },
+): Promise<{ ok: true; statements: D1PreparedStatement[]; bookings: number; people: number } | { ok: false; error: string }> {
+  const s = await findSlot(db, occurrenceId);
+  if (!s || s.status !== 'rescheduled') return { ok: false, error: 'That date is back in the Logic Engine, so the bookings stand.' };
+  const to = how === 'tell' ? await newDateOf(db, occurrenceId, londonDate(new Date(ctx.now))) : null;
+  if (how === 'tell' && !to) return { ok: false, error: "There's no new date to tell them about. Cancel their bookings, or put the date back in the sheet." };
+  const { results: booked } = await db
+    .prepare("SELECT booking_id, lead_name, email, party_size FROM bookings WHERE occurrence_id = ?1 AND status = 'confirmed' ORDER BY booking_id")
+    .bind(occurrenceId)
+    .all<{ booking_id: string; lead_name: string; email: string; party_size: number }>();
+  const l: Links = { origin: ctx.origin };
+  const ids = booked.map(b => b.booking_id);
+  const people = booked.reduce((n, b) => n + b.party_size, 0);
+  const message = note ?? (to ? `Moved to ${shortDate(to.event_date)}.` : null);
+  return {
+    ok: true,
+    bookings: booked.length,
+    people,
+    statements: [
+      db
+        .prepare(
+          `UPDATE bookings SET status = 'cancelled', cancelled_by = 'staff', cancel_message = ?2, cancelled_at = ?3, updated_at = ?3
+           WHERE booking_id IN (SELECT value FROM json_each(?1)) AND status = 'confirmed'`,
+        )
+        .bind(JSON.stringify(ids), message, ctx.now),
+      ...booked.map(b => queue(db, to ? attendeeDateMoved(s, to, b, note, l) : attendeeDateCancelled(s, b, 'staff', note, l), ctx.now)),
+      to ? queuePushes(db, 'date-moved', occurrenceId, ids, movedPush(s, to), ctx.now) : queuePushes(db, 'date-cancelled', occurrenceId, ids, cancelledPush(s), ctx.now),
+      audit(db, 'occurrence', s.event_id, occurrenceId, 'staff', actor.email, 'occurrence.moved_bookings_cancelled', { how, bookings: booked.length, people, new_occurrence: to?.occurrence_id ?? null }, ctx.now),
+    ],
+  };
+}
+
+/** Where the Logic Engine moved a date to, if that date is still to come. */
+export async function newDateOf(db: D1Database, occurrenceId: string, today: string): Promise<SlotRow | null> {
+  const row = await db.prepare('SELECT rescheduled_to FROM occurrences WHERE occurrence_id = ?1').bind(occurrenceId).first<{ rescheduled_to: string | null }>();
+  if (!row?.rescheduled_to) return null;
+  const to = await findSlot(db, row.rescheduled_to);
+  return to && to.status === 'scheduled' && to.event_date >= today ? to : null;
 }
 
 // ---- For n8n ----

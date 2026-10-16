@@ -53,7 +53,7 @@ Triggers abort any `UPDATE` or `DELETE`. Actions so far:
 - `event.created`, `event.updated`, `event.activated`, `event.deactivated`, `event.missing_from_source`
 - `occurrence.created`, `occurrence.time_changed`, `occurrence.completed`, `occurrence.rescheduled`, `occurrence.reinstated`
 - **Host sessions:** `host_session.*` (source `organiser`)
-- **Booking:** `event.places_changed`, `occurrence.places_changed`, `event.booking_mode_changed` (source `organiser`)
+- **Booking:** `event.places_changed`, `occurrence.places_changed`, `event.booking_mode_changed`, `occurrence.moved_bookings_cancelled` (source `organiser`)
 - **Onboarding:**
   - **Requests:** `application.host.submitted`, `application.staff.submitted`, `application.withdrawn`, `application.approved`, `application.declined`
   - **Access:** `user.granted_host`, `user.granted_staff`, `user.removed_host`, `user.removed_staff`
@@ -182,6 +182,13 @@ Added in `0008_bookings.sql`: emails the app has written, waiting for n8n **RTD 
 | `to_email`, `reply_to` | The café's addresses are placeholders, which only n8n fills in (`rtd_config`): NULL means the café's general address, and `@bookings` the bookings inbox (info@) |
 | `subject`, `html` | The finished email |
 | `sent_at` | Set by n8n. Sent emails are deleted after 90 days. |
+| `booking_id` | The booking a customer's email is about (0020), so a failure can say who to contact |
+| `attempts`, `last_error`, `last_attempt_at`, `next_attempt_at` | Failed attempts reported by n8n (`/internal/outbox/:id/failed`); tried again after 5 m, 15 m, 1 h, 4 h, 12 h (0020) |
+| `claim`, `claimed_at` | Held by the collection that returned it, for 10 minutes (0020) |
+| `dead_at` | Given up on after the sixth failed attempt; an admin can try again (0020) |
+
+**States** (derived, 0020): sent (`sent_at`), given up (`dead_at`), sending (claimed in the last 10 minutes), being tried again (`attempts` > 0), queued.
+**Also in 0020** (outbox `kind`): `attendee_date_moved` (dedupe `date-moved:<occurrence_id>:<booking_id>`), `attention_moved`, `attention_undelivered`.
 
 **Also in 0008:** `occurrences.cancelled_by` (`host` or `staff`) for a date cancelled in the organiser. A cancelled occurrence keeps its status through every sync.
 
@@ -285,11 +292,11 @@ Added in `0017_attention.sql`: **Needs attention** ([RTD_EVENT_CONTROL_AUDIT.md]
 | --- | --- |
 | `item_id` | Shown as `RTD-ATT-00001` |
 | `item_key` | Unique: `expired:<occurrence_id>`, or `no_date:<event_id>:<sheet_date_raw>`. One item per situation, ever: once resolved, the same one never reopens |
-| `kind` | `expired` (its latest date ended with nothing after it) or `no_date` (active and listed, nothing to come, no usable date in the sheet) |
+| `kind` | `expired` (its latest date ended with nothing after it), `no_date` (active and listed, nothing to come, no usable date in the sheet), `moved` (a booked date the Logic Engine moved; key `moved:<occurrence_id>`) or `undelivered` (an email to a customer about their booking failed; key `undelivered:<message_id>`) |
 | `event_id`, `occurrence_id` | The event, and (expired) the date that ended |
 | `detail` | no_date: the sheet's date cell, as written |
 | `status` | `open` or `resolved` |
-| `resolution` | `renewed`, `archived`, `completed` (a one-off, no new date needed) or `dismissed` (left as it is) |
+| `resolution` | `renewed`, `archived`, `completed` (a one-off, no new date needed), `dismissed` (left as it is), `notified` (moved: told it has moved), `cancelled` (moved: bookings cancelled) or `sent` (undelivered: it went on a later try) |
 | `renew_date` | The new date an approver set; it reaches Event Index through `/internal/sheet-fixes` |
 | `new_occurrence_id` | The date that arrived from the Logic Engine, when that settled it |
 | `resolved_by` | The approver's email, `sheet` (the Logic Engine answered it) or `system` (a one-off host session or market, closed straight away) |
@@ -303,6 +310,14 @@ Added in `0017_attention.sql`: **Needs attention** ([RTD_EVENT_CONTROL_AUDIT.md]
 
 **Emails** (outbox `kind`): `attention_expired` (dedupe `expiry-new:<item_id>:<address>`), `attention_digest` (`expiry-digest:<date>:<address>`) and `attention_test`.
 **Audit:** `attention.opened`, `attention.resolved`, `attention.switched_on` / `attention.switched_off`.
+
+## booking_devices and push_outbox
+
+Added in `0020_delivery.sql` (Stage 4b; [RTD_BOOKINGS.md](RTD_BOOKINGS.md#telling-this-device)).
+
+**`booking_devices`:** devices someone asked to be told on about one booking. `device_id`, `booking_id`, `endpoint` (works like a password; never shown), `p256dh`, `auth`, `device_label`, `created_at`, `invalid_at` (the push service said it has gone). Unique per (booking, endpoint); at most 3 a booking. Deleted the day after the booked date.
+
+**`push_outbox`:** a notification to one booking device, written in the same batch as the change. `dedupe_key` (unique: `push:date-cancelled:<occurrence_id>:<device_id>`, `push:date-moved:…`), `kind`, `device_id`, `booking_id`, `occurrence_id`, `title`, `body`, `url`, `tag` (`booking-<booking_id>`), `attempts`, `last_status` (the push service's answer; 0 unreachable, -1 the device was turned off first), `last_error`, `last_attempt_at`, `next_attempt_at`, `claim`, `claimed_at`, `sent_at`, `dead_at`, `created_at`. Same retries as the outbox; a 404 or 410 is given up on at once. Kept 90 days.
 
 ## Coming in later phases
 

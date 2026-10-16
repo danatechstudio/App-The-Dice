@@ -317,6 +317,9 @@ describe('emails for n8n', () => {
     expect(await (await request(`/internal/outbox/${id}/sent`, { method: 'POST', headers: AUTH })).json()).toEqual({ ok: true, already: false });
     expect(await (await request(`/internal/outbox/${id}/sent`, { method: 'POST', headers: AUTH })).json()).toEqual({ ok: true, already: true });
     expect((await request('/internal/outbox/999/sent', { method: 'POST', headers: AUTH })).status).toBe(404);
+    // The other two were collected, so they're held for 10 minutes (src/notify/outbox.ts), then offered again.
+    expect((await collect()).messages).toHaveLength(0);
+    vi.setSystemTime(new Date('2026-10-06T07:10:01Z'));
     expect((await collect()).messages).toHaveLength(2);
   });
 
