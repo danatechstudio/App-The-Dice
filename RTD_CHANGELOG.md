@@ -1,5 +1,16 @@
 # RTD App Changelog
 
+## 2026-10-16 (Needs attention emails)
+- **Emails about events that need attention,** to the addresses an admin sets under **Needs attention → Email reminders**. It's off until switched on. They go out through the usual outbox (n8n RTD Outbox, Gmail).
+  - **A notice when a date passes with nothing after it:** the event, when it finished, and what to do. One per event per address, however often the check runs.
+  - **A reminder every morning at about 9am,** listing every such event still waiting and how long it has waited. At most one a day per address. It stops when nothing is waiting.
+  - **Opening an email never sorts anything:** only a decision in the organiser does.
+- **Events with no usable date aren't emailed:** the morning reminder just mentions how many there are.
+- **What was already waiting when emails are switched on** goes into the next morning's reminder, rather than each getting its own notice.
+- **Never a flood:** at most 5 notices per hourly run.
+- **Admins see how each email went:** queued; "sent" (Gmail accepted it; there's no proof it was read); or "not sent yet after 30 minutes", which means check RTD Outbox. There's also **Send a test**.
+- **Database:** migration `0018_attention_emails.sql` (three columns, two settings). **Tests:** 346 (was 339).
+
 ## 2026-10-16 (Needs attention)
 - **New in the organiser, for approvers and admins: Needs attention.** It's switched off until an admin presses **Switch on**. It lists:
   - **events whose date has passed with nothing after it**, such as a one-off or a monthly event. Weekly clubs never appear, because their next date is already there;

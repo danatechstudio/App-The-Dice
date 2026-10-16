@@ -93,6 +93,28 @@ Seeded with a one-off that had ended that morning, a weekly club, an event with 
 - **`/internal/sheet-fixes`:** offered exactly `{ Status: Active, Event Date: 14/11/2026 }` for that event.
 - **Console:** no errors.
 
+## Stage 3c: Needs attention emails (2026-10-16)
+
+**Result:** `npm test`: 22 files, **346 passed** (7 new in `test/reminders.test.ts`). `tsc` is clean for the Worker and the web app.
+
+| Brief requirement | Test |
+| --- | --- |
+| Nothing is sent until an admin sets the addresses and switches it on; approvers can't change them; bad addresses, more than 5, or switching on with none are refused; changes are audited | `sends nothing until an admin…` |
+| Items already waiting at switch-on go into the next morning's reminder, not a notice now. No reminder at 08:59 London; one per address at 09:10, listing the event, its date and wait, the no-date count and the organiser link | `puts what was already waiting into the next morning reminder…` |
+| **Both** addresses get the notice when a date passes, **exactly once** over 4 runs, with "Opening this email doesn't sort it". Something announced today isn't in today's reminder | `sends a notice to every address when a date passes…` |
+| A reminder every morning, once a day per address however often it runs (counted once a day), and **none once it's sorted** | `reminds every morning, once a day per address, and stops when it is sorted` |
+| A burst can't flood anyone: at most 5 items a run; the rest follow | `announces at most 5 items a run…` |
+| Test email to every address, deduplicated within the minute; admins only | `sends a test to every address…` |
+| Delivery is never claimed from a queued email: queued, then stuck (unsent after 30 minutes), then sent only when n8n marks it sent; literal addresses go through RTD Outbox unchanged | `shows admins how the emails have gone…` |
+
+### Checked in the running app (2026-10-16, local `wrangler dev`, Chromium at 390 px)
+
+As an admin: entered two addresses, **Save addresses**, **Switch on**, **Send a test**.
+- **The box:** showed **On** and "Latest test: queued, going out within 5 minutes".
+- **The outbox:** held exactly one test per address.
+- **An expired monthly event already waiting:** showed "In the morning reminder".
+- **Console:** no errors.
+
 ## Later stages
 
 | Brief §4 criterion | Stage |
