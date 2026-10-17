@@ -8,7 +8,7 @@
 - **Where changes go, set by an admin:** **Off** (the start), **Test copy** (the staging copy of the sheet only), **Trial** (checked against the real sheet and shows what it would write, but writes nothing) and **Live**. The plan: test copy, then at least a week's trial, then Live with the owner's go-ahead.
 - **The sync now keeps each event's sheet values** (canonical: dates, times, visibility), so a change records exactly what it changes from. It doesn't change any event's hash.
 - **New n8n workflow RTD Sheet Writer** (every 5 minutes once published; not published yet).
-- **Database:** migration `0022_sheet_edits.sql` (one column, one table, one setting, off). Not applied to production yet. **Tests:** 400 (was 382).
+- **Database:** migration `0022_sheet_edits.sql` (one column, one table, one setting, off), applied to production on 17 Oct at 08:38 UTC. **Tests:** 400 (was 382).
 
 ## 2026-10-16 (Food & Drinks menu)
 - **New page: Food & Drinks** (`/menu`), the café's menu to browse. There's nothing to order or pay.
