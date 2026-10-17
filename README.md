@@ -39,6 +39,7 @@ npm run dev         # builds the app and serves everything on http://localhost:8
 
 | File | Purpose |
 | --- | --- |
+| [`docs/RTD_HANDOFF.md`](docs/RTD_HANDOFF.md) | **Start here:** where things stand at the end of the last session, and what's next |
 | [`docs/RTD_APP_SPECIFICATION.md`](docs/RTD_APP_SPECIFICATION.md) | Full audit, architecture and build specification |
 | [`docs/RTD_AUDIT.md`](docs/RTD_AUDIT.md) | Phase 0 audit of the existing RTD / n8n environment, with migration plan |
 | [`docs/RTD_APP_ARCHITECTURE.md`](docs/RTD_APP_ARCHITECTURE.md) | Hosting decision, data flow, occurrence rules, API |

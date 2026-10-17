@@ -101,7 +101,7 @@ _Last updated: 2026-10-16_
 - **Kept in the RTD Food Menu Google Sheet** (Atechstudio Drive › Roll The Dice › Business), copied into the app every 15 minutes by n8n **RTD Menu Sync**. A copy with a bad row is refused and the last good menu stays.
 - **Starts Off.** Admins switch it Off / Preview / Live in the organiser.
 - **Waiting on:**
-  - the PR merged (no database change), then RTD Menu Sync published and an admin switching it to Preview;
+  - an admin switching it to Preview (merged and syncing since 16 Oct, 22:00; see [docs/RTD_HANDOFF.md](docs/RTD_HANDOFF.md));
   - the café's checks in [docs/RTD_FOOD_MENU_AUDIT.md §6](docs/RTD_FOOD_MENU_AUDIT.md#6-before-launch-for-the-café) before Live.
 - **Next:** offers (Stage 3), then opt-in offer notifications (Stage 4).
 
