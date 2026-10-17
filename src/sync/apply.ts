@@ -145,8 +145,10 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
   ]);
   const projectionWeeks = Number((settingRes?.results[0] as { value?: string } | undefined)?.value ?? 6) || 6;
 
+  // sheet_values repeats what the hash already covers in another form: left out, so adding it
+  // changed no event's hash.
   const hashed = await Promise.all(
-    events.map(async e => ({ ...e, source_hash: await sha256Hex(JSON.stringify(e)) })),
+    events.map(async e => ({ ...e, source_hash: await sha256Hex(JSON.stringify({ ...e, sheet_values: undefined })) })),
   );
   const plan = planSync({
     events: hashed,
@@ -167,10 +169,10 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
         .prepare(
           `INSERT INTO events (event_id, source, source_row, event_name, display_name, category, description, frequency,
              repeatable, requires_redating, visibility, sheet_status, active, photo_folder_id, price_display,
-             default_capacity, host_session_id, market_id, sheet_date_raw, source_hash, last_synced_at, created_at, updated_at)
+             default_capacity, host_session_id, market_id, sheet_date_raw, source_hash, sheet_values, last_synced_at, created_at, updated_at)
            SELECT ${['event_id', 'source', 'source_row', 'event_name', 'display_name', 'category', 'description', 'frequency',
              'repeatable', 'requires_redating', 'visibility', 'sheet_status', 'active', 'photo_folder_id', 'price_display',
-             'default_capacity', 'host_session_id', 'market_id', 'sheet_date_raw', 'source_hash'].map(j).join(', ')},
+             'default_capacity', 'host_session_id', 'market_id', 'sheet_date_raw', 'source_hash', 'sheet_values'].map(j).join(', ')},
              ?2, ?2, ?2
            FROM json_each(?1) WHERE true
            ON CONFLICT (event_id) DO UPDATE SET
@@ -184,7 +186,7 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
              default_capacity = excluded.default_capacity, host_session_id = excluded.host_session_id, market_id = excluded.market_id,
              sheet_date_raw = excluded.sheet_date_raw,
              updated_at = CASE WHEN events.source_hash IS excluded.source_hash THEN events.updated_at ELSE excluded.updated_at END,
-             source_hash = excluded.source_hash, last_synced_at = excluded.last_synced_at`,
+             source_hash = excluded.source_hash, sheet_values = excluded.sheet_values, last_synced_at = excluded.last_synced_at`,
         )
         .bind(JSON.stringify(plan.eventUpserts), now),
     );
@@ -262,6 +264,26 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
          WHERE e.market_id = markets.market_id AND (markets.event_id IS NOT e.event_id OR markets.status = 'scheduled')`,
       )
       .bind(now),
+  );
+  // Changes RTD Sheet Writer put in the sheet (src/sync/edits.ts): this sync shows them, so they're
+  // in the app now. One the sheet has changed again since is overtaken (the sheet's value stands),
+  // once a sync has read the sheet after the write: the 2 minutes cover a read that began first.
+  const mismatch = `EXISTS (SELECT 1 FROM json_each(sheet_edits.fields) f JOIN events e ON e.event_id = sheet_edits.event_id
+    WHERE json_extract(e.sheet_values, '$."' || f.key || '"') IS NOT json_extract(f.value, '$.to'))`;
+  writes.push(
+    db
+      .prepare(
+        `UPDATE sheet_edits SET status = 'synced', settled_at = ?1, updated_at = ?1
+         WHERE status = 'written' AND target = 'live' AND event_id IN (SELECT event_id FROM events WHERE last_synced_at = ?1)
+           AND NOT ${mismatch}`,
+      )
+      .bind(now),
+    db
+      .prepare(
+        `UPDATE sheet_edits SET status = 'overtaken', settled_at = ?1, updated_at = ?1
+         WHERE status = 'written' AND target = 'live' AND written_at <= ?2 AND source IN (SELECT value FROM json_each(?3))`,
+      )
+      .bind(now, new Date(nowDate.getTime() - 2 * 60_000).toISOString(), JSON.stringify(present)),
   );
   const result: SyncResult = {
     ...base,

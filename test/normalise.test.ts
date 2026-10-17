@@ -30,6 +30,10 @@ describe('normaliseRows (Event Index)', () => {
         market_id: null,
         next: { date: '2026-10-23', start_time: '18:30', end_time: '22:00', all_day: false },
         sheet_date_raw: '23/10/2026',
+        sheet_values: {
+          'Event Name': 'Quiz', 'Base Details': 'Details for event 1', 'Event Date': '2026-10-23', 'Event Time': '18:30', 'End Time': '22:00',
+          Status: 'Active', 'App Visibility': 'public', 'App Category': 'Quiz', 'App Price': '',
+        },
       },
     ]);
   });

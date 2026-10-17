@@ -114,6 +114,8 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 | GET / POST | `/api/staff/event-places`, `/api/staff/events/:id/places`, `/api/staff/events/:id/booking-mode` | Access + approver/admin | Booking for café events: places, and whether people need to book |
 | GET / POST | `/api/staff/dates`, `/api/staff/dates/:id` | Access + approver/admin | Dates in the app: the next four weeks; hide one date, or give it its own description or price |
 | GET / POST | `/api/staff/change-requests`, `/api/staff/change-requests/:id/decision` | Access + approver/admin | Hosts' changes to approve or decline |
+| GET / POST | `/api/staff/sheet-sync`, `/api/staff/sheet-sync/mode`, `/api/staff/sheet-events`, `/api/staff/events/:id/sheet-edit`, `/api/staff/sheet-edits/:id/resolve` | Access + admin | Logic Engine changes: where changes go, the café's events with their sheet values, making a change, withdrawing it or choosing after a conflict |
+| POST | `/internal/sheet-edits/claim`, `/:id/check`, `/:id/written`, `/:id/failed` | bearer | n8n RTD Sheet Writer: changes due, the row checked before writing, read back after |
 | POST | `/api/host/sessions/:id/changes`, `/api/host/changes/:id/withdraw` | Access + the session's host | Ask for a change to a live session; withdraw it |
 | GET / POST | `/internal/host-changes`, `/internal/host-changes/:id/applied` | bearer | Approved host changes for Event Index (n8n branch D) |
 | GET / POST | `/api/staff/delivery`, `/api/staff/outbox/:id/retry` | Access + approver/admin | Delivery: how emails and booking notifications have gone; try an email again |
@@ -181,6 +183,8 @@ Everyone is moved onto the newest build (`web/src/lib/update.ts`):
 | `src/notify/emails.ts`, `src/notify/outbox.ts` | Booking email wording, and the outbox n8n sends from: claims, failures, retries, giving up |
 | `src/events/dates.ts` | Changing one date in the app (approvers and admins): hide it, or its own description and price label |
 | `src/host/changes.ts` | Hosts' change requests to live sessions: asking, deciding, and the cells n8n writes to Event Index |
+| `src/sync/sheetValues.ts` | The Logic Engine columns the organiser can change, in one canonical form; checking a row before writing and after |
+| `src/sync/edits.ts` | Logic Engine changes from the organiser (admins): the queue, the mode, conflicts, and RTD Sheet Writer's endpoints |
 | `src/bookings/devices.ts` | Telling a booker's device when a date is cancelled or moved: opt-in, the push outbox, sending it each minute |
 | `src/notify/delivery.ts` | The organiser's Delivery view |
 | `src/notify/push.ts` | Web Push: VAPID keys, RFC 8291 encryption, approvers' devices, sending |

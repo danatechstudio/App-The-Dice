@@ -6,6 +6,8 @@ _Audit date: 2026-10-16. Read-only. Brief: "Roll The Dice — Event Control Audi
 
 > **This repository is public.** This document names systems, workflows and tables, but deliberately contains no spreadsheet, calendar, Drive or credential IDs and no personal email addresses. Those belong in private environment documentation (see [G-17](#3-gap-analysis)).
 
+> **Picking this work up?** Start with [RTD_EVENT_CONTROL_HANDOFF.md](RTD_EVENT_CONTROL_HANDOFF.md): where each stage stands and what's next.
+
 **Stop point:** this is the Stage A deliverable. Stage B (any code, migration, workflow or sheet change) waits for explicit approval of §6 and answers to §7.
 
 ---
@@ -23,7 +25,7 @@ _Audit date: 2026-10-16. Read-only. Brief: "Roll The Dice — Event Control Audi
 | G-3 | **P0** | **Cancellation emails bookers but never pushes to them.** Bookings aren't linked to any device: push subscriptions are anonymous (`alert_subscriptions`) or approver-only (`push_subscriptions`). The outbox records only `sent_at`, so failures, attempts and dead letters aren't recorded. **Built 2026-10-16 (Stage 4b)** in the app: opt-in booking devices, a push outbox, email retries and giving up, a Delivery view; n8n RTD Outbox calls `/failed` since 17:23 the same day. |
 | G-4 | **P0** (latent) | **When the sheet moves a booked date** (the occurrence becomes `rescheduled`), only the café gets a "check bookings" email. The bookers are never told. **Built 2026-10-16 (Stage 4b):** held under Needs attention until someone tells them or cancels; bookings never moved. |
 | G-5 | P1 | **No booking mode.** Every public event is bookable (`bookable` is derived), including Standard Diary groups that never take bookings. There's no `none / optional / required`. **Built 2026-10-16 (Stage 4a)** per event with the D-6 defaults; a per-date override wasn't needed and isn't built. |
-| G-6 | P1 | **The sheet → app flow is one-way, with silent overwrite.** There's no revision, base snapshot or conflict record, and no two-way sync. ID write-back and Guard updates match on **row number**. |
+| G-6 | P1 | **The sheet → app flow is one-way, with silent overwrite.** There's no revision, base snapshot or conflict record, and no two-way sync. ID write-back and Guard updates match on **row number**. **Built 2026-10-16 (Stage 6), not yet live:** admins change sheet-owned fields in the organiser; each change is checked against the row (by Event ID) and written by a new n8n writer, or held as a conflict ([§4.4](#44-as-built-stage-6-sheet-first-editing)). The row_number writes are unchanged. |
 | G-7 | P1 | **Hosts can't propose edits to a live session.** They can change places and cancel dates **immediately, with no approval**. **Built 2026-10-16 (Stage 5a):** change requests with approval and a reason to decline; places and cancelling stay immediate (D-7). Reaching the sheet needs n8n branch D. |
 | G-8 | P1 | **n8n keeps only the current version of each workflow.** Every "roll back to `<versionId>`" in `RTD_N8N_WORKFLOWS.md` and `RTD_RECOVERY.md` points at a version that no longer exists. |
 
@@ -314,6 +316,34 @@ Severity: **P0** is a non-negotiable requirement broken now, or broken on first 
 | C8 | The sheet is sorted between the Event Sync read and the ID write-back | ID may land on the wrong row (row_number) | Re-read and verify Event Name before writing; otherwise skip and retry |
 | C9 | Status set Inactive in the sheet on an event with bookings | Event hidden; bookings orphaned silently | Attention item "cancel booked dates?" → cancellation flow |
 
+### 4.4 As built (Stage 6): sheet-first editing
+
+The owner is the only person who edits the sheet (D-10), and the sheet stays the master. So Stage 6 doesn't keep two editable copies and merge them (§4.2). An edit made in the app is a **request to change the sheet**, checked at the moment of writing:
+
+1. **An admin changes an event** under **Logic Engine changes** in the organiser. Only the café's own events, and only these columns: Event Name, Base Details, Event Date (with Day), Event Time, End Time, Status, App Visibility, App Category, App Price (Event Index); Group, Notes, Date (with Day), App Visibility, App Category (Standard Diary). Never Frequency, App Capacity, Photo Folder ID or App Host Session. Host sessions change through their host's request (Stage 5a); markets under Markets.
+2. **The change is queued** (`sheet_edits`) as `{column: {from, to}}`. `from` is what the last sync read (`events.sheet_values`, canonical: dates ISO, times `HH:MM`, visibility as the app's word). **Nothing in the app changes.** One change per event at a time.
+3. **n8n RTD Sheet Writer** (every 5 minutes) claims it, reads the tab and posts the rows with that Event ID to the app. The app answers:
+   - **write**, with just the changed cells, if exactly one row has the ID and every changed column still holds `from`. A column that already holds `to` is left alone (both sides made the same change).
+   - **conflict**, if any changed column holds something else. **Nothing is written,** and nothing is overwritten. The admin is emailed and chooses **keep the sheet's** or **write mine over it** (checked again first).
+   - **retry** (a failed try) if there's no row, the ID is on two rows, or a column is missing. Tries again after 5 m, 15 m, 1 h, 4 h and 12 h, then gives up (`dead`), emails the admin and waits for **Try again**.
+4. **n8n writes the cells** (Google Sheets update matched on **Event ID**, RAW, an unknown column is an error), reads the row back and posts it. The app checks every written cell; a mismatch is `dead` at once, for a person to look at.
+5. **The next Event Sync** brings the change into the diary exactly as if it had been typed into the sheet, so posters, posts and the app all follow the sheet. The sync marks the change `synced`, or `overtaken` if the sheet changed again first (once a sync has read the sheet at least 2 minutes after the write).
+
+**What this gives:** an uncontested app edit reaches the sheet and then the app; a concurrent edit is a conflict with neither side overwritten; an n8n or Google outage only delays (retries, then visible); **no echo loop is possible,** because the app never applies its own edits and the sync never queues writes; IDs only (never row numbers or names).
+
+**Modes** (setting `sheet_writes`, admins only, audited): **off** (closed), **staging** (the test copy only), **shadow** (checked against the live sheet, shows what it would write, writes nothing) and **live**. Each change keeps the target it was made with. The writer also refuses a staging change if the staging ID is the live sheet, and trial and live changes need `RTD_LOGIC_ENGINE_ID` in rtd_config, which isn't set until the trial.
+
+**Not done, and why:**
+- **A separate base snapshot, three-way merge and `sync_conflicts` table:** not needed while the app holds no unsynced values. A conflict can only exist between a queued change and the sheet, and it's detected when writing.
+- **A nightly reconciliation:** the 15-minute sync already re-reads every mapped column and the sheet wins.
+- **Re-checking rows in the row_number writes** (Event Sync ID write-back, Guard): unchanged. They're separate workflows, still to do (C8).
+
+**Residual risks:**
+- A hand edit to the same cell in the seconds between the writer's read and its write would be overwritten (Google Sheets has no conditional write). The read-back then shows the app's value, and the audit log has both.
+- If the sheet's Day column is a formula, writing Day replaces it with text (as the host-session writers already do). Check on the staging copy.
+- Dates and times are written as text (`22/10/2026`, `19:30`, RAW), as the existing writers already do. The sync reads both forms the same; check on the staging copy that the posters and Master V1 do too.
+- A change shows in the app after the writer (≤ 5 minutes) and the next sync (≤ 15 minutes).
+
 ---
 
 ## 5. Notification delivery design
@@ -401,7 +431,7 @@ Each stage ends with: changed files, migrations, test results, deployment status
 | **3c. Expiry emails** | Initial plus daily digest to both recipients; recipients from live config; Guard date-picker retired in a coordinated n8n change | 3b; D-3, D-4; the n8n export | Additive | Both recipients on the initial notice; one digest per address per day; stops after resolution; reruns and retries don't multiply | None | Flag `expiry_emails` off; re-import the Guard export |
 | **4. Booking and communications** | `0019`; `booking_mode` + UI + validation + backfill; opt-in booking push; push outbox drained by cron (sharing the subrequest budget with alerts); outbox states + `/failed`; n8n Outbox calls `/failed`; failures view; G-4 hold for moved booked dates; G-13 sheet fixes | 3b; D-6, D-7, D-11 | Additive; existing bookings untouched (0 today); mode change with bookings needs confirmation | Modes render and validate; capacity and party size; old bookings survive; cancel with bookings: email + eligible push per contact, no duplicates after retries, invalid push doesn't block email; zero bookings → no attendee messages | None | Flags off; `wrangler rollback`; re-import the Outbox export (app first accepts `/failed`, harmless to old n8n) |
 | **5. App-first editing + host approvals** | `0020`; admin editor (create / edit / duplicate / publish / unpublish / reschedule / cancel / archive) for **app-owned** fields; host change requests with a side-by-side diff; approve / reject / revise; published version preserved | 4; D-7, D-9, D-10 | Additive | Host edit doesn't change public content until approved; reject with reason; audit rows | None | Flags off |
-| **6. Two-way Sheets sync** | `0021`; canonical normalisation; three-way merge; conflicts and errors queues; outbound writer (new n8n "RTD Sheet Writer", by Event ID, mapped cells only, RAW); echo suppression; nightly reconciliation; row_number write verification; sheet-owned fields become editable in the admin editor | 5; staging sheet copy; D-10, D-13 | Additive; outbound starts on staging, then read-only "shadow" on prod (compute conflicts, write nothing) for ≥ 1 week, then enable | Uncontested sheet edit applies; app edit reaches the sheet; concurrent edits → conflict with neither overwritten; recovery after a simulated n8n/Google outage; no echo loop; no duplicate events | None | Disable the Sheet Writer workflow; flag off; shadow data is harmless |
+| **6. Two-way Sheets sync** (built 2026-10-16 as sheet-first editing, §4.4; `0022`; not yet live) | `0021`; canonical normalisation; three-way merge; conflicts and errors queues; outbound writer (new n8n "RTD Sheet Writer", by Event ID, mapped cells only, RAW); echo suppression; nightly reconciliation; row_number write verification; sheet-owned fields become editable in the admin editor | 5; staging sheet copy; D-10, D-13 | Additive; outbound starts on staging, then read-only "shadow" on prod (compute conflicts, write nothing) for ≥ 1 week, then enable | Uncontested sheet edit applies; app edit reaches the sheet; concurrent edits → conflict with neither overwritten; recovery after a simulated n8n/Google outage; no echo loop; no duplicate events | None | Disable the Sheet Writer workflow; flag off; shadow data is harmless |
 | **7. Enhancements** | Waitlist, check-in, recurrence templates, per-edit rollback, health panel (last sync, backlog, failures), pre-event reminders, impact preview, accessibility pass | 6 | Additive | Per feature | None | Per-feature flags |
 | **8. Production cutover** | Reconcile counts and IDs (D1 ↔ sheet); confirm the rollback point; owner sign-off; progressive enable; defined observation period | All | — | Reconciliation report = 0 drift | None planned | Time Travel bookmark + Worker rollback + n8n exports |
 
@@ -429,10 +459,10 @@ The existing suite covers most app paths. n8n paths need dry runs (the Guard has
 | D-7 | Host self-service | Keep **host cancellation immediate** (a host who can't run it can't be made to), with admin notification. Place increases: immediate. Text / time / date changes: approval |
 | D-8 | Digest time | 09:00 London |
 | D-9 | Does "admin approval" include approvers (Michelle)? | Yes: approvers + admins, as today. Expiry emails go to the two fixed addresses regardless |
-| D-10 | Sheet edits to host-owned events | Treat sheet editors as admins (no approval queue), but log a change request for audit. Alternative: route them through approval |
+| D-10 | Sheet edits to host-owned events | Treat sheet editors as admins (no approval queue), but log a change request for audit. Alternative: route them through approval. **Decided 2026-10-16: no approval.** The owner is the only person with access to the sheet; their edits are applied and logged (each change the sync brings in is in the audit log as `event.updated`, with the values before and after). |
 | D-11 | Transactional email provider (Phase 0 item 11, still open) | Keep Gmail via n8n for now (state `sent` = accepted, never "delivered"). Consider Resend or Postmark for bounce webhooks and idempotency before cutover |
-| D-12 | Staging | Approve creating staging Cloudflare resources and a sheet copy. Who owns the copy? |
-| D-13 | Outbound writes to the Logic Engine | Approve a new n8n writer limited to mapped columns, by Event ID |
+| D-12 | Staging | Approve creating staging Cloudflare resources and a sheet copy. Who owns the copy? **Sheet copy made 2026-10-16** at the owner's request: in the same Drive folder, owned by the same Google account as the Logic Engine; its ID is in n8n `rtd_config` (`RTD_STAGING_LOGIC_ENGINE_ID`), not in this repository. A one-week read-only trial on the live sheet before any writes is approved. |
+| D-13 | Outbound writes to the Logic Engine | Approve a new n8n writer limited to mapped columns, by Event ID. **Approved 2026-10-16:** staging copy first; live writes only after at least a week's read-only trial and the owner's go-ahead. Built as RTD Sheet Writer ([§4.4](#44-as-built-stage-6-sheet-first-editing)), not published yet. |
 | D-14 | Google Calendar "Roll The Dice Cafe" | Is it public? If so, approve the Status / visibility filter in Master V1 |
 | D-15 | Bingo (expired 9 Oct, unresolved) | Renew with a date, or archive. Separately: why did the date-picker close as `NO_RESPONSE` within hours? (Possibly a mail scanner opening the form link; execution data is pruned) |
 | D-16 | Public repo with identifiers | Make the repo private (simplest), or scrub the docs going forward. A history rewrite needs explicit approval |

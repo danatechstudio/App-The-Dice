@@ -121,6 +121,26 @@ Nothing existing changes. Emails already in the outbox read as queued or sent, e
 - **First runs on the new code:** RTD Outbox at 15:40 and 15:45 succeeded; collect answered `{ messages: [] }` as before (nothing was waiting). The 15:45 sync: `ok`, 32 events, nothing changed, still 289 audit rows and 8 open items.
 - **The RTD Outbox change** waited for its own go-ahead, then was published at 17:23 UTC (version `e50af06e…`; rollback `a1b77acb…`). The 17:25 and 17:30 runs on it succeeded ([RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md)).
 
+## 0022_sheet_edits.sql (Stage 6: changing events from the organiser)
+
+**What it adds:** column `events.sheet_values` (NULL until the next sync fills it), table `sheet_edits` and two indexes (empty), and the setting `sheet_writes` = `off`. Nothing existing changes.
+
+**Why it must be applied before the deploy:** the new sync writes `events.sheet_values` and settles `sheet_edits` in the same batch as everything else. On the old schema every sync would fail (and be retried), so the diary would stop updating, though nothing would be lost.
+
+**What changes when the code is deployed:** the first sync fills `sheet_values` for every event, with no change to any event's hash (`events_changed` stays as usual). Admins see **Logic Engine changes**, switched **Off**, so nothing can be queued or written. RTD Sheet Writer stays unpublished until the owner says so.
+
+**Then, each with the owner's go-ahead:**
+1. **Test copy:** an admin sets **Test copy**, RTD Sheet Writer is published, and test changes are made. Only the staging copy (rtd_config `RTD_STAGING_LOGIC_ENGINE_ID`) is written. Check there that only the named cells changed, the Day column follows a date, and a conflict is caught (edit the copy by hand between making a change and the next run).
+2. **Trial:** `RTD_LOGIC_ENGINE_ID` is added to rtd_config (kept out of this repository) and an admin sets **Trial**, for at least a week. Changes are checked against the live sheet and show what they would write; nothing is written.
+3. **Live:** an admin sets **Live**.
+
+**Rollback:** set **Off** (queued changes wait and can be withdrawn); unpublish RTD Sheet Writer; `npx wrangler rollback`. The column, table and setting can stay. A change already written is in the sheet like any hand edit: change it back there.
+
+**Applied to production:** 2026-10-17 08:37–08:38 UTC, with the owner's go-ahead, through the Cloudflare connector, one statement at a time (the `ALTER TABLE`, the `CREATE TABLE`, the two `CREATE INDEX`, the setting); recorded in `d1_migrations`.
+- **Restore point:** 2026-10-17T08:36:20Z.
+- **Before:** 32 events, 74 occurrences, 0 bookings, 301 audit rows, 5 open items; the 08:00, 08:15 and 08:30 syncs `ok` (32 events seen, 0 changed). No `sheet_values` column or `sheet_edits` table.
+- **After (08:38:54Z):** the same counts. The column, the table, both indexes and `sheet_writes = off` are present.
+
 ## 0021_change_requests.sql (Stage 5a: host change requests)
 
 **What it adds:** table `event_change_requests` and two indexes, empty. Nothing existing changes.
@@ -141,7 +161,7 @@ Nothing existing changes. Emails already in the outbox read as queued or sent, e
 
 ## Stage 5b (no migration)
 
-The per-date editor uses columns that already exist and that the sync never writes (`occurrences.visibility`, `description_override`, `price_display`). **Rollback:** `npx wrangler rollback`; any date hidden or changed keeps its setting, and can be put back from the organiser after a redeploy (or by setting those columns to NULL).
+The per-date editor uses columns that already exist and that the sync never writes (`occurrences.visibility`, `description_override`, `price_display`). Deployed: PR #8 merged at 18:48; the new code was confirmed live from the deployed Worker at 18:54. The 19:00 sync was `ok`, 32 events, nothing changed, 289 audit rows, 8 open items, and no date has an override yet. **Rollback:** `npx wrangler rollback`; any date hidden or changed keeps its setting, and can be put back from the organiser after a redeploy (or by setting those columns to NULL).
 
 ## Stage 4c (no migration)
 

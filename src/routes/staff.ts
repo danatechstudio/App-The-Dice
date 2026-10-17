@@ -6,6 +6,7 @@ import { emailOverview, sendTest, setEmailSettings } from '../attention/reminder
 import { upcomingBookedDates } from '../bookings/bookings';
 import { cafeEventPlaces, setBookingMode, setEventPlaces } from '../bookings/places';
 import { editDate, listDates } from '../events/dates';
+import { requestEdit, resolveEdit, setSheetMode, sheetEvents, sheetSyncOverview } from '../sync/edits';
 import { decideChange, listChanges } from '../host/changes';
 import { deliveryOverview } from '../notify/delivery';
 import { retryNow } from '../notify/outbox';
@@ -80,6 +81,41 @@ staffRoutes.post('/attention/switch', async c => {
   if (typeof body.on !== 'boolean') return c.json({ error: 'Send { on: true|false }.' }, 400);
   const res = await setAttention(c.env.DB, c.get('user'), body.on, new Date());
   return res.ok ? c.json({ enabled: res.enabled }) : c.json({ error: res.error }, res.status);
+});
+
+// --- Changing events in the Logic Engine from the app (src/sync/edits.ts): admins ---
+
+/** Where edits go (off, staging, shadow, live), the latest changes and the last sync. */
+staffRoutes.get('/sheet-sync', async c => {
+  const res = await sheetSyncOverview(c.env.DB, c.get('user'));
+  return res.ok ? c.json(res) : c.json({ error: res.error }, res.status);
+});
+
+/** Body: { mode: 'off' | 'staging' | 'shadow' | 'live' } */
+staffRoutes.post('/sheet-sync/mode', async c => {
+  const body = ((await c.req.json().catch(() => ({}))) ?? {}) as { mode?: unknown };
+  const res = await setSheetMode(c.env.DB, c.get('user'), body.mode, new Date());
+  return res.ok ? c.json({ mode: res.mode }) : c.json({ error: res.error }, res.status);
+});
+
+/** The café's events with their Logic Engine columns, as the last sync read them. */
+staffRoutes.get('/sheet-events', async c => {
+  const res = await sheetEvents(c.env.DB, c.get('user'), new Date());
+  return res.ok ? c.json({ events: res.events }) : c.json({ error: res.error }, res.status);
+});
+
+/** Body: { values: {column: value}, note?, confirm? }. Queued for RTD Sheet Writer; 409 { warning } asks first. */
+staffRoutes.post('/events/:id/sheet-edit', async c => {
+  const res = await requestEdit(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), new Date());
+  if (res.ok) return c.json({ edit: res.edit });
+  if ('warning' in res) return c.json({ warning: res.warning }, 409);
+  return c.json({ error: res.error, errors: res.errors }, res.status);
+});
+
+/** Body: { action: 'withdraw' | 'keep_sheet' | 'write_mine' | 'retry' } */
+staffRoutes.post('/sheet-edits/:id/resolve', async c => {
+  const res = await resolveEdit(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), new Date());
+  return res.ok ? c.json({ edit: res.edit }) : c.json({ error: res.error }, res.status);
 });
 
 staffRoutes.get('/sync-runs', async c => {

@@ -14,6 +14,7 @@ import { AttentionPanel } from './OrganiseAttention';
 import { DeliveryPanel } from './OrganiseDelivery';
 import { ChangeForm, ChangesPanel, ChangeStatus } from './OrganiseChanges';
 import { DatesPanel } from './OrganiseDateEditor';
+import { SheetSyncPanel } from './OrganiseSheetSync';
 import { PushCard } from './OrganisePush';
 import { RemindersAdmin } from './OrganiseReminders';
 import { GamesAdmin } from './OrganiseGames';
@@ -556,6 +557,7 @@ function StaffDesk({ onDecided, me, isAdmin }: { onDecided: () => void; me: Host
       <HostedDatesPanel refresh={refresh} />
       <EventPlacesPanel refresh={refresh} />
       <DatesPanel />
+      {isAdmin && <SheetSyncPanel />}
       {isAdmin && <StatsAdmin />}
       {isAdmin && <RemindersAdmin />}
       {isAdmin && <MarketsAdmin markets={markets} onChanged={load} />}
