@@ -4,8 +4,8 @@
 // - Public diary API: network first, falling back to the last answer.
 // - Staff, internal and anything cross-origin: never touched.
 
-const SHELL = 'rtd-shell-v1';
-const RUNTIME = 'rtd-runtime-v1';
+const SHELL = 'rtd-shell-v2'; // v2: the gold icons (17 Oct); a new name clears the old icons from phones
+const RUNTIME = 'rtd-runtime-v2';
 // Event photos (/images/<hash>) never change at a URL, so they are cached for good.
 const PRECACHE = ['/', '/manifest.webmanifest', '/brand/rtd-logo.webp', '/brand/rtd-dice-mark.webp', '/icons/icon-192.png'];
 
@@ -90,6 +90,7 @@ self.addEventListener('push', event => {
       body: data.body || 'Something needs approving in the organiser.',
       tag: data.tag || 'rtd-approval',
       icon: '/icons/icon-192.png',
+      badge: '/icons/badge-96.png', // the small dice in Android's status bar (one colour, drawn by the phone)
       data: { url: data.url || '/organise', send_id: data.send_id || null },
     }),
   );

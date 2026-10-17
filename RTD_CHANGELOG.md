@@ -1,5 +1,14 @@
 # RTD App Changelog
 
+## 2026-10-17 (Gold dice)
+- **The app icon's dice are gold** on the navy square: home screen (Android and iPhone), Android's shaped icon, the browser tab and the shortcuts. The two dice keep the small notch between them from the logo.
+- **Notifications show a dice** as their small icon in Android's status bar. The phone draws it in one colour; the notification's larger picture is the gold-dice icon.
+- **The app's pop-up messages** (after approving, saving and so on) are gold text on navy, with a small dice.
+- **Gold** is a new colour token (`--rtd-gold`, #F2C14E), checked for contrast on navy (8:1 or better).
+- **Phones pick up the new icons:** the service worker's caches are renamed, so the old icons are cleared once. An installed app's home-screen icon may take a day or a reinstall to change, as the phone decides.
+- **Not possible:** colouring the text of the phone's own notifications. Android and iPhone always draw it themselves.
+- **No database change.** **Tests:** 440 (was 438).
+
 ## 2026-10-17 (Organiser hub)
 - **The organiser for approvers and admins is now a hub, not one long page.** It shows a card per section, with what's waiting and how much: "2 join requests · 1 session", or **All clear**. Sections with work come first; each card opens the section's own page.
   - **Sections:** To approve, Needs attention, Events & dates, Bookings, People, and for admins, Café content and Stats.
