@@ -13,6 +13,7 @@ import { retryNow } from '../notify/outbox';
 import { decideSession, listHosts, listSessions, type SessionStatus } from '../host/sessions';
 import { afterResponse } from '../lib/background';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
+import { staffSummary } from '../staff/summary';
 import { drain, overview, parseReminder, sendReminder } from '../notify/alerts';
 import { PERIODS, statsOverview, type Period } from '../stats/stats';
 import { adminLibrary, applyImport, attachCover, confirmReview, confirmReviews, createGame, rejectReview, removeCover, reviewList, setCoverStatus, setLive, setRetired, updateGame } from '../games/admin';
@@ -34,6 +35,9 @@ staffRoutes.use('*', sameOriginJson);
 staffRoutes.use('*', requireRole('staff'));
 
 staffRoutes.get('/me', c => c.json({ user: c.get('user') }));
+
+/** What's waiting in each organiser section, for the hub's cards (src/staff/summary.ts). Read only. */
+staffRoutes.get('/summary', async c => c.json(await staffSummary(c.env.DB, c.get('user'), new Date()), 200, { 'Cache-Control': 'no-store' }));
 
 // --- Needs attention (src/attention/attention.ts): approvers and admins ---
 
