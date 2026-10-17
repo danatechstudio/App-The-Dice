@@ -1,22 +1,22 @@
-# RTD App: Handoff (end of 2026-10-16, for 17 October)
+# RTD App: Handoff (updated 2026-10-17, 09:05 UTC)
 
-Read this first. The Stage 6 (Event Control) work has its own, longer handoff on its branch: `docs/RTD_EVENT_CONTROL_HANDOFF.md` on `claude/new-session-qt4dd9`.
+Read this first. Stage 6 (Event Control) has its own, longer handoff: [RTD_EVENT_CONTROL_HANDOFF.md](RTD_EVENT_CONTROL_HANDOFF.md).
 
 > **This repository is public.** No sheet, Drive or credential IDs here; they're in n8n (`rtd_config`, and the workflow nodes).
 
 ## Where things stand
 
-**`main` (deployed by Workers Builds on every push) has everything up to PR #10:**
+**`main` (deployed by Workers Builds on every push) has everything up to PR #11:**
 
 | PR | What | Live? |
 | --- | --- | --- |
 | #1–#8 | Event control Stages 3a–5b | Yes (earlier sessions checked each deploy) |
 | #9 | **Food & Drinks menu, kept in a Google Sheet** | **Yes, checked:** the live app took the sheet's 59 lines (`{ ok: true, items: 59, changed: true }`, n8n execution 58572), and the first scheduled run at 22:00 was ok (58582) |
 | #10 | Join request emails to info@ and Dan; organiser shows **Dan (Admin)** and **Name (Host)** (the 12 October branch `claude/roll-dice-app-updates-ansgbx`, brought up to date) | **Yes, checked 17 Oct:** the deployed Worker contains `JOIN_REQUEST_RECIPIENTS` |
+| #11 | **Stage 6**: change Logic Engine events from the organiser, plus this handoff | **Yes, checked:** live Worker has the new code; the 09:00 sync on it was ok. Switched **Off** |
 
 **Branches not in `main`:**
-- `claude/new-session-qt4dd9`: **Stage 6** (change Logic Engine events from the organiser), 4 commits ahead and 9 behind `main`. **Don't merge it until migration `0022_sheet_edits.sql` is applied to production**, or every 15-minute sync fails (its handoff, step 1). Merging `main` into it gives one conflict, in `RTD_CHANGELOG.md`.
-- `game-library`, `claude/roll-dice-app-updates-ansgbx`, `ccr-eb6d0278-tfndjm`: fully in `main`; can be deleted.
+- None with work left. `claude/new-session-qt4dd9` (Stage 6), `game-library`, `claude/roll-dice-app-updates-ansgbx` and `ccr-eb6d0278-tfndjm` are all fully in `main` and can be deleted.
 
 ## The food menu
 
@@ -41,7 +41,7 @@ Read this first. The Stage 6 (Event Control) work has its own, longer handoff on
 
    Until then, switching back to **Preview** puts the "still being checked" note back.
 3. ~~Check PR #10's deploy~~ (done). The join request change only shows on the next real request.
-4. **Stage 6:** follow its handoff. The Cloudflare connector now reaches the right account; next is the owner's go-ahead for `0022`, then for the test copy, then the trial.
+4. **Stage 6 is live and switched Off** (PR #11; `0022` applied 08:38, the 09:00 sync on the new code ok, `sheet_values` filled for all 32 events; [RTD_EVENT_CONTROL_MIGRATION.md](RTD_EVENT_CONTROL_MIGRATION.md)). Next, each with the owner's go-ahead: the **test copy** (publish RTD Sheet Writer, set Test copy), then at least a week's **trial**, then Live.
 5. **Tidy up:** delete the merged branches listed above (owner's call).
 6. **Next food menu stage:** offers (Stage 3 in [RTD_FOOD_MENU_AUDIT.md](RTD_FOOD_MENU_AUDIT.md#5-delivery)). It waits for the owner.
 

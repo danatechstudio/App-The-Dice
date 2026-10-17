@@ -140,6 +140,10 @@ Nothing existing changes. Emails already in the outbox read as queued or sent, e
 - **Restore point:** 2026-10-17T08:36:20Z.
 - **Before:** 32 events, 74 occurrences, 0 bookings, 301 audit rows, 5 open items; the 08:00, 08:15 and 08:30 syncs `ok` (32 events seen, 0 changed). No `sheet_values` column or `sheet_edits` table.
 - **After (08:38:54Z):** the same counts. The column, the table, both indexes and `sheet_writes = off` are present.
+- **The 08:45 sync** (`n8n-60337`), on the old code with the migrated database: `ok`, 32 seen, 0 changed.
+- **Deployed:** PR #11 merged at 08:47; the deployed Worker had the new code (`sheet-edits/claim`, `sheet_writes`, `sheet_values`) at 08:50.
+- **First sync on the new code** (`n8n-60377`, 09:00): `ok`, 32 seen, 0 changed; `sheet_values` filled for all 32 events; 74 occurrences, 301 audit rows and 5 open items, as before; no sheet edits; `sheet_writes` still `off`.
+- **Next, each with the owner's go-ahead:** the test copy, then the trial (above). RTD Sheet Writer is still unpublished.
 
 ## 0021_change_requests.sql (Stage 5a: host change requests)
 
