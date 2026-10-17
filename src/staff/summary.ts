@@ -25,12 +25,14 @@ const NOT_GONE = 'COALESCE(last_status, 0) NOT IN (404, 410, -1)';
 
 const COUNTS = {
   join_requests: "SELECT COUNT(*) AS n FROM applications WHERE status = 'pending'",
-  sessions: "SELECT COUNT(*) AS n FROM host_sessions WHERE status = 'submitted'",
+  sessions: "SELECT COUNT(*) AS n FROM host_sessions WHERE status = 'submitted' AND deleted_at IS NULL",
   changes: "SELECT COUNT(*) AS n FROM event_change_requests WHERE status = 'pending'",
-  market_applications: "SELECT COUNT(*) AS n FROM market_applications WHERE status = 'pending'",
+  // The panel lists markets from 14 days ago onwards (applicationsForStaff, src/markets/markets.ts).
+  market_applications: `SELECT COUNT(*) AS n FROM market_applications a JOIN markets m ON m.market_id = a.market_id
+     WHERE a.status = 'pending' AND a.erased_at IS NULL AND m.event_date >= ?1`,
   open_items: "SELECT COUNT(*) AS n FROM attention_items WHERE status = 'open'",
-  failed_emails: 'SELECT COUNT(*) AS n FROM outbox WHERE dead_at >= ?1 AND sent_at IS NULL',
-  failed_pushes: `SELECT COUNT(*) AS n FROM push_outbox WHERE dead_at >= ?1 AND sent_at IS NULL AND ${NOT_GONE}`,
+  failed_emails: 'SELECT COUNT(*) AS n FROM outbox WHERE created_at >= ?1 AND dead_at IS NOT NULL AND sent_at IS NULL',
+  failed_pushes: `SELECT COUNT(*) AS n FROM push_outbox WHERE created_at >= ?1 AND dead_at IS NOT NULL AND sent_at IS NULL AND ${NOT_GONE}`,
   sheet_edit_problems: "SELECT COUNT(*) AS n FROM sheet_edits WHERE status IN ('conflict', 'dead')",
   games_to_review: "SELECT COUNT(*) AS n FROM game_review WHERE status = 'open'",
   menu_sheet_problem: "SELECT CASE WHEN json_extract(value, '$.ok') = 0 THEN 1 ELSE 0 END AS n FROM settings WHERE key = 'food_menu_sync'",
@@ -39,6 +41,7 @@ const COUNTS = {
 } as const;
 
 const BINDS: Partial<Record<keyof typeof COUNTS, (t: { weekAgo: string; today: string }) => string[]>> = {
+  market_applications: t => [addDays(t.today, -14)],
   failed_emails: t => [t.weekAgo],
   failed_pushes: t => [t.weekAgo],
   booked_dates_7_days: t => [t.today, addDays(t.today, 6)],

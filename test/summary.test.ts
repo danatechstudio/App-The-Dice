@@ -88,6 +88,29 @@ describe('the organiser summary', () => {
     });
   });
 
+  it('leaves out what the panels leave out: old or erased market applications, deleted sessions', async () => {
+    await run(
+      "INSERT INTO markets (market_id, name, event_date, start_time, pitches, pitch_fee_pence, applications_close, payment_details, status, created_by, created_at, updated_at) VALUES ('RTD-MKT-00009', 'Summer', '2026-09-01', '10:00', 10, 1000, '2026-08-25', 'Bank', 'published', 'dan@example.com', ?1, ?1)",
+      NOW,
+    );
+    await run(
+      "INSERT INTO markets (market_id, name, event_date, start_time, pitches, pitch_fee_pence, applications_close, payment_details, status, created_by, created_at, updated_at) VALUES ('RTD-MKT-00010', 'Winter', '2026-12-05', '10:00', 10, 1000, '2026-11-25', 'Bank', 'scheduled', 'dan@example.com', ?1, ?1)",
+      NOW,
+    );
+    const application = (id: string, market: string, erased: string | null) =>
+      run(
+        "INSERT INTO market_applications (application_id, market_id, stall_name, contact_name, email, mobile, products, insured, status, submit_key, erased_at, created_at, updated_at) VALUES (?1, ?2, 'Stall', 'Jo', 'jo@example.com', '07000', 'Jam', 1, 'pending', ?1, ?3, ?4, ?4)",
+        id, market, erased, NOW,
+      );
+    await application('RTD-MA-00009', 'RTD-MKT-00009', null); // the market was more than 14 days ago
+    await application('RTD-MA-00010', 'RTD-MKT-00010', NOW); // erased
+    await run(
+      "INSERT INTO host_sessions (session_id, host_user_id, name, event_date, start_time, max_players, status, deleted_at, created_at, updated_at) VALUES ('RTD-HS-00009', 'u-sam', 'Gone', '2026-10-20', '18:00', 6, 'submitted', ?1, ?1, ?1)",
+      NOW,
+    );
+    expect((await summary(MICHELLE)).sections.approve!.count).toBe(0);
+  });
+
   it('counts open attention items only while attention is on', async () => {
     const item = (key: string, status: string) =>
       run("INSERT INTO attention_items (item_key, kind, event_id, status, opened_at) VALUES (?1, 'no_date', 'RTD-EVT-00003', ?2, ?3)", key, status, NOW);
@@ -100,11 +123,13 @@ describe('the organiser summary', () => {
   });
 
   it('counts given-up emails and pushes from the last 7 days', async () => {
-    const email = (key: string, dead: string | null, sent: string | null) =>
-      run("INSERT INTO outbox (dedupe_key, kind, subject, html, created_at, dead_at, sent_at) VALUES (?1, 'booking', 's', 'h', ?2, ?3, ?4)", key, daysAgo(12), dead, sent);
-    await email('e1', daysAgo(2), null);
-    await email('e2', daysAgo(9), null);
-    await email('e3', null, daysAgo(1));
+    // As the Delivery panel's "failed": made in the last 7 days, given up on, never sent.
+    const email = (key: string, created: string, dead: string | null, sent: string | null) =>
+      run("INSERT INTO outbox (dedupe_key, kind, subject, html, created_at, dead_at, sent_at) VALUES (?1, 'booking', 's', 'h', ?2, ?3, ?4)", key, created, dead, sent);
+    await email('e1', daysAgo(2), daysAgo(2), null);
+    await email('e2', daysAgo(9), daysAgo(9), null);
+    await email('e3', daysAgo(7.5), daysAgo(6.8), null); // made more than 7 days ago, given up on since
+    await email('e4', daysAgo(1), null, daysAgo(1));
     const push = (key: string, status: number) =>
       run(
         "INSERT INTO push_outbox (dedupe_key, kind, device_id, booking_id, title, body, url, tag, last_status, dead_at, created_at) VALUES (?1, 'date-cancelled', 1, 'RTD-BK-1', 't', 'b', '/', 'x', ?2, ?3, ?3)",
