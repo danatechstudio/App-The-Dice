@@ -1,5 +1,14 @@
 # RTD App Changelog
 
+## 2026-10-17 (Organiser hub)
+- **The organiser for approvers and admins is now a hub, not one long page.** It shows a card per section, with what's waiting and how much: "2 join requests · 1 session", or **All clear**. Sections with work come first; each card opens the section's own page.
+  - **Sections:** To approve, Needs attention, Events & dates, Bookings, People, and for admins, Café content and Stats.
+  - **Counts** come from one read-only call, `GET /api/staff/summary`, show only what the person's role can open, and update after every approval or fix.
+  - **Links:** emails and pushes link straight to sections; older links still work.
+  - **On a phone,** approvers and admins with no sessions of their own now start on the hub, not an open session form.
+- **Hosts:** nothing changes.
+- **No database change.** **Tests:** 438 (was 428).
+
 ## 2026-10-16 (Changing events from the organiser: built, not yet live)
 - **New in the organiser, for admins: Logic Engine changes.** Change an event's name, details, next date, times, Status, who can see it, category or price, and it's written to its row in the Logic Engine, found by **Event ID**. Host sessions (their hosts ask for changes) and markets are left out; so are Frequency and App Capacity.
 - **The sheet stays the master.** Nothing changes in the app straight away: n8n writes just the changed cells, reads them back, and the next sync brings them into the diary, like an edit typed into the sheet. So a change can't echo back and forth.

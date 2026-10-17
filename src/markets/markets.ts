@@ -448,7 +448,7 @@ export async function createApplication(
   const submitKey = randomHex(24);
   const vendor: VendorFacts = { ...a, photo_count: a.photos.length, waitlisted };
   const facts: MarketFacts = m;
-  const organiser = `${ctx.origin}/organise#market-applications`;
+  const organiser = `${ctx.origin}/organise/approve#market-applications`;
   try {
     await db.batch([
       db
@@ -643,7 +643,7 @@ export async function sheetRows(db: D1Database, origin: string) {
       Decided: s(a.decided_at).slice(0, 16).replace('T', ' '),
       'Decided By': s(a.decided_by),
       'Decision Note': s(a.decision_note),
-      'Organiser Link': `${origin}/organise#market-applications`,
+      'Organiser Link': `${origin}/organise/approve#market-applications`,
     };
     const hash = (await sha256(JSON.stringify(row))).slice(0, 32);
     if (hash !== a.sheet_hash) out.push({ application_id: a.application_id, hash, row });

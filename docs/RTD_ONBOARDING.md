@@ -36,7 +36,7 @@ People ask for access to the organiser (`/organise`) themselves, and an approver
    - **What would you like to run?:** 3–500 characters. Café staff say so here.
 3. **Wait.** They see "Your request is with the café.", with a **Withdraw** button.
 4. **The approvers are emailed** within 15 minutes. The email goes to info@rollthedicecafe.co.uk and dan@atechstudio.co.uk (`JOIN_REQUEST_RECIPIENTS` in `src/team/applications.ts`), and replying to it reaches the applicant.
-5. **Decide.** **Join requests** sits at the top of the approver section of the organiser. Approvers and admins see every request.
+5. **Decide.** **Join requests** is the first panel in **To approve** (`/organise/approve`); the hub's card shows how many are waiting. Approvers and admins see every request.
    - **Approve:** the person becomes a host straight away.
    - **Decline:** can include a note, which the applicant sees.
 6. **Approval takes effect immediately.** The person gets a `users` row as a host, or their old row is turned back on. An approver or admin who somehow asks again keeps their role: approval never downgrades anyone.

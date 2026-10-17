@@ -473,7 +473,7 @@ function changeToApprove(c: ChangeRequest, origin: string): Email {
       changeTable(c),
       c.note && fact('Their note', esc(c.note)),
       c.bookings > 0 && p(`${c.bookings === 1 ? '1 booking' : `${c.bookings} bookings`} (${places(c.people)}) on dates to come.`),
-      p(link(`${origin}/organise#changes`, 'Approve or decline it in the organiser')),
+      p(link(`${origin}/organise/approve#changes`, 'Approve or decline it in the organiser')),
       p(`Reply to this email to contact ${esc(firstName(c.host))}. Reference ${c.request_id}.`),
     ]),
   };
