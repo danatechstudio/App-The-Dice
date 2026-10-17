@@ -284,27 +284,27 @@ export const sessionToApprove = (s: {
 }): PushMessage => ({
   title: s.resubmissions ? 'Session sent again' : 'Session to approve',
   body: `${s.host_name ?? s.host_email}: ${s.name}, ${s.frequency === 'weekly' ? `every ${weekdayOf(s.event_date)} from ${shortDate(s.event_date)}` : shortDate(s.event_date)}${s.access === 'private' ? ' (private)' : ''}`,
-  url: '/organise#awaiting',
+  url: '/organise/approve#awaiting',
   tag: `session-${s.session_id}`,
 });
 
 export const changeToApprove = (c: { request_id: string; host: string; name: string }): PushMessage => ({
   title: 'Change to approve',
   body: `${c.host}: ${c.name}`,
-  url: '/organise#changes',
+  url: '/organise/approve#changes',
   tag: `change-${c.request_id}`,
 });
 
 export const joinRequestToApprove = (a: { application_id: string; display_name: string }): PushMessage => ({
   title: 'Join request',
   body: `${a.display_name} has asked to host games`,
-  url: '/organise#join-requests',
+  url: '/organise/approve#join-requests',
   tag: `join-${a.application_id}`,
 });
 
 export const marketApplicationToApprove = (a: { application_id: string; stall_name: string; market_name: string; event_date: string; waitlisted: boolean }): PushMessage => ({
   title: 'Market application',
   body: `${a.stall_name}: ${a.market_name}, ${shortDate(a.event_date)}${a.waitlisted ? ' (waiting list)' : ''}`,
-  url: '/organise#market-applications',
+  url: '/organise/approve#market-applications',
   tag: `market-${a.application_id}`,
 });

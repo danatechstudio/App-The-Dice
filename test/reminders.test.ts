@@ -83,7 +83,7 @@ describe('emails', () => {
     expect(sent[0]!.subject).toBe('Needs attention: 1 event still waiting');
     expect(sent[0]!.html).toContain('<strong>Bingo</strong>: finished Fri 9 Oct, waiting 0 days');
     expect(sent[0]!.html).toContain('Also 1 event has no usable date');
-    expect(sent[0]!.html).toContain('https://rtd.test/organise#attention');
+    expect(sent[0]!.html).toContain('https://rtd.test/organise/attention#attention');
   });
 
   it('sends a notice to every address when a date passes, exactly once however often it runs', async () => {

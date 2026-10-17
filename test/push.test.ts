@@ -123,7 +123,7 @@ describe('when something needs approving', () => {
     expect(JSON.parse(await decrypt(toMichelle.body, michelle))).toEqual({
       title: 'Session to approve',
       body: 'Sam Host: Root Night, Thu 8 Oct',
-      url: '/organise#awaiting',
+      url: '/organise/approve#awaiting',
       tag: 'session-RTD-HS-00001',
     });
     const toDan = sent.find(s => s.url === dan.subscription.endpoint)!;
@@ -153,7 +153,7 @@ describe('when something needs approving', () => {
     expect(JSON.parse(await decrypt(sent.find(s => s.url === michelle.subscription.endpoint)!.body, michelle))).toEqual({
       title: 'Join request',
       body: 'Nina Newbie has asked to host games',
-      url: '/organise#join-requests',
+      url: '/organise/approve#join-requests',
       tag: 'join-RTD-APP-00001',
     });
   });

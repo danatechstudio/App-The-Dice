@@ -70,7 +70,7 @@ const WAITING_SQL = `
 
 const bookingsText = (n: number) => (n === 1 ? '1 booking' : `${n} bookings`);
 
-const organiserLink = (origin: string) => p(link(`${origin}/organise#attention`, 'Open Needs attention in the organiser'));
+const organiserLink = (origin: string) => p(link(`${origin}/organise/attention#attention`, 'Open Needs attention in the organiser'));
 const when = (w: Waiting) => (w.date ? `${longDate(w.date)}${w.start_time ? ` at ${clock(w.start_time)}` : ''}` : 'its last date');
 
 /** One item, to one address. */

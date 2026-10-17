@@ -312,7 +312,7 @@ describe('the market spreadsheet', () => {
       Decided: '',
       'Decided By': '',
       'Decision Note': '',
-      'Organiser Link': 'http://localhost/organise#market-applications',
+      'Organiser Link': 'http://localhost/organise/approve#market-applications',
     });
     expect((await request('/internal/market-applications/RTD-MV-00001/sheet-synced', json({ hash: rows[0]!.hash }, AUTH))).status).toBe(200);
     expect(await feed()).toEqual([]);

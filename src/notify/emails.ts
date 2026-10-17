@@ -226,7 +226,7 @@ export function orphanedBookings(s: Slot, bookings: Contact[], l: Links): Email 
       ),
       `<ul>${bookings.map(b => `<li>${contactLine(b)}</li>`).join('')}</ul>`,
       p(
-        `Nobody booked has been told yet. Under ${link(`${l.origin}/organise#attention`, 'Needs attention in the organiser')}, choose whether to ` +
+        `Nobody booked has been told yet. Under ${link(`${l.origin}/organise/attention#attention`, 'Needs attention in the organiser')}, choose whether to ` +
           "tell them it has moved, cancel their bookings, or leave it (if you've told them yourself). If the move was a mistake, put the date back in the sheet.",
       ),
     ]),
