@@ -6,21 +6,14 @@ import { addDays, dayOfMonth, daysBetween, monthShort, shortDate, timeRange, tod
 import { SIGN_IN_URL, hostApi, type Access, type Frequency, type HostRecord, type HostSession, type HostUser, type SessionStatus } from '../lib/hostApi';
 import { shownName } from '../lib/names';
 import { toast } from '../lib/toast';
-import { HostedDatesPanel, SessionDates } from './OrganiseDates';
-import { EventPlacesPanel, SessionPlaces } from './OrganisePlaces';
-import { MarketApplicationsPanel, MarketsAdmin } from './OrganiseMarkets';
-import type { StaffMarket } from '../lib/markets';
-import { AttentionPanel } from './OrganiseAttention';
-import { DeliveryPanel } from './OrganiseDelivery';
-import { ChangeForm, ChangesPanel, ChangeStatus } from './OrganiseChanges';
-import { DatesPanel } from './OrganiseDateEditor';
-import { SheetSyncPanel } from './OrganiseSheetSync';
-import { PushCard } from './OrganisePush';
-import { RemindersAdmin } from './OrganiseReminders';
-import { GamesAdmin } from './OrganiseGames';
-import { MenuAdmin } from './OrganiseMenu';
-import { StatsAdmin } from './OrganiseStats';
-import { ApproversPanel, JoinRequests, JoinScreen, removeAccess, setApprover } from './OrganiseTeam';
+import { navigate } from '../lib/router';
+import { NotFound } from './NotFound';
+import { SessionDates } from './OrganiseDates';
+import { SessionPlaces } from './OrganisePlaces';
+import { ChangeForm, ChangeStatus } from './OrganiseChanges';
+import { JoinScreen, removeAccess, setApprover } from './OrganiseTeam';
+import { OrganiseHub } from './OrganiseHub';
+import { OrganiseSection, sectionDef } from './OrganiseSection';
 import { useTitle } from '../lib/title';
 
 const STATUS: Record<SessionStatus, { chip: ChipKind; label: string; note: string }> = {
@@ -46,7 +39,16 @@ type SignedOut = { state: 'signed-out' | 'not-host' | 'error'; message: string; 
 type Gate = { state: 'loading' } | SignedOut | { state: 'ok'; user: HostUser; canReview: boolean; isAdmin: boolean };
 
 /** /organise: the host organiser. Signing in goes through Cloudflare Access (SIGN_IN_URL). */
-export function Organise() {
+/** Old links (emails and pushes sent before sections) named a panel on the one long page. */
+const HASH_TO_SECTION: Record<string, string> = {
+  'join-requests': 'approve',
+  awaiting: 'approve',
+  changes: 'approve',
+  'market-applications': 'approve',
+  attention: 'attention',
+};
+
+export function Organise({ section }: { section?: string } = {}) {
   useTitle('Host organiser');
   const [gate, setGate] = useState<Gate>({ state: 'loading' });
   const [sessions, setSessions] = useState<HostSession[] | null>(null);
@@ -77,10 +79,23 @@ export function Organise() {
     if (sessions && !sessions.length) setForm('new');
   }, [sessions]);
 
+  // An old link to a panel goes to its section, keeping the panel's name so the page scrolls to it.
+  const canReview = gate.state === 'ok' && gate.canReview;
+  useEffect(() => {
+    const hash = location.hash.slice(1);
+    if (canReview && !section && HASH_TO_SECTION[hash]) navigate(`/organise/${HASH_TO_SECTION[hash]}#${hash}`, { replace: true });
+  }, [canReview, section]);
+
   if (gate.state === 'loading') return <DiceLoader label="Opening the organiser..." />;
   // Signed in, but no access yet: onboarding (ask to host; café staff join the same way).
   if (gate.state === 'not-host') return <JoinScreen />;
   if (gate.state !== 'ok') return <Gatekeeper gate={gate} justSignedIn={justSignedIn} />;
+
+  if (gate.canReview && section) {
+    const def = sectionDef(section);
+    if (!def) return <NotFound />;
+    return <OrganiseSection key={def.key} def={def} me={gate.user} isAdmin={gate.isAdmin} onDecided={loadSessions} />;
+  }
 
   const today = todayLondon();
   const next = sortForHost(sessions ?? [], today).find(s => ACTIVE.includes(s.status) && nextDate(s, today) >= today);
@@ -96,6 +111,8 @@ export function Organise() {
           <LogOut size={16} aria-hidden="true" /> Sign out
         </a>
       </header>
+
+      {gate.canReview && <OrganiseHub isAdmin={gate.isAdmin} />}
 
       <div class="organiser__grid">
         <div class="stack" style={{ '--gap': '24px' }}>
@@ -143,7 +160,6 @@ export function Organise() {
         )}
       </div>
 
-      {gate.canReview && <StaffDesk onDecided={loadSessions} me={gate.user} isAdmin={gate.isAdmin} />}
     </div>
   );
 }
@@ -509,67 +525,7 @@ function SessionForm({ again, onDone }: { again?: HostSession; onDone: (created:
   );
 }
 
-/** Approvers and admins: join requests, sessions waiting for a decision, hosts; admins also choose approvers. */
-function StaffDesk({ onDecided, me, isAdmin }: { onDecided: () => void; me: HostUser; isAdmin: boolean }) {
-  const [pending, setPending] = useState<HostSession[] | null>(null);
-  const [hosts, setHosts] = useState<HostRecord[] | null>(null);
-  const [markets, setMarkets] = useState<StaffMarket[] | null>(null);
-  const [refresh, setRefresh] = useState(0);
-  const load = useCallback(async () => {
-    const [p, h, m] = await Promise.all([
-      hostApi<{ sessions: HostSession[] }>('/api/staff/host-sessions?status=submitted'),
-      hostApi<{ hosts: HostRecord[] }>('/api/staff/hosts'),
-      hostApi<{ markets: StaffMarket[] }>('/api/staff/markets'),
-    ]);
-    if (p.ok) setPending(p.data.sessions.slice().reverse());
-    if (h.ok) setHosts(h.data.hosts);
-    if (m.ok) setMarkets(m.data.markets);
-  }, []);
-  useEffect(() => void load(), [load]);
-
-  return (
-    <div data-surface="staff" class="staff-desk">
-      <PushCard />
-      <AttentionPanel isAdmin={isAdmin} />
-      <DeliveryPanel />
-      <JoinRequests onDecided={load} />
-      <section class="section" aria-labelledby="awaiting">
-        <div class="section-head">
-          <h2 id="awaiting">Sessions awaiting approval {pending && pending.length > 0 && <span class="count-badge">{pending.length}</span>}</h2>
-        </div>
-        {pending === null && <DiceLoader label="Loading submissions..." />}
-        {pending && !pending.length && <p class="meta">Nothing waiting. New submissions from hosts appear here.</p>}
-        <div class="list">
-          {pending?.map(s => (
-            <ReviewCard
-              key={s.session_id}
-              s={s}
-              onDone={() => {
-                load();
-                onDecided();
-              }}
-            />
-          ))}
-        </div>
-      </section>
-      <ChangesPanel />
-      <MarketApplicationsPanel markets={markets} refresh={refresh} onChanged={load} />
-      <HostedDatesPanel refresh={refresh} />
-      <EventPlacesPanel refresh={refresh} />
-      <DatesPanel />
-      {isAdmin && <SheetSyncPanel />}
-      {isAdmin && <StatsAdmin />}
-      {isAdmin && <RemindersAdmin />}
-      {isAdmin && <MarketsAdmin markets={markets} onChanged={load} />}
-      {isAdmin && <GamesAdmin />}
-      {isAdmin && <MenuAdmin />}
-      <HostsPanel hosts={hosts} isAdmin={isAdmin} onChanged={() => (load(), setRefresh(n => n + 1))} />
-      {isAdmin && <ApproversPanel me={me} refresh={refresh} />}
-    </div>
-  );
-}
-
-function ReviewCard({ s, onDone }: { s: HostSession; onDone: () => void }) {
+export function ReviewCard({ s, onDone }: { s: HostSession; onDone: () => void }) {
   const [declining, setDeclining] = useState(false);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -616,7 +572,7 @@ function ReviewCard({ s, onDone }: { s: HostSession; onDone: () => void }) {
 }
 
 /** Everyone who can plan sessions. People join through Join requests; admins can make one an approver. */
-function HostsPanel({ hosts, isAdmin, onChanged }: { hosts: HostRecord[] | null; isAdmin: boolean; onChanged: () => void }) {
+export function HostsPanel({ hosts, isAdmin, onChanged }: { hosts: HostRecord[] | null; isAdmin: boolean; onChanged: () => void }) {
   const active = hosts?.filter(h => h.active) ?? null;
   return (
     <section class="section" aria-labelledby="hosts">
