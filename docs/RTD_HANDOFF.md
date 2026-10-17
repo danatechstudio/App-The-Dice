@@ -30,6 +30,10 @@ Read this first. Stage 6 (Event Control) has its own, longer handoff: [RTD_EVENT
 - a refused copy (a deliberate typo in the sheet, then put it back);
 - `/menu` in Preview on a phone.
 
+## Organiser hub (17 Oct, built)
+
+`/organise` for approvers and admins is a hub of section cards with what's waiting, each opening its own page ([RTD_HOST_PORTAL.md](RTD_HOST_PORTAL.md#the-organiser-for-approvers-and-admins-2026-10-17); spec and plan in `docs/superpowers/`). It's in the PR after #11; once merged, check it on the live app as an admin and as an approver.
+
 ## Next steps
 
 1. ~~Owner: switch the menu to Preview~~ (done; it's Live).

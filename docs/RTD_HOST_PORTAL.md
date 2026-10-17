@@ -1,6 +1,25 @@
 # RTD Host Portal
 
-The host organiser lives at **`/organise`**. Hosts propose sessions there; the café approves or declines them on the same page.
+The host organiser lives at **`/organise`**. Hosts propose sessions there; the café approves or declines them in the organiser's sections.
+
+## The organiser for approvers and admins (2026-10-17)
+
+`/organise` opens on a **hub**: a card per section, with what's waiting in it ("2 join requests · 1 session") and **All clear** when nothing is. Sections with work come first. Each card opens the section's own page; **← Organiser** goes back.
+
+| Section | Path | What's in it | Counts as waiting |
+| --- | --- | --- | --- |
+| To approve | `/organise/approve` | Join requests, sessions awaiting approval, changes to approve, market applications | Each one waiting for a decision |
+| Needs attention | `/organise/attention` | Needs attention, Delivery | Open items; emails and booking pushes given up on in the last 7 days |
+| Events & dates | `/organise/events` | Dates in the app, booking for café events, Logic Engine changes (admins) | Logic Engine changes in conflict or given up on (admins) |
+| Bookings | `/organise/bookings` | Bookings coming up | Nothing (shows booked dates this week) |
+| People | `/organise/people` | Hosts, approvers (admins) | Nothing |
+| Café content (admins) | `/organise/content` | Food & drinks menu, game library, markets, event reminders | A refused menu sheet; games to review |
+| Stats (admins) | `/organise/stats` | Stats | Nothing |
+
+- **The counts** come from `GET /api/staff/summary` (read only), and follow every approval or fix without a reload.
+- **Links:** emails and pushes link to sections (for example `/organise/approve#awaiting`). Older links (`/organise#awaiting`, `#join-requests`, `#changes`, `#market-applications`, `#attention`) still go to the right section.
+- **Hosts** see their own dashboard only, whatever link they follow.
+- **Approvers** don't see Café content or Stats; opening one shows "This section is for admins".
 
 ## Status (2026-10-06)
 
