@@ -75,12 +75,14 @@ export function Organise({ section }: { section?: string } = {}) {
     });
   }, [loadSessions]);
 
-  useEffect(() => {
-    if (sessions && !sessions.length) setForm('new');
-  }, [sessions]);
-
   // An old link to a panel goes to its section, keeping the panel's name so the page scrolls to it.
   const canReview = gate.state === 'ok' && gate.canReview;
+
+  // A host with no sessions starts on the form; approvers and admins start on the hub (the form would scroll past it).
+  useEffect(() => {
+    if (sessions && !sessions.length && !canReview) setForm('new');
+  }, [sessions, canReview]);
+
   useEffect(() => {
     const hash = location.hash.slice(1);
     if (canReview && !section && HASH_TO_SECTION[hash]) navigate(`/organise/${HASH_TO_SECTION[hash]}#${hash}`, { replace: true });
