@@ -21,6 +21,7 @@ export const colours = {
   accent: '#F0A043', // poster orange, lifted to read on navy. Use sparingly.
   accentHover: '#E48A24',
   accentStrong: '#A4520C', // orange that passes as text on light surfaces
+  gold: '#F2C14E', // the gold of the app icon's dice: text and marks on navy only
 
   background: '#F7F3EC', // warm café paper, never sterile white
   backgroundAlt: '#EFE8DC',

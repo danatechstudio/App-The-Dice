@@ -1151,14 +1151,22 @@ a.card:hover .event-card__cta svg {
 }
 
 .toast {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--rtd-space-2);
   padding: var(--rtd-space-3) var(--rtd-space-4);
   border-radius: var(--rtd-radius-button);
   background: var(--rtd-primary-dark);
-  color: var(--rtd-text-inverse);
+  color: var(--rtd-gold);
   box-shadow: var(--rtd-shadow-float);
   font-weight: 600;
   text-align: center;
   animation: toast-in var(--rtd-duration-normal) var(--rtd-ease-bounce);
+}
+
+.toast__dice {
+  flex: none;
 }
 
 @keyframes toast-in {

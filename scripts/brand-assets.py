@@ -24,6 +24,8 @@ PUBLIC = ROOT / 'web/public'
 NAVY = np.array([18, 63, 104], float)  # #123F68, measured from the reference
 WHITE = np.array([255, 255, 255], float)
 NAVY_RGB = (18, 63, 104)
+GOLD_TOP = np.array([247, 217, 139], float)  # #F7D98B, light catching the top of the dice
+GOLD_BOTTOM = np.array([200, 144, 44], float)  # #C8902C; the middle reads as the token gold #F2C14E
 
 LOGO_BOX = (106, 504, 1318, 933)  # sticker logo, with a little margin
 DICE_BOX = (190, 470, 530, 720)  # the two d6 above "Roll"
@@ -67,6 +69,46 @@ def dice_mark(src: Image.Image) -> Image.Image:
     return img.crop(img.getbbox())
 
 
+def split_dice(t: np.ndarray, alpha: np.ndarray) -> np.ndarray:
+    """alpha with a thin transparent seam where the two dice's outlines meet, so they read as two dice."""
+    faces, n = ndi.label(ndi.binary_fill_holes(t < 0.5))
+    if n < 2:
+        return alpha
+    _, (iy, ix) = ndi.distance_transform_edt(faces == 0, return_indices=True)
+    nearest = faces[iy, ix]
+    edge = (nearest != np.roll(nearest, 1, 0)) | (nearest != np.roll(nearest, 1, 1))
+    seam = ndi.binary_dilation(edge, iterations=max(2, alpha.shape[1] // 160)) & (faces == 0)
+    return np.where(seam, 0, alpha)
+
+
+def gold_mark(mark: Image.Image) -> Image.Image:
+    """The dice mark in gold: faces and outline gold (a top-to-bottom gradient), pips navy."""
+    a = np.asarray(mark, float)
+    rgb, alpha = a[..., :3], a[..., 3:]
+    t = whiteness(Image.fromarray(rgb.astype(np.uint8)))[..., None]  # 0 navy face, 1 white pip or outline
+    h = a.shape[0]
+    gold = GOLD_TOP + (GOLD_BOTTOM - GOLD_TOP) * np.linspace(0, 1, h)[:, None, None]
+    # Pips are the white areas inside the faces; outline white becomes gold too, so faces and outline merge.
+    pips = ndi.binary_fill_holes(t[..., 0] < 0.5) & (t[..., 0] >= 0.5)
+    colour = np.where(pips[..., None], NAVY + (gold - NAVY) * (1 - t), gold)
+    alpha = split_dice(t[..., 0], alpha[..., 0])[..., None]
+    return Image.fromarray(np.dstack([colour, alpha]).round().clip(0, 255).astype(np.uint8), 'RGBA')
+
+
+def badge(mark: Image.Image, size: int) -> Image.Image:
+    """Android's notification badge: a white dice silhouette with the pips cut out (it uses only the alpha)."""
+    a = np.asarray(mark, float)
+    t = whiteness(Image.fromarray(a[..., :3].astype(np.uint8)))
+    pips = ndi.binary_fill_holes(t < 0.5) & (t >= 0.5)
+    alpha = split_dice(t, np.where(pips, 0, a[..., 3]))
+    sil = Image.merge('RGBA', [Image.new('L', mark.size, 255)] * 3 + [Image.fromarray(alpha.astype(np.uint8))])
+    canvas = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    w = int(size * 0.9)
+    h = round(sil.height * w / sil.width)
+    canvas.alpha_composite(sil.resize((w, h), Image.LANCZOS), ((size - w) // 2, (size - h) // 2))
+    return canvas
+
+
 def on_navy(size: int, art: Image.Image, width_frac: float, radius_frac: float = 0.0) -> Image.Image:
     """Centre art on a navy square; radius_frac > 0 gives transparent rounded corners."""
     canvas = Image.new('RGBA', (size, size), (0, 0, 0, 0))
@@ -94,14 +136,17 @@ def main() -> None:
     mark.resize((480, round(mark.height * 480 / mark.width)), Image.LANCZOS).save(
         PUBLIC / 'brand/rtd-dice-mark.webp', quality=92, method=6)
 
-    # Launcher icons use the dice mark: the full lockup is unreadable at 48px.
-    on_navy(512, mark, 0.70, 0.22).save(PUBLIC / 'icons/icon-512.png', optimize=True)
-    on_navy(192, mark, 0.70, 0.22).save(PUBLIC / 'icons/icon-192.png', optimize=True)
+    # Launcher icons use the dice mark, in gold: the full lockup is unreadable at 48px.
+    gold = gold_mark(mark)
+    on_navy(512, gold, 0.70, 0.22).save(PUBLIC / 'icons/icon-512.png', optimize=True)
+    on_navy(192, gold, 0.70, 0.22).save(PUBLIC / 'icons/icon-192.png', optimize=True)
     # Maskable: full bleed, art inside the 80% safe circle.
-    on_navy(512, mark, 0.58).save(PUBLIC / 'icons/maskable-512.png', optimize=True)
-    on_navy(192, mark, 0.58).save(PUBLIC / 'icons/maskable-192.png', optimize=True)
-    on_navy(180, mark, 0.66).convert('RGB').save(PUBLIC / 'icons/apple-touch-icon.png', optimize=True)
-    fav = [on_navy(s, mark, 0.86, 0.2) for s in (16, 32, 48)]
+    on_navy(512, gold, 0.58).save(PUBLIC / 'icons/maskable-512.png', optimize=True)
+    on_navy(192, gold, 0.58).save(PUBLIC / 'icons/maskable-192.png', optimize=True)
+    on_navy(180, gold, 0.66).convert('RGB').save(PUBLIC / 'icons/apple-touch-icon.png', optimize=True)
+    # Notification badge (Android status bar): one colour, drawn by the phone.
+    badge(mark, 96).save(PUBLIC / 'icons/badge-96.png', optimize=True)
+    fav = [on_navy(s, gold, 0.86, 0.2) for s in (16, 32, 48)]
     fav[1].save(PUBLIC / 'icons/favicon-32.png', optimize=True)
     fav[2].save(PUBLIC / 'favicon.ico', sizes=[(16, 16), (32, 32), (48, 48)], append_images=fav[:2])
 
