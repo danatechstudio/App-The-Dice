@@ -268,6 +268,13 @@
   font-size: var(--rtd-size-meta);
 }
 
+/* Phones and tablets: the bottom bar covers the page's last 70px, so the footer keeps clear of it. */
+@media (max-width: 1023.98px) {
+  .footer {
+    padding-bottom: calc(var(--rtd-bottom-nav) + env(safe-area-inset-bottom) + var(--rtd-space-4));
+  }
+}
+
 .footer__inner {
   display: flex;
   flex-wrap: wrap;
@@ -287,6 +294,18 @@
   align-items: center;
   min-height: var(--rtd-touch-target);
   font-weight: 700;
+}
+
+.footer__credit {
+  flex-basis: 100%;
+  font-size: 0.8125rem;
+}
+
+.footer__credit a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--rtd-touch-target);
+  color: inherit;
 }
 
 .footer__brand img {

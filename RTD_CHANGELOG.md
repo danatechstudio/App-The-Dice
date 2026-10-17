@@ -1,5 +1,11 @@
 # RTD App Changelog
 
+## 2026-10-17 (Business details and credit)
+- **Privacy notice:** names **Roll The Dice Cafe Ltd, Meridian Point, Cleethorpes** as the data controller, says the company is registered with the ICO, and names the app developer, ATech Studio (atechstudio.co.uk). Dated 17 October 2026.
+- **Calendar entries** (Add to Calendar and Google) give the location as **Roll The Dice Board Game Café, Meridian Point, Cleethorpes**.
+- **Footer:** "App designed and built by atechstudio.co.uk". On phones, the footer now keeps clear of the bottom bar, which used to cover its last line.
+- **No database change.** The data controller's name is the live setting `privacy_controller`, updated directly. **Tests:** 440.
+
 ## 2026-10-17 (Gold dice)
 - **The app icon's dice are gold** on the navy square: home screen (Android and iPhone), Android's shaped icon, the browser tab and the shortcuts. The two dice keep the small notch between them from the logo.
 - **Notifications show a dice** as their small icon in Android's status bar. The phone draws it in one colour; the notification's larger picture is the gold-dice icon.

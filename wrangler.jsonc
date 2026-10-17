@@ -39,7 +39,7 @@
   "vars": {
     "ENVIRONMENT": "production",
     // Calendar files use this as the event location. Add the street address when confirmed.
-    "VENUE_LOCATION": "Roll The Dice Board Game Café, Cleethorpes",
+    "VENUE_LOCATION": "Roll The Dice Board Game Café, Meridian Point, Cleethorpes",
     // The app's address, for push messages sent outside a request (the Cron Trigger).
     "APP_ORIGIN": "https://rtd-app.dan-289.workers.dev",
     // Cloudflare Access team domain and the Access application's AUD tag (docs/RTD_DEPLOYMENT.md).

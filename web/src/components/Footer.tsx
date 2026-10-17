@@ -37,6 +37,12 @@ export function Footer() {
             Reduce motion
           </button>
         </div>
+        <p class="footer__credit">
+          App designed and built by{' '}
+          <a href="https://atechstudio.co.uk" rel="noopener" target="_blank">
+            atechstudio.co.uk
+          </a>
+        </p>
       </div>
     </footer>
   );

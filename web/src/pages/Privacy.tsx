@@ -11,12 +11,12 @@ interface PrivacyInfo {
   booking_retention_months: number;
 }
 
-const UPDATED = '8 October 2026';
+const UPDATED = '17 October 2026';
 
 export function Privacy() {
   useTitle('Privacy');
   const { data } = useApi<PrivacyInfo>('/api/privacy');
-  const controller = data?.controller ?? 'Roll The Dice Board Game Café, Cleethorpes';
+  const controller = data?.controller ?? 'Roll The Dice Cafe Ltd, Meridian Point, Cleethorpes';
   const months = data?.booking_retention_months ?? 12;
   const contact = data?.contact_email ? (
     <>
@@ -43,6 +43,7 @@ export function Privacy() {
             <strong>{controller}</strong> is responsible for the details you give us in this app (the "data controller"). For any question about your details,
             or to use your rights below, {contact}.
           </p>
+          <p>We're registered with the Information Commissioner's Office (ICO), the UK's data protection regulator.</p>
         </section>
 
         <section aria-labelledby="p-what">
@@ -111,7 +112,7 @@ export function Privacy() {
               Mozilla for Firefox, Microsoft for Edge on Windows). They're locked so that only your device can read them.
             </li>
             <li>
-              <strong>The people and companies who run the app for us:</strong> our app developer, who builds and looks after the app and its emails; Cloudflare
+              <strong>The people and companies who run the app for us:</strong> our app developer, ATech Studio (atechstudio.co.uk), who builds and looks after the app and its emails; Cloudflare
               (hosting and storage); and Google (the app's emails are sent through Gmail). They only use your details to do that work for us. Some of it may be
               handled outside the UK, under the safeguards UK law requires.
             </li>
