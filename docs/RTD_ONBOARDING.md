@@ -20,9 +20,10 @@ People ask for access to the organiser (`/organise`) themselves, and an approver
 | --- | --- | --- |
 | `host` | Host | Plan sessions to host, see who's booked, and cancel a date. **Nothing else.** Everyone approved through a join request, café staff included, is a host. |
 | `staff` | Approver | Everything a host can, plus approve or decline join requests and sessions, remove hosts, and cancel any hosted date. **Michelle.** |
-| `admin` | Admin | Everything an approver can, plus choose approvers and remove approvers. **Dan.** |
+| `admin` | Admin | Everything an approver can, plus choose approvers and remove approvers. **Dan**. |
 
 **How roles work:**
+- **How names show in the organiser:** Dan's admin account (dan@atechstudio.co.uk) as "Dan (Admin)"; everyone who isn't an admin, approvers included, as "Name (Host)" (`web/src/lib/names.ts`). Emails and the diary use the plain name.
 - **Where they live:** the `users` table decides roles. Cloudflare Access only proves someone's email address.
 - **Making an approver:** an admin uses **Make approver** in the Hosts table. **Stop approving** turns an approver back into a host, keeping their sessions.
 - **Admins:** they're only changed in the database, so the café can't lock itself out.
@@ -34,7 +35,7 @@ People ask for access to the organiser (`/organise`) themselves, and an approver
    - **Your name:** 2–60 characters.
    - **What would you like to run?:** 3–500 characters. Café staff say so here.
 3. **Wait.** They see "Your request is with the café.", with a **Withdraw** button.
-4. **The approvers are emailed** within 15 minutes. The email goes to the café address (`RTD_CAFE_NOTIFICATION_EMAIL` in the n8n `rtd_config` table), and replying to it reaches the applicant.
+4. **The approvers are emailed** within 15 minutes. The email goes to info@rollthedicecafe.co.uk and dan@atechstudio.co.uk (`JOIN_REQUEST_RECIPIENTS` in `src/team/applications.ts`), and replying to it reaches the applicant.
 5. **Decide.** **Join requests** sits at the top of the approver section of the organiser. Approvers and admins see every request.
    - **Approve:** the person becomes a host straight away.
    - **Decline:** can include a note, which the applicant sees.
@@ -89,7 +90,7 @@ Workflow `diKojCurHeRWQjAR`, every 15 minutes. Details are in [RTD_N8N_WORKFLOWS
 
 | Email | To | Reply goes to | When |
 | --- | --- | --- | --- |
-| New host request | The café address | The applicant | Within 15 min of the request |
+| New host request | info@rollthedicecafe.co.uk and dan@atechstudio.co.uk | The applicant | Within 15 min of the request |
 | Request approved or declined | The applicant | The café address | Within 15 min of the decision |
 | Session approved or not approved | The host | The café address | Within 15 min of the decision |
 

@@ -11,6 +11,7 @@ import { Chip } from '../components/Chips';
 import { DiceLoader } from '../components/States';
 import { shortDate, timeRange } from '../lib/dates';
 import { hostApi, MAX_PLACES, type HostedDate, type SessionDate } from '../lib/hostApi';
+import { shownName } from '../lib/names';
 import { toast } from '../lib/toast';
 import { DatePlaces } from './OrganisePlaces';
 
@@ -169,7 +170,7 @@ export function HostedDatesPanel({ refresh }: { refresh?: number }) {
             d={{ ...d, host_session_id: d.host_session_id ?? '' }}
             title={
               d.session
-                ? `${d.session.name}${d.session.access === 'private' ? ' (private)' : ''} · ${d.session.host_name ?? d.session.host_email}`
+                ? `${d.session.name}${d.session.access === 'private' ? ' (private)' : ''} · ${shownName({ display_name: d.session.host_name, email: d.session.host_email, role: d.session.host_role })}`
                 : `${d.event_name} · Café event`
             }
             contact

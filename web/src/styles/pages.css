@@ -918,3 +918,270 @@ a.shelf-card:hover .shelf-card__title {
   border-radius: var(--rtd-radius-sm);
   border: 1px solid var(--rtd-border);
 }
+
+/* ---------- Food & Drinks (docs/RTD_FOOD_MENU.md) ---------- */
+
+.menu-page__intro {
+  max-width: var(--rtd-reading-max);
+  margin-top: var(--rtd-space-2);
+}
+
+.menu-notes {
+  display: grid;
+  gap: var(--rtd-space-2);
+  margin-bottom: var(--rtd-space-4);
+}
+
+.menu-note {
+  padding: var(--rtd-space-3);
+  border-left: 4px solid var(--rtd-accent);
+  border-radius: 0 var(--rtd-radius-sm) var(--rtd-radius-sm) 0;
+  background: var(--rtd-background-alt);
+  color: var(--rtd-text);
+}
+
+/* Section links stay in reach on a long menu: under the top bar, the width of the screen. */
+.menu-jump {
+  position: sticky;
+  z-index: 30;
+  top: calc(var(--rtd-top-bar) + env(safe-area-inset-top));
+  margin-inline: calc(var(--rtd-gutter) * -1);
+  padding: var(--rtd-space-2) var(--rtd-gutter);
+  border-bottom: 1px solid var(--rtd-border);
+  background: var(--rtd-background);
+}
+
+.menu-jump ul {
+  margin-block: 0;
+  list-style: none;
+}
+
+.menu-jump .filter {
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* Clear the top bar and the section links when jumping to a section. */
+.menu-section {
+  scroll-margin-top: calc(var(--rtd-top-bar) + env(safe-area-inset-top) + 72px);
+}
+
+.menu-section__photo {
+  aspect-ratio: 3 / 1;
+  margin-bottom: var(--rtd-space-3);
+  overflow: hidden;
+  border-radius: var(--rtd-radius-card);
+  background: var(--rtd-background-alt);
+}
+
+.menu-section__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.menu-section__head {
+  display: flex;
+  align-items: center;
+  gap: var(--rtd-space-3);
+  margin-bottom: var(--rtd-space-3);
+}
+
+/* The section's die-cut sticker, like the dice in the logo. */
+.menu-section__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--rtd-primary);
+  color: var(--rtd-text-inverse);
+  box-shadow: 0 0 0 3px var(--rtd-surface-elevated), var(--rtd-shadow-sm);
+  transform: rotate(-5deg);
+}
+
+.menu-section__head h2:focus {
+  outline: none;
+}
+
+.menu-section__head h2:focus-visible {
+  outline: 3px solid var(--rtd-focus);
+}
+
+.menu-section__age {
+  color: var(--rtd-accent-strong);
+  font-weight: 700;
+}
+
+.menu-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.menu-item {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  gap: var(--rtd-space-3);
+  align-items: start;
+  padding: var(--rtd-space-3) var(--rtd-space-4);
+}
+
+.menu-item + .menu-item {
+  border-top: 1px solid var(--rtd-border);
+}
+
+/* The photo slot: square, and a soft neutral tile with the section's icon until there's a photo. */
+.menu-thumb {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--rtd-background-alt);
+}
+
+.menu-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.menu-thumb--empty {
+  background:
+    radial-gradient(circle at 25% 25%, rgb(18 63 104 / 0.07) 0 2px, transparent 3px) 0 0 / 14px 14px,
+    var(--rtd-background-alt);
+  color: var(--rtd-text-muted);
+}
+
+.menu-item__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.menu-item__name {
+  margin: 0;
+  font-family: var(--rtd-font-display);
+  font-size: 1.0625rem;
+  line-height: 1.3;
+}
+
+.menu-item__options {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.menu-item__body .meta {
+  margin: 0;
+}
+
+.menu-item__chips {
+  margin: var(--rtd-space-1) 0 0;
+}
+
+/* Narrow phones: a long chip wraps inside its column rather than running under the price. */
+.menu-item__chips .chip {
+  max-width: 100%;
+  line-height: 1.2;
+  white-space: normal;
+}
+
+.menu-price {
+  margin: 0;
+  color: var(--rtd-primary);
+  font-size: 1.0625rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.menu-price--note {
+  max-width: 8.5rem;
+  color: var(--rtd-text-muted);
+  font-size: var(--rtd-size-meta);
+  font-weight: 600;
+  white-space: normal;
+}
+
+.menu-price--sizes {
+  display: grid;
+  gap: 2px;
+}
+
+.menu-price--sizes div {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: var(--rtd-space-2);
+}
+
+.menu-price--sizes dt {
+  color: var(--rtd-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.menu-price--sizes dd {
+  margin: 0;
+}
+
+.menu-item--unavailable .menu-item__name,
+.menu-item--unavailable .menu-price {
+  color: var(--rtd-text-muted);
+}
+
+.menu-item--unavailable .menu-thumb {
+  opacity: 0.6;
+}
+
+.menu-allergens {
+  margin-top: var(--rtd-space-7);
+  max-width: var(--rtd-reading-max);
+}
+
+.menu-allergens__title {
+  margin-bottom: var(--rtd-space-2);
+  font-size: var(--rtd-size-h3);
+}
+
+@media (min-width: 768px) {
+  .menu-jump {
+    margin-inline: calc(var(--rtd-gutter-wide) * -1);
+    padding-inline: var(--rtd-gutter-wide);
+  }
+
+  .menu-item {
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+  }
+
+  .menu-thumb {
+    width: 64px;
+  }
+}
+
+/* Wide screens: sections flow down two columns, in order. */
+@media (min-width: 1024px) {
+  .menu-jump {
+    top: calc(72px + env(safe-area-inset-top));
+  }
+
+  .menu-section {
+    scroll-margin-top: calc(72px + env(safe-area-inset-top) + 80px);
+  }
+
+  /* Space below each section, not above: a margin above is cut off at the top of the second column. */
+  .menu-sections {
+    columns: 2;
+    column-gap: var(--rtd-space-6);
+    padding-top: var(--rtd-space-5);
+  }
+
+  .menu-sections .menu-section {
+    margin: 0 0 var(--rtd-space-6);
+    break-inside: avoid;
+  }
+}

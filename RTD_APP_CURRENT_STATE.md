@@ -1,6 +1,6 @@
 # RTD App: Current State
 
-_Last updated: 2026-10-15_
+_Last updated: 2026-10-16_
 
 ## Live
 - **Logic Engine:** every event row now has a permanent `Event ID`, plus `App Visibility` and `App Category` (backup taken first).
@@ -88,6 +88,22 @@ _Last updated: 2026-10-15_
   - **Screens:** checked at 320, 375 and 1280px.
   - **Workflows:** live and simulated n8n runs.
   - **Not yet:** a real booking, and a real cancelled date changing the sheet.
+
+## Food & Drinks menu (built 2026-10-16)
+- **`/menu`:** the café's menu to browse (no ordering). It has:
+  - 8 sections and 59 lines, with every price from the brief, and spirits by the single and the double;
+  - neutral photo placeholders;
+  - 18+ marking on alcohol, and an allergen note;
+  - an offline copy.
+
+  See [docs/RTD_FOOD_MENU.md](docs/RTD_FOOD_MENU.md).
+- **Linked from:** the top bar, Home, the footer and the app's shortcuts. The bottom bar is unchanged.
+- **Kept in the RTD Food Menu Google Sheet** (Atechstudio Drive › Roll The Dice › Business), copied into the app every 15 minutes by n8n **RTD Menu Sync**. A copy with a bad row is refused and the last good menu stays.
+- **Starts Off.** Admins switch it Off / Preview / Live in the organiser.
+- **Waiting on:**
+  - the PR merged (no database change), then RTD Menu Sync published and an admin switching it to Preview;
+  - the café's checks in [docs/RTD_FOOD_MENU_AUDIT.md §6](docs/RTD_FOOD_MENU_AUDIT.md#6-before-launch-for-the-café) before Live.
+- **Next:** offers (Stage 3), then opt-in offer notifications (Stage 4).
 
 **What's left for production:** see [docs/RTD_PRODUCTION_READINESS.md](docs/RTD_PRODUCTION_READINESS.md).
 

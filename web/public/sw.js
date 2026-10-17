@@ -22,10 +22,15 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Network first: an online phone always gets the current shelf, so a game
-// that has left the library disappears straight away; offline shows the last copy.
+// Network first: an online phone always gets the current shelf and menu, so a
+// game that has left the library (or a price that changed) updates straight
+// away; offline shows the last copy, which the menu page labels with its age.
 const isPublicApi = path =>
-  path.startsWith('/api/events') || path.startsWith('/api/occurrences/') || path === '/api/health' || path.startsWith('/api/games');
+  path.startsWith('/api/events') ||
+  path.startsWith('/api/occurrences/') ||
+  path === '/api/health' ||
+  path.startsWith('/api/games') ||
+  path === '/api/menu';
 
 async function networkFirst(request, fallback) {
   const cache = await caches.open(RUNTIME);

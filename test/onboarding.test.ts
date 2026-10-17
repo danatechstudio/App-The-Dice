@@ -177,13 +177,13 @@ describe('emails for n8n', () => {
     await apply(as('barista@example.com'), { display_name: 'Bea Barista', about: 'Front of house; Catan nights' });
   });
 
-  it('sends every join request to the café address (the approvers), once', async () => {
+  it('sends every join request to info@ and Dan, once', async () => {
     expect((await request('/internal/applications/new')).status).toBe(401);
     const body = await (await request('/internal/applications/new', { headers: AUTH })).json<{ organiser_url: string; applications: App[] }>();
     expect(body.organiser_url).toBe('http://localhost/organise');
     expect(body.applications.map(a => [a.application_id, a.role_label, a.notify, a.notify_cafe])).toEqual([
-      ['RTD-APP-00001', 'host', [], true],
-      ['RTD-APP-00002', 'host', [], true],
+      ['RTD-APP-00001', 'host', ['info@rollthedicecafe.co.uk', 'dan@atechstudio.co.uk'], false],
+      ['RTD-APP-00002', 'host', ['info@rollthedicecafe.co.uk', 'dan@atechstudio.co.uk'], false],
     ]);
     const mark = (id: string) => request(`/internal/applications/${id}/approver-notified`, { method: 'POST', headers: AUTH });
     expect(await (await mark('RTD-APP-00001')).json()).toEqual({ ok: true, already: false });

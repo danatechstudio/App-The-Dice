@@ -1123,3 +1123,9 @@
   flex: 1 1 220px;
   min-width: 0;
 }
+
+/* The organiser's menu check (OrganiseMenu.tsx): long lines wrap. */
+.menu-check td {
+  min-width: 9rem;
+  white-space: normal;
+}

@@ -136,7 +136,10 @@ Nothing existing changes. Emails already in the outbox read as queued or sent, e
 
 **Rollback:** set **Off** (queued changes wait and can be withdrawn); unpublish RTD Sheet Writer; `npx wrangler rollback`. The column, table and setting can stay. A change already written is in the sheet like any hand edit: change it back there.
 
-**Applied to production:** not yet.
+**Applied to production:** 2026-10-17 08:37–08:38 UTC, with the owner's go-ahead, through the Cloudflare connector, one statement at a time (the `ALTER TABLE`, the `CREATE TABLE`, the two `CREATE INDEX`, the setting); recorded in `d1_migrations`.
+- **Restore point:** 2026-10-17T08:36:20Z.
+- **Before:** 32 events, 74 occurrences, 0 bookings, 301 audit rows, 5 open items; the 08:00, 08:15 and 08:30 syncs `ok` (32 events seen, 0 changed). No `sheet_values` column or `sheet_edits` table.
+- **After (08:38:54Z):** the same counts. The column, the table, both indexes and `sheet_writes = off` are present.
 
 ## 0021_change_requests.sql (Stage 5a: host change requests)
 

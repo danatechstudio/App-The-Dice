@@ -18,6 +18,7 @@ import { MAX_IMAGE_BYTES, imagePlan, parseImageSync, storeImage, syncImages } fr
 import { checkBearer } from '../lib/auth';
 import { londonDate } from '../lib/time';
 import { MARKET_ID, markMarketPublished, markSheetSynced, marketsToPublish, sheetRows } from '../markets/markets';
+import { storeMenuFromSheet } from '../menu/menu';
 import { markSocial, socialQueue } from '../notify/alerts';
 import { changesToApply, markChangeApplied } from '../host/changes';
 import { markFailed, markSent, unsent } from '../notify/outbox';
@@ -325,4 +326,25 @@ internalRoutes.post('/social-posts/:id/failed', async c => {
   const error = typeof body.error === 'string' && body.error.trim() ? body.error.trim() : 'Buffer refused the post';
   const done = await markSocial(c.env.DB, Number(c.req.param('id')), { ok: false, error }, new Date());
   return done ? c.json({ ok: true }) : c.json({ error: 'No post waiting with that ID' }, 404);
+});
+
+// --- The food and drinks menu (n8n RTD Menu Sync, docs/RTD_FOOD_MENU.md) ---
+
+/**
+ * A full copy of the RTD Food Menu sheet. Body: { sections: [...], items: [...],
+ * sheet_url? }, each tab's rows as the Google Sheets node returns them. A bad
+ * row refuses the whole copy (422, every problem listed) and the app keeps the
+ * menu it had.
+ */
+internalRoutes.post('/menu', async c => {
+  const text = await c.req.text();
+  if (text.length > MAX_BODY_BYTES) return c.json({ error: 'Body too large' }, 413);
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return c.json({ error: 'Body must be JSON' }, 400);
+  }
+  const res = await storeMenuFromSheet(c.env.DB, body, new Date());
+  return res.ok ? c.json(res) : c.json({ error: `The menu sheet has problems, so the app kept its menu: ${res.errors.join(' ')}`, errors: res.errors }, 422);
 });

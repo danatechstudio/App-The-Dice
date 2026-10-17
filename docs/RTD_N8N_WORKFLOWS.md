@@ -267,6 +267,19 @@ Payload shape:
 **Version:** `308a5e79-d71b-4fa6-8153-7282beb2b0f1` (the run settings didn't change the version ID). Rolling back = unpublishing it.
 **Verified:** a test run with the sheet and app calls simulated (see [RTD_EVENT_CONTROL_TESTS.md](RTD_EVENT_CONTROL_TESTS.md#stage-6-changing-events-from-the-organiser-2026-10-16)). **Not yet:** a real write to the test copy.
 
+## RTD Menu Sync (`Oq7gMVsYGOn9HS3Z`)
+
+**Live since 2026-10-16 22:00** (published after the hand run `58572` returned `{ ok: true, items: 59, changed: true }`).
+- **Triggers:** every 15 minutes (Europe/London), plus **Run By Hand**.
+- **Steps:**
+  1. Read the app URL from `rtd_config` (`RTD_APP_BASE_URL`).
+  2. Read the **Sections** and **Menu** tabs of the RTD Food Menu sheet (Atechstudio Drive › Roll The Dice › Business; the document ID is in the nodes).
+  3. **Build Menu Copy:** `{ sections, items, sheet_url }`, the rows as read (`row_number` included).
+  4. `POST /internal/menu`. The app checks every row: `200 { ok, items, changed }`, or `422` listing every problem, and the app keeps its last good menu.
+- **Errors:** retried 3 times, then `Studio: Error Handler` (`IClMUs9ByRmVBYJf`), which emails. A `422` fails the same way, so a mistake in the sheet is emailed; the organiser lists the rows too.
+- **Credentials:** `ATECHGoogleSheets`, `rtd-app` (Header Auth). **Settings:** Europe/London, executions saved, 300 s timeout.
+- **Rolling back** = unpublishing it; the app keeps the last menu it was sent.
+
 ## RTD Event Images (`GeafnErtRe5ZMbiD`)
 
 This workflow copies event photos from Drive into the app. Each Event Index row's **Photo Folder ID** (the folders the poster automation already uses) is the source.
@@ -370,7 +383,7 @@ This workflow sends the onboarding emails and tells hosts what the café decided
 - **Setup:** reads `RTD_APP_BASE_URL` and `RTD_CAFE_NOTIFICATION_EMAIL` from `rtd_config`, then runs three branches.
 - **A. New join requests, to the approvers:**
   1. `GET /internal/applications/new`.
-  2. **Who gets it:** the café address. Since 2026-10-06 every request is a request to host, café staff included. The code still handles the old "café team" requests, which went to the admins.
+  2. **Who gets it:** the addresses the app lists in `notify`: since 2026-10-12, info@rollthedicecafe.co.uk and dan@atechstudio.co.uk (`notify_cafe` is false). Since 2026-10-06 every request is a request to host, café staff included.
   3. **The email:** subject "New host request: …" or "New café team request: …", with a link to `/organise`. It's sent as "Roll The Dice app", and replies go to the applicant.
   4. `POST /internal/applications/:id/approver-notified`.
 - **B. Outcomes, to the applicant:**

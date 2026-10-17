@@ -10,6 +10,27 @@
 - **New n8n workflow RTD Sheet Writer** (every 5 minutes once published; not published yet).
 - **Database:** migration `0022_sheet_edits.sql` (one column, one table, one setting, off). Not applied to production yet. **Tests:** 400 (was 382).
 
+## 2026-10-16 (Food & Drinks menu)
+- **New page: Food & Drinks** (`/menu`), the café's menu to browse. There's nothing to order or pay.
+  - **Contents:** eight sections, from Hot food to Wine & prosecco, with every price from the photographed menu.
+  - **The café keeps it up to date in a Google Sheet,** RTD Food Menu (Atechstudio Drive › Roll The Dice › Business): prices, new lines, sold out, hidden. The app copies it every 15 minutes (n8n **RTD Menu Sync**). A copy with a mistake in any row is refused whole, the app keeps its last good menu, and the organiser lists the rows to fix. Every change is in the audit log.
+  - **Spirits** show Single £4.00 and Double £6.00.
+  - **Lines with no single price** say "Individually priced"; no price is guessed.
+  - **Alcohol:** alcoholic drinks are marked **18+**, and their sections say they're for over-18s only.
+  - **Allergies:** a note asks people to speak to the team before ordering. Nothing is labelled allergen-free.
+  - **Photos:** every line has a photo slot, with a neutral placeholder for now. No made-up food photos.
+  - **Getting around:** section links stay in reach while scrolling, and `/menu#spirits` opens at that section.
+  - **Offline:** the page works offline from the last copy, which says how old it is.
+- **Where it's linked:** a **Food & Drinks** button in the top bar (phones) and the top menu (computers), a card on Home, the footer, and the installed app's shortcuts. The bottom bar is unchanged.
+- **It starts Off.** In the organiser, admins switch it **Off**, **Preview** (shown, with a note that the menu is still being checked and the café's price applies) or **Live** (audited), see how the latest sheet copy went, and can check every line against its wording on the board. **Before Live:**
+  - the café checks the prices;
+  - adds the measures the law requires for spirits, wine and draught;
+  - confirms "gluten-free" ([RTD_FOOD_MENU_AUDIT.md §6](docs/RTD_FOOD_MENU_AUDIT.md#6-before-launch-for-the-café)).
+- **Stats:** Food & Drinks page views.
+- **Audit and plan for offers:** [docs/RTD_FOOD_MENU_AUDIT.md](docs/RTD_FOOD_MENU_AUDIT.md). It covers roles and a per-person `offers.manage` permission for Michelle and Dan only, and how offer notifications will be opt-in and separate from event alerts. Offers are Stage 3; nothing about them is built yet.
+- **Unchanged:** events, bookings, hosts, notifications and the Logic Engine sync.
+- **No database change:** the menu is kept in `settings`, so it can be merged at any time. **Tests:** 407 (was 382).
+
 ## 2026-10-16 (Dates in the app)
 - **New in the organiser, for approvers and admins: Dates in the app.** It lists the next four weeks; each date can be changed without touching the Logic Engine:
   - **Hide this date in the app,** or show it again. It leaves the diary and its page. Hiding a date people have booked asks first, and their bookings stand.
@@ -131,6 +152,11 @@
   - **What people see:** if a newer build is live, a screen asks them to **Update now**, with no way past it, and reloads into the new version.
   - **Offline:** nothing happens.
 - **Version file:** each build writes `/version.json` with its ID. See [docs/RTD_APP_ARCHITECTURE.md](docs/RTD_APP_ARCHITECTURE.md#updates).
+
+## 2026-10-12 (join request emails and the admin's name)
+- **Join request emails** now go to info@rollthedicecafe.co.uk and dan@atechstudio.co.uk (was the café address in `rtd_config`). No n8n change: RTD Team Notices already sends to the app's `notify` list.
+- **Names in the organiser:** Dan's admin account (dan@atechstudio.co.uk) always shows as **Dan (Admin)**, and everyone who isn't an admin (hosts and approvers) as **Name (Host)**: in the welcome, the Hosts and Approvers tables, sessions to approve and the dates list. Only the display changes: the stored names in emails and the diary stay as they are. See `web/src/lib/names.ts`.
+- **Tests:** 282 (was 279).
 
 ## 2026-10-08 (stats for admins)
 - **The app counts how it's used:** event page views; book, Add to calendar and Share taps; taps on event reminders; installs and opens from the Home Screen; visits in a browser; and views of the diary, Book, Games, Become a host and Markets pages, Roll Me a Game rolls and picks, and Apply to host taps.

@@ -40,7 +40,7 @@ In the organiser, admins see **Stats**, above **Event reminders**. Choose **7 da
 | `calendar_tap` | **Add to calendar**, either kind (per event) |
 | `share_tap` | **Share** (per event) |
 | `reminder_open` | An event reminder notification is tapped (per event, and per reminder). Counted by the service worker. |
-| `diary_view`, `book_page_view`, `gotw_view`, `host_page_view`, `markets_view` | Those pages are shown (`gotw_view` is the Games page, which leads with Game of the Week) |
+| `diary_view`, `book_page_view`, `gotw_view`, `host_page_view`, `markets_view`, `menu_view` | Those pages are shown (`gotw_view` is the Games page, which leads with Game of the Week; `menu_view` is Food & Drinks) |
 | `roll_use`, `roll_pick` | Roll Me a Game: a roll, and "This One!" |
 | `host_apply_tap` | **Apply to host** |
 

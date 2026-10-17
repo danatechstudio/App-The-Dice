@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronRight, Dices, Lock, Star, Ticket } from 'lucide-preact';
+import { ArrowRight, ChevronRight, Coffee, Dices, Lock, Star, Ticket } from 'lucide-preact';
 import { AlertsPromo } from '../components/Alerts';
 import { DiceMark, Logo } from '../components/Brand';
 import { Chip } from '../components/Chips';
@@ -83,6 +83,7 @@ export function Home() {
 
         <aside class="home-side" aria-label="More from Roll The Dice">
           <RollPromo />
+          <MenuPromo />
           <AlertsPromo />
           <GameOfTheWeekMini />
           <BookPromo />
@@ -105,6 +106,21 @@ function RollPromo() {
       <p>Tell us how many are playing and how long you've got. The dice do the rest.</p>
       <a class="btn btn--roll btn--lg btn--block" href="/roll">
         <Dices class="wiggle" size={22} aria-hidden="true" /> Roll Me a Game
+      </a>
+    </section>
+  );
+}
+
+function MenuPromo() {
+  return (
+    <section class="section card promo" aria-labelledby="menu-promo">
+      <p class="label">Food &amp; Drinks</p>
+      <h2 id="menu-promo" class="display" style={{ fontSize: 'var(--rtd-size-h3)' }}>
+        Hungry? Thirsty?
+      </h2>
+      <p class="meta">Hot food, cakes, coffee, milkshakes and more. See the menu and prices before you come.</p>
+      <a class="btn btn--secondary" href="/menu">
+        <Coffee size={18} aria-hidden="true" /> See the menu
       </a>
     </section>
   );

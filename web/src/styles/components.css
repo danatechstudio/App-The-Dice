@@ -277,6 +277,10 @@
   background: var(--rtd-primary-light);
   color: var(--rtd-primary);
 }
+.chip--age {
+  background: var(--rtd-primary);
+  color: var(--rtd-text-inverse);
+}
 .chip--preview {
   background: var(--rtd-surface-elevated);
   color: var(--rtd-accent-strong);

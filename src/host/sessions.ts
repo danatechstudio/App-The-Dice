@@ -90,7 +90,7 @@ export function priceLabel(pence: number): string {
   return pence % 100 ? `£${(pence / 100).toFixed(2)}` : `£${pence / 100}`;
 }
 
-const FIELDS = `s.session_id, s.host_user_id, u.display_name AS host_name, u.email AS host_email, s.name, s.description,
+const FIELDS = `s.session_id, s.host_user_id, u.display_name AS host_name, u.email AS host_email, u.role AS host_role, s.name, s.description,
   s.event_date, s.start_time, s.end_time, s.price_pence, s.max_players, s.frequency, s.access, s.status, s.decision_note, s.decided_at,
   s.event_id, s.followup_sent_at, s.resubmissions, s.deleted_at, s.created_at, s.updated_at`;
 
