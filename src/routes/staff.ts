@@ -5,7 +5,7 @@ import { attentionOverview, resolveItem, setAttention } from '../attention/atten
 import { emailOverview, sendTest, setEmailSettings } from '../attention/reminders';
 import { upcomingBookedDates } from '../bookings/bookings';
 import { cafeEventPlaces, setBookingMode, setEventPlaces } from '../bookings/places';
-import { adminOnly, eventForm, listAllEvents } from '../events/admin';
+import { adminOnly, eventForm, listAllEvents, saveEvent } from '../events/admin';
 import { editDate, listDates } from '../events/dates';
 import { requestEdit, resolveEdit, setSheetMode, sheetEvents, sheetSyncOverview } from '../sync/edits';
 import { decideChange, listChanges } from '../host/changes';
@@ -221,6 +221,16 @@ staffRoutes.get('/events/:id', async c => {
   if (denied) return c.json({ error: denied.error }, 403);
   const event = await eventForm(c.env.DB, c.req.param('id'), new Date());
   return event ? c.json({ event }) : c.json({ error: 'No event with that ID.' }, 404);
+});
+
+/**
+ * Admins: save the editor. Body: only what changed (src/events/admin.ts SaveBody). 409 { warning }
+ * asks to send again with confirm: true.
+ */
+staffRoutes.post('/events/:id', async c => {
+  const res = await saveEvent(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), { now: new Date(), origin: new URL(c.req.url).origin });
+  if (res.ok) return c.json(res);
+  return 'warning' in res ? c.json({ warning: res.warning }, 409) : c.json({ error: res.error, errors: res.errors }, res.status);
 });
 
 /** Places on every date of a café event. Body: { places: number | null }; null goes back to the sheet's App Capacity. */

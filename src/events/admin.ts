@@ -5,10 +5,12 @@
 // stays in place (the Logic Engine's conflict check, the host's approval path, places never
 // below what's booked).
 
+import { setBookingMode, setSessionPlaces } from '../bookings/places';
+import { adminChange, type ChangeRequest } from '../host/changes';
 import type { AuthUser } from '../lib/auth';
 import { BOOKING_MODE, CAPACITY, type BookingMode } from '../lib/queries';
 import { londonDate } from '../lib/time';
-import { IN_LAST_SYNC, OPEN } from '../sync/edits';
+import { IN_LAST_SYNC, OPEN, type SheetEdit } from '../sync/edits';
 
 export type EventKind = 'event_index' | 'standard_diary' | 'host_session' | 'market';
 export type Visibility = 'public' | 'app_bookable' | 'private' | 'hidden';
@@ -179,4 +181,83 @@ export async function eventForm(db: D1Database, eventId: string, now: Date): Pro
     booking_mode_set: (r.booking_mode_set as BookingMode | null) ?? null,
     dates: shaped,
   };
+}
+
+// ---- Saving ----
+
+export interface SaveBody {
+  details?: Partial<Details>;
+  visibility?: Visibility;
+  active?: false;
+  places?: number | null;
+  booking_mode?: BookingMode | 'default';
+  confirm?: boolean;
+  note?: string;
+}
+
+type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string; errors?: Record<string, string> };
+type Warning = { ok: false; status: 409; warning: unknown };
+export type SaveResult = { ok: true; sheet_edit?: SheetEdit; change?: ChangeRequest; places?: number | null; booking_mode?: BookingMode } | Fail | Warning;
+
+const parseBody = (body: unknown): SaveBody | Fail => {
+  const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+  const errors: Record<string, string> = {};
+  const details = (b.details && typeof b.details === 'object' ? b.details : {}) as Record<string, unknown>;
+  for (const [k, v] of Object.entries(details)) {
+    if (!(FIELDS as string[]).includes(k)) errors[k] = `${k} isn't a detail the editor changes.`;
+    else if (typeof v !== 'string') errors[k] = 'This must be text.';
+  }
+  if (b.visibility !== undefined && !VISIBILITIES.includes(b.visibility as Visibility)) errors.visibility = 'Choose Public, App Bookable, Private or Hidden.';
+  if (b.active !== undefined && b.active !== false) errors.active = 'Use Stop running this event to stop it.';
+  if (Object.keys(errors).length) return { ok: false, status: 400, error: 'Please check the form', errors };
+  return { ...(b as SaveBody), details: details as Partial<Details> };
+};
+const failed = (v: SaveBody | Fail): v is Fail => 'ok' in v && v.ok === false;
+
+/**
+ * Body: SaveBody, with only what changed. Each part goes through the route that owns it, details
+ * first; places and booking only once the details are on their way. 409 { warning } asks to send
+ * again with confirm: true.
+ */
+export async function saveEvent(db: D1Database, admin: AuthUser, eventId: string, body: unknown, ctx: { now: Date; origin: string }): Promise<SaveResult> {
+  const denied = adminOnly(admin);
+  if (denied) return denied;
+  const form = await eventForm(db, eventId, ctx.now);
+  if (!form) return { ok: false, status: 404, error: 'No event with that ID.' };
+  const b = parseBody(body);
+  if (failed(b)) return b;
+  if (form.kind === 'market') return { ok: false, status: 409, error: 'Change markets under Markets.' };
+  const blocked = Object.keys(b.details ?? {}).filter(f => f in form.unavailable && b.details![f as DetailField] !== form.details[f as DetailField]);
+  if (blocked.length)
+    return { ok: false, status: 400, error: 'Please check the form', errors: Object.fromEntries(blocked.map(f => [f, form.unavailable[f as DetailField]!])) };
+
+  const iso = ctx.now.toISOString();
+  const out: Extract<SaveResult, { ok: true }> = { ok: true };
+  const hasDetails = Object.keys(b.details ?? {}).length > 0 || b.visibility !== undefined || b.active === false;
+  if (form.kind === 'host_session') {
+    if (hasDetails) {
+      const res = await adminChange(
+        db,
+        admin,
+        form.session_id!,
+        { details: b.details, visibility: b.visibility, active: b.active, note: b.note },
+        { now: iso, origin: ctx.origin },
+      );
+      if (!res.ok) return res;
+      out.change = res.request;
+    }
+    if (b.places !== undefined) {
+      if (b.places === null)
+        return { ok: false, status: 400, error: 'Please check the form', errors: { places: "A host's session always has a number of places." } };
+      const res = await setSessionPlaces(db, admin, form.session_id!, b.places, { now: iso, today: londonDate(ctx.now) });
+      if (!res.ok) return res;
+      out.places = res.places;
+    }
+  }
+  if (b.booking_mode !== undefined) {
+    const res = await setBookingMode(db, admin, eventId, { mode: b.booking_mode, confirm: b.confirm }, { now: iso, today: londonDate(ctx.now) });
+    if (!res.ok) return res;
+    out.booking_mode = res.booking_mode;
+  }
+  return out;
 }

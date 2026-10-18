@@ -170,3 +170,59 @@ describe('a host can only touch their own sessions', () => {
     expect((await form(CATAN_EVT)).places).toBe(20);
   });
 });
+
+const save = (id: string, body: unknown, who: Partial<Env> = DAN) => request(`/api/staff/events/${id}`, json(body), who);
+const toApply = async () =>
+  (await (await request('/internal/host-changes', { headers: AUTH })).json<{ changes: { request_id: string; row: Row }[] }>()).changes;
+const outbox = async () => (await env.DB.prepare('SELECT kind, to_email, subject, html FROM outbox ORDER BY message_id').all<Record<string, string>>()).results;
+
+describe('an admin changes a host session', () => {
+  it('applies an admin’s change straight away, emails the host and booked people', async () => {
+    expect((await book(CATAN_13, 2)).status).toBe(201);
+    await env.DB.prepare('DELETE FROM outbox').run();
+    const res = await save(CATAN_EVT, { details: { start_time: '19:00', name: 'Catan Night' } });
+    expect(res.status).toBe(200);
+    const { change } = await res.json<{ change: Record<string, unknown> }>();
+    expect(change).toMatchObject({ status: 'approved', decided_by: 'dan@example.com' });
+    expect(await env.DB.prepare('SELECT origin FROM event_change_requests WHERE request_id = ?1').bind(change.request_id).first('origin')).toBe('admin');
+    const mail = await outbox();
+    expect(mail.filter(m => m.kind === 'host_change_by_admin').map(m => [m.to_email, m.subject])).toEqual([
+      ['sam@example.com', 'Your session was changed: Catan Club'],
+    ]);
+    expect(mail.filter(m => m.kind === 'attendee_time_changed').map(m => m.to_email)).toEqual(['ava@example.com']);
+    const [row] = await toApply();
+    expect(row!.row).toMatchObject({ 'Event ID': CATAN_EVT, 'Event Name': 'Catan Night', 'Event Time': '19:00' });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'host_session.changed_by_admin'").first('n')).toBe(1);
+  });
+
+  it('writes Hidden and Inactive for a host session', async () => {
+    expect((await save(CATAN_EVT, { visibility: 'hidden' })).status).toBe(200);
+    const [first] = await toApply();
+    expect(first!.row).toEqual({ 'Event ID': CATAN_EVT, 'App Visibility': 'Hidden' });
+    await request(`/internal/host-changes/${first!.request_id}/applied`, json({}, AUTH));
+    expect((await save(CATAN_EVT, { active: false })).status).toBe(200);
+    const [second] = await toApply();
+    expect(second!.row).toEqual({ 'Event ID': CATAN_EVT, Status: 'Inactive' });
+  });
+
+  it('asks the admin to decide a pending host request first', async () => {
+    const live = (await (await request('/api/host/sessions', {}, SAM)).json<{ sessions: { session_id: string; live: Row }[] }>()).sessions[0]!.live!;
+    expect((await request(`/api/host/sessions/${CATAN}/changes`, json({ ...live, start_time: '19:30' }), SAM)).status).toBe(201);
+    const res = await save(CATAN_EVT, { details: { name: 'Catan Night' } });
+    expect(res.status).toBe(409);
+    expect((await res.json<{ error: string }>()).error).toContain('RTD-CR-00001');
+    expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM event_change_requests').first('n')).toBe(1);
+  });
+
+  it('refuses to move a booked date', async () => {
+    expect((await book(CATAN_13, 2)).status).toBe(201);
+    const res = await save(CATAN_EVT, { details: { event_date: '2026-10-20' } });
+    expect(res.status).toBe(409);
+    expect((await res.json<{ error: string }>()).error).toContain('Cancel this date first');
+    expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM event_change_requests').first('n')).toBe(0);
+  });
+
+  it('says when nothing has changed', async () => {
+    expect((await save(CATAN_EVT, { details: { name: 'Catan Club' }, visibility: 'public' })).status).toBe(400);
+  });
+});
