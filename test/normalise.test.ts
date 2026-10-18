@@ -34,6 +34,7 @@ describe('normaliseRows (Event Index)', () => {
           'Event Name': 'Quiz', 'Base Details': 'Details for event 1', 'Event Date': '2026-10-23', 'Event Time': '18:30', 'End Time': '22:00',
           Status: 'Active', 'App Visibility': 'public', 'App Category': 'Quiz', 'App Price': '',
         },
+        social_values: { approved_facts: '', people_roles: '', banned_phrases: '' },
       },
     ]);
   });

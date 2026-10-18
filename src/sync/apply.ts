@@ -146,9 +146,11 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
   const projectionWeeks = Number((settingRes?.results[0] as { value?: string } | undefined)?.value ?? 6) || 6;
 
   // sheet_values repeats what the hash already covers in another form: left out, so adding it
-  // changed no event's hash.
+  // changed no event's hash. social_values is left out too, so adding the owner columns changed
+  // none either; it is still stored on every sync, and a prompt's own fingerprint (src/social/facts.ts)
+  // is what notices a change in it.
   const hashed = await Promise.all(
-    events.map(async e => ({ ...e, source_hash: await sha256Hex(JSON.stringify({ ...e, sheet_values: undefined })) })),
+    events.map(async e => ({ ...e, source_hash: await sha256Hex(JSON.stringify({ ...e, sheet_values: undefined, social_values: undefined })) })),
   );
   const plan = planSync({
     events: hashed,
@@ -169,10 +171,10 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
         .prepare(
           `INSERT INTO events (event_id, source, source_row, event_name, display_name, category, description, frequency,
              repeatable, requires_redating, visibility, sheet_status, active, photo_folder_id, price_display,
-             default_capacity, host_session_id, market_id, sheet_date_raw, source_hash, sheet_values, last_synced_at, created_at, updated_at)
+             default_capacity, host_session_id, market_id, sheet_date_raw, source_hash, sheet_values, social_values, last_synced_at, created_at, updated_at)
            SELECT ${['event_id', 'source', 'source_row', 'event_name', 'display_name', 'category', 'description', 'frequency',
              'repeatable', 'requires_redating', 'visibility', 'sheet_status', 'active', 'photo_folder_id', 'price_display',
-             'default_capacity', 'host_session_id', 'market_id', 'sheet_date_raw', 'source_hash', 'sheet_values'].map(j).join(', ')},
+             'default_capacity', 'host_session_id', 'market_id', 'sheet_date_raw', 'source_hash', 'sheet_values', 'social_values'].map(j).join(', ')},
              ?2, ?2, ?2
            FROM json_each(?1) WHERE true
            ON CONFLICT (event_id) DO UPDATE SET
@@ -186,7 +188,8 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
              default_capacity = excluded.default_capacity, host_session_id = excluded.host_session_id, market_id = excluded.market_id,
              sheet_date_raw = excluded.sheet_date_raw,
              updated_at = CASE WHEN events.source_hash IS excluded.source_hash THEN events.updated_at ELSE excluded.updated_at END,
-             source_hash = excluded.source_hash, sheet_values = excluded.sheet_values, last_synced_at = excluded.last_synced_at`,
+             source_hash = excluded.source_hash, sheet_values = excluded.sheet_values, social_values = excluded.social_values,
+             last_synced_at = excluded.last_synced_at`,
         )
         .bind(JSON.stringify(plan.eventUpserts), now),
     );
