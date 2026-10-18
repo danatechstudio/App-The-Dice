@@ -1339,3 +1339,146 @@ textarea.input {
   text-align: center;
   font-weight: 700;
 }
+
+/* ---------- Share (components/ShareMenu) ---------- */
+
+/* A card or diary row with its share button beside the link, never inside it. */
+.share-host {
+  position: relative;
+}
+
+.share-host > .share-trigger {
+  position: absolute;
+  top: var(--rtd-space-2);
+  right: var(--rtd-space-2);
+  z-index: 2;
+  min-width: var(--rtd-touch-target);
+  min-height: var(--rtd-touch-target);
+  border-radius: var(--rtd-radius-round);
+  background: color-mix(in srgb, var(--rtd-surface-elevated) 92%, transparent);
+  color: var(--rtd-primary);
+  box-shadow: var(--rtd-shadow-sm);
+}
+
+/* Diary rows: the share button takes the arrow's place on the right, so the two never overlap. */
+.share-host > .ticket .ticket__chev {
+  visibility: hidden;
+  width: 44px;
+}
+
+.share-host > .ticket ~ .share-trigger {
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  box-shadow: none;
+}
+
+.share-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  align-items: end;
+  background: rgb(11 42 71 / 0.45);
+  animation: share-fade var(--rtd-duration-normal) var(--rtd-ease-standard);
+}
+
+.share-sheet__panel {
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: var(--rtd-space-4) var(--rtd-space-4) calc(var(--rtd-space-4) + env(safe-area-inset-bottom));
+  border-radius: var(--rtd-radius-card) var(--rtd-radius-card) 0 0;
+  background: var(--rtd-surface-elevated);
+  box-shadow: var(--rtd-shadow-float);
+  animation: share-up var(--rtd-duration-normal) var(--rtd-ease-standard);
+}
+
+@media (min-width: 640px) {
+  .share-sheet {
+    align-items: center;
+    justify-items: center;
+  }
+
+  .share-sheet__panel {
+    width: min(420px, 92vw);
+    border-radius: var(--rtd-radius-card);
+  }
+}
+
+.share-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--rtd-space-3);
+  margin-bottom: var(--rtd-space-2);
+}
+
+.share-sheet__title {
+  font-size: var(--rtd-size-h3);
+}
+
+.share-sheet__title span {
+  display: block;
+  color: var(--rtd-text-muted);
+  font-size: var(--rtd-size-meta);
+  font-weight: 600;
+}
+
+.share-sheet__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--rtd-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.share-sheet__list a,
+.share-sheet__list button {
+  display: flex;
+  align-items: center;
+  gap: var(--rtd-space-2);
+  width: 100%;
+  min-height: 48px;
+  padding: 0 var(--rtd-space-3);
+  border: 1px solid var(--rtd-border);
+  border-radius: var(--rtd-radius-button);
+  background: var(--rtd-surface);
+  color: var(--rtd-text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.share-sheet__list a:hover,
+.share-sheet__list button:hover {
+  background: var(--rtd-primary-light);
+}
+
+.share-sheet__list svg {
+  flex: none;
+  color: var(--rtd-primary);
+}
+
+@keyframes share-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+@keyframes share-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-sheet,
+  .share-sheet__panel {
+    animation: none;
+  }
+}

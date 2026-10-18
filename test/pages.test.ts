@@ -41,7 +41,7 @@ describe('Add to Calendar', () => {
     expect(unfolded).toContain('DTEND:20261023T210000Z');
     expect(unfolded).toContain('SUMMARY:Quiz');
     expect(unfolded).toContain('DESCRIPTION:A family quiz night\\, with prizes\; bring a team!\\n\\nhttp://localhost/event/RTD-OCC-00001-20261023');
-    expect(unfolded).toContain('LOCATION:Roll The Dice Board Game Café\\, Cleethorpes');
+    expect(unfolded).toContain('LOCATION:Roll The Dice Board Game Café\\, Meridian Point\\, Cleethorpes');
     expect(unfolded).toContain(`UID:${QUIZ}@localhost`);
   });
 

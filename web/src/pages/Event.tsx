@@ -1,4 +1,4 @@
-import { CalendarDays, CalendarPlus, ChevronDown, ChevronLeft, Clock, MapPin, PoundSterling, Share2, UsersRound } from 'lucide-preact';
+import { CalendarDays, CalendarPlus, ChevronDown, ChevronLeft, Clock, MapPin, PoundSterling, UsersRound } from 'lucide-preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { AlertsInline } from '../components/Alerts';
 import { BookingPanel } from '../components/BookingPanel';
@@ -13,7 +13,8 @@ import { CATEGORY } from '../lib/categories';
 import { longDate, shortDate, timeRange, todayLondon } from '../lib/dates';
 import { isUpcoming } from '../lib/upcoming';
 import { back } from '../lib/router';
-import { share } from '../lib/share';
+import { eventShare } from '../lib/shareLinks';
+import { ShareMenu } from '../components/ShareMenu';
 import { count } from '../lib/stats';
 import { useTitle } from '../lib/title';
 
@@ -114,7 +115,6 @@ function EventDetail({ o, others, images }: { o: Occurrence; others: Occurrence[
   const today = todayLondon();
   const range = timeRange(o.start_time, o.end_time);
   const Icon = CATEGORY[o.category]?.icon ?? CATEGORY.Other.icon;
-  const url = `${location.origin}${eventHref(o)}`;
   useEffect(() => count('event_view', o.event_id), [o.occurrence_id]);
 
   return (
@@ -178,9 +178,7 @@ function EventDetail({ o, others, images }: { o: Occurrence; others: Occurrence[
             {o.market_id ? <MarketVendorPanel marketId={o.market_id} /> : <BookingPanel key={o.occurrence_id} o={o} />}
             <div class="event-page__actions">
               <CalendarMenu o={o} />
-              <button type="button" class="btn btn--secondary" onClick={() => (count('share_tap', o.event_id), share({ title: o.name, text: `${o.name} at Roll The Dice, ${shortDate(o.date)}`, url }))}>
-                <Share2 size={18} aria-hidden="true" /> Share
-              </button>
+              <ShareMenu data={eventShare(o, location.origin)} eventId={o.event_id} />
             </div>
             <AlertsInline />
             {others.length > 0 && (
