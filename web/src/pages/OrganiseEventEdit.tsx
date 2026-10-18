@@ -19,7 +19,7 @@ const CATEGORIES = ['Gaming', 'Quiz', 'Social', 'Club', 'Tournament', 'Market', 
 const VISIBILITY: { value: EventVisibility; label: string; hint: string }[] = [
   { value: 'public', label: 'Public', hint: 'In the diary with its name and details.' },
   { value: 'app_bookable', label: 'App Bookable', hint: 'In the diary, and people can book it in the app.' },
-  { value: 'private', label: 'Private (invite only)', hint: 'The diary shows the café is busy, without the name or details.' },
+  { value: 'private', label: 'Private game', hint: 'In the diary by name and description, with no booking. People can message to ask about joining.' },
   { value: 'hidden', label: 'Hidden', hint: 'Not in the app at all.' },
 ];
 const MODES: { value: BookingMode | 'default'; label: string }[] = [

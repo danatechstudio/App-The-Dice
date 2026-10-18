@@ -121,6 +121,13 @@ Nothing existing changes. Emails already in the outbox read as queued or sent, e
 - **First runs on the new code:** RTD Outbox at 15:40 and 15:45 succeeded; collect answered `{ messages: [] }` as before (nothing was waiting). The 15:45 sync: `ok`, 32 events, nothing changed, still 289 audit rows and 8 open items.
 - **The RTD Outbox change** waited for its own go-ahead, then was published at 17:23 UTC (version `e50af06e…`; rollback `a1b77acb…`). The 17:25 and 17:30 runs on it succeeded ([RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md)).
 
+## 0023_enquiries.sql (private games: messages asking to join)
+
+One new table, `enquiries`, for the message form on a private game's page (spec `docs/superpowers/specs/2026-10-18-private-events-design.md`). Additive; nothing else changes.
+- **Order:** apply the migration first (`npx wrangler d1 migrations apply rtd-app --remote`, or through the Cloudflare connector, then record it in `d1_migrations`), then merge the code. Code that runs before the table exists makes the form fail with "Something went wrong", and nothing else.
+- **Rollback:** `npx wrangler rollback`; the table can stay.
+- **Status:** not yet applied to production. Waiting on the owner's go-ahead.
+
 ## Admin event editor (2026-10-18, no migration)
 
 The editor (spec `docs/superpowers/specs/2026-10-18-admin-event-editor-design.md`) sends café event details through the Stage 6 queue below, so **they reach the sheet only once RTD Sheet Writer (`TAa4F7wKzzeIDKm8`) is published**.

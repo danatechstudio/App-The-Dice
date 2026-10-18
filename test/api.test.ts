@@ -30,23 +30,23 @@ describe('public diary API', () => {
     expect(res.headers.get('Cache-Control')).toBe('public, max-age=60');
     const body = await res.json<{ occurrences: { name: string; date: string; visibility: string }[] }>();
     expect(body.occurrences.map(o => [o.name, o.date, o.visibility])).toEqual([
-      ['Private session', '2026-10-10', 'private'],
+      ['Members Night', '2026-10-10', 'private'],
       ['Spooky Market', '2026-10-17', 'public'],
       ['D&D One Shot', '2026-10-18', 'app_bookable'],
       ['Quiz', '2026-10-23', 'public'],
     ]);
   });
 
-  it('shows a private session only as busy: its time, never its details', async () => {
-    const text = await (await request('/api/events')).text();
-    expect(text).not.toContain('Members Night');
-    expect(text).not.toContain('Details for event 3');
-    const { occurrences } = JSON.parse(text) as { occurrences: Record<string, unknown>[] };
+  it('shows a private game by name, time and description, never its price, places or booking', async () => {
+    const { occurrences } = await (await request('/api/events')).json<{ occurrences: Record<string, unknown>[] }>();
     expect(occurrences[0]).toMatchObject({
-      name: 'Private session',
-      description: null,
+      name: 'Members Night',
+      description: 'Details for event 3',
       image: null,
       price_display: null,
+      capacity: null,
+      bookable: false,
+      booking_mode: 'none',
       start_time: '18:30',
       end_time: '22:00',
     });
@@ -78,11 +78,18 @@ describe('public diary API', () => {
     expect(await occ.json()).toMatchObject({ occurrence: { name: 'Quiz', starts_at: '2026-10-23T17:30:00.000Z', all_day: false } });
   });
 
-  it('keeps private, hidden and inactive events off event pages and deep links', async () => {
+  it('keeps hidden and inactive events off event pages and deep links; a private game has its date page only', async () => {
     for (const id of ['RTD-EVT-00003', 'RTD-EVT-00004', 'RTD-EVT-00005']) {
       expect((await request(`/api/events/${id}`)).status).toBe(404);
     }
-    expect((await request('/api/occurrences/RTD-OCC-00003-20261010')).status).toBe(404);
+    expect((await request('/api/occurrences/RTD-OCC-00004-20261011')).status).toBe(404);
+    expect((await request('/api/occurrences/RTD-OCC-00005-20261012')).status).toBe(404);
+    const priv = await request('/api/occurrences/RTD-OCC-00003-20261010');
+    expect(priv.status).toBe(200);
+    expect((await priv.json<{ occurrence: Record<string, unknown> }>()).occurrence).toMatchObject({
+      name: 'Members Night', description: 'Details for event 3', price_display: null, capacity: null, bookable: false, image: null, images: [],
+    });
+    expect((await request('/api/occurrences/RTD-OCC-00003-20261010/calendar.ics')).status).toBe(200);
     expect((await request('/api/events/not-an-id')).status).toBe(404);
   });
 

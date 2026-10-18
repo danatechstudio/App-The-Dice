@@ -14,8 +14,9 @@ The app holds customers' names, emails and phone numbers from bookings, and host
 | Market stall applications erased 12 months after the market, photos and spreadsheet row included | **Built** (2026-10-08, [RTD_MARKETS.md](RTD_MARKETS.md)) |
 | Event alerts in the notice: what's kept, the push services, turning them off | **Built** (2026-10-08, [RTD_ALERTS.md](RTD_ALERTS.md)) |
 | Counting visits in the notice: daily totals, nothing about who | **Built** (2026-10-08, [RTD_STATS.md](RTD_STATS.md)) |
-| The business's legal name on the notice | **Waiting on Dan.** It shows the trading name until then. |
-| ICO data protection fee | **Check:** does the café already pay it? |
+| Messages asking to join a private game: in the notice (with consent on the form), deleted after 90 days, network hash after 2 days | **Built** (2026-10-18; table `enquiries`, migration 0023) |
+| The business's legal name on the notice | **Done** (17 Oct): Roll The Dice Cafe Ltd, Meridian Point, Cleethorpes |
+| ICO data protection fee | **Paid** (owner, 17 Oct) |
 | Clearing old booking emails out of the café's mailboxes | **To do by the café:** the notice promises it (see below) |
 
 ## The notice

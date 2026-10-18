@@ -41,7 +41,7 @@ export type AdminField = 'visibility' | 'active';
 const ADMIN_FIELDS: AdminField[] = ['visibility', 'active'];
 const ADMIN_LABELS: Record<AdminField, string> = { visibility: 'Who can see it', active: 'Running' };
 const VISIBILITY_CELL: Record<Visibility, string> = { public: 'Public', app_bookable: 'App Bookable', private: 'Private', hidden: 'Hidden' };
-const VISIBILITY_LABEL: Record<Visibility, string> = { public: 'Public', app_bookable: 'App Bookable', private: 'Private (invite only)', hidden: 'Hidden' };
+const VISIBILITY_LABEL: Record<Visibility, string> = { public: 'Public', app_bookable: 'App Bookable', private: 'Private game', hidden: 'Hidden' };
 
 /** A session's public details, in the units the request compares: price as the label people see. */
 export interface Details {

@@ -451,7 +451,7 @@ function SessionForm({ again, onDone }: { again?: HostSession; onDone: (created:
           </div>
           <p id="s-access-hint" class="field__hint">
             {isPrivate
-              ? 'Just your group. The diary shows "Private session" at this time, without the name or details, so people can see the café is busy.'
+              ? 'Shows in the diary with its name and description, but no booking. People can message you through the app to ask about joining.'
               : 'Anyone can join. It goes in the diary with its name and details.'}
           </p>
           {who.error}

@@ -6,7 +6,7 @@
 
 import { Hono, type Context } from 'hono';
 import { withImages } from '../images/store';
-import { findOccurrence, goneReason, nextOccurrence, publicCache, type PublicOccurrence } from '../lib/queries';
+import { findOccurrence, goneReason, nextOccurrence, publicCache, redactPrivate, type PublicOccurrence } from '../lib/queries';
 
 export const pageRoutes = new Hono<{ Bindings: Env }>();
 
@@ -89,10 +89,11 @@ pageRoutes.get('/', c => shell(c, null));
 
 pageRoutes.get('/event/:occurrenceId', async c => {
   const now = new Date();
-  const found = await findOccurrence(c.env.DB, c.req.param('occurrenceId'));
+  const found = await findOccurrence(c.env.DB, c.req.param('occurrenceId'), { listed: true });
   if (!found) return shell(c, null, 404);
   if (goneReason(found, now)) return shell(c, null, 410);
-  const [o] = await withImages(c.env.DB, [found]);
+  // A private game's preview has its name, time and description, never its photo or price.
+  const [o] = found.visibility === 'private' ? [redactPrivate(found)] : await withImages(c.env.DB, [found]);
   return shell(c, eventMeta(o!, new URL(c.req.url).origin), 200, publicCache([found], now));
 });
 

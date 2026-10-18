@@ -1,5 +1,22 @@
 # RTD App Changelog
 
+## 2026-10-18 (Private games)
+- **Private events now show as private games, not "Private session".**
+  - The diary, Home ("Coming up" and "Also on today") and the event cards show the real name, such as **Arkham Horror Card Game**, with its time, description and a **Private game** tag.
+  - There's no booking button, price, places or photo.
+- **Each private game has its own page** with **"Interested in joining? Get in touch!"** instead of booking. Share and Add to calendar work as on any event.
+- **The message form:**
+  - People enter their name, email and a message (up to 1,000 characters), and tick to agree their details go to the organiser.
+  - It goes to the café's bookings inbox, and to the host for a hosted game. Reply-to is the person asking, so the organiser just replies.
+  - Nothing is emailed to the person asking, so the form can't be used to email strangers.
+  - **Spam:** a hidden trap field, and at most 3 messages an hour from one network.
+- **Privacy:**
+  - Messages are deleted after 90 days, and the scrambled network code after 2 days.
+  - The privacy notice covers the form, and is dated 18 October.
+- **Hosts:** the Private option on the session form now explains what shows. The admin editor calls it **Private game**.
+- **Cleeples** is set to booking **Optional** in the live database (set directly, recorded in the audit log).
+- **Database:** migration `0023_enquiries.sql` adds one table. **Not applied to production yet: it needs the owner's go-ahead.** Until it is applied, the form answers "Something went wrong" and sends nothing.
+
 ## 2026-10-18 (Admin event editor)
 - **Admins can change or cancel every event from one place:** Organise › Events & dates › **All events**. This covers café events from both sheet tabs, hosts' sessions and markets, whether public, app-bookable, private or hidden, running or stopped. Search, and filters for Café, Host sessions, Markets, Stopped, and Hidden or private.
 - **Each event opens one form:**
