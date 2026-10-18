@@ -33,6 +33,7 @@ export const MAX_PROMPT_CHARS = 3000;
 // Text helpers
 
 const LETTER_OR_DIGIT = '[\\p{L}\\p{N}]';
+const LETTER_OR_DIGIT_RE = /[\p{L}\p{N}]/u;
 /** A word: letters and digits, with inner apostrophes and hyphens ("Liv's", "Mary-Jane"). */
 const WORD = /[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu;
 
@@ -45,17 +46,38 @@ export function tokens(text: string): string[] {
   return folded.match(/\d+(?:\.\d+)?|[\p{L}\p{N}]+/gu) ?? [];
 }
 
+// A line break is \n, \r, \r\n, or the Unicode line or paragraph separator, wherever lines matter.
+const LINE_BREAK = '(?:\\r\\n|[\\n\\r\\u2028\\u2029])';
+const LINE_BREAK_CHAR = /[\n\r\u2028\u2029]/u;
+const LINE_BREAKS = /\r\n|[\n\r\u2028\u2029]/gu;
+const lineBreaks = (text: string): number => (text.match(LINE_BREAKS) ?? []).length;
+/** White space that isn't a line break. */
+const HSPACE = '[^\\S\\n\\r\\u2028\\u2029]';
+
 // What may sit between the words of an event name: nothing, up to three spaces, tabs, dashes or
 // "&", the word "and", or one line break. Never a full stop or a blank line; always bounded, so
-// long runs of spaces stay quick. Non-breaking and thin spaces are spaces.
-const SPACE_CHARS = ' \\t\\u00A0\\u2009\\u202F';
+// long runs of spaces stay quick. Non-breaking, en, em and thin spaces are spaces.
+const SPACE_CHARS = ' \\t\\u00A0\\u2002\\u2003\\u2009\\u202F';
 const SPACE = `[${SPACE_CHARS}]`;
+const SPACE_RE = new RegExp(SPACE, 'u');
 const NAME_GAP_CHAR = `[${SPACE_CHARS}\\-–—&]`;
-const NAME_GAP = `(?:${NAME_GAP_CHAR}{0,3}|${SPACE}{1,3}and${SPACE}{1,3}|${NAME_GAP_CHAR}{0,2}\\r?\\n${NAME_GAP_CHAR}?)`;
+const NAME_GAP = `(?:${NAME_GAP_CHAR}{0,3}|${SPACE}{1,3}and${SPACE}{1,3}|${NAME_GAP_CHAR}{0,2}${LINE_BREAK}${NAME_GAP_CHAR}?)`;
 
-/** The separator between two words of a name, as written there ("Magic: The", "Night (Adults"): any space for a space, either apostrophe for one. */
-const separatorRegex = (sep: string): string =>
-  [...sep].map(c => (/[ \t\u00A0\u2009\u202F]/u.test(c) ? SPACE : /['’]/u.test(c) ? "['’]" : c.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&'))).join('');
+/**
+ * The separator between two words of a name, as written there: its punctuation, with up to two
+ * spaces either side ("Magic: The" also matches "magic:the" and "magic : the"), either apostrophe
+ * for one. Null when it is only spaces, which NAME_GAP covers.
+ */
+function separatorRegex(sep: string): string | null {
+  const chars = [...sep];
+  while (chars.length && SPACE_RE.test(chars[0]!)) chars.shift();
+  while (chars.length && SPACE_RE.test(chars[chars.length - 1]!)) chars.pop();
+  if (!chars.length) return null;
+  const core = chars.map(c => (SPACE_RE.test(c) ? SPACE : /['’]/u.test(c) ? "['’]" : c.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&'))).join('');
+  // Only punctuation gets the loose spaces: "Board and Brew" keeps a space either side of "and".
+  if (chars.some(c => LETTER_OR_DIGIT_RE.test(c))) return `${SPACE}${core}${SPACE}`;
+  return `${SPACE}{0,2}${core}${SPACE}{0,2}`;
+}
 
 /**
  * Matches a phrase as whole words, any case. Between two of its words goes NAME_GAP ("#QuizNight"
@@ -71,8 +93,8 @@ export function phraseRegex(phrase: string): RegExp | null {
     .map((w, i) => {
       if (i === 0) return word(w);
       const before = words[i - 1]!;
-      const sep = phrase.slice(before.index! + before[0].length, w.index!);
-      return `(?:${NAME_GAP}|${separatorRegex(sep)})${word(w)}`;
+      const sep = separatorRegex(phrase.slice(before.index! + before[0].length, w.index!));
+      return `(?:${NAME_GAP}${sep ? `|${sep}` : ''})${word(w)}`;
     })
     .join('');
   return new RegExp(`(?<!${LETTER_OR_DIGIT})${body}s?(?!${LETTER_OR_DIGIT})`, 'giu');
@@ -288,6 +310,9 @@ const ONWARDS = 'onwards?(?!\\p{L})';
 // "every week 7 till late" is a time.
 const NOT_A_COUNT_BEFORE = '(?<!(?<!\\p{L})(?:round|level|series|book|chapter|act|volume|grade|page|ages?|aged|over|under)\\s+)';
 const hourOf = (word: string): string => String(NUMBER_WORDS.indexOf(word.toLowerCase()) + 1);
+// After an hour in words, only these make it a count: "at one of our tables", "from two of them",
+// "learn from one another". "at seven of course" is still a time.
+const NOT_AN_HOUR_WORD_AFTER = '(?!\\s+of\\s+(?:our|the|your|these|those|them|us)(?!\\p{L}))(?!(?<=(?<!\\p{L})one)\\s+another(?!\\p{L}))';
 
 const TIME_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => { readings: number[] } | null }[] = [
   // 7:30pm, 7.30 pm, 19:00, 18.30 (not part of a longer number or a dotted date)
@@ -302,10 +327,10 @@ const TIME_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => { readings: nu
   { re: new RegExp(`(?<!\\p{L})${HOUR_WORD}\\s*o['’]?clock(?!\\p{L})`, 'giu'), read: () => ({ readings: [] }) },
   { re: new RegExp(`(?<!\\p{L})(?:half|quarter)\\s+(?:past\\s+|to\\s+)?${HOUR_WORD}(?!${LETTER_OR_DIGIT})`, 'giu'), read: () => ({ readings: [] }) },
   // A bare hour after a time word, in digits or words: "at 7", "from 7 till late", "doors 7", "starts at seven", "until 9".
-  // Not "at one of our tables" or "from one another"; "at seven thirty" is a time that can't be read.
+  // Not "at one of our tables" or "from one another" (NOT_AN_HOUR_WORD_AFTER); "at seven thirty" is a time that can't be read.
   {
     re: new RegExp(
-      `${TIME_CUE}\\s+(?:(\\d{1,2})(?!\\d|[.:]\\d)|(${NUMBER_WORDS.join('|')})(?:ish)?(?!\\p{L})(?!\\s+(?:of|another)(?!\\p{L}))(${WORD_MINUTES}(?:\\s*[ap]\\.?m\\.?(?!\\p{L}))?)?)(?!\\s*[ap]\\.?m(?!\\p{L}))(?!${NOT_AN_HOUR_AFTER})`,
+      `${TIME_CUE}\\s+(?:(\\d{1,2})(?!\\d|[.:]\\d)|(${NUMBER_WORDS.join('|')})(?:ish)?(?!\\p{L})${NOT_AN_HOUR_WORD_AFTER}(${WORD_MINUTES}(?:\\s*[ap]\\.?m\\.?(?!\\p{L}))?)?)(?!\\s*[ap]\\.?m(?!\\p{L}))(?!${NOT_AN_HOUR_AFTER})`,
       'giu',
     ),
     read: m => (m[3] ? { readings: [] } : readClock(m[1] ?? hourOf(m[2]!), '0', undefined)),
@@ -416,8 +441,10 @@ const SECTION_LABELS = new Set(
 
 /** Whether the colon at `colon` ends a section label that starts its line (after any bullet, number or emphasis). */
 function endsSectionLabel(text: string, colon: number): boolean {
+  let lineStart = colon;
+  while (lineStart > 0 && !LINE_BREAK_CHAR.test(text[lineStart - 1]!)) lineStart--;
   const label = text
-    .slice(text.lastIndexOf('\n', colon - 1) + 1, colon)
+    .slice(lineStart, colon)
     .replace(/^[\s\-*•#>]*(?:\d+[.)]\s*)?/, '')
     .replace(/[*_]/g, '')
     .trim()
@@ -431,12 +458,12 @@ function startsSentence(text: string, i: number): boolean {
   let j = i - 1;
   // Spaces, opening quotes and brackets, and markdown emphasis.
   while (j >= 0 && /[ \t"“‘'(\[*_]/.test(text[j]!)) j--;
-  if (j < 0 || text[j] === '\n' || text[j] === '\r') return true;
+  if (j < 0 || LINE_BREAK_CHAR.test(text[j]!)) return true;
   // A bullet, number or heading marker that starts its line: "- ", "• ", "## ".
   if (/[-•#>]/.test(text[j]!)) {
     let k = j;
     while (k >= 0 && /[-*•#> \t]/.test(text[k]!)) k--;
-    if (k < 0 || text[k] === '\n' || text[k] === '\r') return true;
+    if (k < 0 || LINE_BREAK_CHAR.test(text[k]!)) return true;
   }
   if (text[j] === ':') return endsSectionLabel(text, j);
   while (j >= 0 && /["”’')\]*_]/.test(text[j]!)) j--;
@@ -472,7 +499,6 @@ export function findNames(text: string, allowed: Iterable<string>): string[] {
 }
 
 // Wording the prompt forbids ('never say "tonight"', "do not imply free entry") is a banned word, not a claim.
-const QUOTED = /"[^"\n]*"|“[^”\n]*”|‘[^’\n]*’|(?<!\p{L})'[^'\n]*'(?!\p{L})/gu;
 const PROHIBITION_VERB =
   '(?:say(?:s|ing)?|us(?:e|es|ing)|writ(?:e|es|ing)|mention(?:s|ing)?|describ(?:e|es|ing)|call(?:s|ing)?|stat(?:e|es|ing)|claim(?:s|ing)?|impl(?:y|ies|ying)|promis(?:e|es|ing)|suggest(?:s|ing)?|advertis(?:e|es|ing)|refer(?:s|ring)?\\s+to|includ(?:e|es|ing))';
 const NEGATIVE =
@@ -487,92 +513,108 @@ const OBJECT = `(?:\\s+${OBJECT_WORD}){1,3}(?:\\s+(?:or|and)(?:\\s+${OBJECT_WORD
 // Between a prohibition and the first quoted item it forbids: an object, then "such as", "like",
 // "as", "e.g." or ":", or nothing. A bare comma ends it: 'never mention prices, "£10" is the price'.
 const FIRST_ITEM_GAP = new RegExp(`(?:${OBJECT})?(?:\\s*(?::|(?:such\\s+as|like|as)(?!\\p{L})|e\\.g\\.))?\\s*`, 'iuy');
-// Between one forbidden quoted item and the next: only spaces, commas, "or" and "and".
-const NEXT_ITEM_GAP = /(?:\s|,|(?<!\p{L})(?:or|and)(?!\p{L}))*/iuy;
-// A quote at the start of a new line is a list item only when a list joiner, the end of a clause or
-// the end of the line follows it, not more words: '"Join us at 7pm" opens each post' isn't one.
-const ENDS_LIST_ITEM = /[^\S\r\n]*(?:$|\r?\n|[,;:.!?…—–]|(?:or|and|but)(?!\p{L}))/iuy;
+// Between one forbidden quoted item and the next: only spaces, commas, "or", "and" and "nor".
+const NEXT_ITEM_GAP = /(?:\s|,|(?<!\p{L})(?:or|and|nor)(?!\p{L}))*/iuy;
+// Where an item is forbidden, written after it: "in the prompt", "in captions", "anywhere".
+const ITEM_PLACE = `(?:in|within|from)${HSPACE}+(?:(?:the|any|a|an|your|our|each|every|all)${HSPACE}+)?(?:prompts?|posts?|captions?|copy|text|wording|messages?|hashtags?)`;
+const ITEM_SCOPE = `(?:anywhere(?:${HSPACE}+${ITEM_PLACE})?|${ITEM_PLACE})(?!\\p{L})${HSPACE}*`;
+// What must follow a forbidden item, so that it isn't the start of a claim ('"£10 door fee" applies'):
+// a list joiner, a closing bracket, the end of a clause or sentence, or the end of the line.
+const ITEM_END = new RegExp(`${HSPACE}*(?:${ITEM_SCOPE})?(?:$|${LINE_BREAK}|[,.!?;:)\\]]|(?:or|and|nor)(?!\\p{L}))`, 'iuy');
+// An item whose clause ends inside its own quote marks ('"tonight," "tomorrow," or "this weekend."') has ended already.
+const ENDS_INSIDE = /[,.!?;:]\s*$/u;
+const MAX_ITEM_WORDS = 3;
 // A price straight after one of these is the thing forbidden: "never describe it as free", "do not imply free entry".
 const MONEY_PROHIBITION = new RegExp(
   `${NEGATIVE}(?:describ(?:e|es|ing)\\s+(?:it|this|the\\s+event|the\\s+session)\\s+as|call(?:s|ing)?\\s+it|say(?:s|ing)?\\s+(?:that\\s+)?(?:it(?:['’]s|\\s+is)|(?:entry|this|the\\s+event)\\s+is)|impl(?:y|ies|ying)|advertis(?:e|es|ing)|promis(?:e|es|ing)|claim(?:s|ing)?|mention(?:s|ing)?|suggest(?:s|ing)?)\\s+$`,
   'iu',
 );
 
-const LETTER_OR_DIGIT_RE = /[\p{L}\p{N}]/u;
+const QUOTE_MARK = /["“”‘’']/u;
+// An apostrophe that starts a word isn't a quote mark in these: 'til, 'tis, 'em, 'cause, rock 'n' roll, the '90s.
+const ELISION = /^['’](?:n['’]|(?:til|till|tis|twas|em|cause|cos|bout|n)(?![\p{L}\p{N}])|\d{2}s?(?![\p{L}\p{N}]))/iu;
+
 /**
- * Whether the quote marks in a text pair up. Apostrophes aren't quote marks: one inside a word
- * ("don't", "it’s"), or a closing one with nothing open ("the players' night").
+ * The quoted stretches of a text, outermost only, or null when its quote marks don't pair up.
+ * Every kind of mark (" “ ” ‘ ’, and a straight ' used as one) goes on one stack: a close that
+ * doesn't match the open on top, an open that is never closed, or a close with nothing open, and
+ * nothing pairs. Apostrophes aren't quote marks: one inside a word ("don't", "90's"), a word-start
+ * elision ('til, rock 'n' roll, the '90s), or one ending a word while no single quote is open
+ * ("the players' night").
  */
-function quotesPair(text: string): boolean {
-  if ((text.match(/"/g) ?? []).length % 2) return false;
-  let double = false;
-  let single = false;
-  let straight = false;
+function quotedStretches(text: string): Span[] | null {
+  const open: { mark: string; at: number }[] = [];
+  const spans: Span[] = [];
+  const close = (at: number) => {
+    const opened = open.pop()!;
+    if (!open.length) spans.push([opened.at, at + 1]);
+  };
   for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    const letterBefore = i > 0 && LETTER_OR_DIGIT_RE.test(text[i - 1]!);
-    const letterAfter = LETTER_OR_DIGIT_RE.test(text[i + 1] ?? '');
-    if (c === '“') {
-      if (double) return false;
-      double = true;
-    } else if (c === '”') {
-      if (!double) return false;
-      double = false;
-    } else if (c === '‘') {
-      if (single) return false;
-      single = true;
-    } else if (c === '’') {
-      if (single && !letterAfter) single = false;
-    } else if (c === "'") {
-      if (straight && !letterAfter) straight = false;
-      else if (!letterBefore) {
-        if (straight) return false;
-        straight = true;
-      }
+    const c = text[i]!;
+    if (!QUOTE_MARK.test(c)) continue;
+    const top = open[open.length - 1]?.mark;
+    if (c === '“' || c === '‘' || (c === '"' && top !== '"')) {
+      open.push({ mark: c, at: i });
+      continue;
     }
+    if (c === '"' || c === '”') {
+      if (top !== (c === '"' ? '"' : '“')) return null;
+      close(i);
+      continue;
+    }
+    // A single quote mark, straight or curly, or an apostrophe.
+    const before = i > 0 && LETTER_OR_DIGIT_RE.test(text[i - 1]!);
+    const after = LETTER_OR_DIGIT_RE.test(text[i + 1] ?? '');
+    if (before && after) continue;
+    const elision = before ? null : ELISION.exec(text.slice(i, i + 8));
+    if (elision) {
+      // Both marks of 'n' are apostrophes, even inside a single-quoted stretch.
+      if (/^['’]n['’]/u.test(elision[0])) i += 2;
+      continue;
+    }
+    // A mark that doesn't start a word closes a single quote of its own kind. Otherwise, after a
+    // letter it is a possessive ("the players' night"); a straight one opens a quote; a curly one
+    // closes nothing, so nothing pairs.
+    const opener = c === "'" ? "'" : '‘';
+    if (!(after && !before) && top === opener) close(i);
+    else if (before) continue;
+    else if (c === "'") open.push({ mark: c, at: i });
+    else return null;
   }
-  return !double && !single && !straight;
+  return open.length ? null : spans;
 }
 
-/** The sentences of a text: each ends at . ! ? or … (with any closing quotes or brackets) before a space or the end, or at a line break. */
-function sentenceSpans(text: string): Span[] {
-  const spans: Span[] = [];
-  let start = 0;
-  for (const m of text.matchAll(/[.!?…]+["”’')\]]*(?=\s|$)|\n/gu)) {
-    const end = m.index! + m[0].length;
-    if (end > start) spans.push([start, end]);
-    start = end;
-  }
-  if (start < text.length) spans.push([start, text.length]);
-  return spans;
+/** Whether a quoted stretch can be a forbidden item: at most three words, on one line, and then nothing that goes on to say more. */
+function isListItem(text: string, [start, end]: Span): boolean {
+  const inside = text.slice(start + 1, end - 1);
+  if ((inside.match(/[\p{L}\p{N}]+/gu) ?? []).length > MAX_ITEM_WORDS || LINE_BREAK_CHAR.test(inside)) return false;
+  ITEM_END.lastIndex = end;
+  return ENDS_INSIDE.test(inside) || ITEM_END.test(text);
 }
 
 /**
  * What the prompt forbids rather than claims, and nothing more. Read in the text as written: a
  * prohibition outside any quote, then only the quoted items that follow it as a list ('never say
- * "tonight" or "tomorrow"'), over one line break at most; anything else ends the list. For money
- * not in quotes, only a price straight after "describe it as", "call it", "imply" and the like.
- * Where the quote marks don't pair up, in the prompt or in a sentence, a quote can't be told from
- * the text around it, so nothing there is exempt.
+ * "tonight" or "tomorrow"'), over one line break at most. Each item is at most three words on one
+ * line, followed by a list joiner, a closing bracket, the end of a clause or the end of the line;
+ * anything else ends the list. For money not in quotes, only a price straight after "describe it
+ * as", "call it", "imply" and the like. Where the quote marks don't pair up, a quote can't be told
+ * from the text around it, so nothing in the prompt is exempt.
  */
 function prohibitions(text: string): { quoted: Span[]; forbidsMoneyAt: (index: number) => boolean } {
-  const quotes = spansOf(QUOTED, text);
+  const quotes = quotedStretches(text);
+  if (!quotes) return { quoted: [], forbidsMoneyAt: () => false };
+  // Only outermost quotes can be items, and no gap lets a quote mark through, so a prohibition inside a quote reaches nothing.
   const quoteAt = new Map(quotes.map(q => [q[0], q]));
-  const unpaired: Span[] = quotesPair(text) ? sentenceSpans(text).filter(([s, e]) => !quotesPair(text.slice(s, e))) : [[0, text.length]];
-  const paired = ([s, e]: Span): boolean => !unpaired.some(([a, b]) => a < e && b > s);
   const quoted: Span[] = [];
-  // A prohibition inside a quote can't reach a later quote: no gap lets a quote mark through.
   for (const p of text.matchAll(PROHIBITION)) {
     let pos = p.index! + p[0].length;
     let gap = FIRST_ITEM_GAP;
     for (;;) {
       gap.lastIndex = pos;
       const between = gap.exec(text)?.[0] ?? '';
-      const breaks = between.split('\n').length - 1;
-      const q = breaks > 1 ? undefined : quoteAt.get(pos + between.length);
-      if (!q || !paired(q)) break;
-      ENDS_LIST_ITEM.lastIndex = q[1];
-      if (breaks && !ENDS_LIST_ITEM.test(text)) break;
+      const q = lineBreaks(between) > 1 ? undefined : quoteAt.get(pos + between.length);
+      if (!q || !isListItem(text, q)) break;
       quoted.push(q);
       pos = q[1];
       gap = NEXT_ITEM_GAP;
@@ -581,7 +623,7 @@ function prohibitions(text: string): { quoted: Span[]; forbidsMoneyAt: (index: n
   return {
     quoted,
     // Quoted money goes by the list rule above; this is for money outside quotes.
-    forbidsMoneyAt: index => paired([index, index + 1]) && !quotes.some(([s, e]) => index >= s && index < e) && MONEY_PROHIBITION.test(text.slice(0, index)),
+    forbidsMoneyAt: index => !quotes.some(([s, e]) => index >= s && index < e) && MONEY_PROHIBITION.test(text.slice(0, index)),
   };
 }
 

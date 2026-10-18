@@ -717,3 +717,106 @@ describe('prompt validation, review round 4', () => {
     expect(findTimes('from two to six players, at one of our tables, learn from one another, capped at six')).toEqual([]);
   });
 });
+
+describe('prompt validation, review round 5', () => {
+  const reviewed = (prompt: string, f: SourceFields = dnd, names = ctx.otherEventNames) =>
+    validatePrompt(output({ master_prompt: prompt }), f, { otherEventNames: names });
+  const approves = (extra: string) => {
+    const verdict = reviewed(goodPrompt + extra);
+    expect(verdict.errors, extra).toEqual([]);
+    expect(verdict.status, extra).toBe('approved');
+  };
+  const refuses = (extra: string) => expect(reviewed(goodPrompt + extra).status, extra).toBe('review_required');
+
+  it('exempts a quoted item of at most three words only', () => {
+    refuses(' Never say “tonight" — always say friday 23 october at 7pm — "book now”.');
+    refuses(' Never write ‘tonight" — open with friday 23 october at 7pm — "book now’.');
+    refuses(' Never say “tonight" — it is £10 on the door — "book now”.');
+    refuses(' Never use "tonight" or "tomorrow"\n"Join us Friday 23 October at 7pm": open each post with it.');
+    refuses(' Never mention prices as "£10 on the door" is on the poster.');
+    // Only the length decides here: the long item ends the sentence.
+    refuses(' Never say "tonight" or "join us on friday at 7pm".');
+  });
+
+  it('exempts a quoted item only when a list joiner, a closing bracket, the end of a clause or the end of the line follows it', () => {
+    refuses(' Never say "tonight", "join us friday 23 october at 7pm" opens every post.');
+    refuses(' Never say "tonight" "join us friday 23 october at 7pm" opens every post.');
+    refuses(' Never mention prices and the "£10 door fee" applies.');
+    // Only what follows decides here: each item is short.
+    refuses(' Never say "tonight", "7pm" opens every post.');
+    refuses(' Never say "tonight" "7pm" opens every post.');
+    refuses(' Never say "tonight," "7pm" opens every post.');
+
+    approves(' Never say "tonight" or "tomorrow".');
+    approves(' Do not use dates such as "23 October" or "Friday" in the prompt.');
+    approves(' Never write these words: "free", "£10".');
+    approves(' Never use relative dates such as "tonight" or "tomorrow".');
+    approves(' Never use words like "tonight" or "tomorrow" in captions.');
+    approves(' Never say "tonight" nor "tomorrow".');
+    approves(' (Never say "tonight" or "tomorrow")');
+    // A comma or full stop just inside the closing quote ends the item too.
+    approves(' Never use relative dates such as "tonight," "tomorrow," or "this weekend." Keep it warm.');
+  });
+
+  it('pairs every quote mark on one stack, and does not take apostrophes for quote marks', () => {
+    refuses(' Never say “tonight" — always say friday 23 october at 7pm” — "book now.');
+    // Only the stack decides here: each kind pairs up on its own, but they cross.
+    refuses(' Never say "tonight “7pm" or soon”.');
+    refuses(' Never say "tonight" or "7pm”.');
+    // A prohibition inside a quote forbids nothing.
+    refuses(' Example caption: “Never say "7pm" or "today".”');
+    approves(" Never say \"tonight\" or \"tomorrow\"; play rock 'n' roll 'til the end, '90s and 90's style.");
+    approves(" Never use these words: 'rock 'n' roll', 'tonight'.");
+    // A curly closing mark that opens a word, and isn't an elision, closes nothing: no quote in the prompt is exempt.
+    refuses(' Never say "tonight". Ask for the ’big table’.');
+  });
+
+  it('treats \\r, \\r\\n and the Unicode line and paragraph separators as line breaks', () => {
+    refuses(' Never use "tonight" or "tomorrow"\r\r"Join us Friday 23 October at 7pm" opens each post.');
+    for (const blank of ['\r\r', '\u2028\u2028', '\u2029\u2029', '\r\n\r\n', '\n\r']) refuses(` Never use "tonight" or "tomorrow"${blank}"7pm".`);
+    for (const nl of ['\r\n', '\r', '\u2028', '\u2029']) approves(` Never use these words:${nl}"tonight"${nl}"tomorrow" or "this weekend".`);
+    expect(phraseRegex('Quiz Night')!.test('Quiz\u2028Night')).toBe(true);
+    expect(phraseRegex('Quiz Night')!.test('Quiz\r\rNight')).toBe(false);
+    expect(findNames('Tone: Warm.\u2028Notes: Keep it short.\rStyle: Plain.', [])).toEqual([]);
+    // A word at the start of a line, or of a bullet on its own line, starts a sentence there too.
+    expect(findNames('Warm.\u2028Trixie hosts.\u2029- Bob helps.', [])).toEqual([]);
+    // A quoted item stays on one line.
+    refuses(' Never say "tonight\u2028at 7pm".');
+  });
+
+  it('reads "of" or "another" after an hour word as a count only in "of our" and the like, and in "one another"', () => {
+    refuses(' Join us at seven of course.');
+    expect(findTimes('at seven of course, from four another day').map(t => t.text)).toEqual(['at seven', 'from four']);
+    expect(
+      findTimes(
+        'at one of our tables, from two of them, at three of these, at four of your seats, at five of those, at six of the boards, from seven of us, learn from one another',
+      ),
+    ).toEqual([]);
+  });
+
+  it('matches a name with up to two spaces around its own punctuation, and with en or em spaces', () => {
+    for (const text of ['magic:the gathering', 'magic : the gathering', 'magic  :  the gathering', 'magic:\u2003the\u2002gathering']) {
+      expect(phraseRegex('Magic: The Gathering')!.test(text), text).toBe(true);
+    }
+    for (const text of ['quiz\u2003night', 'quiz\u2002night']) expect(phraseRegex('Quiz Night')!.test(text), text).toBe(true);
+    expect(phraseRegex('Board Game Night (Adults)')!.test('board game night(adults)')).toBe(true);
+    const verdict = reviewed(`${goodPrompt} It is not magic : the gathering.`, dnd, ['Magic: The Gathering']);
+    expect(verdict.status).toBe('review_required');
+    expect(verdict.errors.some(e => e.includes('another event, "Magic: The Gathering"'))).toBe(true);
+
+    // The event's own name written that way is still its own name, so its weekday isn't a date.
+    const name = 'Sunday Funday: Family Games';
+    const prompt = 'Write about Sunday Funday : Family Games at Roll The Dice. MoreThanABitDicey hosts her infamous DnD sessions.';
+    const claims = [
+      { claim: name, source_field: 'name' },
+      { claim: 'MoreThanABitDicey hosts her infamous DnD sessions', source_field: 'base_details' },
+    ];
+    const own = validatePrompt(output({ master_prompt: prompt, claims }), { ...dnd, name }, ctx);
+    expect(own.errors).toEqual([]);
+    expect(own.status).toBe('approved');
+
+    const started = performance.now();
+    expect(phraseRegex('Magic: The Gathering')!.test(`Magic${'\u2003'.repeat(2000)}x`)).toBe(false);
+    expect(performance.now() - started).toBeLessThan(100);
+  });
+});
