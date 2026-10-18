@@ -1,5 +1,16 @@
 # RTD App Changelog
 
+## 2026-10-18 (Share menu)
+- **Share an event to WhatsApp, Facebook, Instagram, Discord, X, email, text message, or copy the link.** It works from the event page's **Share** button, and from a share icon on every diary row and every Home card ("Next up" and "Coming up").
+  - **WhatsApp, X, email and text** open with the event's name, date and link filled in.
+  - **Facebook** gets the link, so it shows the event's own preview card.
+  - **Instagram and Discord** have no way for a website to share straight in. They open the phone's own share menu, where both appear if installed, or copy the link with a note saying where to paste it.
+  - **More…** opens the phone's full share menu, on phones that have one.
+- **No share icon** on private group bookings or cancelled dates: there's nothing public to share.
+- **Phones and computers:** on phones the menu slides up from the bottom; on computers it opens in the middle of the screen. Esc, the backdrop or a choice closes it, and focus returns to the button.
+- **Stats:** every share counts as a share tap, as before.
+- **No database change.** **Tests:** 448 (was 440).
+
 ## 2026-10-17 (Business details and credit)
 - **Privacy notice:** names **Roll The Dice Cafe Ltd, Meridian Point, Cleethorpes** as the data controller, says the company is registered with the ICO, and names the app developer, ATech Studio (atechstudio.co.uk). Dated 17 October 2026.
 - **Calendar entries** (Add to Calendar and Google) give the location as **Roll The Dice Board Game Café, Meridian Point, Cleethorpes**.
