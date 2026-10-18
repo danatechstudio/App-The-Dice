@@ -130,3 +130,43 @@ describe('every event, for admins', () => {
     expect((await request('/api/staff/events/RTD-EVT-09999', {}, DAN)).status).toBe(404);
   });
 });
+
+const book = (occurrenceId: string, party: number, email = 'ava@example.com') =>
+  request('/api/bookings', json({ occurrence_id: occurrenceId, lead_name: 'Ava Player', email, party_size: party }));
+const CATAN_13 = 'RTD-OCC-00002-20261013';
+
+describe('places and booking on host sessions', () => {
+  it('lets an admin change a host session’s places and booking', async () => {
+    expect((await request(`/api/host/sessions/${CATAN}/places`, json({ places: 12 }), DAN)).status).toBe(200);
+    expect((await form(CATAN_EVT)).places).toBe(12);
+    expect((await request(`/api/staff/events/${CATAN_EVT}/booking-mode`, json({ mode: 'optional' }), DAN)).status).toBe(200);
+    expect((await form(CATAN_EVT)).booking_mode).toBe('optional');
+    const audit = await env.DB.prepare("SELECT actor_type, actor_id FROM audit_log WHERE action = 'host_session.places_changed'").first();
+    expect(audit).toEqual({ actor_type: 'staff', actor_id: 'dan@example.com' });
+  });
+
+  it('still refuses an approver on a host session’s booking', async () => {
+    expect((await request(`/api/staff/events/${CATAN_EVT}/booking-mode`, json({ mode: 'optional' }), MICHELLE)).status).toBe(409);
+    expect((await request(`/api/host/sessions/${CATAN}/places`, json({ places: 12 }), MICHELLE)).status).toBe(403);
+  });
+
+  it('never lets places go below what is booked, for an admin too', async () => {
+    expect((await book(CATAN_13, 3)).status).toBe(201);
+    const res = await request(`/api/host/sessions/${CATAN}/places`, json({ places: 2 }), DAN);
+    expect(res.status).toBe(409);
+    expect((await res.json<{ error: string }>()).error).toContain('already booked');
+  });
+});
+
+describe('a host can only touch their own sessions', () => {
+  it('refuses another host everywhere', async () => {
+    expect((await request(`/api/host/sessions/${CATAN}/places`, json({ places: 5 }), ALEX)).status).toBe(403);
+    expect((await request(`/api/host/occurrences/${CATAN_13}/places`, json({ places: 5 }), ALEX)).status).toBe(403);
+    expect((await request(`/api/host/occurrences/${CATAN_13}/cancel`, json({ message: 'No' }), ALEX)).status).toBe(403);
+    expect((await request(`/api/host/sessions/${CATAN}/changes`, json({ name: 'Mine now' }), ALEX)).status).toBe(404);
+    expect((await request(`/api/staff/events/${QUIZ}/places`, json({ places: 5 }), ALEX)).status).toBe(403);
+    expect((await request(`/api/staff/events/${CATAN_EVT}`, json({ details: { name: 'Mine now' } }), ALEX)).status).toBe(403);
+    expect((await form(CATAN_EVT)).details).toMatchObject({ name: 'Catan Club' });
+    expect((await form(CATAN_EVT)).places).toBe(20);
+  });
+});
