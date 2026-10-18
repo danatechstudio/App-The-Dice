@@ -82,7 +82,7 @@ The web adds an All events panel and an edit page under Organise › Events.
 - `visibility` is `events.visibility`.
 - The list includes inactive events from the last sync (`IN_LAST_SYNC` from `src/sync/edits.ts`; export it). Ordering: active first, then next date, then name.
 
-- [ ] **Step 1: Write the failing tests** in `test/admin-events.test.ts`. Seed them like `test/changes.test.ts`:
+- [ ] **Step 1: Write the failing tests** in `test/admin-events.test.ts`. Seed them like `test/changes.test.ts` (clock 2026-10-06T10:00Z):
   - users `dan@example.com` (role `admin`), `michelle@example.com` (`staff`), `sam@example.com` and `alex@example.com` (`host`)
   - Sam's approved weekly Catan Club (`RTD-HS-00001` / `RTD-EVT-00002`)
   - a sync with `catanRow`, a public Event Index quiz (`indexRow(4)`), a `Private` Event Index row (`indexRow(5, {'App Visibility':'Private'})`), a `Hidden` one (`indexRow(6, {'App Visibility':'Hidden'})`), an `Inactive` one (`indexRow(7, {Status:'Inactive'})`) and a Standard Diary row (`diaryRow(8)`)
@@ -221,7 +221,7 @@ The web adds an All events panel and an edit page under Organise › Events.
   - `it('refuses a column the Standard Diary hasn’t got')`: `{details:{start_time:'19:00'}}` on `RTD-EVT-00008` → 400.
   - `it('refuses while a Logic Engine change is on its way')`: a second save → 409, and the message contains 'still on its way'.
   - `it('refuses an event not in the last sync')`: delete its `last_synced_at` → 409.
-  - `it('refuses to move a booked café date')`: book on 8 Oct, then change `event_date` → 409 'Cancel this date first'.
+  - `it('refuses to move a booked café date')`: book on 23 Oct, then change `event_date` → 409 'Cancel this date first'.
   - `it('refuses approvers')`: Michelle → 403.
   - In `test/sheet-edits.test.ts`, `it('emails people booked when a new time is written')`:
     - Queue an `Event Time` edit on a booked event.
