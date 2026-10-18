@@ -121,6 +121,16 @@ Nothing existing changes. Emails already in the outbox read as queued or sent, e
 - **First runs on the new code:** RTD Outbox at 15:40 and 15:45 succeeded; collect answered `{ messages: [] }` as before (nothing was waiting). The 15:45 sync: `ok`, 32 events, nothing changed, still 289 audit rows and 8 open items.
 - **The RTD Outbox change** waited for its own go-ahead, then was published at 17:23 UTC (version `e50af06e…`; rollback `a1b77acb…`). The 17:25 and 17:30 runs on it succeeded ([RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md)).
 
+## Admin event editor (2026-10-18, no migration)
+
+The editor (spec `docs/superpowers/specs/2026-10-18-admin-event-editor-design.md`) sends café event details through the Stage 6 queue below, so **they reach the sheet only once RTD Sheet Writer (`TAa4F7wKzzeIDKm8`) is published**.
+- **Current state (checked 18 Oct):** the setting `sheet_writes` has been `live` since 17 Oct 09:09 (set by Dan), but the workflow has never been published. It has run once, manually, on 16 Oct. `sheet_edits` was empty.
+- **Turning it on, each step with the owner's go-ahead:**
+  1. Set **Test copy** under Logic Engine changes, publish RTD Sheet Writer, and make one change in the editor. On the staging copy, check that only the named cells changed and the Day column followed a date. Then edit the copy by hand between a change and the next run, and check the conflict is caught.
+  2. Set **Live** and make one real change chosen by the owner. Check it in the sheet, then in the app after the next sync.
+- **Rollback:** set **Off**, unpublish the workflow. Queued changes wait and can be withdrawn.
+- **What works without it:** places, need to book, cancelling a date, stopping a host session, and every host-session change (those go through n8n branch D, already published).
+
 ## 0022_sheet_edits.sql (Stage 6: changing events from the organiser)
 
 **What it adds:** column `events.sheet_values` (NULL until the next sync fills it), table `sheet_edits` and two indexes (empty), and the setting `sheet_writes` = `off`. Nothing existing changes.

@@ -17,7 +17,8 @@
 // The admin who made an edit is emailed if it conflicts or is given up on.
 
 import type { AuthUser } from '../lib/auth';
-import { esc, longDate } from '../lib/format';
+import { attendeeTimeChanged } from '../host/changes';
+import { esc, longDate, timeLabel } from '../lib/format';
 import { addDays, londonDate, parseSheetDate } from '../lib/time';
 import { queue } from '../notify/outbox';
 import type { Email } from '../notify/emails';
@@ -89,8 +90,8 @@ export interface SheetEvent {
   open_edit: string | null;
 }
 
-const IN_LAST_SYNC = `e.last_synced_at >= (SELECT MAX(received_at) FROM sync_runs WHERE status = 'ok')`;
-const OPEN = `(s.status IN ('queued', 'conflict') OR (s.status = 'written' AND s.target = 'live'))`;
+export const IN_LAST_SYNC = `e.last_synced_at >= (SELECT MAX(received_at) FROM sync_runs WHERE status = 'ok')`;
+export const OPEN = `(s.status IN ('queued', 'conflict') OR (s.status = 'written' AND s.target = 'live'))`;
 const CAFE = 'e.host_session_id IS NULL AND e.market_id IS NULL';
 
 /** The café's own events in the last sync (host sessions and markets change elsewhere), Active first. */
@@ -228,12 +229,13 @@ export async function requestEdit(
   eventId: string,
   body: unknown,
   now: Date,
-): Promise<{ ok: true; edit: SheetEdit } | Fail | { ok: false; status: 409; warning: string }> {
+  opts: { dryRun?: boolean } = {},
+): Promise<{ ok: true; edit: SheetEdit | null } | Fail | { ok: false; status: 409; warning: string }> {
   const denied = adminOnly(admin);
   if (denied) return denied;
-  const mode = await sheetMode(db);
-  if (mode === 'off') return fail(409, 'Changing events from the app is switched off (Sheet sync, at the top of this page).');
-  if (!EVENT_ID.test(eventId)) return fail(404, 'No event with that ID.');
+  const refused = await sheetEditRefusal(db, eventId);
+  if (refused) return refused;
+  const mode = (await sheetMode(db)) as Target;
   const ev = await db
     .prepare(
       `SELECT e.event_id, e.source, e.event_name, e.host_session_id, e.market_id, e.sheet_values, ${IN_LAST_SYNC} AS in_sheet,
@@ -242,11 +244,7 @@ export async function requestEdit(
     )
     .bind(eventId)
     .first<{ event_id: string; source: Source; event_name: string; host_session_id: string | null; market_id: string | null; sheet_values: string | null; in_sheet: number; open_edit: string | null }>();
-  if (!ev) return fail(404, 'No event with that ID.');
-  if (ev.host_session_id) return fail(409, "This is a host's session: the host asks for changes and an approver decides (Change requests).");
-  if (ev.market_id) return fail(409, 'This is a market: change it under Markets.');
-  if (!ev.sheet_values || !ev.in_sheet) return fail(409, "This event wasn't in the last sync from the Logic Engine, so it can't be changed from here.");
-  if (ev.open_edit) return fail(409, `A change to this event (${ev.open_edit}) is still on its way to the Logic Engine. Wait for it, or withdraw it under Sheet sync.`);
+  if (!ev || !ev.sheet_values) return fail(404, 'No event with that ID.');
 
   const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
   const values = (b.values && typeof b.values === 'object' ? b.values : {}) as Record<string, unknown>;
@@ -291,6 +289,8 @@ export async function requestEdit(
     if (warning) return { ok: false, status: 409, warning };
   }
 
+  // Every check passed: a dry run (the admin event editor, before it changes anything else) stops here.
+  if (opts.dryRun) return { ok: true, edit: null };
   const iso = now.toISOString();
   const target: Target = mode;
   const inserted = await db
@@ -305,6 +305,29 @@ export async function requestEdit(
   const editId = inserted!.edit_id;
   await audit(db, editId, eventId, 'staff', admin.email, 'sheet_edit.requested', null, { target, fields, note }, iso);
   return { ok: true, edit: publicEdit((await getEdit(db, editId))!) };
+}
+
+/**
+ * Why this event's Logic Engine columns can't be changed from the app right now, or null. Also
+ * asked before Stop running cancels anything, so it never cancels dates and then can't stop.
+ */
+export async function sheetEditRefusal(db: D1Database, eventId: string): Promise<Fail | null> {
+  if ((await sheetMode(db)) === 'off') return fail(409, 'Changing events from the app is switched off (Sheet sync, at the top of this page).');
+  if (!EVENT_ID.test(eventId)) return fail(404, 'No event with that ID.');
+  const ev = await db
+    .prepare(
+      `SELECT e.host_session_id, e.market_id, e.sheet_values, ${IN_LAST_SYNC} AS in_sheet,
+         (SELECT s.edit_id FROM sheet_edits s WHERE s.event_id = e.event_id AND ${OPEN} LIMIT 1) AS open_edit
+       FROM events e WHERE e.event_id = ?1`,
+    )
+    .bind(eventId)
+    .first<{ host_session_id: string | null; market_id: string | null; sheet_values: string | null; in_sheet: number; open_edit: string | null }>();
+  if (!ev) return fail(404, 'No event with that ID.');
+  if (ev.host_session_id) return fail(409, "This is a host's session: the host asks for changes and an approver decides (Change requests).");
+  if (ev.market_id) return fail(409, 'This is a market: change it under Markets.');
+  if (!ev.sheet_values || !ev.in_sheet) return fail(409, "This event wasn't in the last sync from the Logic Engine, so it can't be changed from here.");
+  if (ev.open_edit) return fail(409, `A change to this event (${ev.open_edit}) is still on its way to the Logic Engine. Wait for it, or withdraw it under Sheet sync.`);
+  return null;
 }
 
 /** Bookings an edit would touch, said plainly, or null. */
@@ -333,7 +356,10 @@ async function bookedWarning(db: D1Database, eventId: string, source: Source, fi
       .bind(eventId, date)
       .first<{ n: number; people: number }>();
     if (r?.n) {
-      return `${plural(r.n, 'booking')} (${plural(r.people, 'place')}) on ${longDate(date)}. Once the change reaches the app, it asks you under Needs attention whether to tell them or cancel their bookings.`;
+      const said = `${plural(r.n, 'booking')} (${plural(r.people, 'place')}) on ${longDate(date)}.`;
+      // A new time only: everyone booked is emailed it once it's written (tellNewTime).
+      if (!fields[dateCol]) return `${said} Everyone booked is emailed the new time once it's in the Logic Engine; their bookings stand.`;
+      return `${said} Once the change reaches the app, it asks you under Needs attention whether to tell them or cancel their bookings.`;
     }
   }
   return null;
@@ -550,7 +576,32 @@ export async function markEditWritten(db: D1Database, id: string, claim: string,
     .bind(id, iso)
     .run();
   await audit(db, id, e.event_id, 'n8n', 'n8n', 'sheet_edit.written', null, { target: e.target, cells: mine.cells }, iso);
+  if (e.target === 'live' && ('Event Time' in changes || 'End Time' in changes)) await tellNewTime(db, mine, changes, now, origin);
   return 'ok';
+}
+
+/**
+ * A new time is in the Logic Engine: everyone booked on dates to come is emailed it, as for an
+ * approved host change. Once per booking (the outbox dedupes on the edit).
+ */
+async function tellNewTime(db: D1Database, e: Claimed, changes: Partial<Record<Column, string>>, now: Date, origin: string) {
+  const ev = await db.prepare('SELECT display_name, sheet_values FROM events WHERE event_id = ?1').bind(e.event_id).first<{ display_name: string; sheet_values: string | null }>();
+  const current = json<Record<string, string> | null>(ev?.sheet_values ?? null) ?? {};
+  const start = changes['Event Time'] ?? current['Event Time'] ?? '';
+  if (!start) return;
+  const end = changes['End Time'] ?? current['End Time'] ?? '';
+  const { results: booked } = await db
+    .prepare(
+      `SELECT b.booking_id, b.lead_name, b.email, b.party_size, o.event_date FROM bookings b JOIN occurrences o ON o.occurrence_id = b.occurrence_id
+       WHERE o.event_id = ?1 AND o.status = 'scheduled' AND o.event_date >= ?2 AND b.status = 'confirmed' ORDER BY o.event_date, b.booking_id`,
+    )
+    .bind(e.event_id, londonDate(now))
+    .all<{ booking_id: string; lead_name: string; email: string; party_size: number; event_date: string }>();
+  if (!booked.length) return;
+  const name = ev?.display_name ?? e.name ?? e.event_id;
+  const time = timeLabel(start, end || null);
+  const iso = now.toISOString();
+  await db.batch(booked.map(b => queue(db, attendeeTimeChanged(e.edit_id, name, name, b, time, origin), iso)));
 }
 
 /** Google refused (or n8n failed). Body: { claim, error }. Tried again later; after the last try, given up on. */

@@ -2,7 +2,8 @@
 // live session's places, for every date or one date; an approver sets a café
 // event's places (instead of App Capacity in the sheet), or any one date's.
 // Never below the number already booked on a date it applies to.
-// Approvers also set whether people need to book a café event (setBookingMode).
+// Approvers also set whether people need to book a café event (setBookingMode);
+// admins any event, host sessions included.
 
 import type { AuthUser } from '../lib/auth';
 import { shortDate } from '../lib/format';
@@ -69,8 +70,8 @@ const clearDatePlaces = (db: D1Database, eventId: string, today: string, now: st
     .bind(eventId, today, now);
 
 /**
- * A host changes the places on every date of their own live session. It
- * becomes its Max players too; no new approval is needed.
+ * A host changes the places on every date of their own live session, or an
+ * admin any live session. It becomes its Max players too; no new approval is needed.
  */
 export async function setSessionPlaces(
   db: D1Database,
@@ -84,7 +85,7 @@ export async function setSessionPlaces(
     .bind(sessionId)
     .first<{ session_id: string; host_user_id: string; status: string; event_id: string | null; max_players: number; deleted_at: string | null }>();
   if (!s || s.deleted_at) return { ok: false, status: 404, error: 'No session with that ID.' };
-  if (s.host_user_id !== actor.user_id) return { ok: false, status: 403, error: 'You can only change your own sessions.' };
+  if (s.host_user_id !== actor.user_id && actor.role !== 'admin') return { ok: false, status: 403, error: 'You can only change your own sessions.' };
   if (s.status !== 'published' || !s.event_id) {
     return { ok: false, status: 409, error: "You can change places once the session is live. Until then, withdraw it and send it again with the new number." };
   }
@@ -96,7 +97,7 @@ export async function setSessionPlaces(
     db.prepare('UPDATE host_sessions SET max_players = ?2, updated_at = ?3 WHERE session_id = ?1').bind(sessionId, places, ctx.now),
     db.prepare('UPDATE events SET capacity_override = ?2, updated_at = ?3 WHERE event_id = ?1').bind(s.event_id, places, ctx.now),
     clearDatePlaces(db, s.event_id, ctx.today, ctx.now),
-    audit(db, 'host_session', sessionId, null, 'host', actor, s.max_players, places, ctx.now),
+    audit(db, 'host_session', sessionId, null, s.host_user_id === actor.user_id ? 'host' : 'staff', actor, s.max_players, places, ctx.now),
   ]);
   return { ok: true, places: places! };
 }
@@ -244,7 +245,8 @@ export async function setBookingMode(
     .first<{ event_id: string; host_session_id: string | null; market_id: string | null; current: BookingMode | null; fallback: BookingMode }>();
   if (!e) return { ok: false, status: 404, error: 'No event with that ID.' };
   if (e.market_id) return { ok: false, status: 409, error: "Customers don't book markets set up in the app: vendors apply for pitches." };
-  if (e.host_session_id) return { ok: false, status: 409, error: "This is a host's session: people always book those." };
+  // Admins have the last word on every event (docs/superpowers/specs/2026-10-18-admin-event-editor-design.md).
+  if (e.host_session_id && actor.role !== 'admin') return { ok: false, status: 409, error: "This is a host's session: people always book those." };
   const next = set ?? e.fallback;
   if (next === 'none' && b.confirm !== true) {
     const booked = await db

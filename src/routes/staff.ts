@@ -5,6 +5,7 @@ import { attentionOverview, resolveItem, setAttention } from '../attention/atten
 import { emailOverview, sendTest, setEmailSettings } from '../attention/reminders';
 import { upcomingBookedDates } from '../bookings/bookings';
 import { cafeEventPlaces, setBookingMode, setEventPlaces } from '../bookings/places';
+import { adminOnly, eventForm, listAllEvents, saveEvent, stopEvent } from '../events/admin';
 import { editDate, listDates } from '../events/dates';
 import { requestEdit, resolveEdit, setSheetMode, sheetEvents, sheetSyncOverview } from '../sync/edits';
 import { decideChange, listChanges } from '../host/changes';
@@ -206,6 +207,38 @@ staffRoutes.get('/booked-dates', async c => c.json({ dates: await upcomingBooked
 
 /** Every café event people can book, with its places (docs/RTD_BOOKINGS.md#places). */
 staffRoutes.get('/event-places', async c => c.json({ events: await cafeEventPlaces(c.env.DB, londonDate(new Date())) }));
+
+/** Admins: every event, whatever its kind, visibility or status (the admin event editor). */
+staffRoutes.get('/events', async c => {
+  const denied = adminOnly(c.get('user'));
+  if (denied) return c.json({ error: denied.error }, 403);
+  return c.json({ events: await listAllEvents(c.env.DB, new Date()) });
+});
+
+/** Admins: one event as the editor shows it. */
+staffRoutes.get('/events/:id', async c => {
+  const denied = adminOnly(c.get('user'));
+  if (denied) return c.json({ error: denied.error }, 403);
+  const event = await eventForm(c.env.DB, c.req.param('id'), new Date());
+  return event ? c.json({ event }) : c.json({ error: 'No event with that ID.' }, 404);
+});
+
+/**
+ * Admins: save the editor. Body: only what changed (src/events/admin.ts SaveBody). 409 { warning }
+ * asks to send again with confirm: true.
+ */
+staffRoutes.post('/events/:id', async c => {
+  const res = await saveEvent(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), { now: new Date(), origin: new URL(c.req.url).origin });
+  if (res.ok) return c.json(res);
+  return 'warning' in res ? c.json({ warning: res.warning }, 409) : c.json({ error: res.error, errors: res.errors }, res.status);
+});
+
+/** Admins: stop running an event. Body: { message?, confirm? }. 409 { warning } with the dates and people booked. */
+staffRoutes.post('/events/:id/stop', async c => {
+  const res = await stopEvent(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), { now: new Date(), origin: new URL(c.req.url).origin });
+  if (res.ok) return c.json(res);
+  return 'warning' in res ? c.json({ warning: res.warning }, 409) : c.json({ error: res.error, errors: res.errors }, res.status);
+});
 
 /** Places on every date of a café event. Body: { places: number | null }; null goes back to the sheet's App Capacity. */
 staffRoutes.post('/events/:id/places', async c => {

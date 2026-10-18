@@ -18,6 +18,7 @@ import { DeliveryPanel } from './OrganiseDelivery';
 import { GamesAdmin } from './OrganiseGames';
 import { MarketApplicationsPanel, MarketsAdmin } from './OrganiseMarkets';
 import { MenuAdmin } from './OrganiseMenu';
+import { AllEventsPanel } from './OrganiseEvents';
 import { EventPlacesPanel } from './OrganisePlaces';
 import { RemindersAdmin } from './OrganiseReminders';
 import { SheetSyncPanel } from './OrganiseSheetSync';
@@ -57,7 +58,7 @@ export const SECTIONS: SectionDef[] = [
   {
     key: 'events',
     title: 'Events & dates',
-    blurb: 'Dates in the app, booking and places, Logic Engine changes',
+    blurb: 'Every event: change, cancel or stop it; dates, booking and places',
     adminOnly: false,
     partLabels: { sheet_edit_problems: ['Logic Engine change stuck', 'Logic Engine changes stuck'] },
   },
@@ -146,6 +147,7 @@ function SectionPanels({ section, me, isAdmin, onDecided }: { section: SectionKe
     case 'events':
       return (
         <>
+          {isAdmin && <AllEventsPanel />}
           <DatesPanel />
           <EventPlacesPanel refresh={refresh} />
           {isAdmin && <SheetSyncPanel />}

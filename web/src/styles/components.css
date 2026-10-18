@@ -1482,3 +1482,120 @@ textarea.input {
     animation: none;
   }
 }
+
+/* ---------- Admin event editor (OrganiseEvents, OrganiseEventEdit) ---------- */
+
+.all-events__tools {
+  display: grid;
+  gap: var(--rtd-space-3);
+  margin-bottom: var(--rtd-space-4);
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rtd-space-2);
+}
+
+.filter-chips .btn[aria-pressed='true'] {
+  border-color: var(--rtd-primary);
+  background: var(--rtd-primary);
+  color: var(--rtd-text-inverse);
+}
+
+.all-events__list {
+  display: grid;
+  gap: var(--rtd-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.all-events__row {
+  display: flex;
+  align-items: center;
+  gap: var(--rtd-space-3);
+  padding: var(--rtd-space-3) var(--rtd-space-4);
+  border: 1px solid var(--rtd-border);
+  border-radius: var(--rtd-radius-card);
+  background: var(--rtd-surface);
+  color: inherit;
+  text-decoration: none;
+}
+
+.all-events__row:hover,
+.all-events__row:focus-visible {
+  border-color: var(--rtd-primary);
+}
+
+.all-events__main {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+}
+
+.all-events__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--rtd-background-alt);
+  color: var(--rtd-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.tag--private,
+.tag--hidden,
+.tag--stopped {
+  background: var(--rtd-warning-light);
+  color: var(--rtd-warning);
+}
+
+.tag--pending {
+  background: var(--rtd-info-light);
+  color: var(--rtd-secondary-dark);
+}
+
+.event-editor {
+  display: grid;
+  gap: var(--rtd-space-5);
+}
+
+.event-editor .choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.event-editor .choice input {
+  margin-top: 4px;
+}
+
+.event-editor .choice .meta {
+  display: block;
+}
+
+.event-editor__danger {
+  border-color: var(--rtd-danger);
+}
+
+.event-editor select.input {
+  width: 100%;
+}
+
+/* Phones: one field per row, so a dropdown's choice isn't cut short. */
+@media (max-width: 599px) {
+  .event-editor .field-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

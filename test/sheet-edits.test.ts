@@ -304,3 +304,22 @@ describe('changing an event from the organiser', () => {
     expect(res.edits[0]).not.toHaveProperty('claim');
   });
 });
+
+describe('a new time reaches people booked', () => {
+  it('emails people booked when a new time is written', async () => {
+    expect((await setMode('live')).status).toBe(200);
+    const booked = await request('/api/bookings', json({ occurrence_id: 'RTD-OCC-00004-20261015', lead_name: 'Ava Player', email: 'ava@example.com', party_size: 2 }));
+    expect(booked.status).toBe(201);
+    await env.DB.prepare('DELETE FROM outbox').run();
+    expect((await edit(QUIZ, { 'Event Time': '20:00' }, { confirm: true })).status).toBe(200);
+    const { edits } = await claim();
+    expect((await check(edits[0]!, [quiz()])).action).toBe('write');
+    const timeMail = async () =>
+      (await env.DB.prepare("SELECT to_email, subject FROM outbox WHERE kind = 'attendee_time_changed'").all<Record<string, string>>()).results;
+    expect(await timeMail()).toEqual([]);
+    expect((await written(edits[0]!, [quiz({ 'Event Time': '20:00' })])).ok).toBe(true);
+    expect(await timeMail()).toEqual([{ to_email: 'ava@example.com', subject: 'New time: Quiz, Thu 15 Oct' }]);
+    await written(edits[0]!, [quiz({ 'Event Time': '20:00' })]);
+    expect((await timeMail()).length).toBe(1);
+  });
+});

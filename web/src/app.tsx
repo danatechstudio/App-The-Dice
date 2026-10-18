@@ -37,6 +37,7 @@ function route(path: string) {
   if (path === '/markets') return <Markets />;
   if (path === '/menu') return <Menu />;
   if (path === '/styleguide') return <StyleGuide />;
+  if ((p = match('/organise/events/:eventId', path))) return <Organise key={p.eventId} section="events" eventId={p.eventId} />;
   if ((p = match('/organise/:section', path))) return <Organise section={p.section} />;
   if ((p = match('/event/:id', path))) return <EventPage key={p.id} occurrenceId={p.id!} />;
   if ((p = match('/events/:id', path))) return <SeriesPage key={p.id} eventId={p.id!} />;

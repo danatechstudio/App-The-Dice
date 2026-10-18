@@ -208,3 +208,50 @@ export async function hostApi<T>(path: string, body?: unknown): Promise<ApiResul
 // Set by lib/staffSummary, so the organiser's counts follow every change made here.
 let afterChange: (() => void) | null = null;
 export const setAfterChange = (fn: () => void) => void (afterChange = fn);
+
+/** The admin event editor (src/events/admin.ts): every event, whatever its kind. */
+export type EventKind = 'event_index' | 'standard_diary' | 'host_session' | 'market';
+export type EventVisibility = 'public' | 'app_bookable' | 'private' | 'hidden';
+
+export interface AdminEventRow {
+  event_id: string;
+  name: string;
+  kind: EventKind;
+  next_date: string | null;
+  visibility: EventVisibility;
+  active: boolean;
+  bookings: number;
+  pending: { kind: 'sheet_edit' | 'host_change' | 'change_on_way'; id: string } | null;
+}
+
+export interface AdminEventDetails {
+  name: string;
+  description: string;
+  event_date: string;
+  start_time: string;
+  end_time: string;
+  price: string;
+  category: string;
+}
+
+export interface AdminEventForm extends AdminEventRow {
+  session_id: string | null;
+  market_id: string | null;
+  details: AdminEventDetails;
+  unavailable: Partial<Record<keyof AdminEventDetails | 'active', string>>;
+  places: number | null;
+  most_booked: number;
+  booking_mode: BookingMode;
+  booking_mode_set: BookingMode | null;
+  dates: {
+    occurrence_id: string;
+    date: string;
+    start_time: string | null;
+    status: 'scheduled' | 'cancelled';
+    hidden: boolean;
+    places: number | null;
+    capacity: number | null;
+    booked: number;
+    bookings: number;
+  }[];
+}
