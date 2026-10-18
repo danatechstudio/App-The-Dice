@@ -172,6 +172,7 @@ describe('a host can only touch their own sessions', () => {
 });
 
 const save = (id: string, body: unknown, who: Partial<Env> = DAN) => request(`/api/staff/events/${id}`, json(body), who);
+const stop = (id: string, body: unknown = {}, who: Partial<Env> = DAN) => request(`/api/staff/events/${id}/stop`, json(body), who);
 const toApply = async () =>
   (await (await request('/internal/host-changes', { headers: AUTH })).json<{ changes: { request_id: string; row: Row }[] }>()).changes;
 const outbox = async () => (await env.DB.prepare('SELECT kind, to_email, subject, html FROM outbox ORDER BY message_id').all<Record<string, string>>()).results;
@@ -200,7 +201,7 @@ describe('an admin changes a host session', () => {
     const [first] = await toApply();
     expect(first!.row).toEqual({ 'Event ID': CATAN_EVT, 'App Visibility': 'Hidden' });
     await request(`/internal/host-changes/${first!.request_id}/applied`, json({}, AUTH));
-    expect((await save(CATAN_EVT, { active: false })).status).toBe(200);
+    expect((await stop(CATAN_EVT)).status).toBe(200);
     const [second] = await toApply();
     expect(second!.row).toEqual({ 'Event ID': CATAN_EVT, Status: 'Inactive' });
   });
@@ -314,8 +315,6 @@ describe('an admin changes a café event', () => {
   });
 });
 
-const stop = (id: string, body: unknown = {}, who: Partial<Env> = DAN) => request(`/api/staff/events/${id}/stop`, json(body), who);
-
 describe('stop running an event', () => {
   beforeEach(setLive);
 
@@ -372,5 +371,76 @@ describe('stop running an event', () => {
 
   it('refuses approvers', async () => {
     expect((await stop(QUIZ, {}, MICHELLE)).status).toBe(403);
+  });
+});
+
+describe('review fixes', () => {
+  beforeEach(setLive);
+  const count = async (sql: string) => Number(await env.DB.prepare(sql).first('n'));
+
+  it('applies booking before details, so a warned save sends nothing twice', async () => {
+    expect((await book(CATAN_13, 2)).status).toBe(201);
+    await env.DB.prepare('DELETE FROM outbox').run();
+    const first = await save(CATAN_EVT, { details: { start_time: '19:00' }, booking_mode: 'none' });
+    expect(first.status).toBe(409);
+    expect(await count('SELECT COUNT(*) AS n FROM event_change_requests')).toBe(0);
+    expect(await count('SELECT COUNT(*) AS n FROM outbox')).toBe(0);
+    expect((await save(CATAN_EVT, { details: { start_time: '19:00' }, booking_mode: 'none', confirm: true })).status).toBe(200);
+    expect(await count('SELECT COUNT(*) AS n FROM event_change_requests')).toBe(1);
+    expect(await count("SELECT COUNT(*) AS n FROM outbox WHERE kind = 'attendee_time_changed'")).toBe(1);
+    expect(await count("SELECT COUNT(*) AS n FROM outbox WHERE kind = 'host_change_by_admin'")).toBe(1);
+  });
+
+  it('queues no café change when places are refused', async () => {
+    expect((await book('RTD-OCC-00004-20261023', 3)).status).toBe(201);
+    const res = await save(QUIZ, { details: { name: 'Big Quiz' }, places: 2 });
+    expect(res.status).toBe(409);
+    expect(await count('SELECT COUNT(*) AS n FROM sheet_edits')).toBe(0);
+  });
+
+  it('refuses a second admin change to a session while the first is on its way', async () => {
+    expect((await save(CATAN_EVT, { details: { start_time: '19:00' } })).status).toBe(200);
+    expect((await form(CATAN_EVT)).pending).toEqual({ kind: 'change_on_way', id: 'RTD-CR-00001' });
+    const again = await save(CATAN_EVT, { details: { start_time: '19:00' } });
+    expect(again.status).toBe(409);
+    expect((await again.json<{ error: string }>()).error).toContain('RTD-CR-00001');
+    expect(await count('SELECT COUNT(*) AS n FROM event_change_requests')).toBe(1);
+  });
+
+  it('cancels nothing when the event could not then be stopped', async () => {
+    expect((await book('RTD-OCC-00004-20261023', 2)).status).toBe(201);
+    await env.DB.prepare("UPDATE settings SET value = 'off' WHERE key = 'sheet_writes'").run();
+    expect((await stop(QUIZ, { confirm: true })).status).toBe(409);
+    await env.DB.prepare("UPDATE settings SET value = 'live' WHERE key = 'sheet_writes'").run();
+    await env.DB.prepare('UPDATE events SET last_synced_at = NULL WHERE event_id = ?1').bind(QUIZ).run();
+    expect((await stop(QUIZ, { confirm: true })).status).toBe(409);
+    expect(await count("SELECT COUNT(*) AS n FROM occurrences WHERE status = 'cancelled'")).toBe(0);
+    expect(await count("SELECT COUNT(*) AS n FROM bookings WHERE status = 'cancelled'")).toBe(0);
+  });
+
+  it('only stops through Stop running, never a plain save', async () => {
+    expect((await save(QUIZ, { active: false })).status).toBe(400);
+  });
+
+  it('starts a stopped café event again', async () => {
+    const res = await save('RTD-EVT-00007', { active: true });
+    expect(res.status).toBe(200);
+    expect((await res.json<{ sheet_edit: { fields: unknown } }>()).sheet_edit.fields).toEqual({ Status: { from: 'Inactive', to: 'Active' } });
+  });
+
+  it('starts a stopped host session again, and changes nothing else until then', async () => {
+    expect((await stop(CATAN_EVT)).status).toBe(200);
+    const [stopped] = await toApply();
+    await request(`/internal/host-changes/${stopped!.request_id}/applied`, json({}, AUTH));
+    expect(
+      (await sync({ run_id: `r${++run}`, sources: { ...rows(), event_index: [catanRow({ Status: 'Inactive' }), ...rows().event_index.slice(1)] } })).status,
+    ).toBe(200);
+    expect((await form(CATAN_EVT)).active).toBe(false);
+    const early = await save(CATAN_EVT, { details: { name: 'Catan Night' } });
+    expect(early.status).toBe(409);
+    expect((await early.json<{ error: string }>()).error).toContain('Start it running');
+    expect((await save(CATAN_EVT, { active: true })).status).toBe(200);
+    const [started] = await toApply();
+    expect(started!.row).toEqual({ 'Event ID': CATAN_EVT, Status: 'Active' });
   });
 });

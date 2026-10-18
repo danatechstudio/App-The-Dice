@@ -22,14 +22,18 @@
   - It cancels each booked date, emailing everyone booked, then sets Status to Inactive.
   - A Standard Diary group is hidden instead, because that tab has no Status column.
   - Nothing is cancelled while another change to the event is still on its way.
+- **Start running again:** a stopped café event or host session has a **Start running again** button, which sets Status back to Active. A hidden Standard Diary group comes back by choosing who can see it.
 - **Safeguards:**
+  - Nothing is applied until every part of a save has passed its checks, so a warning or a refused part never sends emails twice.
+  - A host session can't be changed again while an earlier admin change is still on its way to the sheet.
+  - Stop running checks the event can be stopped before cancelling any date.
   - A booked date can't be moved: cancel it first.
   - People booked are emailed a new time once it's in the Logic Engine. This applies to café events too now, not just hosts' sessions.
   - Places never go below what's booked.
   - Every change is in the audit log.
 - **Hosts and approvers are unchanged.** Hosts still change only their own sessions, and only with approval. New tests prove a host is refused on anyone else's session, date or places.
 - **Needs the owner's go-ahead:** café details reach the sheet only once **RTD Sheet Writer is published in n8n**. It isn't yet, although Logic Engine changes have been set to Live since 17 Oct. Until then, café detail changes wait in the queue. Places, booking, cancelling and host sessions all work without it.
-- **No database change.** **Tests:** 480 (was 448).
+- **No database change.** **Tests:** 487 (was 448).
 
 ## 2026-10-18 (Share menu)
 - **Share an event to WhatsApp, Facebook, Instagram, Discord, X, email, text message, or copy the link.** It works from the event page's **Share** button, and from a share icon on every diary row and every Home card ("Next up" and "Coming up").

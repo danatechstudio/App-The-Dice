@@ -72,9 +72,9 @@ export function EventEditor({ eventId }: { eventId: string }) {
           {event.pending && (
             <div class="notice notice--info" role="status">
               <div>
-                {event.pending.kind === 'sheet_edit'
-                  ? `A change (${event.pending.id}) is on its way to the Logic Engine. Details can be changed again once it's in the app; see Logic Engine changes below the list.`
-                  : `The host has asked for a change (${event.pending.id}). Approve or decline it under To approve before changing the session here.`}
+                {event.pending.kind === 'host_change'
+                  ? `The host has asked for a change (${event.pending.id}). Approve or decline it under To approve before changing the session here.`
+                  : `A change (${event.pending.id}) is on its way to the Logic Engine. Details can be changed again once it's in the app, within about half an hour.`}
               </div>
             </div>
           )}
@@ -432,7 +432,9 @@ function StopEvent({ event, onStopped }: { event: AdminEventForm; onStopped: () 
   const [warning, setWarning] = useState<{ dates: number; bookings: number; people: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const stopped = event.kind === 'standard_diary' ? event.visibility === 'hidden' : !event.active;
-  if (stopped) return null;
+  // A hidden Standard Diary group comes back by choosing who can see it, above.
+  if (stopped && event.kind === 'standard_diary') return null;
+  if (stopped) return <StartEvent event={event} onStarted={onStopped} />;
 
   const stop = async (confirm: boolean) => {
     setBusy(true);
@@ -490,6 +492,32 @@ function StopEvent({ event, onStopped }: { event: AdminEventForm; onStopped: () 
           </div>
         </>
       )}
+    </section>
+  );
+}
+
+/** A stopped event: start it running again (Status Active in the Logic Engine). */
+function StartEvent({ event, onStarted }: { event: AdminEventForm; onStarted: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const start = async () => {
+    setBusy(true);
+    const res = await hostApi<{ sheet_edit?: unknown; change?: unknown }>(`/api/staff/events/${event.event_id}`, { active: true });
+    setBusy(false);
+    if (!res.ok) return toast(res.error);
+    toast(res.data.change ? 'Starting it again. The host has been emailed.' : 'Sent to the Logic Engine. It’s back in the app within about 20 minutes.');
+    onStarted();
+  };
+  return (
+    <section class="card card--pad stack" style={{ '--gap': '12px' }} aria-labelledby="ev-start">
+      <h2 id="ev-start">This event is stopped</h2>
+      <p class="meta">
+        Starting it again sets Status to Active in the Logic Engine. Its dates come back with the next sync; check them, and who can see it, once they do.
+      </p>
+      <div>
+        <button type="button" class="btn btn--primary btn--sm" disabled={busy || !!event.pending} onClick={start}>
+          {busy ? 'Starting...' : 'Start running again'}
+        </button>
+      </div>
     </section>
   );
 }

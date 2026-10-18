@@ -221,7 +221,7 @@ export interface AdminEventRow {
   visibility: EventVisibility;
   active: boolean;
   bookings: number;
-  pending: { kind: 'sheet_edit' | 'host_change'; id: string } | null;
+  pending: { kind: 'sheet_edit' | 'host_change' | 'change_on_way'; id: string } | null;
 }
 
 export interface AdminEventDetails {

@@ -7,11 +7,11 @@
 
 import { cancelDate } from '../bookings/bookings';
 import { setBookingMode, setEventPlaces, setSessionPlaces } from '../bookings/places';
-import { adminChange, refuseBookedMove, type ChangeRequest } from '../host/changes';
+import { adminChange, adminChangeRefusal, liveDetails, refuseBookedMove, type ChangeRequest } from '../host/changes';
 import type { AuthUser } from '../lib/auth';
 import { BOOKING_MODE, CAPACITY, type BookingMode } from '../lib/queries';
 import { londonDate } from '../lib/time';
-import { IN_LAST_SYNC, OPEN, requestEdit, type SheetEdit } from '../sync/edits';
+import { IN_LAST_SYNC, OPEN, requestEdit, sheetEditRefusal, type SheetEdit } from '../sync/edits';
 
 export type EventKind = 'event_index' | 'standard_diary' | 'host_session' | 'market';
 export type Visibility = 'public' | 'app_bookable' | 'private' | 'hidden';
@@ -26,8 +26,8 @@ export interface AdminEventRow {
   active: boolean;
   /** Confirmed bookings on dates to come. */
   bookings: number;
-  /** A change still on its way: a Logic Engine edit, or a host's request waiting for a decision. */
-  pending: { kind: 'sheet_edit' | 'host_change'; id: string } | null;
+  /** A change still on its way: a Logic Engine edit, a host's request waiting for a decision, or an approved change not yet in the sheet. */
+  pending: { kind: 'sheet_edit' | 'host_change' | 'change_on_way'; id: string } | null;
 }
 
 export interface Details {
@@ -105,7 +105,9 @@ const ROW_FIELDS = `e.event_id, e.display_name AS name, ${KIND} AS kind, e.visib
   (SELECT COUNT(*) FROM bookings b JOIN occurrences o ON o.occurrence_id = b.occurrence_id
      WHERE o.event_id = e.event_id AND b.status = 'confirmed' AND o.status = 'scheduled' AND o.event_date >= ?1) AS bookings,
   (SELECT s.edit_id FROM sheet_edits s WHERE s.event_id = e.event_id AND ${OPEN} ORDER BY s.created_at DESC LIMIT 1) AS open_edit,
-  (SELECT r.request_id FROM event_change_requests r WHERE r.event_id = e.event_id AND r.status = 'pending' LIMIT 1) AS open_change`;
+  (SELECT r.request_id FROM event_change_requests r WHERE r.event_id = e.event_id AND r.status = 'pending' LIMIT 1) AS open_change,
+  (SELECT r.request_id FROM event_change_requests r WHERE r.event_id = e.event_id AND r.status = 'approved' AND r.applied_at IS NULL
+     ORDER BY r.decided_at DESC LIMIT 1) AS on_way`;
 
 const shapeRow = (r: Record<string, unknown>): AdminEventRow => ({
   event_id: String(r.event_id),
@@ -115,7 +117,13 @@ const shapeRow = (r: Record<string, unknown>): AdminEventRow => ({
   visibility: r.visibility as Visibility,
   active: r.active === 1,
   bookings: Number(r.bookings),
-  pending: r.open_edit ? { kind: 'sheet_edit', id: String(r.open_edit) } : r.open_change ? { kind: 'host_change', id: String(r.open_change) } : null,
+  pending: r.open_edit
+    ? { kind: 'sheet_edit', id: String(r.open_edit) }
+    : r.open_change
+      ? { kind: 'host_change', id: String(r.open_change) }
+      : r.on_way
+        ? { kind: 'change_on_way', id: String(r.on_way) }
+        : null,
 });
 
 /** Every event the last sync read, and any still running: active first, then by next date and name. */
@@ -189,7 +197,8 @@ export async function eventForm(db: D1Database, eventId: string, now: Date): Pro
 export interface SaveBody {
   details?: Partial<Details>;
   visibility?: Visibility;
-  active?: false;
+  /** true starts a stopped event again. Stopping is Stop running's (stopEvent), never a plain save. */
+  active?: boolean;
   places?: number | null;
   booking_mode?: BookingMode | 'default';
   confirm?: boolean;
@@ -209,16 +218,15 @@ const parseBody = (body: unknown): SaveBody | Fail => {
     else if (typeof v !== 'string') errors[k] = 'This must be text.';
   }
   if (b.visibility !== undefined && !VISIBILITIES.includes(b.visibility as Visibility)) errors.visibility = 'Choose Public, App Bookable, Private or Hidden.';
-  if (b.active !== undefined && b.active !== false) errors.active = 'Use Stop running this event to stop it.';
+  if (b.active !== undefined && b.active !== true) errors.active = 'Use Stop running this event to stop it: it cancels the dates people have booked first.';
   if (Object.keys(errors).length) return { ok: false, status: 400, error: 'Please check the form', errors };
   return { ...(b as SaveBody), details: details as Partial<Details> };
 };
 const failed = (v: SaveBody | Fail): v is Fail => 'ok' in v && v.ok === false;
 
 /**
- * Body: SaveBody, with only what changed. Each part goes through the route that owns it, details
- * first; places and booking only once the details are on their way. 409 { warning } asks to send
- * again with confirm: true.
+ * Body: SaveBody, with only what changed. Each part goes through the route that owns it: booking
+ * and places first, details last. 409 { warning } asks to send again with confirm: true.
  */
 export async function saveEvent(db: D1Database, admin: AuthUser, eventId: string, body: unknown, ctx: { now: Date; origin: string }): Promise<SaveResult> {
   const denied = adminOnly(admin);
@@ -230,54 +238,64 @@ export async function saveEvent(db: D1Database, admin: AuthUser, eventId: string
   // Only what differs from the form counts as a change: the rest is as it was.
   b.details = Object.fromEntries(Object.entries(b.details ?? {}).filter(([f, v]) => v !== form.details[f as DetailField]));
   if (b.visibility === form.visibility) delete b.visibility;
-  if (b.active === false && !form.active) delete b.active;
+  if (b.active === true && form.active) delete b.active;
   if (form.kind === 'market') return { ok: false, status: 409, error: 'Change markets under Markets.' };
-  const blocked = Object.keys(b.details).filter(f => f in form.unavailable);
+  const blocked = [...Object.keys(b.details), ...(b.active !== undefined ? ['active'] : [])].filter(f => f in form.unavailable);
   if (blocked.length)
-    return { ok: false, status: 400, error: 'Please check the form', errors: Object.fromEntries(blocked.map(f => [f, form.unavailable[f as DetailField]!])) };
+    return {
+      ok: false,
+      status: 400,
+      error: 'Please check the form',
+      errors: Object.fromEntries(blocked.map(f => [f, form.unavailable[f as DetailField | 'active']!])),
+    };
 
   const iso = ctx.now.toISOString();
   const out: Extract<SaveResult, { ok: true }> = { ok: true };
-  const hasDetails = Object.keys(b.details).length > 0 || b.visibility !== undefined || b.active === false;
+  const hasDetails = Object.keys(b.details).length > 0 || b.visibility !== undefined || b.active !== undefined;
   if (!hasDetails && b.places === undefined && b.booking_mode === undefined) {
     return { ok: false, status: 400, error: 'Nothing has changed.', errors: { form: 'Nothing has changed: change something, or close the form.' } };
   }
-  if (form.kind === 'host_session') {
-    if (hasDetails) {
-      const res = await adminChange(
-        db,
-        admin,
-        form.session_id!,
-        { details: b.details, visibility: b.visibility, active: b.active, note: b.note },
-        { now: iso, origin: ctx.origin },
-      );
-      if (!res.ok) return res;
-      out.change = res.request;
-    }
-    if (b.places !== undefined) {
+  // Details are checked first without being sent (a refusal or a warning changes nothing); then
+  // booking and places, which change at once and can safely be sent again; then the details, last,
+  // so a refused or warned save never sends them (or their emails) twice.
+  const today = londonDate(ctx.now);
+  const sendDetails = (dryRun: boolean) =>
+    form.kind === 'host_session'
+      ? adminChange(
+          db,
+          admin,
+          form.session_id!,
+          { details: b.details, visibility: b.visibility, active: b.active, note: b.note },
+          { now: iso, origin: ctx.origin, dryRun },
+        )
+      : queueSheetEdit(db, admin, form, b, ctx.now, dryRun);
+  if (hasDetails) {
+    const res = await sendDetails(true);
+    if (!res.ok) return res;
+  }
+  if (b.booking_mode !== undefined) {
+    const res = await setBookingMode(db, admin, eventId, { mode: b.booking_mode, confirm: b.confirm }, { now: iso, today });
+    if (!res.ok) return res;
+    out.booking_mode = res.booking_mode;
+  }
+  if (b.places !== undefined) {
+    if (form.kind === 'host_session') {
       if (b.places === null)
         return { ok: false, status: 400, error: 'Please check the form', errors: { places: "A host's session always has a number of places." } };
-      const res = await setSessionPlaces(db, admin, form.session_id!, b.places, { now: iso, today: londonDate(ctx.now) });
+      const res = await setSessionPlaces(db, admin, form.session_id!, b.places, { now: iso, today });
       if (!res.ok) return res;
       out.places = res.places;
-    }
-  }
-  if (form.kind === 'event_index' || form.kind === 'standard_diary') {
-    if (hasDetails) {
-      const res = await queueSheetEdit(db, admin, form, b, ctx.now);
-      if (!res.ok) return res;
-      out.sheet_edit = res.edit;
-    }
-    if (b.places !== undefined) {
-      const res = await setEventPlaces(db, admin, eventId, b.places, { now: iso, today: londonDate(ctx.now) });
+    } else {
+      const res = await setEventPlaces(db, admin, eventId, b.places, { now: iso, today });
       if (!res.ok) return res;
       out.places = res.capacity;
     }
   }
-  if (b.booking_mode !== undefined) {
-    const res = await setBookingMode(db, admin, eventId, { mode: b.booking_mode, confirm: b.confirm }, { now: iso, today: londonDate(ctx.now) });
+  if (hasDetails) {
+    const res = await sendDetails(false);
     if (!res.ok) return res;
-    out.booking_mode = res.booking_mode;
+    if ('request' in res && res.request) out.change = res.request;
+    if ('edit' in res && res.edit) out.sheet_edit = res.edit;
   }
   return out;
 }
@@ -288,7 +306,7 @@ export async function saveEvent(db: D1Database, admin: AuthUser, eventId: string
  * conflict check when it's written). A new date while people are booked on the current one is
  * refused first.
  */
-async function queueSheetEdit(db: D1Database, admin: AuthUser, form: AdminEventForm, b: SaveBody, now: Date) {
+async function queueSheetEdit(db: D1Database, admin: AuthUser, form: AdminEventForm, b: SaveBody, now: Date, dryRun = false) {
   const cols = COLUMNS[form.kind as 'event_index' | 'standard_diary'];
   const values: Record<string, string> = {};
   for (const [f, v] of Object.entries(b.details ?? {})) if (cols[f as DetailField]) values[cols[f as DetailField]!] = v as string;
@@ -297,11 +315,12 @@ async function queueSheetEdit(db: D1Database, admin: AuthUser, form: AdminEventF
     if (form.kind === 'event_index') values.Status = 'Inactive';
     else values['App Visibility'] = 'hidden';
   }
+  if (b.active === true && form.kind === 'event_index') values.Status = 'Active';
   if (values[cols.event_date!] !== undefined && values[cols.event_date!] !== form.details.event_date) {
     const refused = await refuseBookedMove(db, form.event_id, form.details.event_date || null);
     if (refused) return refused;
   }
-  return requestEdit(db, admin, form.event_id, { values, note: b.note, confirm: b.confirm }, now);
+  return requestEdit(db, admin, form.event_id, { values, note: b.note, confirm: b.confirm }, now, { dryRun });
 }
 
 // ---- Stopping ----
@@ -330,6 +349,17 @@ export async function stopEvent(db: D1Database, admin: AuthUser, eventId: string
     const what =
       form.pending.kind === 'sheet_edit' ? 'A change to this event is still on its way to the Logic Engine' : 'The host has asked for a change to this session';
     return { ok: false, status: 409, error: `${what} (${form.pending.id}). Deal with that first, then stop it.` };
+  }
+  // Everything the last step will check, checked before any date is cancelled.
+  if (form.kind === 'host_session') {
+    const today = londonDate(ctx.now);
+    if (!(await liveDetails(db, form.session_id!, today)))
+      return { ok: false, status: 409, error: "This session isn't in the diary, so it can't be stopped here." };
+    const refused = await adminChangeRefusal(db, eventId, today, form.session_id!);
+    if (refused) return refused;
+  } else {
+    const refused = await sheetEditRefusal(db, eventId);
+    if (refused) return refused;
   }
   const b = (body && typeof body === 'object' ? body : {}) as { message?: unknown; confirm?: unknown };
   const iso = ctx.now.toISOString();
@@ -362,11 +392,11 @@ export async function stopEvent(db: D1Database, admin: AuthUser, eventId: string
       { now: iso, origin: ctx.origin },
     );
     if (!res.ok) return res;
-    out.change = res.request;
+    out.change = res.request ?? undefined;
   } else {
     const res = await queueSheetEdit(db, admin, form, { details: {}, active: false, confirm: true }, ctx.now);
     if (!res.ok) return 'warning' in res ? { ok: false, status: 409, error: String(res.warning) } : res;
-    out.sheet_edit = res.edit;
+    out.sheet_edit = res.edit ?? undefined;
     if (form.kind === 'standard_diary') out.note = "The Standard Diary has no Status column, so it's hidden instead.";
   }
   await db

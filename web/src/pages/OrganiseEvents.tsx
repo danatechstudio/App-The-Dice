@@ -84,7 +84,7 @@ export function AllEventsPanel() {
                 <span class="all-events__tags">
                   <span class={`tag tag--${e.visibility}`}>{VISIBILITY_LABEL[e.visibility]}</span>
                   {!e.active && <span class="tag tag--stopped">Stopped</span>}
-                  {e.pending && <span class="tag tag--pending">{e.pending.kind === 'sheet_edit' ? 'Change on its way' : 'Host change waiting'}</span>}
+                  {e.pending && <span class="tag tag--pending">{e.pending.kind === 'host_change' ? 'Host change waiting' : 'Change on its way'}</span>}
                 </span>
               </span>
               <ChevronRight size={18} aria-hidden="true" />

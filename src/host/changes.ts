@@ -76,7 +76,7 @@ interface Live extends Details {
  * A live session's details as the diary has them: its event (name, description, price,
  * visibility) and its next date still to come (date and times). null if it isn't live.
  */
-export async function liveDetails(db: D1Database, sessionId: string, today: string): Promise<Live | null> {
+export async function liveDetails(db: D1Database, sessionId: string, today: string, opts: { stopped?: boolean } = {}): Promise<Live | null> {
   const row = await db
     .prepare(
       `SELECT s.session_id, s.event_id, s.host_user_id, s.frequency, s.max_players, s.price_pence, s.status, s.deleted_at,
@@ -84,13 +84,13 @@ export async function liveDetails(db: D1Database, sessionId: string, today: stri
          e.display_name AS name, e.description, e.price_display, e.visibility,
          o.event_date, o.start_time, o.end_time
        FROM host_sessions s JOIN users u ON u.user_id = s.host_user_id
-       JOIN events e ON e.event_id = s.event_id AND e.active = 1
+       JOIN events e ON e.event_id = s.event_id AND (e.active = 1 OR ?3 = 1)
        LEFT JOIN occurrences o ON o.occurrence_id = (
          SELECT x.occurrence_id FROM occurrences x WHERE x.event_id = e.event_id AND x.status = 'scheduled' AND x.event_date >= ?2
          ORDER BY x.event_date LIMIT 1)
        WHERE s.session_id = ?1 AND s.status = 'published' AND s.deleted_at IS NULL`,
     )
-    .bind(sessionId, today)
+    .bind(sessionId, today, opts.stopped ? 1 : 0)
     .first<Record<string, unknown>>();
   if (!row) return null;
   return {
@@ -466,7 +466,8 @@ async function approvalWrites(
 export interface AdminChangeInput {
   details?: Partial<Record<'name' | 'description' | 'event_date' | 'start_time' | 'end_time' | 'price' | 'category', string>>;
   visibility?: Visibility;
-  active?: false;
+  /** false stops the session (from Stop running); true starts a stopped one again. */
+  active?: boolean;
   note?: string;
 }
 
@@ -494,6 +495,27 @@ export async function refuseBookedMove(db: D1Database, eventId: string, date: st
 }
 
 /**
+ * Why an admin can't change this session right now, or null: a host's request waiting for a
+ * decision, or an approved change not yet in the sheet (a second one would be proposed from the
+ * same, stale values, and its emails sent twice).
+ */
+export async function adminChangeRefusal(db: D1Database, eventId: string, today: string, sessionId: string): Promise<Fail | null> {
+  const waiting = await db.prepare(`${ROW_SQL} WHERE r.session_id = ?2 AND r.status = 'pending'`).bind(today, sessionId).first<Row>();
+  if (waiting) {
+    const host = waiting.host_name ?? waiting.requested_by;
+    return { ok: false, status: 409, error: `${host} has asked for a change to this session (${waiting.request_id}). Approve or decline it first, under Approve.` };
+  }
+  const onWay = await db
+    .prepare("SELECT request_id FROM event_change_requests WHERE event_id = ?1 AND status = 'approved' AND applied_at IS NULL ORDER BY decided_at DESC LIMIT 1")
+    .bind(eventId)
+    .first<{ request_id: string }>();
+  if (onWay) {
+    return { ok: false, status: 409, error: `An earlier change (${onWay.request_id}) is still on its way to the Logic Engine. Change it again once that's in the diary, within about half an hour.` };
+  }
+  return null;
+}
+
+/**
  * An admin changes a live host session directly (the admin event editor): a change request
  * approved on the spot by that admin, which then takes the approved path (the session's record,
  * emails to people booked on a new time, n8n branch D writes the cells). The host is emailed what
@@ -504,19 +526,19 @@ export async function adminChange(
   admin: AuthUser,
   sessionId: string,
   input: AdminChangeInput,
-  ctx: { now: string; origin: string },
-): Promise<{ ok: true; request: ChangeRequest } | Fail | { ok: false; status: 403; error: string }> {
+  ctx: { now: string; origin: string; dryRun?: boolean },
+): Promise<{ ok: true; request: ChangeRequest | null } | Fail | { ok: false; status: 403; error: string }> {
   if (admin.role !== 'admin') return { ok: false, status: 403, error: 'Only admins can edit every event.' };
   const today = londonDate(new Date(ctx.now));
-  const live = await liveDetails(db, sessionId, today);
+  const live = await liveDetails(db, sessionId, today, { stopped: true });
   if (!live) return { ok: false, status: 404, error: "This session isn't in the diary, so it can't be changed here." };
-  const waiting = await db
-    .prepare(`${ROW_SQL} WHERE r.session_id = ?2 AND r.status = 'pending'`)
-    .bind(today, sessionId)
-    .first<Row>();
-  if (waiting) {
-    const host = waiting.host_name ?? waiting.requested_by;
-    return { ok: false, status: 409, error: `${host} has asked for a change to this session (${waiting.request_id}). Approve or decline it first, under Approve.` };
+  const refused = await adminChangeRefusal(db, live.event_id, today, sessionId);
+  if (refused) return refused;
+  const ev = await db.prepare('SELECT visibility, active FROM events WHERE event_id = ?1').bind(live.event_id).first<{ visibility: Visibility; active: number }>();
+  const running = ev?.active === 1;
+  // A stopped session is started again on its own, before anything else changes.
+  if (!running && (Object.keys(input.details ?? {}).length || input.visibility !== undefined)) {
+    return { ok: false, status: 409, error: 'This session is stopped. Start it running first, then change it once it is back in the diary.' };
   }
   const d = input.details ?? {};
   const form: Record<string, unknown> = {};
@@ -526,21 +548,23 @@ export async function adminChange(
     if (p === null) return { ok: false, status: 400, error: 'Please check the form', errors: { price: 'Use a price like £3, £3.50 or Free.' } };
     form.price_pence = p;
   }
-  const made = await proposeChange(db, live, form, today);
+  // Starting a stopped session changes nothing else (it has no date to come to check the form against).
+  const made = running ? await proposeChange(db, live, form, today) : { ok: true as const, proposed: {} };
   if (!made.ok) return made;
   const proposed: Proposed = made.proposed;
-  const ev = await db.prepare('SELECT visibility, active FROM events WHERE event_id = ?1').bind(live.event_id).first<{ visibility: Visibility; active: number }>();
   if (input.visibility !== undefined && input.visibility !== ev?.visibility) proposed.visibility = input.visibility;
-  if (input.active === false) proposed.active = false;
+  if (input.active === false && running) proposed.active = false;
+  if (input.active === true && !running) proposed.active = true;
   if (!Object.keys(proposed).length) return { ok: false, status: 400, error: 'Nothing has changed.', errors: { form: NOTHING } };
   if (proposed.event_date !== undefined) {
     const refused = await refuseBookedMove(db, live.event_id, live.event_date);
     if (refused) return refused;
   }
 
+  if (ctx.dryRun) return { ok: true, request: null };
   const note = typeof input.note === 'string' ? input.note.trim().slice(0, NOTE_MAX) || null : null;
   const before = pick(live);
-  const published: Published = { ...before, visibility: ev?.visibility, active: true };
+  const published: Published = { ...before, visibility: ev?.visibility, active: running };
   const inserted = await db
     .prepare(
       `INSERT INTO event_change_requests (request_id, session_id, event_id, origin, requested_by, published, proposed, note, status, decided_by, decided_at, created_at, updated_at)
@@ -591,7 +615,7 @@ export async function changesToApply(db: D1Database) {
     if (v.price !== undefined) row['App Price'] = v.price;
     if (v.access !== undefined) row['App Visibility'] = v.access === 'private' ? 'Private' : 'Public';
     if (v.visibility !== undefined) row['App Visibility'] = VISIBILITY_CELL[v.visibility];
-    if (v.active === false) row.Status = 'Inactive';
+    if (v.active !== undefined) row.Status = v.active ? 'Active' : 'Inactive';
     return { request_id: r.request_id, event_id: r.event_id, row };
   });
 }
