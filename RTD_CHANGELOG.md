@@ -1,5 +1,36 @@
 # RTD App Changelog
 
+## 2026-10-18 (Admin event editor)
+- **Admins can change or cancel every event from one place:** Organise › Events & dates › **All events**. This covers café events from both sheet tabs, hosts' sessions and markets, whether public, app-bookable, private or hidden, running or stopped. Search, and filters for Café, Host sessions, Markets, Stopped, and Hidden or private.
+- **Each event opens one form:**
+  - name, description, date, start and end time, price, category
+  - **who can see it** (Public, App Bookable, Private or Hidden)
+  - **places** and **whether people need to book**
+  - each date to come: **Cancel this date**, **Hide this date** and its own **Places**
+- **Saving sends only what changed, each part through the route that already owns it:**
+  - **Café events:**
+    - Details go to the Logic Engine first, through RTD Sheet Writer. Nothing is overwritten if the sheet changed in the meantime.
+    - Places and booking change at once.
+  - **Hosts' sessions:**
+    - An admin's change is approved on the spot and takes the same path as an approved host request.
+    - The host is emailed what changed.
+    - If the host has a request waiting, the admin decides that first.
+    - Admins can now also set a session's places and whether people need to book.
+  - **Markets** keep their own editor; the form links to it.
+- **Stop running this event:**
+  - It first shows how many people are booked.
+  - It cancels each booked date, emailing everyone booked, then sets Status to Inactive.
+  - A Standard Diary group is hidden instead, because that tab has no Status column.
+  - Nothing is cancelled while another change to the event is still on its way.
+- **Safeguards:**
+  - A booked date can't be moved: cancel it first.
+  - People booked are emailed a new time once it's in the Logic Engine. This applies to café events too now, not just hosts' sessions.
+  - Places never go below what's booked.
+  - Every change is in the audit log.
+- **Hosts and approvers are unchanged.** Hosts still change only their own sessions, and only with approval. New tests prove a host is refused on anyone else's session, date or places.
+- **Needs the owner's go-ahead:** café details reach the sheet only once **RTD Sheet Writer is published in n8n**. It isn't yet, although Logic Engine changes have been set to Live since 17 Oct. Until then, café detail changes wait in the queue. Places, booking, cancelling and host sessions all work without it.
+- **No database change.** **Tests:** 480 (was 448).
+
 ## 2026-10-18 (Share menu)
 - **Share an event to WhatsApp, Facebook, Instagram, Discord, X, email, text message, or copy the link.** It works from the event page's **Share** button, and from a share icon on every diary row and every Home card ("Next up" and "Coming up").
   - **WhatsApp, X, email and text** open with the event's name, date and link filled in.

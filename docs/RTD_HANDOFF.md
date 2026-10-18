@@ -1,4 +1,4 @@
-# RTD App: Handoff (updated 2026-10-17, 09:05 UTC)
+# RTD App: Handoff (updated 2026-10-18)
 
 Read this first. Stage 6 (Event Control) has its own, longer handoff: [RTD_EVENT_CONTROL_HANDOFF.md](RTD_EVENT_CONTROL_HANDOFF.md).
 
@@ -33,6 +33,12 @@ Read this first. Stage 6 (Event Control) has its own, longer handoff: [RTD_EVENT
 ## Organiser hub (17 Oct, built)
 
 `/organise` for approvers and admins is a hub of section cards with what's waiting, each opening its own page ([RTD_HOST_PORTAL.md](RTD_HOST_PORTAL.md#the-organiser-for-approvers-and-admins-2026-10-17); spec and plan in `docs/superpowers/`). It's in the PR after #11; once merged, check it on the live app as an admin and as an approver.
+
+## Admin event editor (18 Oct, built on branch `ccr-b9b076a7-f9fv6q`)
+
+Admins change or cancel **every** event from Organise › Events & dates › **All events**. That covers café events, host sessions and markets, any visibility, running or stopped, including details, who can see it, places, need to book, cancelling a date, and Stop running ([changelog](../RTD_CHANGELOG.md), spec and plan in `docs/superpowers/`). Hosts and approvers are unchanged.
+
+**Blocker for café details:** RTD Sheet Writer has never been published, although Logic Engine changes are set to Live. Until the owner says go and it's published (test copy first, [RTD_EVENT_CONTROL_MIGRATION.md](RTD_EVENT_CONTROL_MIGRATION.md#admin-event-editor-2026-10-18-no-migration)), café detail changes wait in the queue. Everything else in the editor works without it.
 
 ## Next steps
 

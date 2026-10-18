@@ -92,7 +92,7 @@ The host organiser lives at **`/organise`**. Hosts propose sessions there; the c
 | --- | --- |
 | Host (everyone who joins, café staff included) | Use `/organise`; create, see and withdraw **their own** sessions, send a declined or withdrawn one again, or delete it; ask for a change to a live one; see who's booked; change places; cancel a date. Nothing else. |
 | Approver (role `staff`: Michelle) | Everything a host can, plus approve or decline join requests, sessions and hosts' changes, remove hosts, and cancel any hosted date |
-| Admin (Dan) | As an approver, plus choose approvers and remove them |
+| Admin (Dan) | As an approver, plus choose approvers and remove them, and change or cancel **any** event directly (the admin event editor, below) |
 
 The `users` table decides roles. Cloudflare Access only proves the email address.
 
@@ -141,6 +141,17 @@ A host can't edit a live session directly: they **Ask for a change** on its card
 - **The host** sees each request on the session's card (waiting, approved, or not approved with the reason) and can withdraw one still waiting. Asking again before a decision replaces it.
 - **Straight away, with no approval** (D-7): changing places, and cancelling a date (the café or the host is told).
 - **Audit:** `host_session.change_requested`, `change_approved`, `change_declined`, `change_withdrawn`, `change_applied`, with the values before and after.
+
+## An admin changes a session (2026-10-18)
+
+Admins change any event from **Organise › Events & dates › All events** (spec: `docs/superpowers/specs/2026-10-18-admin-event-editor-design.md`). For a host's session:
+
+- **The change takes the approved path on the spot.** It's a change request with `origin = 'admin'`, approved by that admin. The session's record follows, people booked are emailed a new time, and n8n branch D writes the cells.
+- **Admins can also set** who can see the session (Public, App Bookable, Private or Hidden), stop it running (Status Inactive), and change its places and whether people need to book.
+- **The host is emailed** "Your session was changed", with the old and new values (`host_change_by_admin`).
+- **A request from the host still waiting** has to be approved or declined first, so neither silently replaces the other.
+- **A booked date can't be moved:** cancel it first (everyone booked is emailed).
+- **Audit:** `host_session.changed_by_admin`, with the values before and after.
 
 ## API
 
