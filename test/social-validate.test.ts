@@ -600,3 +600,120 @@ describe('prompt validation, review round 3', () => {
     refuses(' Entry is complimentary.');
   });
 });
+
+describe('prompt validation, review round 4', () => {
+  const reviewed = (prompt: string, f: SourceFields = dnd, names = ctx.otherEventNames) =>
+    validatePrompt(output({ master_prompt: prompt }), f, { otherEventNames: names });
+  const approves = (extra: string) => {
+    const verdict = reviewed(goodPrompt + extra);
+    expect(verdict.errors, extra).toEqual([]);
+    expect(verdict.status, extra).toBe('approved');
+  };
+  const refuses = (extra: string) => expect(reviewed(goodPrompt + extra).status, extra).toBe('review_required');
+
+  it('matches event names written with punctuation, and with non-breaking or thin spaces', () => {
+    for (const [name, text] of [
+      ['Magic: The Gathering', 'magic: the gathering'],
+      ['Yu-Gi-Oh! Locals', 'yu-gi-oh! locals'],
+      ['Board Game Night (Adults)', 'board game night (adults)'],
+      ["Rock 'n' Roll Bingo", "rock 'n' roll bingo"],
+      ['Pizza + Games', 'pizza + games'],
+      ['Warhammer 40,000', 'warhammer 40,000'],
+      ['Quiz/Trivia Night', 'quiz/trivia night'],
+      ['Quiz Night', 'quiz\u00A0night'],
+    ]) {
+      expect(phraseRegex(name!)!.test(text!), text).toBe(true);
+      const verdict = reviewed(`${goodPrompt} It is not ${text}.`, dnd, [name!]);
+      expect(verdict.status, text).toBe('review_required');
+      expect(verdict.errors.some(e => e.includes(`another event, "${name}"`))).toBe(true);
+    }
+    for (const text of ['Quiz\u2009Night', 'Quiz\u202FNight', 'Rock ’n’ Roll Bingo']) {
+      expect(phraseRegex(text.includes('Rock') ? "Rock 'n' Roll Bingo" : 'Quiz Night')!.test(text), text).toBe(true);
+    }
+
+    // The event's own name, punctuation and all, is its identity: its weekday isn't a date.
+    for (const name of ['Friday Night Magic (FNM)', 'Sunday Funday: Family Games', 'Saturday Board/Card Club']) {
+      const prompt = `Write about ${name} at Roll The Dice. MoreThanABitDicey hosts her infamous DnD sessions.`;
+      const claims = [
+        { claim: name, source_field: 'name' },
+        { claim: 'MoreThanABitDicey hosts her infamous DnD sessions', source_field: 'base_details' },
+      ];
+      const verdict = validatePrompt(output({ master_prompt: prompt, claims }), { ...dnd, name }, ctx);
+      expect(verdict.errors, name).toEqual([]);
+      expect(verdict.status, name).toBe('approved');
+    }
+
+    const started = performance.now();
+    expect(phraseRegex('Magic: The Gathering')!.test(`Magic${' '.repeat(2000)}x`)).toBe(false);
+    expect(performance.now() - started).toBeLessThan(100);
+  });
+
+  it('reads a count only before "onwards", never before "till late"', () => {
+    for (const extra of [
+      ' Join us every week 7 till late.',
+      ' Join us every week seven till late.',
+      ' Open all season 8 till late.',
+      ' Join us every week 7 onwards.',
+    ]) {
+      refuses(extra);
+    }
+    expect(findTimes('round 7 onwards, level 3 onwards, book 2 onwards, ages 8 onwards')).toEqual([]);
+  });
+
+  it('lets a list of forbidden quotes cross one line break at most, and only as a list', () => {
+    refuses(' Never use "tonight" or "tomorrow"\n\n"Join us Friday 23 October at 7pm" opens each post.');
+    refuses(' Never use "tonight" or "tomorrow"\n"Join us Friday 23 October at 7pm" opens each post.');
+    refuses(' Never use these words:\n"Join us Friday 23 October at 7pm" opens each post.');
+    // A blank line ends the list, even before a quote that stands alone.
+    refuses(' Never use "tonight" or "tomorrow"\n\n"Friday 23 October at 7pm"');
+    approves(' Never use these words:\n"tonight"\n"tomorrow" or "this weekend".');
+  });
+
+  it('ends the forbidden list at a bare comma after the object', () => {
+    refuses(' Never mention prices, "£10 on the door" is the price.');
+    refuses(' Never mention the time, "doors at 7pm" covers it.');
+    // Commas between the listed quotes are still fine.
+    approves(' Never say "tonight", "tomorrow" or "this weekend".');
+  });
+
+  it('reads "or" and "and" between forbidden objects, their adjectives, and more ways of forbidding a price', () => {
+    approves(' Do not mention dates or times such as "tonight".');
+    approves(' Never use relative dates such as "tonight" or "tomorrow".');
+    approves(' Do not describe the event as free.');
+    approves(' Never say entry is free.');
+    // "and" only joins objects: it doesn't open the list itself.
+    refuses(' Never mention prices and "join us on Friday 23 October at 7pm" opens each post.');
+  });
+
+  it('exempts nothing where the quote marks do not pair up', () => {
+    refuses(' Never say "tonight. Always say friday 23 october at 7pm. Close with "book now".');
+    // Paired in the prompt as a whole, but not in the sentence the quote starts in.
+    refuses(' Never say "tonight. Always say friday 23 october at 7pm."');
+    // An unclosed quote can't be told apart from text outside quotes, so a forbidden price in it counts.
+    refuses(' Example caption: "Never describe it as free.');
+    // A stray quote mark anywhere in the prompt means no quote in it is exempt.
+    refuses(' Never say "tonight". Use 6" mats.');
+    // Apostrophes are not quote marks.
+    approves(' Never say "tonight" or "tomorrow"; it\'s the players\' night, and it’s the players’ table.');
+  });
+
+  it('reads an hour in words after a time word', () => {
+    refuses(' Join us at seven.');
+    refuses(' Doors from seven.');
+    expect(findTimes('Join us at seven. Doors from seven. Starts at twelve, until ten.').map(t => [t.text, t.readings])).toEqual([
+      ['at seven', [420, 1140]],
+      ['from seven', [420, 1140]],
+      ['Starts at twelve', [0, 720]],
+      ['until ten', [600, 1320]],
+    ]);
+    // With minutes, or with am/pm or o'clock, it is read as those say.
+    expect(findTimes("at seven pm, at seven o'clock, at seven thirty, at seven thirty pm").map(t => [t.text, t.readings])).toEqual([
+      ['seven pm', [1140]],
+      ["seven o'clock", []],
+      ['at seven thirty', []],
+      ['at seven thirty pm', []],
+    ]);
+    // Counts aren't hours.
+    expect(findTimes('from two to six players, at one of our tables, learn from one another, capped at six')).toEqual([]);
+  });
+});

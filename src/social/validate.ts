@@ -47,19 +47,34 @@ export function tokens(text: string): string[] {
 
 // What may sit between the words of an event name: nothing, up to three spaces, tabs, dashes or
 // "&", the word "and", or one line break. Never a full stop or a blank line; always bounded, so
-// long runs of spaces stay quick.
-const NAME_GAP_CHAR = '[ \\t\\-–—&]';
-const NAME_GAP = `(?:${NAME_GAP_CHAR}{0,3}|[ \\t]{1,3}and[ \\t]{1,3}|${NAME_GAP_CHAR}{0,2}\\r?\\n${NAME_GAP_CHAR}?)`;
+// long runs of spaces stay quick. Non-breaking and thin spaces are spaces.
+const SPACE_CHARS = ' \\t\\u00A0\\u2009\\u202F';
+const SPACE = `[${SPACE_CHARS}]`;
+const NAME_GAP_CHAR = `[${SPACE_CHARS}\\-–—&]`;
+const NAME_GAP = `(?:${NAME_GAP_CHAR}{0,3}|${SPACE}{1,3}and${SPACE}{1,3}|${NAME_GAP_CHAR}{0,2}\\r?\\n${NAME_GAP_CHAR}?)`;
+
+/** The separator between two words of a name, as written there ("Magic: The", "Night (Adults"): any space for a space, either apostrophe for one. */
+const separatorRegex = (sep: string): string =>
+  [...sep].map(c => (/[ \t\u00A0\u2009\u202F]/u.test(c) ? SPACE : /['’]/u.test(c) ? "['’]" : c.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&'))).join('');
 
 /**
- * Matches a phrase as whole words, any case, with NAME_GAP between its words ("#QuizNight" finds
- * "Quiz Night", and "&" or "and" may join them); the last word may take an "s" ("Quiz Nights").
+ * Matches a phrase as whole words, any case. Between two of its words goes NAME_GAP ("#QuizNight"
+ * finds "Quiz Night", and "&" or "and" may join them) or the separator the phrase itself has there
+ * ("Magic: The Gathering", "Yu-Gi-Oh! Locals"). The last word may take an "s" ("Quiz Nights").
  * Null for a phrase with no words.
  */
 export function phraseRegex(phrase: string): RegExp | null {
-  const words = (phrase.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) ?? []).filter(w => w.toLowerCase() !== 'and');
+  const words = [...phrase.matchAll(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu)].filter(w => w[0].toLowerCase() !== 'and');
   if (!words.length) return null;
-  const body = words.map(w => w.replace(/['’]/g, "['’]")).join(NAME_GAP);
+  const word = (w: RegExpMatchArray) => w[0].replace(/['’]/g, "['’]");
+  const body = words
+    .map((w, i) => {
+      if (i === 0) return word(w);
+      const before = words[i - 1]!;
+      const sep = phrase.slice(before.index! + before[0].length, w.index!);
+      return `(?:${NAME_GAP}|${separatorRegex(sep)})${word(w)}`;
+    })
+    .join('');
   return new RegExp(`(?<!${LETTER_OR_DIGIT})${body}s?(?!${LETTER_OR_DIGIT})`, 'giu');
 }
 
@@ -260,12 +275,18 @@ const readClockShaped = (h: string | undefined, min: string | undefined, meridie
 
 // A number after "at" or "from" that counts something else: "from 2 to 6 players", "at 4 tables", "18+".
 // "capped at 6" and "max at 6" are counts too.
-const NOT_AN_HOUR_AFTER =
-  '(?:\\s*(?:-|–|to)\\s*\\d{1,3})?\\s*(?:\\+|%|(?:players?|people|persons?|years?|yrs?|teams?|tables?|seats?|places?|spaces?|guests?|rounds?|games?|minutes?|mins?|hours?|hrs?|weeks?|months?|days?|kids|children|adults|percent|pence|pounds?|quid|p)(?!\\p{L}))';
+const NOT_AN_HOUR_AFTER = `(?:\\s*(?:-|–|to)\\s*(?:\\d{1,3}|${NUMBER_WORDS.join('|')}))?\\s*(?:\\+|%|(?:players?|people|persons?|years?|yrs?|teams?|tables?|seats?|places?|spaces?|guests?|rounds?|games?|minutes?|mins?|hours?|hrs?|weeks?|months?|days?|kids|children|adults|percent|pence|pounds?|quid|p)(?!\\p{L}))`;
+// The words that start a bare hour: "at 7", "from seven till late", "doors 7", "starts at 7", "until 9".
+const TIME_CUE =
+  '(?<!\\p{L})(?:(?<!(?<!\\p{L})(?:capped|limited|max|maximum|up\\s+to)\\s+)at|from|until|till|til|doors(?:\\s+open)?(?:\\s+at)?|starts?(?:\\s+at)?|starting(?:\\s+at)?|begins?(?:\\s+at)?)';
+// Minutes in words after an hour in words ("seven thirty"): a time, but not one that can be read reliably.
+const WORD_MINUTES = `(?:${SPACE}+|${SPACE}*-${SPACE}*)(?:fifteen|thirty|(?:twenty|forty|fifty)(?:${SPACE}|-)*five|twenty|forty|fifty|five|ten|\\d{2})(?!\\p{L})`;
 
-const TILL_LATE = "(?:(?:till|until|['’]?til)\\s+late|onwards?)(?!\\p{L})";
-// "round 7 onwards", "level 3 onwards", "ages 8 onwards" count something else.
-const NOT_A_COUNT_BEFORE = '(?<!(?<!\\p{L})(?:round|level|year|week|series|book|chapter|act|volume|season|grade|page|ages?|aged|over|under)\\s+)';
+const TILL_LATE = "(?:till|until|['’]?til)\\s+late(?!\\p{L})";
+const ONWARDS = 'onwards?(?!\\p{L})';
+// "round 7 onwards", "level 3 onwards", "ages 8 onwards" count something else. Only before "onwards":
+// "every week 7 till late" is a time.
+const NOT_A_COUNT_BEFORE = '(?<!(?<!\\p{L})(?:round|level|series|book|chapter|act|volume|grade|page|ages?|aged|over|under)\\s+)';
 const hourOf = (word: string): string => String(NUMBER_WORDS.indexOf(word.toLowerCase()) + 1);
 
 const TIME_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => { readings: number[] } | null }[] = [
@@ -280,21 +301,22 @@ const TIME_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => { readings: nu
   // Times that can't be checked against a schedule
   { re: new RegExp(`(?<!\\p{L})${HOUR_WORD}\\s*o['’]?clock(?!\\p{L})`, 'giu'), read: () => ({ readings: [] }) },
   { re: new RegExp(`(?<!\\p{L})(?:half|quarter)\\s+(?:past\\s+|to\\s+)?${HOUR_WORD}(?!${LETTER_OR_DIGIT})`, 'giu'), read: () => ({ readings: [] }) },
-  // A bare hour after a time word: "at 7", "from 7 till late", "doors 7", "starts at 7", "until 9"
+  // A bare hour after a time word, in digits or words: "at 7", "from 7 till late", "doors 7", "starts at seven", "until 9".
+  // Not "at one of our tables" or "from one another"; "at seven thirty" is a time that can't be read.
   {
     re: new RegExp(
-      `(?<!\\p{L})(?:(?<!(?<!\\p{L})(?:capped|limited|max|maximum|up\\s+to)\\s+)at|from|until|till|til|doors(?:\\s+open)?(?:\\s+at)?|starts?(?:\\s+at)?|starting(?:\\s+at)?|begins?(?:\\s+at)?)\\s+(\\d{1,2})(?!\\d|[.:]\\d|\\s*[ap]\\.?m(?!\\p{L}))(?!${NOT_AN_HOUR_AFTER})`,
+      `${TIME_CUE}\\s+(?:(\\d{1,2})(?!\\d|[.:]\\d)|(${NUMBER_WORDS.join('|')})(?:ish)?(?!\\p{L})(?!\\s+(?:of|another)(?!\\p{L}))(${WORD_MINUTES}(?:\\s*[ap]\\.?m\\.?(?!\\p{L}))?)?)(?!\\s*[ap]\\.?m(?!\\p{L}))(?!${NOT_AN_HOUR_AFTER})`,
       'giu',
     ),
-    read: m => readClock(m[1], '0', undefined),
+    read: m => (m[3] ? { readings: [] } : readClock(m[1] ?? hourOf(m[2]!), '0', undefined)),
   },
-  // A bare hour before "till late" or "onwards": "7 till late", "9 onwards" (not "round 7 onwards", "ages 8 onwards")
-  {
-    re: new RegExp(`(?<![\\d.,:/£])${NOT_A_COUNT_BEFORE}(\\d{1,2})\\s*${TILL_LATE}`, 'giu'),
-    read: m => readClock(m[1], '0', undefined),
-  },
-  // An hour in words: "seven till late", "nine pm"
-  { re: new RegExp(`(?<!\\p{L})${NOT_A_COUNT_BEFORE}(${NUMBER_WORDS.join('|')})\\s*${TILL_LATE}`, 'giu'), read: m => readClock(hourOf(m[1]!), '0', undefined) },
+  // A bare hour before "till late": "7 till late"
+  { re: new RegExp(`(?<![\\d.,:/£])(\\d{1,2})\\s*${TILL_LATE}`, 'giu'), read: m => readClock(m[1], '0', undefined) },
+  // ... or before "onwards" (not "round 7 onwards", "ages 8 onwards")
+  { re: new RegExp(`(?<![\\d.,:/£])${NOT_A_COUNT_BEFORE}(\\d{1,2})\\s*${ONWARDS}`, 'giu'), read: m => readClock(m[1], '0', undefined) },
+  // An hour in words: "seven till late", "eight onwards", "nine pm"
+  { re: new RegExp(`(?<!\\p{L})(${NUMBER_WORDS.join('|')})\\s*${TILL_LATE}`, 'giu'), read: m => readClock(hourOf(m[1]!), '0', undefined) },
+  { re: new RegExp(`(?<!\\p{L})${NOT_A_COUNT_BEFORE}(${NUMBER_WORDS.join('|')})\\s*${ONWARDS}`, 'giu'), read: m => readClock(hourOf(m[1]!), '0', undefined) },
   { re: new RegExp(`(?<!\\p{L})(${NUMBER_WORDS.join('|')})\\s*([ap])\\.?m\\.?(?!\\p{L})`, 'giu'), read: m => readClockShaped(hourOf(m[1]!), '0', m[2]) },
 ];
 
@@ -457,29 +479,87 @@ const NEGATIVE =
   "(?<!\\p{L})(?:never|do not|don['’]t|must not|mustn['’]t|avoid|should not|shouldn['’]t)(?:\\s+(?:ever|again|explicitly|directly|actually|specifically|literally|otherwise|even|falsely|wrongly|incorrectly)){0,2}\\s+";
 /** "never say", "do not ever use", "avoid mentioning": a negative, at most two adverbs, then a verb of saying. Bare "no" isn't one. */
 const PROHIBITION = new RegExp(`${NEGATIVE}${PROHIBITION_VERB}(?!\\p{L})`, 'giu');
-// Between a prohibition and the first quoted item it forbids: a short object ("it", "dates",
-// "these words") and an introducer ("such as", "like", "e.g.", "as", ":"), or nothing.
-const FIRST_ITEM_GAP = new RegExp(
-  '(?:\\s+(?:it|its|the|a|an|any|these|those|this|that|such|words?|phrases?|terms?|expressions?|wording|dates?|times?|days?|prices?|claims?|labels?|language)(?!\\p{L})){0,3}(?:\\s*(?:,|:|(?:such\\s+as|like|as)(?!\\p{L})|e\\.g\\.))?\\s*',
-  'iuy',
-);
+// What a prohibition forbids: a few words ("it", "these words", "relative dates"), two such joined
+// by "or" or "and" ("dates or times").
+const OBJECT_WORD =
+  '(?:it|its|the|a|an|any|these|those|this|that|such|words?|phrases?|terms?|expressions?|wording|dates?|times?|days?|prices?|claims?|labels?|language|relative|specific|exact|other|particular)(?!\\p{L})';
+const OBJECT = `(?:\\s+${OBJECT_WORD}){1,3}(?:\\s+(?:or|and)(?:\\s+${OBJECT_WORD}){1,3})?`;
+// Between a prohibition and the first quoted item it forbids: an object, then "such as", "like",
+// "as", "e.g." or ":", or nothing. A bare comma ends it: 'never mention prices, "£10" is the price'.
+const FIRST_ITEM_GAP = new RegExp(`(?:${OBJECT})?(?:\\s*(?::|(?:such\\s+as|like|as)(?!\\p{L})|e\\.g\\.))?\\s*`, 'iuy');
 // Between one forbidden quoted item and the next: only spaces, commas, "or" and "and".
 const NEXT_ITEM_GAP = /(?:\s|,|(?<!\p{L})(?:or|and)(?!\p{L}))*/iuy;
+// A quote at the start of a new line is a list item only when a list joiner, the end of a clause or
+// the end of the line follows it, not more words: '"Join us at 7pm" opens each post' isn't one.
+const ENDS_LIST_ITEM = /[^\S\r\n]*(?:$|\r?\n|[,;:.!?…—–]|(?:or|and|but)(?!\p{L}))/iuy;
 // A price straight after one of these is the thing forbidden: "never describe it as free", "do not imply free entry".
 const MONEY_PROHIBITION = new RegExp(
-  `${NEGATIVE}(?:describ(?:e|es|ing)\\s+it\\s+as|call(?:s|ing)?\\s+it|say(?:s|ing)?\\s+(?:that\\s+)?it(?:['’]s|\\s+is)|impl(?:y|ies|ying)|advertis(?:e|es|ing)|promis(?:e|es|ing)|claim(?:s|ing)?|mention(?:s|ing)?|suggest(?:s|ing)?)\\s+$`,
+  `${NEGATIVE}(?:describ(?:e|es|ing)\\s+(?:it|this|the\\s+event|the\\s+session)\\s+as|call(?:s|ing)?\\s+it|say(?:s|ing)?\\s+(?:that\\s+)?(?:it(?:['’]s|\\s+is)|(?:entry|this|the\\s+event)\\s+is)|impl(?:y|ies|ying)|advertis(?:e|es|ing)|promis(?:e|es|ing)|claim(?:s|ing)?|mention(?:s|ing)?|suggest(?:s|ing)?)\\s+$`,
   'iu',
 );
+
+const LETTER_OR_DIGIT_RE = /[\p{L}\p{N}]/u;
+/**
+ * Whether the quote marks in a text pair up. Apostrophes aren't quote marks: one inside a word
+ * ("don't", "it’s"), or a closing one with nothing open ("the players' night").
+ */
+function quotesPair(text: string): boolean {
+  if ((text.match(/"/g) ?? []).length % 2) return false;
+  let double = false;
+  let single = false;
+  let straight = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const letterBefore = i > 0 && LETTER_OR_DIGIT_RE.test(text[i - 1]!);
+    const letterAfter = LETTER_OR_DIGIT_RE.test(text[i + 1] ?? '');
+    if (c === '“') {
+      if (double) return false;
+      double = true;
+    } else if (c === '”') {
+      if (!double) return false;
+      double = false;
+    } else if (c === '‘') {
+      if (single) return false;
+      single = true;
+    } else if (c === '’') {
+      if (single && !letterAfter) single = false;
+    } else if (c === "'") {
+      if (straight && !letterAfter) straight = false;
+      else if (!letterBefore) {
+        if (straight) return false;
+        straight = true;
+      }
+    }
+  }
+  return !double && !single && !straight;
+}
+
+/** The sentences of a text: each ends at . ! ? or … (with any closing quotes or brackets) before a space or the end, or at a line break. */
+function sentenceSpans(text: string): Span[] {
+  const spans: Span[] = [];
+  let start = 0;
+  for (const m of text.matchAll(/[.!?…]+["”’')\]]*(?=\s|$)|\n/gu)) {
+    const end = m.index! + m[0].length;
+    if (end > start) spans.push([start, end]);
+    start = end;
+  }
+  if (start < text.length) spans.push([start, text.length]);
+  return spans;
+}
 
 /**
  * What the prompt forbids rather than claims, and nothing more. Read in the text as written: a
  * prohibition outside any quote, then only the quoted items that follow it as a list ('never say
- * "tonight" or "tomorrow"'); anything else ends the list. For money not in quotes, only a price
- * straight after "describe it as", "call it", "imply" and the like.
+ * "tonight" or "tomorrow"'), over one line break at most; anything else ends the list. For money
+ * not in quotes, only a price straight after "describe it as", "call it", "imply" and the like.
+ * Where the quote marks don't pair up, in the prompt or in a sentence, a quote can't be told from
+ * the text around it, so nothing there is exempt.
  */
 function prohibitions(text: string): { quoted: Span[]; forbidsMoneyAt: (index: number) => boolean } {
   const quotes = spansOf(QUOTED, text);
   const quoteAt = new Map(quotes.map(q => [q[0], q]));
+  const unpaired: Span[] = quotesPair(text) ? sentenceSpans(text).filter(([s, e]) => !quotesPair(text.slice(s, e))) : [[0, text.length]];
+  const paired = ([s, e]: Span): boolean => !unpaired.some(([a, b]) => a < e && b > s);
   const quoted: Span[] = [];
   // A prohibition inside a quote can't reach a later quote: no gap lets a quote mark through.
   for (const p of text.matchAll(PROHIBITION)) {
@@ -487,9 +567,12 @@ function prohibitions(text: string): { quoted: Span[]; forbidsMoneyAt: (index: n
     let gap = FIRST_ITEM_GAP;
     for (;;) {
       gap.lastIndex = pos;
-      pos += gap.exec(text)?.[0].length ?? 0;
-      const q = quoteAt.get(pos);
-      if (!q) break;
+      const between = gap.exec(text)?.[0] ?? '';
+      const breaks = between.split('\n').length - 1;
+      const q = breaks > 1 ? undefined : quoteAt.get(pos + between.length);
+      if (!q || !paired(q)) break;
+      ENDS_LIST_ITEM.lastIndex = q[1];
+      if (breaks && !ENDS_LIST_ITEM.test(text)) break;
       quoted.push(q);
       pos = q[1];
       gap = NEXT_ITEM_GAP;
@@ -498,7 +581,7 @@ function prohibitions(text: string): { quoted: Span[]; forbidsMoneyAt: (index: n
   return {
     quoted,
     // Quoted money goes by the list rule above; this is for money outside quotes.
-    forbidsMoneyAt: index => !quotes.some(([s, e]) => index >= s && index < e) && MONEY_PROHIBITION.test(text.slice(0, index)),
+    forbidsMoneyAt: index => paired([index, index + 1]) && !quotes.some(([s, e]) => index >= s && index < e) && MONEY_PROHIBITION.test(text.slice(0, index)),
   };
 }
 
