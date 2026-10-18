@@ -89,8 +89,8 @@ export interface SheetEvent {
   open_edit: string | null;
 }
 
-const IN_LAST_SYNC = `e.last_synced_at >= (SELECT MAX(received_at) FROM sync_runs WHERE status = 'ok')`;
-const OPEN = `(s.status IN ('queued', 'conflict') OR (s.status = 'written' AND s.target = 'live'))`;
+export const IN_LAST_SYNC = `e.last_synced_at >= (SELECT MAX(received_at) FROM sync_runs WHERE status = 'ok')`;
+export const OPEN = `(s.status IN ('queued', 'conflict') OR (s.status = 'written' AND s.target = 'live'))`;
 const CAFE = 'e.host_session_id IS NULL AND e.market_id IS NULL';
 
 /** The café's own events in the last sync (host sessions and markets change elsewhere), Active first. */
