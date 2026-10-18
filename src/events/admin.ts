@@ -85,7 +85,7 @@ export const COLUMNS: Record<'event_index' | 'standard_diary', Partial<Record<De
 };
 const FIELDS: DetailField[] = ['name', 'description', 'event_date', 'start_time', 'end_time', 'price', 'category'];
 
-const NO_DIARY_COLUMN = "The Standard Diary tab has no column for this: it's set in the sheet's Notes.";
+const NO_DIARY_COLUMN = 'The Standard Diary has no column for this: put it in the description.';
 const UNAVAILABLE: Record<EventKind, AdminEventForm['unavailable']> = {
   event_index: {},
   host_session: { category: "Set in the Logic Engine's App Category column." },

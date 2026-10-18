@@ -13,6 +13,7 @@ import { SessionPlaces } from './OrganisePlaces';
 import { ChangeForm, ChangeStatus } from './OrganiseChanges';
 import { JoinScreen, removeAccess, setApprover } from './OrganiseTeam';
 import { OrganiseHub } from './OrganiseHub';
+import { EventEditor } from './OrganiseEventEdit';
 import { OrganiseSection, sectionDef } from './OrganiseSection';
 import { useTitle } from '../lib/title';
 
@@ -48,7 +49,7 @@ const HASH_TO_SECTION: Record<string, string> = {
   attention: 'attention',
 };
 
-export function Organise({ section }: { section?: string } = {}) {
+export function Organise({ section, eventId }: { section?: string; eventId?: string } = {}) {
   useTitle('Host organiser');
   const [gate, setGate] = useState<Gate>({ state: 'loading' });
   const [sessions, setSessions] = useState<HostSession[] | null>(null);
@@ -96,6 +97,8 @@ export function Organise({ section }: { section?: string } = {}) {
   if (gate.canReview && section) {
     const def = sectionDef(section);
     if (!def) return <NotFound />;
+    // One event in the admin editor (the server refuses anyone else).
+    if (eventId && def.key === 'events' && gate.isAdmin) return <EventEditor eventId={eventId} />;
     return <OrganiseSection key={def.key} def={def} me={gate.user} isAdmin={gate.isAdmin} onDecided={loadSessions} />;
   }
 
