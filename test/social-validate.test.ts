@@ -418,3 +418,91 @@ describe('prompt validation, review round 1', () => {
     expect(validatePrompt(output({ master_prompt: prompt, claims }), freeEvent, ctx).status).toBe('approved');
   });
 });
+
+describe('prompt validation, review round 2', () => {
+  const reviewed = (prompt: string, f: SourceFields = dnd, names = ctx.otherEventNames) =>
+    validatePrompt(output({ master_prompt: prompt }), f, { otherEventNames: names });
+
+  it('reads a bare hour before "till late" or "onwards" as a time', () => {
+    expect(reviewed(`${goodPrompt} Say it runs 7 till late.`).status).toBe('review_required');
+    expect(findTimes("7 until late, 8 'til late, 9 onwards").map(t => [t.text, t.readings])).toEqual([
+      ['7 until late', [420, 1140]],
+      ["8 'til late", [480, 1200]],
+      ['9 onwards', [540, 1260]],
+    ]);
+    expect(findTimes('for ages 8 onwards')).toEqual([]);
+  });
+
+  it('exempts quoted dates only after a prohibition phrase, outside the quotes', () => {
+    for (const extra of [
+      ' Example call to action: "Don\'t miss DnD tonight at 7pm!"',
+      ' Example opener: "No plans on Friday 23 October? Join us at 7pm."',
+      ' Don\'t forget to say it runs "every Friday at 7pm".',
+      ' Never stray from this line: "Every Friday at 7pm."',
+    ]) {
+      expect(reviewed(goodPrompt + extra).status, extra).toBe('review_required');
+    }
+    for (const extra of [' Never say "tonight" or "tomorrow".', ' Do not use dates such as "23 October" in the prompt.', ' Avoid mentioning "today".']) {
+      const verdict = reviewed(goodPrompt + extra);
+      expect(verdict.errors, extra).toEqual([]);
+      expect(verdict.status, extra).toBe('approved');
+    }
+  });
+
+  it('reads "free" as a price claim unless it is negated or forbidden', () => {
+    for (const extra of [
+      ' Never describe it as free.',
+      ' Do not imply free entry.',
+      ' There is no free play.',
+      ' Never call it "free".',
+      ' Never write these words: "free", "£10".',
+    ]) {
+      const verdict = reviewed(goodPrompt + extra);
+      expect(verdict.errors, extra).toEqual([]);
+      expect(verdict.status, extra).toBe('approved');
+    }
+    for (const extra of [' No booking, entry is free.', ' Entry is free.', " It's free to join."]) {
+      expect(reviewed(goodPrompt + extra).status, extra).toBe('review_required');
+    }
+    expect(findMoney("There is no free play, it is not free, it isn't really free, never free")).toEqual([]);
+  });
+
+  it('does not read "7p.m." as pence', () => {
+    expect(findMoney('Doors 7p.m. sharp, 50p.')).toEqual([{ text: '50p', pence: 50, index: 19 }]);
+    expect(findTimes('Doors 7p.m. sharp')).toEqual([{ text: '7p.m.', readings: [1140], index: 6 }]);
+  });
+
+  it('reports clock-shaped times it cannot read', () => {
+    expect(findTimes('25:00, 24:00, 13pm, 7:75').map(t => [t.text, t.readings])).toEqual([
+      ['25:00', []],
+      ['24:00', []],
+      ['13pm', []],
+      ['7:75', []],
+    ]);
+  });
+
+  it('does not read a capacity or "6 may book" as a time or date', () => {
+    expect(findTimes('Sessions are capped at 6. Limited at 8, at 6 people.')).toEqual([]);
+    expect(findDates('Groups of up to 6 may book, and 4 may join.')).toEqual([]);
+    expect(findDates('Sign up on 6 May, then come.')).toEqual([{ text: '6 May', day: 6, month: 5, index: 11 }]);
+  });
+
+  it('finds other events squashed into a hashtag, or split over lines', () => {
+    for (const extra of [' Suggested hashtags: #RollTheDice #RTDQuizNight.', ' It is not the Quiz\nNight.']) {
+      const verdict = reviewed(goodPrompt + extra, dnd, ['Quiz Night']);
+      expect(verdict.status, extra).toBe('review_required');
+      expect(verdict.errors.some(e => e.includes('another event, "Quiz Night"'))).toBe(true);
+    }
+    // Inside the event's own name it doesn't count, in a hashtag too.
+    const special = { ...dnd, name: 'Quiz Night Special' };
+    const claims = goodClaims.filter(c => c.source_field !== 'name').concat({ claim: 'Quiz Night Special', source_field: 'name' });
+    const prompt = `${goodPrompt.replace('Dungeons & Dragons', 'Quiz Night Special')} Suggested hashtag: #QuizNightSpecial.`;
+    const verdict = validatePrompt(output({ master_prompt: prompt, claims }), special, { otherEventNames: ['Quiz Night'] });
+    expect(verdict.errors).toEqual([]);
+    expect(verdict.status).toBe('approved');
+  });
+
+  it('does not read "the 20th session" as a date', () => {
+    expect(findDates('the 20th session, the 3rd week, the 2nd visit, the 5th game, the 10th year')).toEqual([]);
+  });
+});
