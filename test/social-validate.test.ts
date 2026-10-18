@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SourceFields } from '../src/social/facts';
 import { buildRequest, INSTRUCTION, INSTRUCTION_VERSION, SCHEDULE_RULE } from '../src/social/instruction';
-import { findDates, findMoney, findNames, findTimes, ownPrices, validatePrompt } from '../src/social/validate';
+import { findDates, findMoney, findNames, findTimes, ownPrices, phraseRegex, validatePrompt } from '../src/social/validate';
 
 const dnd: SourceFields = {
   event_id: 'RTD-EVT-00007',
@@ -504,5 +504,99 @@ describe('prompt validation, review round 2', () => {
 
   it('does not read "the 20th session" as a date', () => {
     expect(findDates('the 20th session, the 3rd week, the 2nd visit, the 5th game, the 10th year')).toEqual([]);
+  });
+});
+
+describe('prompt validation, review round 3', () => {
+  const reviewed = (prompt: string, f: SourceFields = dnd, names = ctx.otherEventNames) =>
+    validatePrompt(output({ master_prompt: prompt }), f, { otherEventNames: names });
+  const approves = (extra: string) => {
+    const verdict = reviewed(goodPrompt + extra);
+    expect(verdict.errors, extra).toEqual([]);
+    expect(verdict.status, extra).toBe('approved');
+  };
+  const refuses = (extra: string) => expect(reviewed(goodPrompt + extra).status, extra).toBe('review_required');
+
+  it('does not let a quote end a prohibition early or carry it into the next sentence', () => {
+    refuses(' Never say "tonight" or "tomorrow." Always end with "on Friday 23 October at 7pm."');
+    refuses(' Never say "tonight." Always say "Friday 23 October at 7pm."');
+    refuses(' Never describe it as "busy." It is £10 on the door.');
+  });
+
+  it('exempts only what the prohibition forbids', () => {
+    for (const extra of [
+      ' Never say "tonight"; always say "on Friday 23 October at 7pm".',
+      ' Do not mention prices; open with "join us on Friday 23 October at 7pm!"',
+      ' Never say "tonight", but do say "Friday 23 October at 7pm".',
+      ' Never say "free" — it is £10 on the door.',
+      " Don't say we didn't warn you, entry is £10.",
+      ' Never say never, entry is £10.',
+    ]) {
+      refuses(extra);
+    }
+    // A quoted example that happens to say "never describe it as free" still says "free".
+    refuses(' Example caption: "Never describe it as free."');
+    const calledFree = reviewed(`${goodPrompt} Don't call it free, it's £10 on the door.`);
+    expect(calledFree.status).toBe('review_required');
+    expect(calledFree.errors.some(e => e.includes('"£10"'))).toBe(true);
+    expect(calledFree.errors.some(e => e.includes('"free"'))).toBe(false);
+
+    for (const extra of [
+      ' Never say "tonight" or "tomorrow".',
+      ' Do not use dates such as "23 October" or "Friday" in the prompt.',
+      ' Never describe it as free.',
+      ' Do not imply free entry.',
+    ]) {
+      approves(extra);
+    }
+  });
+
+  it('reads "free" as negated only straight after the negative', () => {
+    for (const extra of [" Don't miss free entry.", " It's not just free, it's fun.", " Can't beat free entry."]) refuses(extra);
+    for (const extra of [' There is no free play.', ' It is not free.', " It isn't entirely free."]) approves(extra);
+  });
+
+  it('keeps an event name within one line and a few characters, and quickly', () => {
+    expect(phraseRegex('Quiz Night')!.test('We love a quiz.\n\nNight owls welcome.')).toBe(false);
+    approves(' We love a quiz.\n\nNight owls welcome.');
+    for (const text of ['Quiz\nNight', 'Quiz - Night', 'Quiz — Night', 'QuizNight', 'Quiz and Night']) {
+      expect(phraseRegex('Quiz Night')!.test(text), text).toBe(true);
+    }
+    const started = performance.now();
+    expect(phraseRegex('Quiz Night')!.test(`Quiz${' '.repeat(2000)}x`)).toBe(false);
+    expect(performance.now() - started).toBeLessThan(100);
+  });
+
+  it('does not read a numbered round, level or age before "onwards" as a time', () => {
+    expect(findTimes('round 7 onwards, level 3 onwards, book 2 onwards, ages 8 onwards, over 18 onwards')).toEqual([]);
+    expect(findTimes('9 onwards').map(t => t.text)).toEqual(['9 onwards']);
+  });
+
+  it('only treats "capped at" and the like as a count for "at"', () => {
+    expect(findTimes('The game reaches its climax at 9.').map(t => t.text)).toEqual(['at 9']);
+    expect(findTimes('Booking is limited until 9.').map(t => t.text)).toEqual(['until 9']);
+    expect(findTimes('Sessions are capped at 6, max at 6.')).toEqual([]);
+  });
+
+  it('reads "may." followed by a verb as a date it cannot read', () => {
+    expect(findDates('Up to 6 may. Book now.')).toEqual([{ text: '6 may.', index: 6 }]);
+  });
+
+  it('reads hours written as words, and more ways of saying free', () => {
+    expect(findTimes('seven till late, eight onwards, nine pm, ten am').map(t => [t.text, t.readings])).toEqual([
+      ['seven till late', [420, 1140]],
+      ['eight onwards', [480, 1200]],
+      ['nine pm', [1260]],
+      ['ten am', [600]],
+    ]);
+    expect(findMoney('complimentary, free of charge, costs nothing, no entry fee, no cover charge').map(m => [m.text, m.pence])).toEqual([
+      ['complimentary', 0],
+      ['free of charge', 0],
+      ['costs nothing', 0],
+      ['no entry fee', 0],
+      ['no cover charge', 0],
+    ]);
+    expect(findMoney('It is not complimentary.')).toEqual([]);
+    refuses(' Entry is complimentary.');
   });
 });

@@ -45,16 +45,21 @@ export function tokens(text: string): string[] {
   return folded.match(/\d+(?:\.\d+)?|[\p{L}\p{N}]+/gu) ?? [];
 }
 
+// What may sit between the words of an event name: nothing, up to three spaces, tabs, dashes or
+// "&", the word "and", or one line break. Never a full stop or a blank line; always bounded, so
+// long runs of spaces stay quick.
+const NAME_GAP_CHAR = '[ \\t\\-–—&]';
+const NAME_GAP = `(?:${NAME_GAP_CHAR}{0,3}|[ \\t]{1,3}and[ \\t]{1,3}|${NAME_GAP_CHAR}{0,2}\\r?\\n${NAME_GAP_CHAR}?)`;
+
 /**
- * Matches a phrase as whole words, any case. Up to three marks or runs of white space (a newline
- * too) may sit between its words, or none ("#QuizNight" finds "Quiz Night"); "&" and "and" are the
- * same; the last word may take an "s" ("Quiz Nights"). Null for a phrase with no words.
+ * Matches a phrase as whole words, any case, with NAME_GAP between its words ("#QuizNight" finds
+ * "Quiz Night", and "&" or "and" may join them); the last word may take an "s" ("Quiz Nights").
+ * Null for a phrase with no words.
  */
 export function phraseRegex(phrase: string): RegExp | null {
-  const parts = phrase.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|&/gu) ?? [];
-  const isAnd = (p: string) => p === '&' || p.toLowerCase() === 'and';
-  if (!parts.some(p => !isAnd(p))) return null;
-  const body = parts.map(p => (isAnd(p) ? '(?:&|and)' : p.replace(/['’]/g, "['’]"))).join('(?:[^\\p{L}\\p{N}\\s]|\\s+){0,3}');
+  const words = (phrase.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) ?? []).filter(w => w.toLowerCase() !== 'and');
+  if (!words.length) return null;
+  const body = words.map(w => w.replace(/['’]/g, "['’]")).join(NAME_GAP);
   return new RegExp(`(?<!${LETTER_OR_DIGIT})${body}s?(?!${LETTER_OR_DIGIT})`, 'giu');
 }
 
@@ -130,7 +135,11 @@ const DATE_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => DateFields | n
   // 23 October, 23rd Oct, 23rd of October 2026
   {
     re: new RegExp(`(?<!${LETTER_OR_DIGIT})(\\d{1,2})(?:st|nd|rd|th)?(?:\\s+of)?\\s+${MONTH}(?:,?\\s+(\\d{4}))?(?!\\p{L})`, 'giu'),
-    read: m => (monthOf(m[2]!) ? dmy(m[1], monthOf(m[2]!), m[3]) : MAY_THEN_VERB.test(m.input!.slice(m.index! + m[0].length)) ? null : {}),
+    read: m => {
+      if (monthOf(m[2]!)) return dmy(m[1], monthOf(m[2]!), m[3]);
+      // Lower-case "may" (no full stop) then a verb is the verb; otherwise a date that can't be read.
+      return !m[0].endsWith('.') && MAY_THEN_VERB.test(m.input!.slice(m.index! + m[0].length)) ? null : {};
+    },
   },
   // October 23, Oct 23rd, October 23, 2026
   {
@@ -179,6 +188,9 @@ export interface MoneyMention {
 
 const pence = (pounds: string, part: string | undefined): number => Number(pounds.replace(/,/g, '')) * 100 + Number((part ?? '').padEnd(2, '0'));
 
+// A "free" straight after a negative isn't a price: "not free", "isn't entirely free", "no free play".
+const NOT_NEGATED = "(?<!(?<!\\p{L})(?:not|isn['’]t|aren['’]t|wasn['’]t|no|never)\\s+(?:(?:entirely|completely|totally|really|actually|quite|always)\\s+)?)";
+
 const MONEY_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => { pence: number } }[] = [
   // £4, £4.00, £ 10, £1,000
   { re: /£\s?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?(?!\d)/gu, read: m => ({ pence: pence(m[1]!, m[2]) }) },
@@ -188,13 +200,15 @@ const MONEY_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => { pence: numb
   { re: /(?<![\d.£])(\d+)(?:\.(\d{1,2}))?\s*(?:pounds?|quid|gbp)(?!\p{L})/giu, read: m => ({ pence: pence(m[1]!, m[2]) }) },
   // 50p (not "7pm" or "7p.m.")
   { re: /(?<![\d.£])(\d+)p(?!\p{L}|\.m)/giu, read: m => ({ pence: Number(m[1]) }) },
-  // no charge, no cost
-  { re: /(?<!\p{L})no (?:charge|cost)(?!\p{L})/giu, read: () => ({ pence: 0 }) },
-  // free (not "feel free" or "gluten-free", and not negated within two words: "not free", "isn't really free", "no free play")
+  // free of charge, complimentary, costs nothing, no entry fee, no cover charge
   {
-    re: /(?<![\p{L}-])(?<!feel\s+)(?<!(?:(?<!\p{L})(?:not|no|never)|n['’]t)\s+(?:[\p{L}'’]+\s+)?)free(?![\p{L}-])/giu,
+    re: new RegExp(`(?<![\\p{L}-])${NOT_NEGATED}(?:free of charge|complimentary|costs? nothing|no entry fee|no cover charge)(?![\\p{L}-])`, 'giu'),
     read: () => ({ pence: 0 }),
   },
+  // no charge, no cost
+  { re: /(?<!\p{L})no (?:charge|cost)(?!\p{L})/giu, read: () => ({ pence: 0 }) },
+  // free (not "feel free" or "gluten-free")
+  { re: new RegExp(`(?<![\\p{L}-])(?<!feel\\s+)${NOT_NEGATED}free(?![\\p{L}-])`, 'giu'), read: () => ({ pence: 0 }) },
 ];
 
 /** Every money amount in the text, so "£4" and "£4.00" compare equal, and "free" is £0. */
@@ -249,6 +263,11 @@ const readClockShaped = (h: string | undefined, min: string | undefined, meridie
 const NOT_AN_HOUR_AFTER =
   '(?:\\s*(?:-|–|to)\\s*\\d{1,3})?\\s*(?:\\+|%|(?:players?|people|persons?|years?|yrs?|teams?|tables?|seats?|places?|spaces?|guests?|rounds?|games?|minutes?|mins?|hours?|hrs?|weeks?|months?|days?|kids|children|adults|percent|pence|pounds?|quid|p)(?!\\p{L}))';
 
+const TILL_LATE = "(?:(?:till|until|['’]?til)\\s+late|onwards?)(?!\\p{L})";
+// "round 7 onwards", "level 3 onwards", "ages 8 onwards" count something else.
+const NOT_A_COUNT_BEFORE = '(?<!(?<!\\p{L})(?:round|level|year|week|series|book|chapter|act|volume|season|grade|page|ages?|aged|over|under)\\s+)';
+const hourOf = (word: string): string => String(NUMBER_WORDS.indexOf(word.toLowerCase()) + 1);
+
 const TIME_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => { readings: number[] } | null }[] = [
   // 7:30pm, 7.30 pm, 19:00, 18.30 (not part of a longer number or a dotted date)
   { re: /(?<![\d.,:/])(\d{1,2})[:.](\d{2})(?:\s*([ap])\.?m\.?(?!\p{L}))?(?!\d|[.:/]\d)/giu, read: m => readClockShaped(m[1], m[2], m[3]) },
@@ -264,16 +283,19 @@ const TIME_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => { readings: nu
   // A bare hour after a time word: "at 7", "from 7 till late", "doors 7", "starts at 7", "until 9"
   {
     re: new RegExp(
-      `(?<!\\p{L})(?<!(?:capped|limited|max|maximum|up\\s+to)\\s+)(?:at|from|until|till|til|doors(?:\\s+open)?(?:\\s+at)?|starts?(?:\\s+at)?|starting(?:\\s+at)?|begins?(?:\\s+at)?)\\s+(\\d{1,2})(?!\\d|[.:]\\d|\\s*[ap]\\.?m(?!\\p{L}))(?!${NOT_AN_HOUR_AFTER})`,
+      `(?<!\\p{L})(?:(?<!(?<!\\p{L})(?:capped|limited|max|maximum|up\\s+to)\\s+)at|from|until|till|til|doors(?:\\s+open)?(?:\\s+at)?|starts?(?:\\s+at)?|starting(?:\\s+at)?|begins?(?:\\s+at)?)\\s+(\\d{1,2})(?!\\d|[.:]\\d|\\s*[ap]\\.?m(?!\\p{L}))(?!${NOT_AN_HOUR_AFTER})`,
       'giu',
     ),
     read: m => readClock(m[1], '0', undefined),
   },
-  // A bare hour before "till late" or "onwards": "7 till late", "9 onwards" (not "ages 8 onwards")
+  // A bare hour before "till late" or "onwards": "7 till late", "9 onwards" (not "round 7 onwards", "ages 8 onwards")
   {
-    re: /(?<![\d.,:/£])(?<!(?:ages?|aged|over|under)\s+)(\d{1,2})\s*(?:(?:till|until|['’]?til)\s+late|onwards?)(?!\p{L})/giu,
+    re: new RegExp(`(?<![\\d.,:/£])${NOT_A_COUNT_BEFORE}(\\d{1,2})\\s*${TILL_LATE}`, 'giu'),
     read: m => readClock(m[1], '0', undefined),
   },
+  // An hour in words: "seven till late", "nine pm"
+  { re: new RegExp(`(?<!\\p{L})${NOT_A_COUNT_BEFORE}(${NUMBER_WORDS.join('|')})\\s*${TILL_LATE}`, 'giu'), read: m => readClock(hourOf(m[1]!), '0', undefined) },
+  { re: new RegExp(`(?<!\\p{L})(${NUMBER_WORDS.join('|')})\\s*([ap])\\.?m\\.?(?!\\p{L})`, 'giu'), read: m => readClockShaped(hourOf(m[1]!), '0', m[2]) },
 ];
 
 /** Every clock time in the text. Money is ignored, so "£4.50" isn't a time. */
@@ -431,34 +453,52 @@ export function findNames(text: string, allowed: Iterable<string>): string[] {
 const QUOTED = /"[^"\n]*"|“[^”\n]*”|‘[^’\n]*’|(?<!\p{L})'[^'\n]*'(?!\p{L})/gu;
 const PROHIBITION_VERB =
   '(?:say(?:s|ing)?|us(?:e|es|ing)|writ(?:e|es|ing)|mention(?:s|ing)?|describ(?:e|es|ing)|call(?:s|ing)?|stat(?:e|es|ing)|claim(?:s|ing)?|impl(?:y|ies|ying)|promis(?:e|es|ing)|suggest(?:s|ing)?|advertis(?:e|es|ing)|refer(?:s|ring)?\\s+to|includ(?:e|es|ing))';
+const NEGATIVE =
+  "(?<!\\p{L})(?:never|do not|don['’]t|must not|mustn['’]t|avoid|should not|shouldn['’]t)(?:\\s+(?:ever|again|explicitly|directly|actually|specifically|literally|otherwise|even|falsely|wrongly|incorrectly)){0,2}\\s+";
 /** "never say", "do not ever use", "avoid mentioning": a negative, at most two adverbs, then a verb of saying. Bare "no" isn't one. */
-const PROHIBITION = new RegExp(
-  `(?<!\\p{L})(?:never|do not|don['’]t|must not|mustn['’]t|avoid|should not|shouldn['’]t)(?:\\s+(?:ever|again|explicitly|directly|actually|specifically|literally|otherwise|even|falsely|wrongly|incorrectly)){0,2}\\s+${PROHIBITION_VERB}(?!\\p{L})`,
+const PROHIBITION = new RegExp(`${NEGATIVE}${PROHIBITION_VERB}(?!\\p{L})`, 'giu');
+// Between a prohibition and the first quoted item it forbids: a short object ("it", "dates",
+// "these words") and an introducer ("such as", "like", "e.g.", "as", ":"), or nothing.
+const FIRST_ITEM_GAP = new RegExp(
+  '(?:\\s+(?:it|its|the|a|an|any|these|those|this|that|such|words?|phrases?|terms?|expressions?|wording|dates?|times?|days?|prices?|claims?|labels?|language)(?!\\p{L})){0,3}(?:\\s*(?:,|:|(?:such\\s+as|like|as)(?!\\p{L})|e\\.g\\.))?\\s*',
+  'iuy',
+);
+// Between one forbidden quoted item and the next: only spaces, commas, "or" and "and".
+const NEXT_ITEM_GAP = /(?:\s|,|(?<!\p{L})(?:or|and)(?!\p{L}))*/iuy;
+// A price straight after one of these is the thing forbidden: "never describe it as free", "do not imply free entry".
+const MONEY_PROHIBITION = new RegExp(
+  `${NEGATIVE}(?:describ(?:e|es|ing)\\s+it\\s+as|call(?:s|ing)?\\s+it|say(?:s|ing)?\\s+(?:that\\s+)?it(?:['’]s|\\s+is)|impl(?:y|ies|ying)|advertis(?:e|es|ing)|promis(?:e|es|ing)|claim(?:s|ing)?|mention(?:s|ing)?|suggest(?:s|ing)?)\\s+$`,
   'iu',
 );
 
-/** The text with every quoted stretch blanked out, so a prohibition is only read outside quotes. */
-const unquoted = (text: string, quotes: Span[]): string => quotes.reduce((t, [at, end]) => t.slice(0, at) + ' '.repeat(end - at) + t.slice(end), text);
-
-/** Where the sentence holding `i` starts: after the last newline, or full stop, question mark or exclamation before a space. */
-function sentenceStart(text: string, i: number): number {
-  let s = i;
-  while (s > 0 && text[s - 1] !== '\n' && !(/[.!?]/.test(text[s - 1]!) && /\s/.test(text[s]!))) s--;
-  return s;
-}
-/** Where the clause holding `i` starts: after the last . ; : ! ? or newline. */
-const clauseStart = (text: string, i: number): number => Math.max(...['.', ';', ':', '!', '?', '\n'].map(c => text.lastIndexOf(c, i - 1))) + 1;
-
 /**
- * What the prompt forbids rather than claims: quoted stretches with a prohibition before them in
- * their sentence (outside any quote), and, for money, a prohibition earlier in the same clause.
+ * What the prompt forbids rather than claims, and nothing more. Read in the text as written: a
+ * prohibition outside any quote, then only the quoted items that follow it as a list ('never say
+ * "tonight" or "tomorrow"'); anything else ends the list. For money not in quotes, only a price
+ * straight after "describe it as", "call it", "imply" and the like.
  */
-function prohibitions(text: string): { quoted: Span[]; inClause: (index: number) => boolean } {
+function prohibitions(text: string): { quoted: Span[]; forbidsMoneyAt: (index: number) => boolean } {
   const quotes = spansOf(QUOTED, text);
-  const bare = unquoted(text, quotes);
+  const quoteAt = new Map(quotes.map(q => [q[0], q]));
+  const quoted: Span[] = [];
+  // A prohibition inside a quote can't reach a later quote: no gap lets a quote mark through.
+  for (const p of text.matchAll(PROHIBITION)) {
+    let pos = p.index! + p[0].length;
+    let gap = FIRST_ITEM_GAP;
+    for (;;) {
+      gap.lastIndex = pos;
+      pos += gap.exec(text)?.[0].length ?? 0;
+      const q = quoteAt.get(pos);
+      if (!q) break;
+      quoted.push(q);
+      pos = q[1];
+      gap = NEXT_ITEM_GAP;
+    }
+  }
   return {
-    quoted: quotes.filter(([at]) => PROHIBITION.test(bare.slice(sentenceStart(bare, at), at))),
-    inClause: index => PROHIBITION.test(bare.slice(clauseStart(bare, index), index)),
+    quoted,
+    // Quoted money goes by the list rule above; this is for money outside quotes.
+    forbidsMoneyAt: index => !quotes.some(([s, e]) => index >= s && index < e) && MONEY_PROHIBITION.test(text.slice(0, index)),
   };
 }
 
@@ -553,7 +593,7 @@ function promptTextErrors(prompt: string, f: SourceFields, otherEventNames: stri
   }
   const allowedPence = ownPrices(f);
   for (const m of findMoney(prompt)) {
-    if (counts(m, [...own, ...forbidden.quoted]) && !forbidden.inClause(m.index) && !allowedPence.includes(m.pence)) {
+    if (counts(m, [...own, ...forbidden.quoted]) && !forbidden.forbidsMoneyAt(m.index) && !allowedPence.includes(m.pence)) {
       errors.push(`The prompt states "${m.text}", which isn't the event's own price${f.price ? ` (${f.price})` : ''}`);
     }
   }
