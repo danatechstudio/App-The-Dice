@@ -685,8 +685,8 @@ function changedByAdmin(c: ChangeRequest, hostEmail: string, origin: string): Em
   };
 }
 
-/** To each person booked, when an approved change gives the session a new time. */
-function attendeeTimeChanged(
+/** To each person booked, when an approved change (or an admin's Logic Engine change) gives an event a new time. */
+export function attendeeTimeChanged(
   requestId: string,
   oldName: string,
   name: string,

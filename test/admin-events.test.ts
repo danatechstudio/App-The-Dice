@@ -226,3 +226,90 @@ describe('an admin changes a host session', () => {
     expect((await save(CATAN_EVT, { details: { name: 'Catan Club' }, visibility: 'public' })).status).toBe(400);
   });
 });
+
+const setLive = () =>
+  env.DB.prepare(
+    "INSERT INTO settings (key, value, updated_at, updated_by) VALUES ('sheet_writes', 'live', '2026-10-01', 'test') ON CONFLICT (key) DO UPDATE SET value = 'live'",
+  ).run();
+
+describe('an admin changes a café event', () => {
+  beforeEach(setLive);
+
+  it('queues café detail changes for the Logic Engine and applies places at once', async () => {
+    const res = await save(QUIZ, { details: { name: 'Big Quiz' }, visibility: 'private', places: 40, booking_mode: 'required' });
+    expect(res.status).toBe(200);
+    const out = await res.json<{ sheet_edit: { fields: unknown; status: string }; places: number; booking_mode: string }>();
+    expect(out.sheet_edit.fields).toEqual({ 'Event Name': { from: 'Event 4', to: 'Big Quiz' }, 'App Visibility': { from: 'public', to: 'private' } });
+    expect(out.sheet_edit.status).toBe('queued');
+    expect(
+      await env.DB.prepare('SELECT capacity_override AS c, booking_mode AS m, display_name AS n FROM events WHERE event_id = ?1').bind(QUIZ).first(),
+    ).toEqual({
+      c: 40,
+      m: 'required',
+      n: 'Event 4',
+    });
+  });
+
+  it('writes a Standard Diary row’s own columns', async () => {
+    const res = await save(DIARY, { details: { description: 'Bring a friend.' }, visibility: 'hidden' });
+    expect(res.status).toBe(200);
+    expect((await res.json<{ sheet_edit: { fields: unknown } }>()).sheet_edit.fields).toEqual({
+      Notes: { from: 'Notes for group 8', to: 'Bring a friend.' },
+      'App Visibility': { from: 'public', to: 'hidden' },
+    });
+  });
+
+  it('refuses a column the Standard Diary hasn’t got', async () => {
+    const res = await save(DIARY, { details: { start_time: '19:00' } });
+    expect(res.status).toBe(400);
+    expect((await res.json<{ errors: Record<string, string> }>()).errors.start_time).toContain('Standard Diary');
+  });
+
+  it('refuses while a Logic Engine change is on its way', async () => {
+    expect((await save(QUIZ, { details: { name: 'Big Quiz' } })).status).toBe(200);
+    const res = await save(QUIZ, { details: { description: 'New' } });
+    expect(res.status).toBe(409);
+    expect((await res.json<{ error: string }>()).error).toContain('still on its way');
+  });
+
+  it('refuses an event not in the last sync', async () => {
+    await env.DB.prepare('UPDATE events SET last_synced_at = NULL WHERE event_id = ?1').bind(QUIZ).run();
+    const res = await save(QUIZ, { details: { name: 'Big Quiz' } });
+    expect(res.status).toBe(409);
+    expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM sheet_edits').first('n')).toBe(0);
+  });
+
+  it('refuses to move a booked café date', async () => {
+    expect((await book('RTD-OCC-00004-20261023', 2)).status).toBe(201);
+    const res = await save(QUIZ, { details: { event_date: '2026-10-30' } });
+    expect(res.status).toBe(409);
+    expect((await res.json<{ error: string }>()).error).toContain('Cancel this date first');
+    expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM sheet_edits').first('n')).toBe(0);
+  });
+
+  it('applies nothing when the details are refused', async () => {
+    const res = await save(QUIZ, { details: { start_time: '25:00' }, places: 40 });
+    expect(res.status).toBe(400);
+    expect(await env.DB.prepare('SELECT capacity_override FROM events WHERE event_id = ?1').bind(QUIZ).first('capacity_override')).toBeNull();
+  });
+
+  it('warns that people booked will be emailed a new time, then queues it', async () => {
+    expect((await book('RTD-OCC-00004-20261023', 2)).status).toBe(201);
+    const first = await save(QUIZ, { details: { start_time: '19:00' } });
+    expect(first.status).toBe(409);
+    expect((await first.json<{ warning: string }>()).warning).toContain('emailed the new time');
+    expect((await save(QUIZ, { details: { start_time: '19:00' }, confirm: true })).status).toBe(200);
+  });
+
+  it('ignores details sent unchanged, so places still save', async () => {
+    const res = await save(QUIZ, { details: { name: 'Event 4' }, visibility: 'public', places: 40 });
+    expect(res.status).toBe(200);
+    expect((await res.json<Record<string, unknown>>()).sheet_edit).toBeUndefined();
+    expect(await env.DB.prepare('SELECT capacity_override FROM events WHERE event_id = ?1').bind(QUIZ).first('capacity_override')).toBe(40);
+    expect((await save(CATAN_EVT, { details: { name: 'Catan Club' }, places: 15 })).status).toBe(200);
+  });
+
+  it('refuses approvers', async () => {
+    expect((await save(QUIZ, { details: { name: 'Big Quiz' } }, MICHELLE)).status).toBe(403);
+  });
+});

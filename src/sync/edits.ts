@@ -17,7 +17,8 @@
 // The admin who made an edit is emailed if it conflicts or is given up on.
 
 import type { AuthUser } from '../lib/auth';
-import { esc, longDate } from '../lib/format';
+import { attendeeTimeChanged } from '../host/changes';
+import { esc, longDate, timeLabel } from '../lib/format';
 import { addDays, londonDate, parseSheetDate } from '../lib/time';
 import { queue } from '../notify/outbox';
 import type { Email } from '../notify/emails';
@@ -333,7 +334,10 @@ async function bookedWarning(db: D1Database, eventId: string, source: Source, fi
       .bind(eventId, date)
       .first<{ n: number; people: number }>();
     if (r?.n) {
-      return `${plural(r.n, 'booking')} (${plural(r.people, 'place')}) on ${longDate(date)}. Once the change reaches the app, it asks you under Needs attention whether to tell them or cancel their bookings.`;
+      const said = `${plural(r.n, 'booking')} (${plural(r.people, 'place')}) on ${longDate(date)}.`;
+      // A new time only: everyone booked is emailed it once it's written (tellNewTime).
+      if (!fields[dateCol]) return `${said} Everyone booked is emailed the new time once it's in the Logic Engine; their bookings stand.`;
+      return `${said} Once the change reaches the app, it asks you under Needs attention whether to tell them or cancel their bookings.`;
     }
   }
   return null;
@@ -550,7 +554,32 @@ export async function markEditWritten(db: D1Database, id: string, claim: string,
     .bind(id, iso)
     .run();
   await audit(db, id, e.event_id, 'n8n', 'n8n', 'sheet_edit.written', null, { target: e.target, cells: mine.cells }, iso);
+  if (e.target === 'live' && ('Event Time' in changes || 'End Time' in changes)) await tellNewTime(db, mine, changes, now, origin);
   return 'ok';
+}
+
+/**
+ * A new time is in the Logic Engine: everyone booked on dates to come is emailed it, as for an
+ * approved host change. Once per booking (the outbox dedupes on the edit).
+ */
+async function tellNewTime(db: D1Database, e: Claimed, changes: Partial<Record<Column, string>>, now: Date, origin: string) {
+  const ev = await db.prepare('SELECT display_name, sheet_values FROM events WHERE event_id = ?1').bind(e.event_id).first<{ display_name: string; sheet_values: string | null }>();
+  const current = json<Record<string, string> | null>(ev?.sheet_values ?? null) ?? {};
+  const start = changes['Event Time'] ?? current['Event Time'] ?? '';
+  if (!start) return;
+  const end = changes['End Time'] ?? current['End Time'] ?? '';
+  const { results: booked } = await db
+    .prepare(
+      `SELECT b.booking_id, b.lead_name, b.email, b.party_size, o.event_date FROM bookings b JOIN occurrences o ON o.occurrence_id = b.occurrence_id
+       WHERE o.event_id = ?1 AND o.status = 'scheduled' AND o.event_date >= ?2 AND b.status = 'confirmed' ORDER BY o.event_date, b.booking_id`,
+    )
+    .bind(e.event_id, londonDate(now))
+    .all<{ booking_id: string; lead_name: string; email: string; party_size: number; event_date: string }>();
+  if (!booked.length) return;
+  const name = ev?.display_name ?? e.name ?? e.event_id;
+  const time = timeLabel(start, end || null);
+  const iso = now.toISOString();
+  await db.batch(booked.map(b => queue(db, attendeeTimeChanged(e.edit_id, name, name, b, time, origin), iso)));
 }
 
 /** Google refused (or n8n failed). Body: { claim, error }. Tried again later; after the last try, given up on. */

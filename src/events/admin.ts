@@ -5,12 +5,12 @@
 // stays in place (the Logic Engine's conflict check, the host's approval path, places never
 // below what's booked).
 
-import { setBookingMode, setSessionPlaces } from '../bookings/places';
-import { adminChange, type ChangeRequest } from '../host/changes';
+import { setBookingMode, setEventPlaces, setSessionPlaces } from '../bookings/places';
+import { adminChange, refuseBookedMove, type ChangeRequest } from '../host/changes';
 import type { AuthUser } from '../lib/auth';
 import { BOOKING_MODE, CAPACITY, type BookingMode } from '../lib/queries';
 import { londonDate } from '../lib/time';
-import { IN_LAST_SYNC, OPEN, type SheetEdit } from '../sync/edits';
+import { IN_LAST_SYNC, OPEN, requestEdit, type SheetEdit } from '../sync/edits';
 
 export type EventKind = 'event_index' | 'standard_diary' | 'host_session' | 'market';
 export type Visibility = 'public' | 'app_bookable' | 'private' | 'hidden';
@@ -226,14 +226,21 @@ export async function saveEvent(db: D1Database, admin: AuthUser, eventId: string
   if (!form) return { ok: false, status: 404, error: 'No event with that ID.' };
   const b = parseBody(body);
   if (failed(b)) return b;
+  // Only what differs from the form counts as a change: the rest is as it was.
+  b.details = Object.fromEntries(Object.entries(b.details ?? {}).filter(([f, v]) => v !== form.details[f as DetailField]));
+  if (b.visibility === form.visibility) delete b.visibility;
+  if (b.active === false && !form.active) delete b.active;
   if (form.kind === 'market') return { ok: false, status: 409, error: 'Change markets under Markets.' };
-  const blocked = Object.keys(b.details ?? {}).filter(f => f in form.unavailable && b.details![f as DetailField] !== form.details[f as DetailField]);
+  const blocked = Object.keys(b.details).filter(f => f in form.unavailable);
   if (blocked.length)
     return { ok: false, status: 400, error: 'Please check the form', errors: Object.fromEntries(blocked.map(f => [f, form.unavailable[f as DetailField]!])) };
 
   const iso = ctx.now.toISOString();
   const out: Extract<SaveResult, { ok: true }> = { ok: true };
-  const hasDetails = Object.keys(b.details ?? {}).length > 0 || b.visibility !== undefined || b.active === false;
+  const hasDetails = Object.keys(b.details).length > 0 || b.visibility !== undefined || b.active === false;
+  if (!hasDetails && b.places === undefined && b.booking_mode === undefined) {
+    return { ok: false, status: 400, error: 'Nothing has changed.', errors: { form: 'Nothing has changed: change something, or close the form.' } };
+  }
   if (form.kind === 'host_session') {
     if (hasDetails) {
       const res = await adminChange(
@@ -254,10 +261,44 @@ export async function saveEvent(db: D1Database, admin: AuthUser, eventId: string
       out.places = res.places;
     }
   }
+  if (form.kind === 'event_index' || form.kind === 'standard_diary') {
+    if (hasDetails) {
+      const res = await queueSheetEdit(db, admin, form, b, ctx.now);
+      if (!res.ok) return res;
+      out.sheet_edit = res.edit;
+    }
+    if (b.places !== undefined) {
+      const res = await setEventPlaces(db, admin, eventId, b.places, { now: iso, today: londonDate(ctx.now) });
+      if (!res.ok) return res;
+      out.places = res.capacity;
+    }
+  }
   if (b.booking_mode !== undefined) {
     const res = await setBookingMode(db, admin, eventId, { mode: b.booking_mode, confirm: b.confirm }, { now: iso, today: londonDate(ctx.now) });
     if (!res.ok) return res;
     out.booking_mode = res.booking_mode;
   }
   return out;
+}
+
+/**
+ * A café event's details, as the Logic Engine columns of its tab, to the Sheet Writer queue
+ * (requestEdit keeps its checks: the last sync, one change on its way at a time, the sheet's own
+ * conflict check when it's written). A new date while people are booked on the current one is
+ * refused first.
+ */
+async function queueSheetEdit(db: D1Database, admin: AuthUser, form: AdminEventForm, b: SaveBody, now: Date) {
+  const cols = COLUMNS[form.kind as 'event_index' | 'standard_diary'];
+  const values: Record<string, string> = {};
+  for (const [f, v] of Object.entries(b.details ?? {})) if (cols[f as DetailField]) values[cols[f as DetailField]!] = v as string;
+  if (b.visibility !== undefined) values['App Visibility'] = b.visibility;
+  if (b.active === false) {
+    if (form.kind === 'event_index') values.Status = 'Inactive';
+    else values['App Visibility'] = 'hidden';
+  }
+  if (values[cols.event_date!] !== undefined && values[cols.event_date!] !== form.details.event_date) {
+    const refused = await refuseBookedMove(db, form.event_id, form.details.event_date || null);
+    if (refused) return refused;
+  }
+  return requestEdit(db, admin, form.event_id, { values, note: b.note, confirm: b.confirm }, now);
 }
