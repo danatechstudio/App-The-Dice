@@ -313,3 +313,64 @@ describe('an admin changes a café event', () => {
     expect((await save(QUIZ, { details: { name: 'Big Quiz' } }, MICHELLE)).status).toBe(403);
   });
 });
+
+const stop = (id: string, body: unknown = {}, who: Partial<Env> = DAN) => request(`/api/staff/events/${id}/stop`, json(body), who);
+
+describe('stop running an event', () => {
+  beforeEach(setLive);
+
+  it('warns, then cancels every booked date and stops the event', async () => {
+    expect((await save(DIARY, { booking_mode: 'optional' })).status).toBe(200);
+    expect((await book('RTD-OCC-00008-20261012', 2)).status).toBe(201);
+    expect((await book('RTD-OCC-00008-20261019', 1, 'ben@example.com')).status).toBe(201);
+    await env.DB.prepare('DELETE FROM outbox').run();
+    const first = await stop(DIARY, { message: 'The group has ended.' });
+    expect(first.status).toBe(409);
+    expect((await first.json<{ warning: unknown }>()).warning).toEqual({ dates: 2, bookings: 2, people: 3 });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM occurrences WHERE status = 'cancelled'").first('n')).toBe(0);
+
+    const res = await stop(DIARY, { message: 'The group has ended.', confirm: true });
+    expect(res.status).toBe(200);
+    const out = await res.json<{ cancelled_dates: number; cancelled_bookings: number; sheet_edit: { fields: Record<string, { to: string }> }; note: string }>();
+    expect(out).toMatchObject({ cancelled_dates: 2, cancelled_bookings: 2 });
+    expect(out.sheet_edit.fields['App Visibility']!.to).toBe('hidden');
+    expect(out.note).toContain('no Status column');
+    const mail = await env.DB.prepare("SELECT to_email FROM outbox WHERE kind = 'attendee_date_cancelled' ORDER BY to_email").all<{ to_email: string }>();
+    expect(mail.results.map(m => m.to_email)).toEqual(['ava@example.com', 'ben@example.com']);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'event.stopped'").first('n')).toBe(1);
+  });
+
+  it('stops without asking when nobody is booked', async () => {
+    const res = await stop(QUIZ);
+    expect(res.status).toBe(200);
+    const out = await res.json<{ cancelled_dates: number; sheet_edit: { fields: Record<string, { to: string }> } }>();
+    expect(out.cancelled_dates).toBe(0);
+    expect(out.sheet_edit.fields.Status!.to).toBe('Inactive');
+  });
+
+  it('stops a host session through the approved-change path', async () => {
+    expect((await stop(CATAN_EVT)).status).toBe(200);
+    const [row] = await toApply();
+    expect(row!.row).toEqual({ 'Event ID': CATAN_EVT, Status: 'Inactive' });
+  });
+
+  it('leaves a date that has already started, and still stops the event', async () => {
+    expect((await book('RTD-OCC-00004-20261023', 2)).status).toBe(201);
+    vi.setSystemTime(new Date('2026-10-23T18:00:00Z')); // 19:00 in London: the 18:30 start has passed
+    const res = await stop(QUIZ, { confirm: true });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ cancelled_dates: 0, cancelled_bookings: 0 });
+  });
+
+  it('cancels nothing while another change is on its way', async () => {
+    expect((await book('RTD-OCC-00004-20261023', 2)).status).toBe(201);
+    expect((await save(QUIZ, { details: { name: 'Big Quiz' } })).status).toBe(200);
+    const res = await stop(QUIZ, { confirm: true });
+    expect(res.status).toBe(409);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM occurrences WHERE status = 'cancelled'").first('n')).toBe(0);
+  });
+
+  it('refuses approvers', async () => {
+    expect((await stop(QUIZ, {}, MICHELLE)).status).toBe(403);
+  });
+});

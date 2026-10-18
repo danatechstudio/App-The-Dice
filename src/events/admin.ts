@@ -5,6 +5,7 @@
 // stays in place (the Logic Engine's conflict check, the host's approval path, places never
 // below what's booked).
 
+import { cancelDate } from '../bookings/bookings';
 import { setBookingMode, setEventPlaces, setSessionPlaces } from '../bookings/places';
 import { adminChange, refuseBookedMove, type ChangeRequest } from '../host/changes';
 import type { AuthUser } from '../lib/auth';
@@ -301,4 +302,79 @@ async function queueSheetEdit(db: D1Database, admin: AuthUser, form: AdminEventF
     if (refused) return refused;
   }
   return requestEdit(db, admin, form.event_id, { values, note: b.note, confirm: b.confirm }, now);
+}
+
+// ---- Stopping ----
+
+export type StopResult =
+  | { ok: true; cancelled_dates: number; cancelled_bookings: number; sheet_edit?: SheetEdit; change?: ChangeRequest; note?: string }
+  | Fail
+  | { ok: false; status: 409; warning: { dates: number; bookings: number; people: number } };
+
+/**
+ * Stop running an event. Body: { message?, confirm? }. With people booked on dates to come, asks
+ * first (409 { warning }); then cancels each of those dates (everyone booked is emailed, with the
+ * message) and only then takes the event out: Status Inactive in Event Index, hidden for a
+ * Standard Diary group (that tab has no Status column), or an admin change for a host session.
+ * Nothing is cancelled while another change to the event is still on its way.
+ */
+export async function stopEvent(db: D1Database, admin: AuthUser, eventId: string, body: unknown, ctx: { now: Date; origin: string }): Promise<StopResult> {
+  const denied = adminOnly(admin);
+  if (denied) return denied;
+  const form = await eventForm(db, eventId, ctx.now);
+  if (!form) return { ok: false, status: 404, error: 'No event with that ID.' };
+  if (form.kind === 'market') return { ok: false, status: 409, error: 'Change markets under Markets.' };
+  const stopped = form.kind === 'standard_diary' ? form.visibility === 'hidden' : !form.active;
+  if (stopped) return { ok: false, status: 409, error: "This event isn't running." };
+  if (form.pending) {
+    const what =
+      form.pending.kind === 'sheet_edit' ? 'A change to this event is still on its way to the Logic Engine' : 'The host has asked for a change to this session';
+    return { ok: false, status: 409, error: `${what} (${form.pending.id}). Deal with that first, then stop it.` };
+  }
+  const b = (body && typeof body === 'object' ? body : {}) as { message?: unknown; confirm?: unknown };
+  const iso = ctx.now.toISOString();
+  const { results: booked } = await db
+    .prepare(
+      `SELECT o.occurrence_id, COUNT(b.booking_id) AS bookings, SUM(b.party_size) AS people
+       FROM occurrences o JOIN bookings b ON b.occurrence_id = o.occurrence_id AND b.status = 'confirmed'
+       WHERE o.event_id = ?1 AND o.status = 'scheduled' AND o.event_date >= ?2
+         AND (o.starts_at IS NULL OR o.starts_at > ?3) -- a date already under way is left as it is
+       GROUP BY o.occurrence_id ORDER BY o.event_date`,
+    )
+    .bind(eventId, londonDate(ctx.now), iso)
+    .all<{ occurrence_id: string; bookings: number; people: number }>();
+  const warning = { dates: booked.length, bookings: booked.reduce((n, d) => n + d.bookings, 0), people: booked.reduce((n, d) => n + d.people, 0) };
+  if (booked.length && b.confirm !== true) return { ok: false, status: 409, warning };
+
+  let cancelled = 0;
+  for (const d of booked) {
+    const res = await cancelDate(db, admin, d.occurrence_id, b.message, { now: iso, origin: ctx.origin });
+    if (!res.ok) return res;
+    cancelled += res.cancelled_bookings;
+  }
+  const out: Extract<StopResult, { ok: true }> = { ok: true, cancelled_dates: booked.length, cancelled_bookings: cancelled };
+  if (form.kind === 'host_session') {
+    const res = await adminChange(
+      db,
+      admin,
+      form.session_id!,
+      { active: false, note: typeof b.message === 'string' ? b.message : undefined },
+      { now: iso, origin: ctx.origin },
+    );
+    if (!res.ok) return res;
+    out.change = res.request;
+  } else {
+    const res = await queueSheetEdit(db, admin, form, { details: {}, active: false, confirm: true }, ctx.now);
+    if (!res.ok) return 'warning' in res ? { ok: false, status: 409, error: String(res.warning) } : res;
+    out.sheet_edit = res.edit;
+    if (form.kind === 'standard_diary') out.note = "The Standard Diary has no Status column, so it's hidden instead.";
+  }
+  await db
+    .prepare(
+      `INSERT INTO audit_log (entity_type, entity_id, actor_type, actor_id, action, new_value, source, created_at)
+       VALUES ('event', ?1, 'staff', ?2, 'event.stopped', ?3, 'organiser', ?4)`,
+    )
+    .bind(eventId, admin.email, JSON.stringify({ cancelled_dates: booked.length, cancelled_bookings: cancelled }), iso)
+    .run();
+  return out;
 }
