@@ -1345,7 +1345,11 @@ describe('post check, review round 2', () => {
     passes('Quiz is on the 2nd and 4th Friday of the month.');
     passes('Quiz is the first and third Friday.');
     fails('Quiz is every 2nd Tuesday.');
-    expect(findDates('every 2nd Friday, 1st Saturday of the month').map(d => d.text)).toEqual(['Friday', 'Saturday']);
+    // Changed in review round 3: a recurrence is read whole, as its weekday.
+    expect(findDates('every 2nd Friday, 1st Saturday of the month').map(d => [d.text, d.weekday])).toEqual([
+      ['every 2nd Friday', 5],
+      ['1st Saturday of the month', 6],
+    ]);
   });
 
   it('reads "by" as an hour cue only after arriving words', () => {
@@ -1360,5 +1364,129 @@ describe('prompt validation, review round 2', () => {
     const verdict = validatePrompt(output({ master_prompt: `${goodPrompt} Nobody can play without booking.` }), dnd, ctx);
     expect(verdict.errors).toEqual([]);
     expect(verdict.status).toBe('approved');
+  });
+});
+
+describe('post check, review round 3', () => {
+  const now = new Date('2026-10-18T19:00:00Z');
+  const quiz: CheckTarget = {
+    event_id: 'RTD-EVT-00001',
+    name: 'Quiz',
+    date: '2026-10-23',
+    start_time: '18:30',
+    end_time: '22:00',
+    price: '£2',
+    facts: {},
+    base_details: 'A family quiz night with prizes at stake!',
+    people: [],
+    banned: [],
+    booking_mode: 'optional',
+  };
+  const check = (text: string, targets: CheckTarget[] = [quiz]) => checkPostText(text, targets, { now, otherEventNames: ['Bingo'] });
+  const passes = (text: string, targets: CheckTarget[] = [quiz]) => {
+    const result = check(text, targets);
+    expect(result.reasons, text).toEqual([]);
+    expect(result.pass, text).toBe(true);
+  };
+  const fails = (text: string, targets: CheckTarget[] = [quiz]) => expect(check(text, targets).pass, text).toBe(false);
+  const booked = [{ ...quiz, facts: { Booking: ['essential'] } }];
+
+  it('reads any negated booking as drop in, except "not booked yet" and "can\'t … without booking"', () => {
+    for (const text of [
+      "You won't need a ticket, just come along.",
+      "You don't need a booking.",
+      'No booking - just come along!',
+      'No booking — come along!',
+      'No need for tickets!',
+      "Don't bother booking, just come along.",
+      "Don't book, just come.",
+      "Don't worry about booking.",
+      'Tickets not needed.',
+      'Nobody needs to book.',
+      'Booking? Not necessary.',
+      'No need to pre-book.',
+      'Do not book, just come along.',
+    ]) {
+      fails(text, booked);
+    }
+    passes('Not booked yet? Book now!', booked);
+    passes("Haven't got your tickets yet? Book now!", booked);
+    passes('Nobody can play without booking.', booked);
+    passes("Don't forget to book.", booked);
+  });
+
+  it('lets People & Roles decide the role of a listed name, and traces others only within one clause', () => {
+    const people = [
+      { name: 'MoreThanABitDicey', role: 'host' },
+      { name: 'Trixie', role: 'sets up' },
+    ];
+    const target = (base_details: string) => [{ ...quiz, facts: { Booking: ['essential'] }, people, base_details }];
+    fails('Trixie hosts the table. Booking essential.', target('MoreThanABitDicey hosts, Trixie sets up.'));
+    fails('MoreThanABitDicey sets up the table. Booking essential.', target('Trixie sets up and MoreThanABitDicey hosts.'));
+    // A name not in People & Roles is traced only within one clause.
+    fails('Bob hosts.', [{ ...quiz, base_details: 'Bob, Trixie and Jo host.' }]);
+    fails('Bob hosts.', [{ ...quiz, base_details: 'Bob cooks while Jo hosts.' }]);
+    passes('Bob hosts.', [{ ...quiz, base_details: 'Bob hosts the family quiz.' }]);
+  });
+
+  it('reads only 1st–5th, first–fifth or last before a weekday as a recurrence', () => {
+    fails('See you 30th Fri!');
+    fails('Quiz is on the 30th Friday.');
+    fails('Quiz on 23rd & 30th Fri.');
+    passes('Quiz is every 2nd Friday.');
+    passes('Quiz is the first and third Friday.');
+    passes('Quiz is on the last Friday of the month.');
+    passes('Our 3rd quiz of the season!');
+  });
+
+  it('reads "by" and a bare number as an hour unless it counts something or follows "followed", "hosted" and the like', () => {
+    fails('Be seated by 7.');
+    fails('Join us by 7.');
+    fails('Book by 7.');
+    passes('Arrive by 6:30.');
+    expect(findTimes('Followed by 3 bonus rounds, hosted by 2 of us, won by 2 points.')).toEqual([]);
+  });
+
+  it('checks prices, short weekdays, relative days and booking words in hashtags', () => {
+    fails('Quiz is back! #FreeEntry');
+    fails('Quiz is back! #freeentry');
+    fails('Quiz is back! #FriNight', [{ ...quiz, date: '2026-10-24' }]);
+    passes('Quiz is back! #FriNight');
+    fails('Quiz is back! #TomorrowNight');
+    fails('Quiz is back! #tonight');
+    passes('Quiz is back! #tonight', [{ ...quiz, date: '2026-10-18' }]);
+    fails('Quiz is back! #booknow', [{ ...quiz, booking_mode: 'none' }]);
+    passes('Quiz is back! #booknow');
+  });
+
+  it('reads fixed holidays as dates', () => {
+    const halloween = [{ ...quiz, date: '2026-10-31' }];
+    fails('Quiz is back! #Halloween');
+    passes('Quiz is back! #Halloween', halloween);
+    passes('A Halloween Quiz!', halloween);
+    fails('A Halloween Quiz!');
+    fails('Quiz on Christmas Eve.');
+    passes('Quiz on Christmas Eve.', [{ ...quiz, date: '2026-12-24' }]);
+    passes('A Christmas Quiz!', [{ ...quiz, date: '2026-12-26' }]);
+    fails('A Christmas Quiz!');
+    fails('An Easter Quiz!');
+    expect(findDates("Halloween, Bonfire Night, New Year's Eve, Valentine's Day").map(d => [d.day, d.month])).toEqual([
+      [31, 10],
+      [5, 11],
+      [31, 12],
+      [14, 2],
+    ]);
+  });
+
+  it('matches short weekday names in any case after this, next and coming', () => {
+    fails('Quiz is next fri at 6:30pm.');
+    fails('Quiz is this FRI at 6:30pm.', [{ ...quiz, date: '2026-10-30' }]);
+    passes('Quiz is this fri at 6:30pm.');
+  });
+
+  it('reads hundreds and thousands, and a pair of number words after a price word', () => {
+    fails('Entry is two fifty.');
+    fails('Tickets are one hundred pounds.');
+    expect(findMoney('one hundred pounds, two thousand pounds, entry is two fifty, only twenty five places').map(m => m.pence)).toEqual([10000, 200000, 250]);
   });
 });
