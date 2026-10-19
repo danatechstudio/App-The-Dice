@@ -190,6 +190,24 @@ describe('the organiser summary', () => {
     expect(michelle.sections.events).toEqual({ count: 0 });
   });
 
+  it('leaves stopped, private and hidden events out of the social count', async () => {
+    const prompt = (id: string, event: string) =>
+      run(
+        "INSERT INTO social_prompts (prompt_id, event_id, version, status, source_fingerprint, source_snapshot, created_at) VALUES (?1, ?2, 1, 'review_required', 'fp', '{}', ?3)",
+        id, event, NOW,
+      );
+    await prompt('RTD-SP-00001', 'RTD-EVT-00001');
+    await prompt('RTD-SP-00002', 'RTD-EVT-00002');
+    await prompt('RTD-SP-00003', 'RTD-EVT-00003');
+    await run("UPDATE settings SET value = 'shadow' WHERE key = 'social_prompts'");
+    expect((await summary(DAN)).sections.events!.parts!.social_review).toBe(3);
+    await run("UPDATE events SET active = 0 WHERE event_id = 'RTD-EVT-00001'");
+    await run("UPDATE events SET visibility = 'private' WHERE event_id = 'RTD-EVT-00002'");
+    expect((await summary(DAN)).sections.events!.parts!.social_review).toBe(1);
+    await run("UPDATE events SET visibility = 'hidden' WHERE event_id = 'RTD-EVT-00003'");
+    expect((await summary(DAN)).sections.events!.parts!.social_review).toBe(0);
+  });
+
   it('shows booked dates this week as information, not as waiting', async () => {
     const booking = (id: string, occ: string) =>
       run(

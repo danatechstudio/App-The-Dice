@@ -1142,6 +1142,21 @@ describe('admin screens', () => {
     expect((await send('/api/staff/events/RTD-EVT-09999/social/regenerate', {})).status).toBe(404);
   });
 
+  it('leaves stopped, private and hidden events out of the review list', async () => {
+    await setUp();
+    expect((await (await get('/api/staff/social')).json<Overview>()).review.map(r => r.event_id)).toEqual([DND]);
+    for (const [sql, label] of [
+      ["UPDATE events SET active = 0 WHERE event_id = ?1", 'stopped'],
+      ["UPDATE events SET active = 1, visibility = 'private' WHERE event_id = ?1", 'private'],
+      ["UPDATE events SET visibility = 'hidden' WHERE event_id = ?1", 'hidden'],
+    ] as const) {
+      await env.DB.prepare(sql).bind(DND).run();
+      expect((await (await get('/api/staff/social')).json<Overview>()).review, label).toEqual([]);
+    }
+    await env.DB.prepare("UPDATE events SET visibility = 'app_bookable' WHERE event_id = ?1").bind(DND).run();
+    expect((await (await get('/api/staff/social')).json<Overview>()).review.map(r => r.event_id)).toEqual([DND]);
+  });
+
   it('refuses approvers and hosts', async () => {
     await setUp();
     const routes: [string, string, unknown?][] = [

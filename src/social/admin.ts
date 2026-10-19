@@ -72,11 +72,13 @@ export interface CheckRow {
 
 /**
  * The newest version of each event, when it needs a person: review_required or blocked. A waiting
- * regenerate request doesn't count as newer. The hub's count (src/staff/summary.ts) uses this rule.
+ * regenerate request doesn't count as newer. Only events still running and Public or App Bookable
+ * count: no post uses a stopped or private event's prompt. The hub's count (src/staff/summary.ts) uses this rule.
  */
 export const REVIEW_SQL = `SELECT p.* FROM social_prompts p
   WHERE p.status IN ('review_required', 'blocked')
-    AND p.version = (SELECT MAX(q.version) FROM social_prompts q WHERE q.event_id = p.event_id AND q.status <> 'pending')`;
+    AND p.version = (SELECT MAX(q.version) FROM social_prompts q WHERE q.event_id = p.event_id AND q.status <> 'pending')
+    AND EXISTS (SELECT 1 FROM events e WHERE e.event_id = p.event_id AND e.active = 1 AND e.visibility IN ('public', 'app_bookable'))`;
 
 interface CheckDbRow {
   check_id: string;

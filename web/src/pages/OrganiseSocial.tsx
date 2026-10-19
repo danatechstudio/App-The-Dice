@@ -62,7 +62,9 @@ export function SocialPanel() {
           <ModePicker mode={data.mode} onSaved={load} />
           <div>
             <h3 class="label social__subhead">Prompts to review</h3>
-            {!data.review.length && <p class="meta">Nothing to review. Prompts that need a person show up here.</p>}
+            {!data.review.length && (
+              <p class="meta">Nothing to review. Prompts that need a person show up here, for events still running and Public or App Bookable.</p>
+            )}
             <div class="list">
               {data.review.map(r => (
                 <article key={r.event_id} class="card card--pad stack" style={{ '--gap': '6px' }}>
@@ -89,9 +91,10 @@ export function SocialPanel() {
             </div>
           </div>
           <div>
-            <h3 class="label social__subhead">Held posts</h3>
+            <h3 class="label social__subhead">Held posts: the last 50</h3>
             <p class="meta" style={{ marginBottom: '8px' }}>
-              The last 50 posts that failed their check: held in Enforce, or in Shadow, the ones that would have been.
+              The last 50 posts that failed their check: held in Enforce, or in Shadow, the ones that would have been. The organiser’s count takes those from
+              this week.
             </p>
             {!data.held.length && <p class="meta">No posts have failed their check.</p>}
             <div class="list">
