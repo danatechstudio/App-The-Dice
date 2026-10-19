@@ -11,7 +11,7 @@
 // already in the app), its approved prompt is the one in use for the current facts, and the words
 // pass the deterministic check (src/social/validate.ts). Anything that can't be confirmed fails.
 
-import { BOOKING_MODE, type BookingMode } from '../lib/queries';
+import { BOOKING_MODE, OCCURRENCE_FIELDS, type BookingMode } from '../lib/queries';
 import { addDays, londonDate, parseSheetDate } from '../lib/time';
 import { parseFacts, parsePeople, sourceFields } from './facts';
 import { activeEventNamesExcept, currentPrompt, EVENT_FIELDS, OPEN_SHEET_EDIT, PENDING_CHANGE_REQUEST, socialMode, type Fail, type Mode } from './prompts';
@@ -58,8 +58,6 @@ const MAX_EVENTS = 50;
 /** Longest caption or poster wording accepted. */
 const MAX_TEXT = 20_000;
 const ID_MAX = 100;
-/** Between the caption and the poster wording in a recorded check. */
-const POSTER_MARK = '\n\n--- Poster wording ---\n';
 
 const bad = (error: string): Fail => ({ ok: false, status: 400, error });
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -264,26 +262,30 @@ async function resolveTarget(
 
   // Its date.
   const occ = await db
-    .prepare('SELECT event_id, event_date, start_time, end_time, ends_at, status, visibility FROM occurrences WHERE occurrence_id = ?1')
+    // Read as the public pages read it (src/lib/queries.ts), so the price is the date's own when it has one, else App Price.
+    .prepare(
+      `SELECT ${OCCURRENCE_FIELDS}, o.visibility AS own_visibility FROM occurrences o JOIN events e ON e.event_id = o.event_id WHERE o.occurrence_id = ?1`,
+    )
     .bind(t.occurrence_id)
     .first<{
       event_id: string;
-      event_date: string;
+      date: string;
       start_time: string | null;
       end_time: string | null;
       ends_at: string | null;
       status: string;
-      visibility: string | null;
+      own_visibility: string | null;
+      price_display: string | null;
     }>();
   let target: CheckTarget | null = null;
   if (!occ || occ.event_id !== t.event_id) say(`${t.occurrence_id} is not a date of this event`);
   else {
-    const date = occ.event_date;
+    const date = occ.date;
     if (occ.status === 'cancelled') say(`its date ${date} was cancelled`);
     else if (occ.status === 'rescheduled') say(`its date ${date} was moved to another date`);
     // Over: an earlier day (London), marked completed, or ended earlier today.
     if (occ.status === 'completed' || date < londonDate(now) || (occ.ends_at && occ.ends_at <= now.toISOString())) say(`its date ${date} has already happened`);
-    if (eventPublic && occ.visibility && !PUBLIC.includes(occ.visibility)) say(`its date ${date} is not public (${occ.visibility})`);
+    if (eventPublic && occ.own_visibility && !PUBLIC.includes(occ.own_visibility)) say(`its date ${date} is not public (${occ.own_visibility})`);
     if (syncPending(sheetDates, t.event_id, date))
       say(`date not in the app yet (the sheet has ${String(sheetDates[t.event_id])}, the app ${date}); wait for the sync`);
     const social = { facts: parseFacts(fields.approved_facts).facts, people: parsePeople(fields.people_roles).people };
@@ -293,7 +295,7 @@ async function resolveTarget(
       date,
       start_time: occ.start_time || null,
       end_time: occ.end_time || null,
-      price: fields.price,
+      price: occ.price_display ?? '',
       ...social,
       base_details: fields.base_details,
       banned: bannedPhrases(bannedCell(event)),
@@ -343,16 +345,17 @@ export async function runCheck(db: D1Database, body: unknown, now: Date): Promis
   const steps: D1PreparedStatement[] = [
     db
       .prepare(
-        `INSERT INTO social_checks (check_id, mode, kind, platform, targets, text, result, reasons, workflow, execution_id, created_at)
+        `INSERT INTO social_checks (check_id, mode, kind, platform, targets, text, image_text, result, reasons, workflow, execution_id, created_at)
          SELECT (SELECT printf('RTD-SC-%05d', COALESCE(MAX(CAST(substr(check_id, 8) AS INTEGER)), 0) + 1) FROM social_checks),
-           ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10`,
+           ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11`,
       )
       .bind(
         mode,
         req.kind,
         req.platform,
         JSON.stringify(req.targets),
-        req.image_text === null ? req.text : `${req.text}${POSTER_MARK}${req.image_text}`,
+        req.text,
+        req.image_text,
         result,
         JSON.stringify(reasons),
         req.workflow,

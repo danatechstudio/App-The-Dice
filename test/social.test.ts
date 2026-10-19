@@ -2,7 +2,7 @@
 // Task 1: the owner columns the sync reads, the facts they hold, and the fingerprint of what Gemini may see.
 // Task 4: the prompt store, the builder's internal endpoints and the switch.
 // Task 5: what n8n is given before a post (the event layer) and the check every post goes through.
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/lib/auth';
 import { fingerprint, parseFacts, parsePeople, sourceFields, type SourceFields } from '../src/social/facts';
 import { runCheck, socialContext, type EventLayer } from '../src/social/check';
@@ -189,9 +189,14 @@ describe('owner columns', () => {
 });
 
 describe('prompt store', () => {
-  beforeEach(freshDb);
-
   const NOW = new Date('2026-10-19T10:00:00Z');
+  // The routes read the clock, so it is fixed at NOW: the dates in these tests never go stale.
+  beforeEach(async () => {
+    await freshDb();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => vi.useRealTimers());
   const AUTH = { Authorization: 'Bearer test-sync-token' };
   const admin: AuthUser = { user_id: 'u-dan', email: 'dan@example.com', display_name: 'Dan', role: 'admin' };
   const staff: AuthUser = { user_id: 'u-sam', email: 'sam@example.com', display_name: 'Sam', role: 'staff' };
@@ -451,7 +456,8 @@ describe('prompt store', () => {
     // Regenerate: only an admin, and the event is due again with a fresh count.
     expect(await requestRegenerate(env.DB, staff, DND, NOW)).toEqual({ ok: false, status: 403, error: 'Only admins can manage social prompts.' });
     expect(await requestRegenerate(env.DB, admin, 'RTD-EVT-09999', NOW)).toMatchObject({ ok: false, status: 404 });
-    // The clock is real here: the route stamps failures with the time it gets them.
+    // A minute later: the route stamps failures with the time it gets them, so the earlier ones are before the request.
+    vi.setSystemTime(new Date(NOW.getTime() + 60_000));
     expect(await requestRegenerate(env.DB, admin, DND, new Date())).toEqual({ ok: true });
     expect(await requestRegenerate(env.DB, admin, DND, new Date())).toEqual({ ok: true });
     expect(await audits('social_prompt.regenerate_requested')).toHaveLength(2);
@@ -612,10 +618,15 @@ describe('prompt store', () => {
 });
 
 describe('posting', () => {
-  beforeEach(freshDb);
-
   // Monday 19 October 2026, 11:00 in London. The Quiz is on Friday 23 October, 18:30–22:00.
   const NOW = new Date('2026-10-19T10:00:00Z');
+  // The routes read the clock, so it is fixed at NOW: the dates in these tests never go stale.
+  beforeEach(async () => {
+    await freshDb();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => vi.useRealTimers());
   const AUTH = { Authorization: 'Bearer test-sync-token', 'Content-Type': 'application/json' };
   const admin: AuthUser = { user_id: 'u-dan', email: 'dan@example.com', display_name: 'Dan', role: 'admin' };
   const QUIZ = 'RTD-EVT-00001';
@@ -904,14 +915,30 @@ describe('posting', () => {
     expect(res).toMatchObject({ allow: false, result: 'fail' });
     expect(said(res, /poster.*7:30pm/i)).toBe(true);
     expect(failed(res).reasons.every(r => /poster/i.test(r))).toBe(true);
+    // The caption and the poster wording are recorded apart.
     const [row] = await checks();
-    expect(row!.text).toContain(GOOD);
-    expect(row!.text).toContain('7:30pm');
+    expect(row).toMatchObject({ kind: 'poster', text: GOOD, image_text: 'Quiz Night · Friday 23 October · 7:30pm' });
+    expect(await checks()).toHaveLength(1);
 
     expect(await runCheck(env.DB, checkBody({ kind: 'poster', image_text: 'Quiz Night · Friday 23 October · 6:30pm' }), NOW)).toMatchObject({
       allow: true,
       result: 'pass',
     });
+  });
+
+  it("checks prices against the date's own price, else the event's App Price", async () => {
+    await setUp('enforce', [quizRow({ 'App Price': '£2' }), bingoRow()]);
+    const priced = (text: string) => runCheck(env.DB, checkBody({ text: `Quiz Night is on Friday 23 October at 6:30pm. It costs ${text}. #QuizNight` }), NOW);
+    const two = await priced('£2');
+    expect(two, JSON.stringify(two)).toMatchObject({ allow: true, result: 'pass' });
+    expect(await priced('£3')).toMatchObject({ allow: false, result: 'fail' });
+
+    // This date has its own price, as the public pages show it.
+    await env.DB.prepare("UPDATE occurrences SET price_display = '£3' WHERE occurrence_id = ?1").bind(QUIZ_OCC).run();
+    expect(await priced('£3')).toMatchObject({ allow: true, result: 'pass' });
+    const old = await priced('£2');
+    expect(old).toMatchObject({ allow: false, result: 'fail' });
+    expect(said(old, /£2/)).toBe(true);
   });
 
   it('needs the bearer token', async () => {

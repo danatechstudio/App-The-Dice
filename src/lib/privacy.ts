@@ -20,7 +20,7 @@ const DEFAULT_RETENTION_MONTHS = 12;
 const KEEP_NETWORK_HASH_DAYS = 2;
 /** Messages asking to join a private game (src/events/enquiries.ts). */
 const KEEP_ENQUIRY_DAYS = 90;
-/** The words of a social post checked before it went out (src/social/check.ts); the result is kept. */
+/** The words of a social post (caption and poster) checked before it went out (src/social/check.ts); the result is kept. */
 const KEEP_CHECK_TEXT_DAYS = 90;
 const EMAIL = /^[^\s@<>,;]+@[^\s@<>,;]+\.[a-z]{2,}$/i;
 
@@ -67,7 +67,7 @@ export interface Erased {
  * - declined or withdrawn join requests: name, email and what they wrote, 12 months after;
  * - market stall applications, 12 months after the market, with their photos (KV);
  * - messages asking to join a private game, deleted 90 days after they were sent;
- * - the words of a social post checked before it went out, 90 days after (the result stays).
+ * - the words of a social post (caption and poster wording) checked before it went out, 90 days after (the result stays).
  */
 export async function applyRetention(db: D1Database, now: Date, kv?: KVNamespace): Promise<Erased> {
   const { booking_retention_months: months } = await privacyInfo(db);
@@ -99,7 +99,9 @@ export async function applyRetention(db: D1Database, now: Date, kv?: KVNamespace
       .bind(new Date(now.getTime() - 86_400_000).toISOString()),
     db.prepare('UPDATE enquiries SET ip_hash = NULL WHERE ip_hash IS NOT NULL AND created_at < ?1').bind(hashesBefore),
     db.prepare('DELETE FROM enquiries WHERE created_at < ?1').bind(new Date(now.getTime() - KEEP_ENQUIRY_DAYS * 86_400_000).toISOString()),
-    db.prepare('UPDATE social_checks SET text = NULL WHERE text IS NOT NULL AND created_at < ?1').bind(new Date(now.getTime() - KEEP_CHECK_TEXT_DAYS * 86_400_000).toISOString()),
+    db
+      .prepare('UPDATE social_checks SET text = NULL, image_text = NULL WHERE (text IS NOT NULL OR image_text IS NOT NULL) AND created_at < ?1')
+      .bind(new Date(now.getTime() - KEEP_CHECK_TEXT_DAYS * 86_400_000).toISOString()),
     // Devices people asked to be told on about a booking: only until the day after its date.
     ...forgetDevices(db, now),
   ]);

@@ -48,7 +48,8 @@ CREATE TABLE social_checks (
   kind         TEXT NOT NULL CHECK (kind IN ('event_post', 'roundup', 'poster')),
   platform     TEXT,
   targets      TEXT NOT NULL,                           -- JSON [{event_id, occurrence_id, prompt_version}]
-  text         TEXT,                                    -- the final caption and poster wording; cleared after 90 days
+  text         TEXT,                                    -- the final caption; cleared after 90 days
+  image_text   TEXT,                                    -- the poster wording, when there is a poster; cleared after 90 days
   result       TEXT NOT NULL CHECK (result IN ('pass', 'fail')),
   reasons      TEXT,                                    -- JSON
   workflow     TEXT,                                    -- the n8n workflow and execution

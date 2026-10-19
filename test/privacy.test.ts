@@ -132,18 +132,18 @@ describe('erasing details that are no longer needed', () => {
   });
 
   it('clears check text after 90 days', async () => {
-    // Two checks made before social posts (src/social/check.ts): one 91 days ago, one 89.
+    // Two checks made before social posts (src/social/check.ts), caption and poster: one 91 days ago, one 89.
     const insert = (id: string, created: string) =>
       env.DB.prepare(
-        `INSERT INTO social_checks (check_id, mode, kind, platform, targets, text, result, reasons, workflow, execution_id, created_at)
-         VALUES (?1, 'shadow', 'event_post', 'facebook', '[]', 'Quiz Night is on Friday', 'fail', '["cash"]', 'RTD Master V1', 'exec-1', ?2)`,
+        `INSERT INTO social_checks (check_id, mode, kind, platform, targets, text, image_text, result, reasons, workflow, execution_id, created_at)
+         VALUES (?1, 'shadow', 'poster', 'facebook', '[]', 'Quiz Night is on Friday', 'Quiz Night 6:30pm', 'fail', '["cash"]', 'RTD Master V1', 'exec-1', ?2)`,
       ).bind(id, created);
     await env.DB.batch([insert('RTD-SC-00001', '2026-07-07T10:00:00.000Z'), insert('RTD-SC-00002', '2026-07-09T10:00:00.000Z')]);
     expect(await applyRetention(env.DB, new Date())).toMatchObject({ social_checks: 1 });
-    const rows = await env.DB.prepare('SELECT check_id, text, result, reasons FROM social_checks ORDER BY check_id').all();
+    const rows = await env.DB.prepare('SELECT check_id, text, image_text, result, reasons FROM social_checks ORDER BY check_id').all();
     expect(rows.results).toEqual([
-      { check_id: 'RTD-SC-00001', text: null, result: 'fail', reasons: '["cash"]' },
-      { check_id: 'RTD-SC-00002', text: 'Quiz Night is on Friday', result: 'fail', reasons: '["cash"]' },
+      { check_id: 'RTD-SC-00001', text: null, image_text: null, result: 'fail', reasons: '["cash"]' },
+      { check_id: 'RTD-SC-00002', text: 'Quiz Night is on Friday', image_text: 'Quiz Night 6:30pm', result: 'fail', reasons: '["cash"]' },
     ]);
     // Once only.
     expect(await applyRetention(env.DB, new Date())).toMatchObject({ social_checks: 0 });
