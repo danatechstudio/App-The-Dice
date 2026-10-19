@@ -246,7 +246,7 @@ This goes in the existing **Edit event** page (`web/src/pages/OrganiseEventEdit.
 
 | Gate | What happens | Rollback |
 |---|---|---|
-| G1 | Merge the app code (switch at `off`); apply migration 0024 | `wrangler rollback`; tables can stay |
+| G1 | Apply migrations 0023 then 0024 (owner go-ahead), verify, then merge the app code (switch at `off`). Never merge first (see Changes during build) | `wrangler rollback`; tables can stay |
 | G2 | Back up the Logic Engine; the one-off workflow adds the 4 columns to both tabs | Columns can stay (the app ignores empty ones); the backup copy is there |
 | G3 | Dan and Michelle fill in Approved Facts and People & Roles. I prepare suggested text from Base Details in a doc for them to confirm; nothing is written to the sheet by me | — |
 | G4 | Builder: run it manually for 3 representative events (dry run: it writes no sheet cells), review in the admin screen; then publish (5 per run backfills the rest) | Unpublish |
@@ -323,3 +323,4 @@ The sections above are the design as approved. The build changed these points; w
 18. **Admin approval (§5).** The admin's text gets the same text checks as a generated prompt (dates, times, prices, other events, names, claim words and roles), but no claim tracing or ambiguity questions. A reason is required. The schedule rule is added exactly once.
 19. **Endpoints.** There are six internal endpoints, not five: `/social-prompts/due`, `/social-prompts/:eventId`, `/social-prompts/to-write`, `/social-prompts/:eventId/written`, `/social/context` and `/social/check`.
 20. **Known limits** of the fixed-rule check are listed in `docs/RTD_N8N_WORKFLOWS.md` ("Known limits").
+- **G1 order:** the migrations go first. The as-built code writes `events.social_values` in every sync, reads `social_prompts`/`social_checks` in the hub summary batch, and clears `social_checks` in the retention batch, so merging before 0024 (and 0023, which the branch also carries) would make the sync, the whole hub and the daily privacy clean-up fail.

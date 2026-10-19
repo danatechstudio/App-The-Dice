@@ -60,7 +60,7 @@ The app side of event-specific social master prompts ([changelog](../RTD_CHANGEL
 
 | Gate | What happens | Rollback |
 | --- | --- | --- |
-| G1 | Merge the app code (switch Off); apply 0024 | `wrangler rollback`; the tables can stay |
+| G1 | Apply **0023**, then **0024**, to production (each with the owner's go-ahead), check them, and only then merge the app code (switch Off). Merging first would break the live app: the sync, the organiser hub and the daily privacy clean-up all need 0024's tables | `wrangler rollback`; the tables can stay |
 | G2 | Back up the Logic Engine; a one-off workflow adds the 4 columns to both tabs (staging copy first); RTD Event Sync sends the new columns | The columns can stay (the app ignores empty ones); the backup is there |
 | G3 | Dan and Michelle fill in Approved Facts and People & Roles, from suggested wording in a doc they confirm | — |
 | G4 | The builder runs by hand for 3 events (a dry run that writes no cells), reviewed on the screen; then it's published | Unpublish |

@@ -627,6 +627,9 @@ The check is a **safety net built from fixed rules, not a guarantee.** It can't 
 - An admin's own approved text gets the same checks on dates, times, prices, other events, names, claim words and roles. Claim tracing doesn't apply to it, because the admin is answering the questions.
 
 **Other limits:**
+- **Base Details goes to Gemini as written.** It's one of the approved fields, so if the café or a host puts a date, a time or an email address in it, Gemini sees that too. The prompt Gemini writes back is still checked for dates, times and prices before it's stored, so nothing like that ends up in a prompt. But keep dates, times and contact details out of Base Details.
+- **A date with its own price:** the check uses that date's price, but the prompt only knows the event's App Price. A caption that repeats the App Price for a special-price date is held. Rare; fails safe.
+- **The sheet's prompt cell can lag:** if the facts change between an admin's approval and n8n writing the cell, the sheet shows the older approved prompt until the next run. Posts aren't affected: they use the app's copy, which is checked against the current facts.
 - If n8n retries a check, the log gets two rows for the same post. That's harmless.
 - None of this has met real Gemini output or real posts yet. That happens in G4 (three events, a dry run) and G5 (the Shadow week).
 

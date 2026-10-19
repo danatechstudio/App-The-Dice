@@ -149,7 +149,9 @@ Nothing existing changes. **At Off nothing is checked or recorded, and nothing p
 
 **Why it must be applied before the deploy:**
 - The new sync writes `events.social_values`. On the old schema every sync would fail (and be retried), so the diary would stop updating.
-- The organiser hub's count reads `social_prompts` and `social_checks`.
+- The organiser hub's counts read `social_prompts` and `social_checks` in one batch, so on the old schema the whole hub fails for every staff user, not just one count.
+- The daily privacy clean-up clears old check text from `social_checks` in the same batch as the booking and enquiry erasure, so on the old schema that whole clean-up stops.
+- So: apply 0023, then 0024, check them, and only then merge. Never merge this branch first.
 
 **What changes when the code is deployed:**
 - The first sync stores `social_values` for every event. It changes no event's hash, so `events_changed` stays as usual and no audit rows are written.

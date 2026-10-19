@@ -30,7 +30,7 @@
 - **Privacy:** the text of each checked post is deleted after 90 days; the result is kept.
 - **Database:** migration `0024_social_prompts.sql` adds one column, two tables and the switch (Off). **Not applied to production yet.** It goes after `0023` (also waiting), each with the owner's go-ahead ([RTD_EVENT_CONTROL_MIGRATION.md](docs/RTD_EVENT_CONTROL_MIGRATION.md#0024_social_promptssql-event-social-prompts-stage-1)).
 - **The owner's steps (spec §6), each with a go-ahead:**
-  - **G1:** merge the app code (switch Off) and apply 0024.
+  - **G1:** apply **0023**, then **0024**, to production (each with the owner's go-ahead), check them, and only then merge the app code (switch Off). Merging first would break the live app: the sync, the organiser hub and the daily privacy clean-up all need 0024's tables.
   - **G2:** back up the Logic Engine, and add the 4 columns (Approved Facts, People & Roles, Social Prompt, Social Prompt Status) to both tabs, on the staging copy first. RTD Event Sync then needs to send the new columns to the app.
   - **G3:** Dan and Michelle fill in Approved Facts and People & Roles. Suggested wording from Base Details comes in a doc for them to confirm; nothing is written to the sheet for them.
   - **G4:** run the builder by hand for 3 events (a dry run that writes no cells), review them on the screen, then publish it.
