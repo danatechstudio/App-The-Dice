@@ -4,6 +4,10 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### 2026-10-19: RTD Social Context (sub) and RTD Social Gate (sub) (new, published)
+
+Stage 2, Task 2. Two new sub-workflows hold every call RTD Master V1 will make to the app before and after a caption: **RTD Social Context (sub)** (`QCjohGtBuld6k5R8`) and **RTD Social Gate (sub)** (`NqC8fZUoIWWuvDnt`). Both are **published**, which is safe because nothing calls them yet. They add the rtd_config key `SOCIAL_MODE_LAST`. The app's switch stayed Off. See [As built](#as-built-the-context-and-gate-sub-workflows) under the contract below.
+
 ### 2026-10-19: RTD Social Prompt Builder (new, not published)
 
 Stage 2, Task 1. A new workflow, **RTD Social Prompt Builder** (`lh9MzioBdpBpBIVo`). It is **unpublished** and in a dry run against the staging copy, with rtd_config keys `SOCIAL_BUILDER_DRY_RUN=true` and `SOCIAL_BUILDER_SHEET=staging`. Writing to the sheet and publishing wait for the owner (G4). See [As built](#as-built-rtd-social-prompt-builder-lh9mziobdpbpbivo) under the contract below.
@@ -473,7 +477,7 @@ Posts each admin's event reminder on the café's Facebook page ([RTD_ALERTS.md](
 
 ## Event social prompts (contract for Stage 2)
 
-**Stage 2 has started:** the Builder exists, unpublished (see [As built](#as-built-rtd-social-prompt-builder-lh9mziobdpbpbivo)). Stage 1 was the app side only. It ships with the switch (setting `social_prompts`) at **Off**, so every post goes out exactly as it does today. The n8n side is Stage 2: the new **RTD Social Prompt Builder**, and edits to **RTD Master V1** and the poster path. Each step needs the owner's go-ahead (gates G1–G6 in the [spec §6](superpowers/specs/2026-10-18-social-master-prompt-design.md#6-rollout-each-gate-needs-the-owners-go-ahead-and-rollback)). This section is what those workflows must do, matched to the code in `src/routes/internal.ts`, `src/social/prompts.ts` and `src/social/check.ts`.
+**Stage 2 has started:** the Builder exists, unpublished (see [As built](#as-built-rtd-social-prompt-builder-lh9mziobdpbpbivo)), and the Context and Gate sub-workflows are published, not yet called (see [As built](#as-built-the-context-and-gate-sub-workflows)). Stage 1 was the app side only. It ships with the switch (setting `social_prompts`) at **Off**, so every post goes out exactly as it does today. The n8n side is Stage 2: the new **RTD Social Prompt Builder**, and edits to **RTD Master V1** and the poster path. Each step needs the owner's go-ahead (gates G1–G6 in the [spec §6](superpowers/specs/2026-10-18-social-master-prompt-design.md#6-rollout-each-gate-needs-the-owners-go-ahead-and-rollback)). This section is what those workflows must do, matched to the code in `src/routes/internal.ts`, `src/social/prompts.ts` and `src/social/check.ts`.
 
 **The idea, in short:**
 - Each event gets its own master prompt, written by Gemini from the facts the café wrote down: Base Details (Notes on Standard Diary), **Approved Facts** and **People & Roles**.
@@ -647,12 +651,57 @@ Versions answered in step 3 are written by step 5, because `/to-write` lists the
 | **Enforce** | Layers | Every post is checked and recorded; `allow` is `true` only on a pass | **Only on a 200 with `allow: true`.** Any other answer (`allow: false`, a 400, 401, 413, 5xx or a timeout) means **don't post**: append a Post Log row with Automation Status **`Held`** |
 
 - The app lists held posts (and, in Shadow, the posts that would have been held) under Organise › Events & dates › **Social prompts**.
-- **Still to decide in Stage 2:** what to do when the app can't be reached at all, so n8n doesn't know the setting. The safe choice is to use the `mode` from this run's context call, and hold if that is Enforce or unknown.
+- **When the app can't be reached at all** (decided in Stage 2): n8n uses the last setting the app answered, kept in rtd_config `SOCIAL_MODE_LAST`. It holds only when that is `enforce`; a missing key counts as not enforce. See the Gate below.
 
 **Posters (Stage 2):**
 - Poster Generator records the exact quoted poster text, and the time it used, in the Drive file's description.
 - Master V1 reads it and sends it as `image_text`.
 - At Enforce, a poster whose wording or time doesn't match, or that has none (as with older posters), isn't attached. Event Guard's poster step makes a new one.
+
+#### As built: the Context and Gate sub-workflows
+
+**Created and published 2026-10-19.** Nothing calls them until the Master V1 edits (Tasks 3 to 5) are published at G5. Both: an **Execute Workflow Trigger** (`When Called`) with defined inputs, plus **Run By Hand** with a sample input; caller policy `workflowsFromSameOwner`; error workflow `Studio: Error Handler` (`IClMUs9ByRmVBYJf`); Europe/London; 120 s timeout. They read `RTD_APP_BASE_URL` from rtd_config and use the `rtd-app` header-auth credential.
+
+**Neither throws on an app failure.** The app call has `onError: continueRegularOutput`, 2 tries (2 s apart) and a 15 s timeout, and reads the status code instead of failing on it. rtd_config is read with `continueRegularOutput` too.
+
+**rtd_config `SOCIAL_MODE_LAST`** (added 2026-10-19, now `off`): the last `mode` the app answered (`off`, `shadow` or `enforce`). Both subs upsert it from every 200 answer, but only when the mode has changed, so there is no write on most calls.
+
+**RTD Social Context (sub)** (`QCjohGtBuld6k5R8`)
+- **Input:** `{ events: [{ event_id, sheet_date }] }`. `sheet_date` is optional and is sent as `sheet_dates` only when it is non-empty text or a number. Event IDs are trimmed and de-duplicated, up to 50.
+- **Nodes:** When Called / Run By Hand → Sample Events → **Read rtd_config** → **Context Request** → **Ask App For Context** (`POST /internal/social/context`) → **Build Layers** → **Mode Changed?** → **Save SOCIAL_MODE_LAST** (Data Table upsert) → **Context Result**.
+- **Output**, one item: `{ mode, layers: { [event_id]: { block, occurrence_id, prompt_version, date_block } }, ok }`.
+  - `block`: the event's `prompt`, then a blank line and `Approved facts: …` and `People & roles: …` lines when they aren't empty. It is `""` when there's no prompt. At `off` there are no layers at all.
+  - The schedule rule is already in the stored prompt, so it isn't added again. Banned Phrases aren't put in the block; the check looks for them.
+  - `occurrence_id`: from the context, or `null` when the event has no date. `prompt_version`: as the context gave it (`0` for none). Both go back to the Gate unchanged.
+  - `date_block`: `Date: <occurrence.label>`, or `""` with no date.
+  - An event the app doesn't know has no layer.
+- **On any failure** (no answer, a non-200, or an answer it can't read): `{ mode: 'unknown', layers: {}, ok: false }`, and `SOCIAL_MODE_LAST` is left alone. The caller then writes the caption exactly as today.
+
+**RTD Social Gate (sub)** (`NqC8fZUoIWWuvDnt`)
+- **Input:** `{ kind, platform, targets, text, image_text?, workflow, execution_id, sheet_dates? }`, as the check's body above. `targets` and `sheet_dates` may be passed as JSON text. `image_text` is sent only when it's non-empty, and `sheet_dates` only when it has entries. `text` is sent exactly as given.
+- **Nodes:** When Called / Run By Hand → Sample Post (the real 18 Oct Quiz caption) → **Read rtd_config** → **Check Request** → **Ask App To Check** (`POST /internal/social/check`) → **Gate Answer** → **Mode Changed?** → **Save SOCIAL_MODE_LAST** → **Gate Result**.
+- **Output**, one item: `{ post, held_reason }`.
+  - **A 200 with `allow`:** `post = allow`. When it is `false`, `held_reason` is the reasons joined by `; `; otherwise it is `""`.
+  - **Anything else** (a 400, 401, 413, 5xx, no answer or timeout, or a 200 it can't read): `post = (SOCIAL_MODE_LAST !== 'enforce')`. `held_reason` is `app unreachable` when there was no answer, or else the app's `error` text. It is set even when `post` is `true`, so the caller can log that the post went out unchecked.
+
+**Tested 2026-10-19** (the app's switch stayed Off; Shadow and Enforce answers were pinned):
+
+| Execution | Test | Result |
+| --- | --- | --- |
+| `69558` | Context, real call, Run By Hand (`RTD-EVT-00001`) | `{ mode: 'off', layers: {}, ok: true }`. `SOCIAL_MODE_LAST` was missing, so it was added as `off`. |
+| `69559` | Context again | Same answer; Mode Changed? false, so no write. |
+| `69560` | Gate, real call, the real 18 Oct Quiz caption | `{ post: true, held_reason: '' }`; the app answered `allow: true, result: null, mode: 'off'`. D1 `social_checks` still has 0 rows. |
+| `69562` | Context via When Called, the answer pinned to Shadow with 3 events (prompt with facts and people; prompt with no date; no prompt) | Blocks, `occurrence_id` (`null` with no date), `prompt_version` and `date_block` as above. A serial `sheet_date` was sent as a number. `SOCIAL_MODE_LAST` → `shadow` (same row, updated). |
+| `69563` | Gate, pinned Shadow 200 (`allow: true, result: 'fail'`) | `post: true`, `held_reason: ''`. No write (mode unchanged). |
+| `69564` | Context, pinned Enforce answer | `SOCIAL_MODE_LAST` → `enforce`. |
+| `69565` | Gate, pinned Enforce 200 (`allow: false`, two reasons), with `image_text` and `sheet_dates` | `post: false`, the two reasons joined by `; `. |
+| `69567` | Gate, pinned **400**, last mode `enforce` | `post: false`, `held_reason` = the app's error text. |
+| `69573` | Gate **test copy** with the app URL at a host that doesn't exist, last mode `enforce` | Two tries, then `post: false`, `app unreachable`. |
+| `69581` | Context test copy, same bad host | `{ mode: 'unknown', layers: {}, ok: false }`; `SOCIAL_MODE_LAST` untouched. |
+| `69582` | Context, real call | Put `SOCIAL_MODE_LAST` back to `off`. |
+| `69583` | Gate test copy, bad host, last mode `off` | `post: true`, `held_reason: 'app unreachable'`. |
+
+The two test copies are archived. D1 `social_checks` had 0 rows before and after.
 
 ### What the check looks at
 
