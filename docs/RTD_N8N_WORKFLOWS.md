@@ -4,6 +4,17 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### 2026-10-19: RTD Master V1, the Facebook event post through the social gate (draft, not published)
+
+Stage 2, Task 3. The Facebook event post now goes through the Context and Gate sub-workflows, and the Post Log records a real success as `Success`. **Only the draft changed; nothing is published.** Publishing waits for the owner (G5), and the app's switch stays Off.
+
+| | Version |
+| --- | --- |
+| **Rollback point** (recorded before any edit; still the published version) | `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b` |
+| New draft (not published) | `df78f5ec-b1eb-49b1-a300-9785aa7c1b75` |
+
+To roll back after G5, publish `38b1d6d1-…` again. See [As built: Master V1, the Facebook event post](#as-built-master-v1-the-facebook-event-post) under the contract below.
+
 ### 2026-10-19: RTD Social Context (sub) and RTD Social Gate (sub) (new, published)
 
 Stage 2, Task 2. Two new sub-workflows hold every call RTD Master V1 will make to the app before and after a caption: **RTD Social Context (sub)** (`QCjohGtBuld6k5R8`) and **RTD Social Gate (sub)** (`NqC8fZUoIWWuvDnt`). Both are **published**, which is safe because nothing calls them yet. They add the rtd_config key `SOCIAL_MODE_LAST`. The app's switch stayed Off. See [As built](#as-built-the-context-and-gate-sub-workflows) under the contract below.
@@ -660,7 +671,7 @@ Versions answered in step 3 are written by step 5, because `/to-write` lists the
 
 #### As built: the Context and Gate sub-workflows
 
-**Created and published 2026-10-19.** Nothing calls them until the Master V1 edits (Tasks 3 to 5) are published at G5. Both: an **Execute Workflow Trigger** (`When Called`) with defined inputs, plus **Run By Hand** with a sample input; caller policy `workflowsFromSameOwner`; error workflow `Studio: Error Handler` (`IClMUs9ByRmVBYJf`); Europe/London; 120 s timeout. They read `RTD_APP_BASE_URL` from rtd_config and use the `rtd-app` header-auth credential.
+**Created and published 2026-10-19.** Nothing calls them until the Master V1 edits (Tasks 3 to 5) are published at G5; the Facebook event post's calls are in the draft (see [Master V1, the Facebook event post](#as-built-master-v1-the-facebook-event-post)). Both: an **Execute Workflow Trigger** (`When Called`) with defined inputs, plus **Run By Hand** with a sample input; caller policy `workflowsFromSameOwner`; error workflow `Studio: Error Handler` (`IClMUs9ByRmVBYJf`); Europe/London; 120 s timeout. They read `RTD_APP_BASE_URL` from rtd_config and use the `rtd-app` header-auth credential.
 
 **Neither throws on an app failure.** The app call has `onError: continueRegularOutput`, 2 tries (2 s apart) and a 15 s timeout, and reads the status code instead of failing on it. rtd_config is read with `continueRegularOutput` too.
 
@@ -702,6 +713,45 @@ Versions answered in step 3 are written by step 5, because `/to-write` lists the
 | `69583` | Gate test copy, bad host, last mode `off` | `post: true`, `held_reason: 'app unreachable'`. |
 
 The two test copies are archived. D1 `social_checks` had 0 rows before and after.
+
+#### As built: Master V1, the Facebook event post
+
+**Edited 2026-10-19, in the draft only** (draft `df78f5ec-b1eb-49b1-a300-9785aa7c1b75`; the published version is still `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b`, the rollback point). Only the Facebook event path changed (integration point 1). The round-ups, Instagram and posters are Tasks 4 and 5.
+
+**New nodes** (all named `… (Event Post)`):
+- **Social Context (Event Post):** Execute Workflow → RTD Social Context (sub), once per due event, with `events: [{ event_id: <Event ID>, sheet_date: <Event Date> }]` as a real array. `onError: continueRegularOutput`, so a failed call means no layer.
+- **Add Social Layer (Event Post):** Code. It copies Pair With Event Metrics' item unchanged and adds `social: { mode, ok, event_id, sheet_date, block, date_block, occurrence_id, prompt_version }`. With no layer, `block` is `''`. It never throws.
+- **Social Gate (Event Post):** Execute Workflow → RTD Social Gate (sub), after Build Photo Context (Master). It sends `kind: 'event_post'`, `platform: 'facebook'`, `targets: [{ event_id, occurrence_id, prompt_version }]` (a real array, and `occurrence_id` may be `null`), `text` = the caption exactly as Buffer gets it, `workflow: 'RTD Master V1'`, `execution_id`, and `sheet_dates: { <Event ID>: <Event Date> }` (a real object). `image_text` is empty until Task 5. `onError: continueRegularOutput`.
+- **Merge Gate Answer (Event Post):** Code. Build Photo Context's item (caption and photos, untouched), plus `social_post` and `social_held_reason`. If the Gate gives no `post`, the post is held with the reason "the social gate gave no answer" or the error.
+- **Social Gate Says Post? (Event Post):** IF on `social_post === true` only, never on the reason. True → **Post to Buffer (Master)**, as before. False → **Log Held Post (Event Post)**.
+- **Log Held Post (Event Post):** Google Sheets append to Post Log, like Write Execution Transaction Log. Automation Status is `Held: <reason>`; Script / Copy Content is the caption. It never reaches Buffer, and Next Post isn't advanced.
+- **Social Gate Note (Event Post):** a sticky note.
+
+**Changed nodes:**
+- **Gemini Engine: Michelle Voice:** today's message expression is kept character for character, with one expression added before it and one after: `{{ block ? block + '\n\n' : '' }}` and `{{ block ? '\n\n' + date_block : '' }}`. With a layer block, Gemini gets `block + "\n\n" + today's prompt + "\n\n" + date_block`. Without one (Off, a failed context, an unknown event, or no approved prompt), it gets exactly today's prompt. Today's Day/Date/Time block stays as it is.
+- **Write Execution Transaction Log** (the Post Log fix, below).
+
+**Connections:** Pair With Event Metrics → Social Context → Add Social Layer → Gemini (it was Pair → Gemini). Build Photo Context → Social Gate → Merge Gate Answer → Social Gate Says Post? → Buffer or Log Held Post (it was Build Photo Context → Buffer).
+
+**The Post Log fix.** Write Execution Transaction Log wrote `Failed` for every successful post. It read `$json.id`, which is what the old Facebook Graph node returned. Since the switch to Buffer, the node gets Buffer's GraphQL answer, `{ data: { createPost: { post: { id } } } }`, so `$json.id` was always empty. That left Automation Status at `Failed` and BufferID empty: for example, 18 Oct 19:00, execution `65927`. Now:
+- **Automation Status:** `Success` when `data.createPost.post.id` is set. Otherwise `Failed`, plus Buffer's `MutationError` message or GraphQL error when there is one.
+- **BufferID:** `data.createPost.post.id`.
+- **Asset used:** read from Pair With Event Metrics. It read `$json.fbUnderperforming`, which Buffer's answer doesn't have, so it always said `Standard`.
+
+Transport errors still go to Log Failed Post (Master), which is unchanged. The Food path's **Write Execution Transaction Log1** has the same `$json.id` bug and is not changed here.
+
+**Tested 2026-10-19** on two no-post test copies, both now archived:
+- `IMkiWNALz3CAmkl9` is the pre-edit path.
+- `j18rqVgTMTnwBUei` is the post-edit path, generated from the draft's own nodes.
+
+In both, Post to Buffer was replaced by a code stand-in that sends nothing, and every Sheets write by a Set node with the same column expressions. The disabled guardrail nodes were left out (they pass items straight through). A manual trigger replaced the schedule. Is Event Due Right Now?, the Drive, poster and Performance Sync reads, and Gemini were pinned (the 18 Oct Quiz row and its real caption). A parallel **Capture Gemini Input (TEST)** node rendered Gemini's exact message expression. Master V1 itself was never run.
+
+| Execution | Test | Result |
+| --- | --- | --- |
+| `69612` | (a) Pre-edit path | Gemini input: 1,884 characters, sha256 `89e82e67…7f6b09`. The Post Log stand-in showed the bug: `Failed`, with an empty BufferID, for a successful Buffer answer. |
+| `69622` | (b) Post-edit path at **Off**; the real Context (`69623`) and Gate (`69624`) subs were called | The context answered `{ mode: 'off', layers: {}, ok: true }`. Gemini input was **byte-identical to (a)**: 1,884 characters, the same sha256. The Gate got `targets` as an array (`occurrence_id: null`) and `sheet_dates` as an object, and answered `post: true`. The Buffer stand-in was reached, and the Post Log row read `Success` with the BufferID. |
+| `69626` | (c) **Shadow**, check fails; Context pinned (a layer with `RTD-OCC-00001-20261023`, v3) and Gate pinned (`post: true`) | Gemini input = block, a blank line, today's prompt, a blank line, `Date: Friday 23 October, 6:30pm`. Buffer was reached; Log Held Post was not. |
+| `69628` | (c) **Enforce**, check fails; Gate pinned (`post: false`, 3 reasons) | **Log Held Post** was reached, with `Held: Quiz: "cash prizes": …`. Buffer, the Post Log success row and Advance Next Post did not run. |
 
 ### What the check looks at
 
