@@ -1257,3 +1257,108 @@ describe('prompt validation, review round 1', () => {
     expect(reviewed(`${goodPrompt} Trixie sets up.`, f).errors).toEqual([]);
   });
 });
+
+describe('post check, review round 2', () => {
+  const now = new Date('2026-10-18T19:00:00Z');
+  const quiz: CheckTarget = {
+    event_id: 'RTD-EVT-00001',
+    name: 'Quiz',
+    date: '2026-10-23',
+    start_time: '18:30',
+    end_time: '22:00',
+    price: '£2',
+    facts: {},
+    base_details: 'A family quiz night with prizes at stake!',
+    people: [],
+    banned: [],
+    booking_mode: 'optional',
+  };
+  const check = (text: string, targets: CheckTarget[] = [quiz]) => checkPostText(text, targets, { now, otherEventNames: ['Bingo'] });
+  const passes = (text: string, targets: CheckTarget[] = [quiz]) => {
+    const result = check(text, targets);
+    expect(result.reasons, text).toEqual([]);
+    expect(result.pass, text).toBe(true);
+  };
+  const fails = (text: string, targets: CheckTarget[] = [quiz]) => expect(check(text, targets).pass, text).toBe(false);
+
+  it('checks short weekday names after this, coming and next, and refuses "Friday week"', () => {
+    fails('Quiz is this Fri at 6:30pm.', [{ ...quiz, date: '2026-10-30' }]);
+    passes('Quiz is this Fri. at 6:30pm.');
+    fails('Quiz is next Fri at 6:30pm.');
+    fails('Quiz is Friday week at 6:30pm.');
+  });
+
+  it('checks hashtags in any case', () => {
+    fails('Quiz is back! #cashprizes');
+    fails('Quiz is back! #CASHPRIZES');
+    fails('Quiz is back! #allages');
+    fails('Quiz is back! #BingoNight');
+    fails('Quiz is back! #bingonight');
+    fails('Quiz is back! #Friday30th');
+    fails('Quiz is back! #mondayfunday');
+    passes('Quiz is back! #QuizNight #RollTheDice #quiznight #rollthedice #familyfun #friday23rd');
+  });
+
+  it('reads compound number words and pence after pounds', () => {
+    const five = { ...quiz, price: '£5' };
+    fails('A ten-pound entry.');
+    fails('Entry is twenty-five pounds.', [five]);
+    fails('Entry is twenty five pounds.', [five]);
+    fails('Entry is two pounds fifty.');
+    fails('Entry is £2 fifty.');
+    fails('Entry is two pounds and a half.');
+    passes('Entry is two pounds.');
+    passes('Entry is five pounds.', [five]);
+    expect(findMoney('twenty-five pounds, ten-pound entry, two pounds fifty, £2 fifty, 10-pound note').map(m => m.pence)).toEqual([2500, 1000, 250, 250, 1000]);
+  });
+
+  it('reads negated booking as drop in only where booking is said to be unnecessary', () => {
+    const booked = [{ ...quiz, facts: { Booking: ['essential'] } }];
+    passes('Not booked yet? Book now!', booked);
+    passes("Haven't got your tickets yet? Book now!", booked);
+    for (const text of [
+      "Booking isn't required.",
+      'No bookings needed.',
+      'No reservation needed, just come along.',
+      "You don't need to book, just rock up.",
+      'No booking.',
+    ]) {
+      fails(text, booked);
+    }
+  });
+
+  it('traces a role beside a Base Details word in posts too', () => {
+    const dndTarget: CheckTarget = {
+      ...quiz,
+      name: 'Dungeons & Dragons',
+      price: '£4',
+      base_details: 'MoreThanABitDicey hosts her infamous DnD sessions!',
+      facts: { Booking: ['essential'] },
+      people: [{ name: 'MoreThanABitDicey', role: 'host' }],
+    };
+    passes('DnD sessions hosted by MoreThanABitDicey. Booking essential.', [dndTarget]);
+    fails('Trixie hosts Quiz Night.', [{ ...quiz, base_details: 'Trixie sets up a family quiz' }]);
+  });
+
+  it('reads an ordinal before a weekday as a recurrence, not a date', () => {
+    passes('Quiz is every 2nd Friday.');
+    passes('Quiz is on the 2nd and 4th Friday of the month.');
+    passes('Quiz is the first and third Friday.');
+    fails('Quiz is every 2nd Tuesday.');
+    expect(findDates('every 2nd Friday, 1st Saturday of the month').map(d => d.text)).toEqual(['Friday', 'Saturday']);
+  });
+
+  it('reads "by" as an hour cue only after arriving words', () => {
+    expect(findTimes('Followed by 3 bonus rounds, hosted by 2 of us.')).toEqual([]);
+    fails('Be there by 7.');
+    passes('Arrive by 6:30.');
+  });
+});
+
+describe('prompt validation, review round 2', () => {
+  it('does not read "without booking" as drop in', () => {
+    const verdict = validatePrompt(output({ master_prompt: `${goodPrompt} Nobody can play without booking.` }), dnd, ctx);
+    expect(verdict.errors).toEqual([]);
+    expect(verdict.status).toBe('approved');
+  });
+});

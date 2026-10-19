@@ -140,7 +140,7 @@ export interface DateMention {
   month?: number;
   year?: number;
   weekday?: number;
-  /** "today", "tonight", "tomorrow", "this weekend" …; "this", "coming", "next" or "last" before a weekday. */
+  /** "today", "tonight", "tomorrow", "this weekend" …; "this", "coming", "next" or "last" before a weekday, "week" after one. */
   relative?: string;
 }
 type DateFields = Omit<DateMention, 'text' | 'index'>;
@@ -161,9 +161,10 @@ function dmy(d: string | undefined, m: string | number | undefined, y?: string):
 const MAY_THEN_VERB = /^\s+(?:book|join|come|attend|bring|play|sign|enter|take|need)(?!\p{L})/iu;
 const dayOnly = (d: string | undefined): DateFields => (Number(d) >= 1 && Number(d) <= 31 ? { day: Number(d) } : {});
 
-// "the 5th edition", "the 1st place team", "the 20th session" aren't dates.
-const NOT_A_DAY_AFTER =
-  '(?!\\s+(?:place|prizes?|edition|hand|times?|rounds?|games?|floor|players?|teams?|half|anniversary|birthday|years?|sessions?|weeks?|visits?)(?!\\p{L}))';
+// "the 5th edition", "the 1st place team", "the 20th session" aren't dates, and nor is "every 2nd Friday" or
+// "the 2nd and 4th Friday", which say how it recurs (the weekday is still checked).
+const ANY_WEEKDAY = '(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|weds?|thu(?:rs?)?|fri|sat|sun)s?';
+const NOT_A_DAY_AFTER = `(?!\\s+(?:place|prizes?|edition|hand|times?|rounds?|games?|floor|players?|teams?|half|anniversary|birthday|years?|sessions?|weeks?|visits?|(?:(?:and|&|or)\\s+\\d{1,2}(?:st|nd|rd|th)\\s+)?${ANY_WEEKDAY})(?!\\p{L}))`;
 
 const DATE_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => DateFields | null }[] = [
   // 2026-10-23
@@ -204,6 +205,16 @@ const DATE_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => DateFields | n
     re: /(?<!\p{L})(this|coming|next|last)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?!\p{L})/giu,
     read: m => ({ weekday: WEEKDAY_NAMES.indexOf(m[2]!.toLowerCase()), relative: m[1]!.toLowerCase() }),
   },
+  // this Fri, next Sat. (the short name capitalised, so "this sun" isn't a day)
+  {
+    re: /(?<!\p{L})([Tt]his|[Cc]oming|[Nn]ext|[Ll]ast)\s+(Mon|Tues?|Weds?|Thu(?:rs?)?|Fri|Sat|Sun)\.?(?!\p{L})/gu,
+    read: m => ({ weekday: WEEKDAY_NAMES.findIndex(d => d.startsWith(m[2]!.toLowerCase().slice(0, 3))), relative: m[1]!.toLowerCase() }),
+  },
+  // Friday week, Fri week: a week on from a weekday
+  {
+    re: /(?<!\p{L})(monday|tuesday|wednesday|thursday|friday|saturday|sunday|Mon|Tues?|Weds?|Thu(?:rs?)?|Fri|Sat|Sun)\.?\s+week(?!\p{L})/giu,
+    read: m => ({ weekday: WEEKDAY_NAMES.findIndex(d => d.startsWith(m[1]!.toLowerCase().slice(0, 3))), relative: 'week' }),
+  },
   // Friday, Fridays
   {
     re: /(?<!\p{L})(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?(?!\p{L})/giu,
@@ -226,7 +237,10 @@ export function findDates(text: string): DateMention[] {
   return scan(text, DATE_PATTERNS);
 }
 
-/** A money amount, in pence, at `index`. "free", "no charge" and "no cost" are 0; a negated "free" ("not free") isn't a price. */
+/**
+ * A money amount, in pence, at `index`. "free", "no charge" and "no cost" are 0; a negated "free" ("not free") isn't a price.
+ * NaN when part of it can't be read ("two pounds and a half"), so it matches no price.
+ */
 export interface MoneyMention {
   text: string;
   index: number;
@@ -238,22 +252,44 @@ const pence = (pounds: string, part: string | undefined): number => Number(pound
 // A "free" straight after a negative isn't a price: "not free", "isn't entirely free", "no free play".
 const NOT_NEGATED = "(?<!(?<!\\p{L})(?:not|isn['’]t|aren['’]t|wasn['’]t|no|never)\\s+(?:(?:entirely|completely|totally|really|actually|quite|always)\\s+)?)";
 
-// Pounds written as words: "five pounds", "ten quid".
-const POUND_WORDS = 'one two three four five six seven eight nine ten eleven twelve fifteen twenty thirty forty fifty'.split(' ');
-const poundWord = (w: string): number => {
-  const i = POUND_WORDS.indexOf(w.toLowerCase());
-  return i < 12 ? i + 1 : [15, 20, 30, 40, 50][i - 12]!;
+// Numbers written as words, 1–99: "five", "fifteen", "twenty-five", "twenty five".
+const ONES = 'one two three four five six seven eight nine'.split(' ');
+const TEENS = 'ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'.split(' ');
+const TENS = 'twenty thirty forty fifty sixty seventy eighty ninety'.split(' ');
+const NUMBER_WORD = `(?:(?:${TENS.join('|')})(?:[-\\s]+(?:${ONES.join('|')}))?|${TEENS.join('|')}|${ONES.join('|')})(?!\\p{L})`;
+const numberWord = (text: string): number =>
+  text
+    .toLowerCase()
+    .split(/[-\s]+/)
+    .reduce((n, w) => n + (TENS.includes(w) ? (TENS.indexOf(w) + 2) * 10 : TEENS.includes(w) ? TEENS.indexOf(w) + 10 : ONES.indexOf(w) + 1), 0);
+// Pence after pounds: "two pounds fifty", "£2 fifty", "5 pounds 50". "and a half" can't be read, so the amount fails.
+const PENCE_AFTER = `(?:\\s+(?:and\\s+)?(?:(?<pw>${NUMBER_WORD})|(?<pd>\\d{1,2})(?!\\d|[.:]\\d)|(?<ph>(?:a\\s+)?half)(?!\\p{L})))?`;
+const PENCE_WORD_AFTER = `(?:\\s+(?:and\\s+)?(?:(?<pw>${NUMBER_WORD})|(?<ph>(?:a\\s+)?half)(?!\\p{L})))?`;
+const penceAfter = (m: RegExpMatchArray): number => {
+  const g = m.groups ?? {};
+  if (g.ph) return NaN;
+  if (g.pd) return Number(g.pd);
+  return g.pw ? numberWord(g.pw) : 0;
 };
 
 const MONEY_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => { pence: number } }[] = [
   // £4, £4.00, £ 10, £1,000
-  { re: /£\s?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?(?!\d)/gu, read: m => ({ pence: pence(m[1]!, m[2]) }) },
+  {
+    re: new RegExp(`£\\s?(\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.(\\d{1,2})(?!\\d)|(?!\\d)${PENCE_WORD_AFTER})`, 'giu'),
+    read: m => ({ pence: pence(m[1]!, m[2]) + penceAfter(m) }),
+  },
   // GBP 10
   { re: /(?<!\p{L})gbp\s?(\d+)(?:\.(\d{1,2}))?(?!\d)/giu, read: m => ({ pence: pence(m[1]!, m[2]) }) },
-  // 10 pounds, 5 quid, 10 GBP
-  { re: /(?<![\d.£])(\d+)(?:\.(\d{1,2}))?\s*(?:pounds?|quid|gbp)(?!\p{L})/giu, read: m => ({ pence: pence(m[1]!, m[2]) }) },
-  // five pounds, ten quid, a fiver, a tenner
-  { re: new RegExp(`(?<!\\p{L})(${POUND_WORDS.join('|')})\\s+(?:pounds?|quid)(?!\\p{L})`, 'giu'), read: m => ({ pence: poundWord(m[1]!) * 100 }) },
+  // 10 pounds, 5 quid, 10 GBP, a 10-pound note, 5 pounds 50
+  {
+    re: new RegExp(`(?<![\\d.£])(\\d+)(?:\\.(\\d{1,2}))?[\\s-]*(?:pounds?|quid|gbp)(?!\\p{L})${PENCE_AFTER}`, 'giu'),
+    read: m => ({ pence: pence(m[1]!, m[2]) + penceAfter(m) }),
+  },
+  // five pounds, twenty-five quid, a ten-pound entry, two pounds fifty, a fiver, a tenner
+  {
+    re: new RegExp(`(?<!\\p{L})(${NUMBER_WORD})[\\s-]+(?:pounds?|quid)(?!\\p{L})${PENCE_AFTER}`, 'giu'),
+    read: m => ({ pence: numberWord(m[1]!) * 100 + penceAfter(m) }),
+  },
   { re: /(?<!\p{L})(fiver|tenner)s?(?!\p{L})/giu, read: m => ({ pence: m[1]!.toLowerCase() === 'fiver' ? 500 : 1000 }) },
   // 50p (not "7pm" or "7p.m.")
   { re: /(?<![\d.£])(\d+)p(?!\p{L}|\.m)/giu, read: m => ({ pence: Number(m[1]) }) },
@@ -280,7 +316,7 @@ export function findMoney(text: string): MoneyMention[] {
 
 /** Prices in pence from an App Price (a bare number counts as pounds) and Approved Facts `Price` lines. */
 function pricesOf(price: string, priceFacts: string[] = []): number[] {
-  const amounts = [price, ...priceFacts].flatMap(t => findMoney(t).map(m => m.pence));
+  const amounts = [price, ...priceFacts].flatMap(t => findMoney(t).map(m => m.pence)).filter(p => !Number.isNaN(p));
   const bare = /^\s*(\d+)(?:\.(\d{1,2}))?\s*$/.exec(price);
   if (bare) amounts.push(pence(bare[1]!, bare[2]));
   return amounts;
@@ -327,9 +363,9 @@ const readClockShaped = (h: string | undefined, min: string | undefined, meridie
 // A number after "at" or "from" that counts something else: "from 2 to 6 players", "at 4 tables", "18+".
 // "capped at 6" and "max at 6" are counts too.
 const NOT_AN_HOUR_AFTER = `(?:\\s*(?:-|–|to)\\s*(?:\\d{1,3}|${NUMBER_WORDS.join('|')}))?\\s*(?:\\+|%|(?:players?|people|persons?|years?|yrs?|teams?|tables?|seats?|places?|spaces?|guests?|rounds?|games?|minutes?|mins?|hours?|hrs?|weeks?|months?|days?|kids|children|adults|percent|pence|pounds?|quid|p)(?!\\p{L}))`;
-// The words that start a bare hour: "at 7", "from seven till late", "doors 7", "starts at 7", "until 9", "by 7".
+// The words that start a bare hour: "at 7", "from seven till late", "doors 7", "starts at 7", "until 9", "be there by 7" ("by" only after arriving words).
 const TIME_CUE =
-  '(?<!\\p{L})(?:(?<!(?<!\\p{L})(?:capped|limited|max|maximum|up\\s+to)\\s+)at|from|until|till|til|by|doors(?:\\s+open)?(?:\\s+at)?|starts?(?:\\s+at)?|starting(?:\\s+at)?|begins?(?:\\s+at)?)';
+  '(?<!\\p{L})(?:(?<!(?<!\\p{L})(?:capped|limited|max|maximum|up\\s+to)\\s+)at|from|until|till|til|(?:(?:be|get)\\s+(?:there|here)|arriv(?:e|ing)|doors\\s+open|ready|in)\\s+by|doors(?:\\s+open)?(?:\\s+at)?|starts?(?:\\s+at)?|starting(?:\\s+at)?|begins?(?:\\s+at)?)';
 // Minutes in words after an hour in words ("seven thirty"): a time, but not one that can be read reliably.
 const WORD_MINUTES = `(?:${SPACE}+|${SPACE}*-${SPACE}*)(?:fifteen|thirty|(?:twenty|forty|fifty)(?:${SPACE}|-)*five|twenty|forty|fifty|five|ten|\\d{2})(?!\\p{L})`;
 
@@ -698,9 +734,9 @@ const positions = (hay: string, needle: string): number[] => {
   return at;
 };
 
-/** Whether an event name of six letters or more is squashed into a hashtag ("#RTDQuizNight"), other than inside one of `ownNames` there. */
-function inHashtag(text: string, name: string, ownNames: string[]): boolean {
-  if ((name.match(/\p{L}/gu) ?? []).length < 6) return false;
+/** Whether an event name of `minLetters` letters or more is squashed into a hashtag ("#RTDQuizNight"), other than inside one of `ownNames` there. */
+function inHashtag(text: string, name: string, ownNames: string[], minLetters = 6): boolean {
+  if ((name.match(/\p{L}/gu) ?? []).length < minLetters) return false;
   const own = ownNames.flatMap(squashed);
   return [...text.matchAll(/#([\p{L}\p{N}_]+)/gu)].some(([, body]) => {
     const tag = squash(body!);
@@ -827,13 +863,20 @@ function instructionFlags(f: SourceFields): string[] {
   });
 }
 
-// Booking wording: "drop in" and its kind, and "booking essential" and its kind. Booking said not to be
-// needed ("no bookings needed", "you don't need to book", "booking isn't required") is drop in too; "don't
-// forget to book" isn't.
+// Booking wording: "drop in" and its kind, and "booking essential" and its kind. Booking said to be
+// unnecessary is drop in too: a negative and a need word in the clause ("no bookings needed", "you don't
+// need to book", "booking isn't required"), or "no booking" ending its clause. "Not booked yet?", "without
+// booking" and "don't forget to book" aren't.
 const NOT_NEEDED = "(?:is\\s+not|are\\s+not|isn['’]t|aren['’]t|not)\\s+(?:required|needed|necessary|essential)";
-const NEGATED_BOOKING_GAP = "(?:\\s+(?!(?:forget|miss|hesitate|wait|delay|leave)(?!\\p{L}))\\p{L}+(?:['’]\\p{L}+)?){0,2}";
+const NEED = '(?:need|needs|needed|necessary|required|have\\s+to|has\\s+to|must)(?!\\p{L})';
+const NEGATIVE_WORD = "(?:(?<!\\p{L})(?:no|not|without)|n['’]t)";
+const GAP_WORD = "\\s+(?!(?:forget|miss|hesitate|wait|delay|leave)(?!\\p{L}))\\p{L}+(?:['’]\\p{L}+)?";
+const BOOKING_WORD = '(?:book|reserv|ticket)\\p{L}*';
 const DROP_IN = new RegExp(
-  `(?:(?<!\\p{L})(?:drop[ -]?ins?|walk[ -]?ins?|just turn up|turn up on the (?:night|day)|pop in|rock up|come along on the (?:night|day)|open table|open play|no need to book|(?:bookings?|reservations?)\\s+${NOT_NEEDED})|(?:(?<!\\p{L})(?:no|not|without)|n['’]t)${NEGATED_BOOKING_GAP}\\s+(?:book|reserv|ticket)\\p{L}*(?:\\s+(?:needed|required|necessary))?)(?!\\p{L})`,
+  `(?:(?<!\\p{L})(?:drop[ -]?ins?|walk[ -]?ins?|just turn up|turn up on the (?:night|day)|pop in|rock up|come along on the (?:night|day)|open table|open play|no need to book|(?:bookings?|reservations?)\\s+${NOT_NEEDED})` +
+    `|${NEGATIVE_WORD}(?:${GAP_WORD})?\\s+${NEED}(?:\\s+to)?\\s+${BOOKING_WORD}` +
+    `|${NEGATIVE_WORD}(?:${GAP_WORD}){0,2}\\s+${BOOKING_WORD}(?=[^.!?;\\n\\r]{0,30}?(?<!\\p{L})${NEED})` +
+    `|(?<!\\p{L})no\\s+(?:bookings?|tickets?|reservations?)(?=\\s*(?:[.!?;,\\n\\r]|$)))(?!\\p{L})`,
   'giu',
 );
 const BOOKED =
@@ -1250,8 +1293,8 @@ function occurrenceOf(t: CheckTarget): { occurrence: Occurrence | null; problems
 /** Why a date, weekday or relative day in a post isn't true of the occurrences, or null when it is. A weekday or "this week" must be every occurrence's. */
 function dateProblem(d: DateMention, occurrences: Occurrence[], today: string, label: { any: string; every: string }): string | null {
   if (d.relative && d.weekday !== undefined) {
-    // "next Friday" could mean this week's or next week's.
-    if (d.relative === 'next' || d.relative === 'last') return `"${d.text}": a relative day that can't be checked`;
+    // "next Friday" could mean this week's or next week's; "Friday week" is checked no further.
+    if (d.relative !== 'this' && d.relative !== 'coming') return `"${d.text}": a relative day that can't be checked`;
     const [first, last] = d.relative === 'this' ? [today, addDays(today, 6)] : [addDays(today, 1), addDays(today, 7)];
     const inWeek = (o: Occurrence) => o.weekday === d.weekday && o.iso >= first && o.iso <= last;
     return occurrences.length && occurrences.every(inWeek) ? null : `"${d.text}": not true of ${label.every} at the time of posting`;
@@ -1300,6 +1343,46 @@ const hashtagWords = (body: string): string =>
     .replace(/(\p{L})(\p{N})/gu, '$1 $2')
     .replace(/(\p{N})(\p{L})/gu, '$1 $2');
 
+// Keyword phrases as they look squashed into a hashtag of any case ("#cashprizes", "#ALLAGES"), with the words they stand for.
+// Three-letter words ("win", "kid") are left out: inside a squashed tag they are too often part of something else.
+const SQUASHED_CLAIMS: [string, string][] = [
+  ['cash', 'cash'],
+  ['prize', 'prize'],
+  ['jackpot', 'jackpot'],
+  ['troph', 'trophy'],
+  ['dropin', 'drop in'],
+  ['walkin', 'walk in'],
+  ['nobooking', 'no booking'],
+  ['noneedtobook', 'no need to book'],
+  ['opentable', 'open table'],
+  ['openplay', 'open play'],
+  ['rockup', 'rock up'],
+  ['allages', 'all ages'],
+  ['kids', 'kids'],
+  ['children', 'children'],
+  ['family', 'family'],
+  ['families', 'families'],
+  ['adult', 'adults'],
+  ['teen', 'teens'],
+  ['grownup', 'grown ups'],
+  ['beginner', 'beginners'],
+  ['firsttimer', 'first timers'],
+  ['newbie', 'newbies'],
+  ['newcomer', 'newcomers'],
+  ['novice', 'novices'],
+  ['alllevels', 'all levels'],
+  ['noexperience', 'no experience'],
+  ['learntoplay', 'learn to play'],
+];
+const SQUASHED_DATE_WORDS = new RegExp(`(${[...WEEKDAY_NAMES, ...MONTH_NAMES].join('|')}|\\d+(?:st|nd|rd|th)?)`, 'g');
+
+/** A hashtag lower-cased and squashed, with the targets' own names taken out: "#QuizNight30th" for Quiz reads "    night30th". */
+function squashedTag(body: string, ownNames: string[]): string {
+  let tag = squash(body);
+  for (const own of ownNames.flatMap(squashed)) tag = tag.split(own).join(' '.repeat(own.length));
+  return tag;
+}
+
 /**
  * One part of a post, against the targets it is about. Dates, times and names must each belong
  * to one of them; prices, weekdays and claims must be true of every one of them.
@@ -1325,7 +1408,9 @@ function blockProblems(block: string, targets: { t: CheckTarget; occurrence: Occ
     else if (!occurrences.some(o => o.times.some(x => time.readings.includes(x)))) problems.push(`"${time.text}": not the start or end time of ${label.any}`);
   }
   for (const m of findMoney(block)) {
-    if (counts(m) && !ts.every(t => pricesOf(t.price, t.facts.Price).includes(m.pence))) problems.push(`"${m.text}": not the price of ${label.every}`);
+    if (!counts(m)) continue;
+    if (Number.isNaN(m.pence)) problems.push(`"${m.text}": an amount that can't be read`);
+    else if (!ts.every(t => pricesOf(t.price, t.facts.Price).includes(m.pence))) problems.push(`"${m.text}": not the price of ${label.every}`);
   }
   for (const t of ts) {
     const support = { name: t.name, base_details: t.base_details, facts: t.facts, booking_mode: t.booking_mode };
@@ -1336,7 +1421,8 @@ function blockProblems(block: string, targets: { t: CheckTarget; occurrence: Occ
   let unsuffixed = block;
   for (const [at, end] of suffixes) unsuffixed = unsuffixed.slice(0, at) + ' '.repeat(end - at) + unsuffixed.slice(end);
   for (const n of findNames(unsuffixed, allowed)) problems.push(`${n}: not in People & Roles`);
-  problems.push(...roleProblems(block, skip, people));
+  // As in the prompt: a role beside a name as People & Roles give it, or as Base Details or Approved Facts write it.
+  problems.push(...roleProblems(block, skip, people, rolePairs(ts.flatMap(t => [t.base_details, ...factTexts(t)]))));
   return problems;
 }
 
@@ -1367,18 +1453,32 @@ export function checkPostText(text: string, targets: CheckTarget[], ctx: { now: 
   for (const other of ctx.otherEventNames) {
     const name = other.trim();
     if (name.length < 4 || targetKeys.has(squash(name))) continue;
-    if (spansOf(phraseRegex(name), text).some(([at, end]) => !within(at, end, own)) || inHashtag(text, name, names))
+    if (spansOf(phraseRegex(name), text).some(([at, end]) => !within(at, end, own)) || inHashtag(text, name, names, 4))
       reasons.push(`Names another event, "${name}"`);
   }
   // Hashtags read as words ("#CashPrizes"): their claims must be true of every target, and no Banned Phrase may be in them.
-  const tags = [...text.matchAll(/#([\p{L}\p{N}_]+)/gu)].map(m => hashtagWords(m[1]!)).join('\n');
+  const bodies = [...text.matchAll(/#([\p{L}\p{N}_]+)/gu)].map(m => m[1]!);
+  const tags = bodies.map(hashtagWords).join('\n');
+  const squashedTags = bodies.map(b => squashedTag(b, names));
+  const squashedClaims = [...new Set(SQUASHED_CLAIMS.filter(([sq]) => squashedTags.some(t => t.includes(sq))).map(([, said]) => said))].join('\n');
   const tagSkip = names.flatMap(n => spansOf(phraseRegex(n), tags));
   for (const t of targets) {
     for (const phrase of t.banned) {
       if (phraseRegex(phrase)?.test(text) || phraseRegex(phrase)?.test(tags)) reasons.push(`Uses a Banned Phrase of ${t.name}, "${phrase.trim()}"`);
     }
     const support = { name: t.name, base_details: t.base_details, facts: t.facts, booking_mode: t.booking_mode };
-    for (const p of claimProblems(tags, tagSkip, support)) reasons.push(`${p} (in a hashtag${targets.length > 1 ? `, ${t.name}` : ''})`);
+    for (const p of [...claimProblems(tags, tagSkip, support), ...claimProblems(squashedClaims, [], support)]) {
+      reasons.push(`${p} (in a hashtag${targets.length > 1 ? `, ${t.name}` : ''})`);
+    }
+  }
+  // Weekdays and dates squashed into a hashtag ("#Friday30th", "#30thOctober") must be true of every target.
+  const occurrences = read.flatMap(r => (r.occurrence ? [r.occurrence] : []));
+  const every = targets.length === 1 ? targets[0]!.name : 'every event in the post';
+  for (const tag of squashedTags) {
+    for (const d of findDates(tag.replace(SQUASHED_DATE_WORDS, ' $1 '))) {
+      const why = dateProblem(d, occurrences, today, { any: every, every });
+      if (why) reasons.push(`${why} (in a hashtag)`);
+    }
   }
 
   const parts =
