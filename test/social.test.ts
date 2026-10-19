@@ -1,9 +1,11 @@
 // Event-specific social master prompts, Stage 1 (docs/superpowers/specs/2026-10-18-social-master-prompt-design.md).
 // Task 1: the owner columns the sync reads, the facts they hold, and the fingerprint of what Gemini may see.
 // Task 4: the prompt store, the builder's internal endpoints and the switch.
+// Task 5: what n8n is given before a post (the event layer) and the check every post goes through.
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { AuthUser } from '../src/lib/auth';
 import { fingerprint, parseFacts, parsePeople, sourceFields, type SourceFields } from '../src/social/facts';
+import { runCheck, socialContext, type EventLayer } from '../src/social/check';
 import { INSTRUCTION, SCHEDULE_RULE } from '../src/social/instruction';
 import {
   approveOverride,
@@ -606,5 +608,315 @@ describe('prompt store', () => {
     expect(await socialMode(env.DB)).toBe('shadow');
     const [audit] = await audits('social_prompts.changed');
     expect(audit).toMatchObject({ entity_type: 'setting', entity_id: 'social_prompts', actor_type: 'staff', actor_id: 'dan@example.com', previous_value: 'off', new_value: 'shadow' });
+  });
+});
+
+describe('posting', () => {
+  beforeEach(freshDb);
+
+  // Monday 19 October 2026, 11:00 in London. The Quiz is on Friday 23 October, 18:30–22:00.
+  const NOW = new Date('2026-10-19T10:00:00Z');
+  const AUTH = { Authorization: 'Bearer test-sync-token', 'Content-Type': 'application/json' };
+  const admin: AuthUser = { user_id: 'u-dan', email: 'dan@example.com', display_name: 'Dan', role: 'admin' };
+  const QUIZ = 'RTD-EVT-00001';
+  const QUIZ_OCC = 'RTD-OCC-00001-20261023';
+  const BINGO = 'RTD-EVT-00002';
+  const BINGO_OCC = 'RTD-OCC-00002-20261023';
+  const QUIZ_PROMPT = 'Write about Quiz, a family quiz night with prizes at stake, at Roll The Dice in Cleethorpes.';
+
+  // As the Logic Engine held it on 18 October: no App Price, no Approved Facts.
+  const quizRow = (over: Record<string, unknown> = {}) =>
+    indexRow(1, { 'Event Name': 'Quiz', 'Base Details': 'A family quiz night with prizes at stake!', 'Banned Phrases': 'open table', ...over });
+  const bingoRow = (over: Record<string, unknown> = {}) => indexRow(2, { 'Event Name': 'Bingo', 'Base Details': 'Eyes down for a full house.', ...over });
+
+  // The Quiz caption that went out on 18 October (real-captions-2026-10-18.md).
+  const REAL_QUIZ_CAPTION = [
+    "Who's ready to turn their random trivia knowledge into real cash prizes? ",
+    '',
+    "We're hosting our Quiz Night on Friday, 23/10/2026 at 18:30, and we'd love for you to join us at Roll The Dice! ",
+    '',
+    "It's completely family-friendly and suitable for all ages, so bring your crew along for an evening of fun and friendly competition. With cash prizes up for grabs, everyone gets a chance to shine. ",
+    '',
+    'You can book a table with us or simply drop in on the night.',
+    '',
+    '#RollTheDice #QuizNight #FamilyFun #TriviaNight',
+  ].join('\n');
+  const GOOD = 'Quiz Night is on Friday 23 October at 6:30pm. Teams welcome. #QuizNight';
+
+  let runs = 0;
+  const syncRows = async (rows: Record<string, unknown>[]) => {
+    expect((await sync({ run_id: `post-${++runs}`, sources: { event_index: rows } })).status).toBe(200);
+  };
+  const setUp = async (mode: 'off' | 'shadow' | 'enforce', rows = [quizRow(), bingoRow()]) => {
+    await syncRows(rows);
+    expect(await approveOverride(env.DB, admin, QUIZ, { text: QUIZ_PROMPT, reason: 'First prompt' }, NOW)).toEqual({ ok: true, version: 1 });
+    if (mode !== 'off') expect(await setSocialMode(env.DB, admin, mode, NOW)).toEqual({ ok: true, mode });
+  };
+  const checkBody = (over: Record<string, unknown> = {}) => ({
+    kind: 'event_post',
+    platform: 'facebook',
+    targets: [{ event_id: QUIZ, occurrence_id: QUIZ_OCC, prompt_version: 1 }],
+    text: GOOD,
+    workflow: 'RTD Master V1',
+    execution_id: 'exec-42',
+    ...over,
+  });
+  const checks = async () => (await env.DB.prepare('SELECT * FROM social_checks ORDER BY check_id').all<Record<string, string | null>>()).results;
+  const post = (path: string, body: unknown, headers: Record<string, string> = AUTH) =>
+    request(path, { method: 'POST', headers, body: typeof body === 'string' ? body : JSON.stringify(body) });
+  const failed = (res: unknown) => res as { allow: boolean; result: string; reasons: string[]; mode: string };
+  const said = (res: unknown, words: RegExp) => failed(res).reasons.some(r => words.test(r));
+
+  it('does nothing at Off', async () => {
+    await setUp('off');
+    expect(await socialMode(env.DB)).toBe('off');
+    expect(await socialContext(env.DB, { event_ids: [QUIZ] }, NOW)).toEqual({ mode: 'off', events: [] });
+    expect(await runCheck(env.DB, checkBody({ text: REAL_QUIZ_CAPTION }), NOW)).toEqual({ allow: true, result: null, reasons: [], mode: 'off' });
+    // No work at all, so not even a malformed body is looked at.
+    expect(await runCheck(env.DB, 'nonsense', NOW)).toEqual({ allow: true, result: null, reasons: [], mode: 'off' });
+
+    const ctx = await post('/internal/social/context', { event_ids: [QUIZ] });
+    expect(ctx.status).toBe(200);
+    expect(await ctx.json()).toEqual({ mode: 'off', events: [] });
+    const chk = await post('/internal/social/check', checkBody({ text: REAL_QUIZ_CAPTION }));
+    expect(chk.status).toBe(200);
+    expect(await chk.json()).toEqual({ allow: true, result: null, reasons: [], mode: 'off' });
+    expect(await checks()).toEqual([]);
+    const used = await env.DB.prepare('SELECT last_used_at FROM social_prompts').first<{ last_used_at: string | null }>();
+    expect(used!.last_used_at).toBeNull();
+  });
+
+  it("gives n8n each event's layer with today's date block", async () => {
+    await setUp('shadow', [
+      quizRow({ 'Approved Facts': 'Prizes: cash prizes', 'People & Roles': 'Trixie — sets up' }),
+      bingoRow({ 'Event Time': '', 'End Time': '' }),
+    ]);
+    expect(await approveOverride(env.DB, admin, QUIZ, { text: QUIZ_PROMPT, reason: 'Facts added' }, NOW)).toEqual({ ok: true, version: 2 });
+
+    const res = await socialContext(env.DB, { event_ids: [QUIZ, BINGO, 'RTD-EVT-09999'] }, NOW);
+    expect(res).toEqual({
+      mode: 'shadow',
+      events: [
+        {
+          event_id: QUIZ,
+          prompt: `${QUIZ_PROMPT}\n\n${SCHEDULE_RULE}`,
+          prompt_version: 2,
+          base_details: 'A family quiz night with prizes at stake!',
+          approved_facts: 'Prizes: cash prizes',
+          people_roles: 'Trixie — sets up',
+          banned_phrases: 'open table',
+          occurrence: {
+            occurrence_id: QUIZ_OCC,
+            date: '2026-10-23',
+            label: 'Friday 23 October, 6:30pm',
+            start_time: '18:30',
+            end_time: '22:00',
+            is_today: false,
+            is_tomorrow: false,
+          },
+          sync_pending: false,
+        },
+        // No prompt yet, and no time: the label is the date alone.
+        {
+          event_id: BINGO,
+          prompt: '',
+          prompt_version: 0,
+          base_details: 'Eyes down for a full house.',
+          approved_facts: '',
+          people_roles: '',
+          banned_phrases: '',
+          occurrence: { occurrence_id: BINGO_OCC, date: '2026-10-23', label: 'Friday 23 October', start_time: null, end_time: null, is_today: false, is_tomorrow: false },
+          sync_pending: false,
+        },
+      ],
+    });
+
+    // Today and tomorrow are judged in London at the moment of asking.
+    const layer = async (now: Date) => (await socialContext(env.DB, { event_ids: [QUIZ] }, now)) as { events: EventLayer[] };
+    expect((await layer(new Date('2026-10-22T22:30:00Z'))).events[0]!.occurrence).toMatchObject({ is_today: false, is_tomorrow: true });
+    // 00:30 on the 23rd in London is still the 22nd in UTC.
+    expect((await layer(new Date('2026-10-22T23:30:00Z'))).events[0]!.occurrence).toMatchObject({ is_today: true, is_tomorrow: false });
+
+    // Over HTTP, with the bearer token; a malformed body says what is wrong.
+    const http = await post('/internal/social/context', { event_ids: [QUIZ] });
+    expect(http.status).toBe(200);
+    expect(await http.json()).toMatchObject({ mode: 'shadow', events: [{ event_id: QUIZ, prompt_version: 2 }] });
+    for (const bad of [{}, { event_ids: 'RTD-EVT-00001' }, { event_ids: [] }, { event_ids: [7] }, { event_ids: [QUIZ], sheet_dates: 'x' }]) {
+      const r = await post('/internal/social/context', bad);
+      expect(r.status, JSON.stringify(bad)).toBe(400);
+      expect((await r.json<{ error: string }>()).error).toBeTruthy();
+    }
+    expect((await post('/internal/social/context', 'not json {')).status).toBe(400);
+  });
+
+  it('records but always allows in Shadow', async () => {
+    await setUp('shadow');
+    const res = await runCheck(env.DB, checkBody({ text: REAL_QUIZ_CAPTION }), NOW);
+    expect(res).toMatchObject({ allow: true, result: 'fail', mode: 'shadow' });
+    expect(said(res, /cash/)).toBe(true);
+
+    const ok = await post('/internal/social/check', checkBody());
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ allow: true, result: 'pass', reasons: [], mode: 'shadow' });
+
+    const rows = await checks();
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      mode: 'shadow',
+      kind: 'event_post',
+      platform: 'facebook',
+      text: REAL_QUIZ_CAPTION,
+      result: 'fail',
+      workflow: 'RTD Master V1',
+      execution_id: 'exec-42',
+    });
+    expect(JSON.parse(rows[0]!.targets!)).toEqual([{ event_id: QUIZ, occurrence_id: QUIZ_OCC, prompt_version: 1 }]);
+    expect(JSON.parse(rows[0]!.reasons!)).toEqual(failed(res).reasons);
+    expect(rows[1]).toMatchObject({ result: 'pass', text: GOOD });
+    expect(JSON.parse(rows[1]!.reasons!)).toEqual([]);
+    expect(rows.map(r => r.check_id)).toEqual([expect.any(String), expect.any(String)]);
+    expect(rows[0]!.check_id).not.toBe(rows[1]!.check_id);
+
+    // The prompt version the post used is marked.
+    const used = await env.DB.prepare('SELECT last_used_at FROM social_prompts WHERE event_id = ?1 AND version = 1').bind(QUIZ).first<{ last_used_at: string | null }>();
+    expect(used!.last_used_at).toBeTruthy();
+
+    // A malformed body is refused (400) in Shadow too, and nothing is recorded.
+    expect((await post('/internal/social/check', { ...checkBody(), targets: [] })).status).toBe(400);
+    expect(await checks()).toHaveLength(2);
+  });
+
+  it('holds a failing post in Enforce, and says why', async () => {
+    await setUp('enforce');
+    const res = await runCheck(env.DB, checkBody({ text: REAL_QUIZ_CAPTION }), NOW);
+    expect(res).toMatchObject({ allow: false, result: 'fail', mode: 'enforce' });
+    expect(said(res, /cash/)).toBe(true);
+    expect(said(res, /drop in/)).toBe(true);
+
+    expect(await runCheck(env.DB, checkBody(), NOW)).toEqual({ allow: true, result: 'pass', reasons: [], mode: 'enforce' });
+    expect((await checks()).map(r => [r.mode, r.result])).toEqual([
+      ['enforce', 'fail'],
+      ['enforce', 'pass'],
+    ]);
+
+    // A body that can't be checked is never allowed: it is refused, with the reason.
+    for (const bad of [
+      'nonsense',
+      checkBody({ kind: 'story' }),
+      checkBody({ targets: [] }),
+      checkBody({ targets: [{ event_id: QUIZ }] }),
+      checkBody({ targets: [{ event_id: QUIZ, occurrence_id: QUIZ_OCC, prompt_version: '1' }] }),
+      checkBody({ text: 42 }),
+      checkBody({ image_text: 42 }),
+      checkBody({ sheet_dates: [] }),
+    ]) {
+      const r = await runCheck(env.DB, bad, NOW);
+      expect(r, JSON.stringify(bad)).toMatchObject({ ok: false, status: 400 });
+      expect((r as { allow?: boolean }).allow).toBeUndefined();
+    }
+    const http = await post('/internal/social/check', checkBody({ targets: 'all' }));
+    expect(http.status).toBe(400);
+    expect((await http.json<{ error: string }>()).error).toMatch(/targets/);
+    expect(await checks()).toHaveLength(2);
+  });
+
+  it('holds a post whose event was cancelled, went private, or changed facts since its prompt', async () => {
+    await setUp('enforce');
+    const held = async (words: RegExp, body = checkBody(), now = NOW) => {
+      const res = await runCheck(env.DB, body, now);
+      expect(res, JSON.stringify(res)).toMatchObject({ allow: false, result: 'fail' });
+      expect(said(res, words), JSON.stringify(res)).toBe(true);
+    };
+    expect(await runCheck(env.DB, checkBody(), NOW)).toMatchObject({ allow: true, result: 'pass' });
+
+    // Its date was cancelled.
+    await env.DB.prepare("UPDATE occurrences SET status = 'cancelled' WHERE occurrence_id = ?1").bind(QUIZ_OCC).run();
+    await held(/cancelled/);
+    await env.DB.prepare("UPDATE occurrences SET status = 'scheduled' WHERE occurrence_id = ?1").bind(QUIZ_OCC).run();
+
+    // The event went private; then just that date was hidden.
+    await syncRows([quizRow({ 'App Visibility': 'Private' }), bingoRow()]);
+    await held(/not public/);
+    await syncRows([quizRow(), bingoRow()]);
+    await env.DB.prepare("UPDATE occurrences SET visibility = 'hidden' WHERE occurrence_id = ?1").bind(QUIZ_OCC).run();
+    await held(/not public/);
+    await env.DB.prepare('UPDATE occurrences SET visibility = NULL WHERE occurrence_id = ?1').bind(QUIZ_OCC).run();
+
+    // It stopped running.
+    await syncRows([quizRow({ Status: 'Inactive' }), bingoRow()]);
+    await held(/not running/);
+    await syncRows([quizRow(), bingoRow()]);
+    expect(await runCheck(env.DB, checkBody(), NOW)).toMatchObject({ allow: true, result: 'pass' });
+
+    // A change is on its way to the Logic Engine.
+    await env.DB.prepare(
+      `INSERT INTO sheet_edits (edit_id, event_id, source, target, fields, requested_by, status, created_at, updated_at)
+       VALUES ('RTD-SE-00001', ?1, 'event_index', 'live', '{}', 'dan@example.com', 'queued', ?2, ?2)`,
+    )
+      .bind(QUIZ, NOW.toISOString())
+      .run();
+    await held(/on its way to the Logic Engine/);
+    await env.DB.prepare("UPDATE sheet_edits SET status = 'synced'").run();
+
+    // The date has been and gone, or ended earlier today.
+    await held(/already happened/, checkBody(), new Date('2026-10-24T10:00:00Z'));
+    await held(/already happened/, checkBody(), new Date('2026-10-23T21:30:00Z'));
+
+    // The occurrence isn't this event's, or doesn't exist.
+    await held(/not a date of/, checkBody({ targets: [{ event_id: QUIZ, occurrence_id: BINGO_OCC, prompt_version: 1 }] }));
+    await held(/not a date of/, checkBody({ targets: [{ event_id: QUIZ, occurrence_id: 'RTD-OCC-00001-20261030', prompt_version: 1 }] }));
+    await held(/no event/i, checkBody({ targets: [{ event_id: 'RTD-EVT-09999', occurrence_id: QUIZ_OCC, prompt_version: 1 }] }));
+
+    // No prompt at all; an older version than the current one.
+    await held(/prompt missing/, checkBody({ targets: [{ event_id: BINGO, occurrence_id: BINGO_OCC, prompt_version: 0 }], text: 'Bingo is on Friday 23 October at 6:30pm.' }));
+    expect(await approveOverride(env.DB, admin, QUIZ, { text: QUIZ_PROMPT, reason: 'Again' }, NOW)).toEqual({ ok: true, version: 2 });
+    await held(/prompt version 1 isn't the current one \(2\)/);
+    expect(await runCheck(env.DB, checkBody({ targets: [{ event_id: QUIZ, occurrence_id: QUIZ_OCC, prompt_version: 2 }] }), NOW)).toMatchObject({ allow: true });
+
+    // The facts changed since its prompt was approved.
+    await syncRows([quizRow({ 'Approved Facts': 'Prizes: cash prizes' }), bingoRow()]);
+    await held(/prompt out of date/, checkBody({ targets: [{ event_id: QUIZ, occurrence_id: QUIZ_OCC, prompt_version: 2 }] }));
+  });
+
+  it("holds while the sheet's date hasn't reached the app", async () => {
+    await setUp('enforce');
+    // The sheet has moved the Quiz to the 30th; the app's sync hasn't caught up.
+    const moved = await socialContext(env.DB, { event_ids: [QUIZ], sheet_dates: { [QUIZ]: '30/10/2026' } }, NOW);
+    expect((moved as { events: EventLayer[] }).events[0]).toMatchObject({ sync_pending: true, occurrence: { date: '2026-10-23' } });
+    // The same date, written either way, isn't pending; neither is an event the sheet sent no date for.
+    for (const date of ['23/10/2026', '2026-10-23']) {
+      const same = await socialContext(env.DB, { event_ids: [QUIZ, BINGO], sheet_dates: { [QUIZ]: date } }, NOW);
+      expect((same as { events: EventLayer[] }).events.map(e => e.sync_pending)).toEqual([false, false]);
+    }
+    // A date that can't be read can't be confirmed.
+    const odd = await socialContext(env.DB, { event_ids: [QUIZ], sheet_dates: { [QUIZ]: 'Every Friday' } }, NOW);
+    expect((odd as { events: EventLayer[] }).events[0]!.sync_pending).toBe(true);
+
+    const res = await runCheck(env.DB, checkBody({ sheet_dates: { [QUIZ]: '30/10/2026' } }), NOW);
+    expect(res).toMatchObject({ allow: false, result: 'fail' });
+    expect(said(res, /date not in the app yet/)).toBe(true);
+    expect(await runCheck(env.DB, checkBody({ sheet_dates: { [QUIZ]: '23/10/2026' } }), NOW)).toMatchObject({ allow: true, result: 'pass' });
+  });
+
+  it("checks the poster's wording too", async () => {
+    await setUp('enforce');
+    const res = await runCheck(env.DB, checkBody({ kind: 'poster', image_text: 'Quiz Night · Friday 23 October · 7:30pm' }), NOW);
+    expect(res).toMatchObject({ allow: false, result: 'fail' });
+    expect(said(res, /poster.*7:30pm/i)).toBe(true);
+    expect(failed(res).reasons.every(r => /poster/i.test(r))).toBe(true);
+    const [row] = await checks();
+    expect(row!.text).toContain(GOOD);
+    expect(row!.text).toContain('7:30pm');
+
+    expect(await runCheck(env.DB, checkBody({ kind: 'poster', image_text: 'Quiz Night · Friday 23 October · 6:30pm' }), NOW)).toMatchObject({
+      allow: true,
+      result: 'pass',
+    });
+  });
+
+  it('needs the bearer token', async () => {
+    for (const path of ['/internal/social/context', '/internal/social/check']) {
+      expect((await post(path, {}, { 'Content-Type': 'application/json' })).status, path).toBe(401);
+    }
   });
 });

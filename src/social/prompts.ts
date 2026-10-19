@@ -73,7 +73,8 @@ export async function setSocialMode(db: D1Database, admin: AuthUser, mode: unkno
 
 // ---- Reading an event and its versions ----
 
-const EVENT_FIELDS =
+/** The events columns sourceFields reads (for `e`); the post check (src/social/check.ts) reads them too. */
+export const EVENT_FIELDS =
   'e.event_id, e.event_name, e.display_name, e.source, e.frequency, e.description, e.category, e.visibility, e.price_display, e.default_capacity, e.social_values';
 
 interface PromptRow {
@@ -110,14 +111,20 @@ async function loadEvent(db: D1Database, eventId: string): Promise<{ row: Record
 }
 
 /** The names of every other active event, as the sheet and the app write them: a prompt may mention none of them. */
-async function otherEventNames(db: D1Database, eventId: string, own: Record<string, unknown>): Promise<string[]> {
+const otherEventNames = (db: D1Database, eventId: string, own: Record<string, unknown>): Promise<string[]> =>
+  activeEventNamesExcept(db, [eventId], [own.event_name, own.display_name]);
+
+/**
+ * The names of every active event but these ones, as the sheet and the app write them. A name one
+ * of these events also has (a second listing of it) isn't counted: it can't make their own name a stranger.
+ */
+export async function activeEventNamesExcept(db: D1Database, eventIds: string[], theirNames: unknown[]): Promise<string[]> {
   const { results } = await db
-    .prepare('SELECT event_name, display_name FROM events WHERE active = 1 AND event_id <> ?1')
-    .bind(eventId)
+    .prepare('SELECT event_name, display_name FROM events WHERE active = 1 AND event_id NOT IN (SELECT value FROM json_each(?1))')
+    .bind(JSON.stringify(eventIds))
     .all<{ event_name: string; display_name: string }>();
-  // Another event with this event's own name (a second listing of it) can't make its name a stranger.
   const ownNames = new Set(
-    [own.event_name, own.display_name].map(n =>
+    theirNames.map(n =>
       String(n ?? '')
         .trim()
         .toLowerCase(),
@@ -328,6 +335,12 @@ export interface DuePrompt {
   instruction_version: number;
 }
 
+/** An organiser edit not yet in the Logic Engine for event `e`. The post check (src/social/check.ts) uses these too. */
+export const OPEN_SHEET_EDIT = `EXISTS (SELECT 1 FROM sheet_edits s WHERE s.event_id = e.event_id AND ${OPEN})`;
+/** A host's change request for event `e` waiting for a decision, or approved and not yet in the sheet. */
+export const PENDING_CHANGE_REQUEST = `EXISTS (SELECT 1 FROM event_change_requests r WHERE r.event_id = e.event_id
+                      AND (r.status = 'pending' OR (r.status = 'approved' AND r.applied_at IS NULL)))`;
+
 /**
  * The events that can have a prompt made now (?1 = today, London), with their next date: active,
  * Public or App Bookable, with a scheduled, visible date still to come, and no change on its way to
@@ -339,9 +352,8 @@ const ELIGIBLE = `SELECT * FROM (
        AND COALESCE(o.visibility, e.visibility) IN ('public', 'app_bookable')) AS next_date
   FROM events e
   WHERE e.active = 1 AND e.visibility IN ('public', 'app_bookable')
-    AND NOT EXISTS (SELECT 1 FROM sheet_edits s WHERE s.event_id = e.event_id AND ${OPEN})
-    AND NOT EXISTS (SELECT 1 FROM event_change_requests r WHERE r.event_id = e.event_id
-                      AND (r.status = 'pending' OR (r.status = 'approved' AND r.applied_at IS NULL)))
+    AND NOT ${OPEN_SHEET_EDIT}
+    AND NOT ${PENDING_CHANGE_REQUEST}
 ) WHERE next_date IS NOT NULL`;
 
 const eligible = async (db: D1Database, eventId: string, now: Date): Promise<boolean> =>

@@ -24,6 +24,7 @@ import { changesToApply, markChangeApplied } from '../host/changes';
 import { markFailed, markSent, unsent } from '../notify/outbox';
 import { decidedApplicationsForApplicants, markApplicationNotified, newApplicationsForApprovers } from '../team/applications';
 import { applySync, parsePayload } from '../sync/apply';
+import { runCheck, socialContext } from '../social/check';
 import { duePrompts, markPromptWritten, promptsToWrite, proposePrompt } from '../social/prompts';
 import { checkEdit, claimEdits, markEditFailed, markEditWritten, parseWriterBody } from '../sync/edits';
 
@@ -366,6 +367,43 @@ internalRoutes.post('/social-prompts/:eventId/written', async c => {
   if (typeof body.version !== 'number' || !Number.isInteger(body.version) || body.version < 1) return c.json({ error: 'version is required' }, 400);
   const res = await markPromptWritten(c.env.DB, c.req.param('eventId'), body.version, new Date());
   return res === 'ok' ? c.json({ ok: true }) : c.json({ error: 'No version with that number for that event' }, 404);
+});
+
+// --- Every social post (n8n RTD Master V1 and the poster path, src/social/check.ts) ---
+
+/** The body as JSON, or a refusal saying why not. */
+async function jsonBody(c: { req: { text(): Promise<string> } }): Promise<{ body: unknown } | { error: string; status: 400 | 413 }> {
+  const text = await c.req.text();
+  if (text.length > MAX_BODY_BYTES) return { error: 'Body too large', status: 413 };
+  try {
+    return { body: JSON.parse(text) };
+  } catch {
+    return { error: 'Body must be JSON', status: 400 };
+  }
+}
+
+/**
+ * Each event's layer before a caption is written. Body: { event_ids, sheet_dates? } (sheet_dates:
+ * { event_id: the Logic Engine's date }). Answers { mode, events: [{ event_id, prompt, prompt_version,
+ * base_details, approved_facts, people_roles, banned_phrases, occurrence, sync_pending }] }; at off, no events.
+ */
+internalRoutes.post('/social/context', async c => {
+  const read = await jsonBody(c);
+  if ('error' in read) return c.json({ error: read.error }, read.status);
+  const res = await socialContext(c.env.DB, read.body, new Date());
+  return 'ok' in res ? c.json({ error: res.error }, res.status) : c.json(res);
+});
+
+/**
+ * The check just before a post goes to Buffer. Body: { kind, platform, targets: [{ event_id,
+ * occurrence_id, prompt_version }], text, image_text?, workflow, execution_id, sheet_dates? }.
+ * Answers { allow, result, reasons, mode }: post only when allow is true. 400: the body can't be checked.
+ */
+internalRoutes.post('/social/check', async c => {
+  const read = await jsonBody(c);
+  if ('error' in read) return c.json({ error: read.error }, read.status);
+  const res = await runCheck(c.env.DB, read.body, new Date());
+  return 'ok' in res ? c.json({ error: res.error }, res.status) : c.json(res);
 });
 
 // --- The food and drinks menu (n8n RTD Menu Sync, docs/RTD_FOOD_MENU.md) ---
