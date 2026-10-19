@@ -694,7 +694,7 @@ describe('prompt validation, review round 4', () => {
     // A stray quote mark anywhere in the prompt means no quote in it is exempt.
     refuses(' Never say "tonight". Use 6" mats.');
     // Apostrophes are not quote marks.
-    approves(' Never say "tonight" or "tomorrow"; it\'s the players\' night, and it’s the players’ table.');
+    approves(' Never say "tonight" or "tomorrow". It\'s the players\' night, and it’s the players’ table.');
   });
 
   it('reads an hour in words after a time word', () => {
@@ -765,7 +765,7 @@ describe('prompt validation, review round 5', () => {
     refuses(' Never say "tonight" or "7pm”.');
     // A prohibition inside a quote forbids nothing.
     refuses(' Example caption: “Never say "7pm" or "today".”');
-    approves(" Never say \"tonight\" or \"tomorrow\"; play rock 'n' roll 'til the end, '90s and 90's style.");
+    approves(" Never say \"tonight\" or \"tomorrow\". Play rock 'n' roll 'til the end, '90s and 90's style.");
     approves(" Never use these words: 'rock 'n' roll', 'tonight'.");
     // A curly closing mark that opens a word, and isn't an elision, closes nothing: no quote in the prompt is exempt.
     refuses(' Never say "tonight". Ask for the ’big table’.');
@@ -841,6 +841,43 @@ describe('prompt validation, controller ruling after round 5', () => {
       ' Never say "tonight",\nKeep it friendly.',
     ]) {
       expect(reviewed(goodPrompt + extra).errors, extra).toEqual([]);
+    }
+  });
+});
+
+describe('prompt validation, controller ruling after the final review', () => {
+  const reviewed = (prompt: string) => validatePrompt(output({ master_prompt: prompt }), dnd, ctx);
+
+  it('exempts forbidden items only when the sentence ends with the list', () => {
+    for (const extra of [
+      ` Never mention the price "£10", 'cause it is paid on the door.`,
+      ` Never mention the price "£10," 'cause it is paid on the door.`,
+      ' Never mention the price "£10", "which is paid on the door".',
+      ' Never mention the price "£10", and it is paid on the door.',
+      ' Never mention the price "£10" and it is paid on the door.',
+      ' Never mention the price "£10": it is paid on the door.',
+      ' Never mention the price "£10"; it is paid on the door.',
+      ' Never mention the price "£10:" it is paid on the door.',
+      ' Never say "tonight" and "7pm"\nis the start.',
+    ]) {
+      expect(reviewed(goodPrompt + extra).status, extra).toBe('review_required');
+    }
+    for (const extra of [
+      ' Never say "tonight" or "tomorrow".',
+      ' Never say "tonight", "tomorrow" or "this weekend"',
+      ' Never say "tonight," "tomorrow," or "this weekend."',
+      ' Do not use dates such as "23 October" or "Friday" in the prompt.',
+      ' (Never say "tonight".) Keep it friendly.',
+      ' Never say "tonight"\nKeep it friendly.',
+      ' Never say "tonight"\n- Keep it friendly.',
+    ]) {
+      expect(reviewed(goodPrompt + extra).errors, extra).toEqual([]);
+    }
+  });
+
+  it('does not read a negated "avoid" as a prohibition', () => {
+    for (const extra of [' Do not avoid mentioning "£10".', ' Never avoid saying "friday 23 october".', " Don't avoid saying \"7pm\"."]) {
+      expect(reviewed(goodPrompt + extra).status, extra).toBe('review_required');
     }
   });
 });

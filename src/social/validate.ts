@@ -502,7 +502,7 @@ export function findNames(text: string, allowed: Iterable<string>): string[] {
 const PROHIBITION_VERB =
   '(?:say(?:s|ing)?|us(?:e|es|ing)|writ(?:e|es|ing)|mention(?:s|ing)?|describ(?:e|es|ing)|call(?:s|ing)?|stat(?:e|es|ing)|claim(?:s|ing)?|impl(?:y|ies|ying)|promis(?:e|es|ing)|suggest(?:s|ing)?|advertis(?:e|es|ing)|refer(?:s|ring)?\\s+to|includ(?:e|es|ing))';
 const NEGATIVE =
-  "(?<!\\p{L})(?:never|do not|don['’]t|must not|mustn['’]t|avoid|should not|shouldn['’]t)(?:\\s+(?:ever|again|explicitly|directly|actually|specifically|literally|otherwise|even|falsely|wrongly|incorrectly)){0,2}\\s+";
+  "(?<!\\p{L})(?:never|do not|don['’]t|must not|mustn['’]t|(?<!(?:never|not|n['’]t)\\s+)avoid|should not|shouldn['’]t)(?:\\s+(?:ever|again|explicitly|directly|actually|specifically|literally|otherwise|even|falsely|wrongly|incorrectly)){0,2}\\s+";
 /** "never say", "do not ever use", "avoid mentioning": a negative, at most two adverbs, then a verb of saying. Bare "no" isn't one. */
 const PROHIBITION = new RegExp(`${NEGATIVE}${PROHIBITION_VERB}(?!\\p{L})`, 'giu');
 // What a prohibition forbids: a few words ("it", "these words", "relative dates"), two such joined
@@ -528,6 +528,14 @@ const AFTER_INSIDE_COMMA = new RegExp(`${HSPACE}*(?:$|${LINE_BREAK}|[.!?;:)\\]]|
 // An item whose clause ends inside its own quote marks ('"tonight." or "this weekend."') has ended already;
 // one ending in a comma ('"tonight," "tomorrow,"') is followed as if the comma were outside.
 const ENDS_INSIDE = /[.!?;:]\s*$/u;
+// Where a list of forbidden items must stop: with the sentence, or with another prohibition. After the
+// last item (and any "in the prompt"), only a full stop, ! or ?, a closing bracket, the end of the line
+// before a new sentence, a bullet or a blank line, or ", and do not…" / "; never…". Anything else
+// ('"£10", and it is paid on the door') makes the items a claim.
+// (Two patterns, as "a new sentence" must be told by its capital letter, which a case-blind pattern can't.)
+const LIST_END = new RegExp(`${HSPACE}*(?:${ITEM_SCOPE})?(?:[.!?)\\]]|[,;:]?${HSPACE}*(?:$|${LINE_BREAK}(?=\\s*(?:$|[-*•>#\\d\\p{Lu}]))))`, 'uy');
+const LIST_THEN_PROHIBITION = new RegExp(`${HSPACE}*(?:${ITEM_SCOPE})?[,;]?${HSPACE}*(?:(?:and|or|but)${HSPACE}+)?(?=${NEGATIVE})`, 'iuy');
+const ENDS_SENTENCE_INSIDE = /[.!?]\s*$/u;
 const MAX_ITEM_WORDS = 3;
 // A price straight after one of these is the thing forbidden: "never describe it as free", "do not imply free entry".
 const MONEY_PROHIBITION = new RegExp(
@@ -617,15 +625,20 @@ function prohibitions(text: string): { quoted: Span[]; forbidsMoneyAt: (index: n
   for (const p of text.matchAll(PROHIBITION)) {
     let pos = p.index! + p[0].length;
     let gap = FIRST_ITEM_GAP;
+    const items: Span[] = [];
     for (;;) {
       gap.lastIndex = pos;
       const between = gap.exec(text)?.[0] ?? '';
       const q = lineBreaks(between) > 1 ? undefined : quoteAt.get(pos + between.length);
       if (!q || !isListItem(text, q)) break;
-      quoted.push(q);
+      items.push(q);
       pos = q[1];
       gap = NEXT_ITEM_GAP;
     }
+    const last = items[items.length - 1];
+    if (!last) continue;
+    LIST_END.lastIndex = LIST_THEN_PROHIBITION.lastIndex = pos;
+    if (ENDS_SENTENCE_INSIDE.test(text.slice(last[0] + 1, last[1] - 1)) || LIST_END.test(text) || LIST_THEN_PROHIBITION.test(text)) quoted.push(...items);
   }
   return {
     quoted,
