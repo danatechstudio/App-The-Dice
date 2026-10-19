@@ -176,6 +176,7 @@ Nothing existing changes. **At Off nothing is checked or recorded, and nothing p
 
 **Applied to production:** 2026-10-19 10:28 UTC, straight after 0023, with the owner's go-ahead, through the Cloudflare connector, one statement at a time (the column, the two tables, their three indexes, the setting); recorded in `d1_migrations`. Restore point as for 0023: 2026-10-19T10:27:04Z.
 - **After:** 32 events, 79 occurrences, 0 bookings, 326 audit rows (unchanged); 17 settings (`social_prompts = off` added); `events.social_values` present; both tables empty.
+- **Deployed:** merged to main at 10:30 UTC (0d060ce). The 10:30 sync ran `ok` on the old code with the migrated database; the 10:45 sync ran `ok` on the new code and stored `social_values` for all 32 events (blank, as RTD Event Sync doesn't send those columns yet), with no audit rows and no event changes.
 
 ## Admin event editor (2026-10-18, no migration)
 
