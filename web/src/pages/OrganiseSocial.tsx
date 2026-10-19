@@ -39,6 +39,7 @@ export function SocialPanel() {
   const [data, setData] = useState<SocialOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
+    setError(null);
     const res = await hostApi<SocialOverview>('/api/staff/social');
     if (res.ok) setData(res.data);
     else setError(res.error);
@@ -55,7 +56,7 @@ export function SocialPanel() {
         Each event gets its own master prompt, written from the facts you’ve put in the Logic Engine, and every post is checked against that event’s facts
         before it goes out.
       </p>
-      {error && <p class="field__error">{error}</p>}
+      {error && <LoadError error={error} onRetry={load} />}
       {!data && !error && <DiceLoader label="Loading social prompts..." />}
       {data && (
         <div class="stack social" style={{ '--gap': '20px' }}>
@@ -82,7 +83,7 @@ export function SocialPanel() {
                     </ul>
                   )}
                   <p>
-                    <a class="btn btn--secondary btn--sm" href={`/organise/events/${r.event_id}#social-prompt`}>
+                    <a class="btn btn--secondary btn--sm" href={`/organise/events/${r.event_id}#social-prompt`} aria-label={`Review the prompt for ${r.name}`}>
                       Review the prompt
                     </a>
                   </p>
@@ -183,6 +184,7 @@ export function EventSocialSection({ eventId }: { eventId: string }) {
   const [data, setData] = useState<EventSocial | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
+    setError(null);
     const res = await hostApi<EventSocial>(`/api/staff/events/${eventId}/social`);
     if (res.ok) setData(res.data);
     else setError(res.error);
@@ -197,7 +199,7 @@ export function EventSocialSection({ eventId }: { eventId: string }) {
   return (
     <section id="social-prompt" class="card card--pad stack social" style={{ '--gap': '16px' }} aria-labelledby="ev-social">
       <h2 id="ev-social">Social prompt</h2>
-      {error && <p class="field__error">{error}</p>}
+      {error && <LoadError error={error} onRetry={load} />}
       {!data && !error && <DiceLoader label="Loading the social prompt..." />}
       {data && (
         <>
@@ -271,7 +273,7 @@ function Facts({ data }: { data: EventSocial }) {
       </div>
       <p class="field__hint">Edit these in the Logic Engine, in the event’s row. Changes show here after the next sync, and the prompt is made again.</p>
       {data.parse_errors.length > 0 && (
-        <div class="notice notice--warning" role="status">
+        <div class="notice notice--warning">
           <AlertTriangle size={20} aria-hidden="true" />
           <div>
             <strong>Some lines can’t be read</strong>
@@ -290,6 +292,8 @@ function Facts({ data }: { data: EventSocial }) {
 
 function Prompt({ data, eventId, onChanged }: { data: EventSocial; eventId: string; onChanged: () => void }) {
   const p = data.prompt;
+  // Lines that can't be read are listed once, with the facts above, not again here.
+  const looks = p ? [...p.questions, ...p.errors].filter(q => !data.parse_errors.includes(q)) : [];
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const regenerate = async () => {
@@ -324,21 +328,27 @@ function Prompt({ data, eventId, onChanged }: { data: EventSocial; eventId: stri
               .replace(/^./, c => c.toUpperCase())}
             {p.override_reason ? ` · “${p.override_reason}”` : ''}
           </p>
-          {(p.questions.length > 0 || p.errors.length > 0) && (
-            <div class={`notice ${p.status === 'blocked' ? 'notice--danger' : 'notice--info'}`} role="status">
+          {looks.length > 0 && (
+            <div class={`notice ${p.status === 'blocked' ? 'notice--danger' : 'notice--info'}`}>
               <div>
                 <p>
                   <strong>{p.status === 'approved' ? 'Noted when it was made' : 'What needs a look'}</strong>
                 </p>
                 <ul class="social__reasons">
-                  {[...p.questions, ...p.errors].map((q, i) => (
+                  {looks.map((q, i) => (
                     <li key={i}>{q}</li>
                   ))}
                 </ul>
               </div>
             </div>
           )}
-          {p.master_prompt ? <div class="social__prompt">{p.master_prompt}</div> : <p class="meta">No text: the builder couldn’t make one.</p>}
+          {p.master_prompt ? (
+            <div class="social__prompt" tabIndex={0} aria-label={`Prompt, version ${p.version}`}>
+              {p.master_prompt}
+            </div>
+          ) : (
+            <p class="meta">No text: the builder couldn’t make one.</p>
+          )}
         </>
       )}
       {data.in_use === null && data.mode === 'enforce' && (
@@ -457,10 +467,31 @@ function History({ data }: { data: EventSocial }) {
               {v.approved_by ? ` · approved by ${v.approved_by === 'system' ? 'the checks' : v.approved_by}` : ''}
               {v.override_reason ? ` · “${v.override_reason}”` : ''}
             </p>
-            {v.master_prompt && <div class="social__prompt social__prompt--old">{v.master_prompt}</div>}
+            {v.master_prompt && (
+              <div class="social__prompt social__prompt--old" tabIndex={0} aria-label={`Prompt, version ${v.version}`}>
+                {v.master_prompt}
+              </div>
+            )}
           </li>
         ))}
       </ol>
     </details>
+  );
+}
+
+/** A list that didn't load: why, and a way to try again. */
+function LoadError({ error, onRetry }: { error: string; onRetry: () => void }) {
+  return (
+    <div class="notice notice--warning" role="alert">
+      <AlertTriangle size={20} aria-hidden="true" />
+      <div class="stack" style={{ '--gap': '8px' }}>
+        <p>{error}</p>
+        <div>
+          <button type="button" class="btn btn--secondary btn--sm" onClick={onRetry}>
+            <RefreshCw size={16} aria-hidden="true" /> Try again
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -1157,6 +1157,42 @@ describe('admin screens', () => {
     expect((await (await get('/api/staff/social')).json<Overview>()).review.map(r => r.event_id)).toEqual([DND]);
   });
 
+  it("shows and approves a market event's prompt like any other", async () => {
+    const MARKET = 'RTD-EVT-00009';
+    const market = indexRow(9, { 'Event Name': 'Makers Market', 'Base Details': 'Local makers and their stalls.', 'App Category': 'Market', 'App Host Session': 'RTD-MKT-00001' });
+    expect((await sync({ run_id: 'market-1', sources: { event_index: [market] } })).status).toBe(200);
+    expect((await env.DB.prepare('SELECT market_id FROM events WHERE event_id = ?1').bind(MARKET).first<{ market_id: string }>())!.market_id).toBe('RTD-MKT-00001');
+    expect((await duePrompts(env.DB, NOW, 10)).map(d => d.event_id)).toContain(MARKET);
+
+    const view = await get(`/api/staff/events/${MARKET}/social`);
+    expect(view.status).toBe(200);
+    expect(await view.json()).toMatchObject({ prompt: null, in_use: null, history: [], checks: [] });
+    const ok = await send(`/api/staff/events/${MARKET}/social/approve`, { text: 'Write about Makers Market at Roll The Dice: local makers and their stalls.', reason: 'Market prompt' });
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ version: 1 });
+    expect(await currentPrompt(env.DB, MARKET)).toMatchObject({ version: 1, current: true });
+  });
+
+  it('audits a switch change made on the screen', async () => {
+    expect((await send('/api/staff/social/mode', { mode: 'enforce' })).status).toBe(200);
+    const audit = await env.DB.prepare("SELECT * FROM audit_log WHERE action = 'social_prompts.changed'").all<Record<string, string>>();
+    expect(audit.results).toHaveLength(1);
+    expect(audit.results[0]).toMatchObject({ actor_type: 'staff', actor_id: 'dan@example.com', previous_value: 'off', new_value: 'enforce', source: 'organiser' });
+  });
+
+  it('stores the schedule rule once when it is pasted in, and needs text when there is nothing to approve', async () => {
+    expect((await sync({ run_id: 'admin-rule', sources: { event_index: [dndRow()] } })).status).toBe(200);
+    // No version yet: approving without text has nothing to approve.
+    const empty = await send(`/api/staff/events/${DND}/social/approve`, { reason: 'Looks right' });
+    expect(empty.status).toBe(400);
+    expect((await empty.json<{ error: string }>()).error).toMatch(/paste the text/);
+
+    const pasted = await send(`/api/staff/events/${DND}/social/approve`, { text: `${goodPrompt}\n\n${SCHEDULE_RULE}\n\n${SCHEDULE_RULE}`, reason: 'Pasted from the sheet' });
+    expect(pasted.status).toBe(200);
+    const stored = await env.DB.prepare('SELECT master_prompt FROM social_prompts WHERE event_id = ?1 AND version = 1').bind(DND).first<{ master_prompt: string }>();
+    expect(stored!.master_prompt).toBe(`${goodPrompt}\n\n${SCHEDULE_RULE}`);
+  });
+
   it('refuses approvers and hosts', async () => {
     await setUp();
     const routes: [string, string, unknown?][] = [

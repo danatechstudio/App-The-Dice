@@ -183,9 +183,9 @@ describe('the organiser summary', () => {
     // Off (the default): nothing is counted, and the part isn't there.
     expect((await summary(DAN)).sections.events).toEqual({ count: 0, parts: { sheet_edit_problems: 0 } });
     await run("UPDATE settings SET value = 'shadow' WHERE key = 'social_prompts'");
-    expect((await summary(DAN)).sections.events).toEqual({ count: 3, parts: { sheet_edit_problems: 0, social_review: 3 } });
+    expect((await summary(DAN)).sections.events).toEqual({ count: 3, parts: { sheet_edit_problems: 0, social_prompts: 2, social_held: 1 } });
     await run("UPDATE settings SET value = 'enforce' WHERE key = 'social_prompts'");
-    expect((await summary(DAN)).sections.events!.parts!.social_review).toBe(3);
+    expect((await summary(DAN)).sections.events!.parts).toMatchObject({ social_prompts: 2, social_held: 1 });
     const michelle = await summary(MICHELLE);
     expect(michelle.sections.events).toEqual({ count: 0 });
   });
@@ -200,12 +200,12 @@ describe('the organiser summary', () => {
     await prompt('RTD-SP-00002', 'RTD-EVT-00002');
     await prompt('RTD-SP-00003', 'RTD-EVT-00003');
     await run("UPDATE settings SET value = 'shadow' WHERE key = 'social_prompts'");
-    expect((await summary(DAN)).sections.events!.parts!.social_review).toBe(3);
+    expect((await summary(DAN)).sections.events!.parts!.social_prompts).toBe(3);
     await run("UPDATE events SET active = 0 WHERE event_id = 'RTD-EVT-00001'");
     await run("UPDATE events SET visibility = 'private' WHERE event_id = 'RTD-EVT-00002'");
-    expect((await summary(DAN)).sections.events!.parts!.social_review).toBe(1);
+    expect((await summary(DAN)).sections.events!.parts!.social_prompts).toBe(1);
     await run("UPDATE events SET visibility = 'hidden' WHERE event_id = 'RTD-EVT-00003'");
-    expect((await summary(DAN)).sections.events!.parts!.social_review).toBe(0);
+    expect((await summary(DAN)).sections.events!.parts!.social_prompts).toBe(0);
   });
 
   it('shows booked dates this week as information, not as waiting', async () => {

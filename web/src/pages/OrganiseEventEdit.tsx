@@ -80,14 +80,17 @@ export function EventEditor({ eventId }: { eventId: string }) {
             </div>
           )}
           {event.kind === 'market' ? (
-            <section class="card card--pad stack" style={{ '--gap': '12px' }}>
-              <p>Markets have their own editor, with pitches and vendors.</p>
-              <p>
-                <a class="btn btn--secondary btn--sm" href="/organise/content#markets-admin">
-                  Open Markets
-                </a>
-              </p>
-            </section>
+            <>
+              <section class="card card--pad stack" style={{ '--gap': '12px' }}>
+                <p>Markets have their own editor, with pitches and vendors.</p>
+                <p>
+                  <a class="btn btn--secondary btn--sm" href="/organise/content#markets-admin">
+                    Open Markets
+                  </a>
+                </p>
+              </section>
+              <EventSocialSection eventId={event.event_id} />
+            </>
           ) : (
             <>
               <DetailsForm key={JSON.stringify(event)} event={event} onSaved={load} />

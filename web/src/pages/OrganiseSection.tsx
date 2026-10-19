@@ -63,7 +63,8 @@ export const SECTIONS: SectionDef[] = [
     adminOnly: false,
     partLabels: {
       sheet_edit_problems: ['Logic Engine change stuck', 'Logic Engine changes stuck'],
-      social_review: ['social item to review this week', 'social items to review this week'],
+      social_prompts: ['social prompt to review', 'social prompts to review'],
+      social_held: ['post held this week', 'posts held this week'],
     },
   },
   { key: 'bookings', title: 'Bookings', blurb: 'Booked dates coming up', adminOnly: false, partLabels: {} },

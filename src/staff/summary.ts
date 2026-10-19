@@ -39,8 +39,9 @@ const COUNTS = {
   menu_sheet_problem: "SELECT CASE WHEN json_extract(value, '$.ok') = 0 THEN 1 ELSE 0 END AS n FROM settings WHERE key = 'food_menu_sync'",
   booked_dates_7_days: `SELECT COUNT(DISTINCT o.occurrence_id) AS n FROM occurrences o JOIN bookings b ON b.occurrence_id = o.occurrence_id
      WHERE b.status = 'confirmed' AND o.status = 'scheduled' AND o.event_date BETWEEN ?1 AND ?2`,
-  // As the Social prompts panel (src/social/admin.ts): prompts waiting for a person, and posts that failed their check this week.
-  social_review: `SELECT (SELECT COUNT(*) FROM (${REVIEW_SQL})) + (SELECT COUNT(*) FROM social_checks WHERE result = 'fail' AND created_at >= ?1) AS n`,
+  // As the Social prompts panel (src/social/admin.ts): prompts waiting for a person (any age), and posts that failed their check this week.
+  social_prompts: `SELECT COUNT(*) AS n FROM (${REVIEW_SQL})`,
+  social_held: "SELECT COUNT(*) AS n FROM social_checks WHERE result = 'fail' AND created_at >= ?1",
   social_on: "SELECT CASE WHEN value IN ('shadow', 'enforce') THEN 1 ELSE 0 END AS n FROM settings WHERE key = 'social_prompts'",
 } as const;
 
@@ -49,7 +50,7 @@ const BINDS: Partial<Record<keyof typeof COUNTS, (t: { weekAgo: string; today: s
   failed_emails: t => [t.weekAgo],
   failed_pushes: t => [t.weekAgo],
   booked_dates_7_days: t => [t.today, addDays(t.today, 6)],
-  social_review: t => [t.weekAgo],
+  social_held: t => [t.weekAgo],
 };
 
 const section = (parts: Record<string, number>): SectionSummary => ({ count: Object.values(parts).reduce((a, b) => a + b, 0), parts });
@@ -69,7 +70,7 @@ export async function staffSummary(db: D1Database, user: AuthUser, now: Date): P
     approve: section({ join_requests: n.join_requests, sessions: n.sessions, changes: n.changes, market_applications: n.market_applications }),
     attention: section({ open_items: attention ? n.open_items : 0, failed_deliveries: n.failed_emails + n.failed_pushes }),
     // Social prompts count only while the switch isn't Off; at Off the part isn't there.
-    events: admin ? section({ sheet_edit_problems: n.sheet_edit_problems, ...(n.social_on ? { social_review: n.social_review } : {}) }) : { count: 0 },
+    events: admin ? section({ sheet_edit_problems: n.sheet_edit_problems, ...(n.social_on ? { social_prompts: n.social_prompts, social_held: n.social_held } : {}) }) : { count: 0 },
     bookings: { count: 0, info: { booked_dates_7_days: n.booked_dates_7_days } },
     people: { count: 0 },
   };
