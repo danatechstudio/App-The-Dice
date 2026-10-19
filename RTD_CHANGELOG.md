@@ -28,7 +28,7 @@
   - Hosts never see prompts.
 - **A safety net, not a guarantee.** The check works from fixed rules and fails safe, so it will sometimes hold a good post. It can also miss a few unusual wordings. The list is in [RTD_N8N_WORKFLOWS.md](docs/RTD_N8N_WORKFLOWS.md#known-limits). That's why it runs in Shadow for about a week first.
 - **Privacy:** the text of each checked post is deleted after 90 days; the result is kept.
-- **Database:** migration `0024_social_prompts.sql` adds one column, two tables and the switch (Off). **Not applied to production yet.** It goes after `0023` (also waiting), each with the owner's go-ahead ([RTD_EVENT_CONTROL_MIGRATION.md](docs/RTD_EVENT_CONTROL_MIGRATION.md#0024_social_promptssql-event-social-prompts-stage-1)).
+- **Database:** migration `0024_social_prompts.sql` adds one column, two tables and the switch (Off). **Applied to production 2026-10-19 10:28 UTC**, straight after `0023`, with the owner's go-ahead ([RTD_EVENT_CONTROL_MIGRATION.md](docs/RTD_EVENT_CONTROL_MIGRATION.md#0024_social_promptssql-event-social-prompts-stage-1)).
 - **The owner's steps (spec §6), each with a go-ahead:**
   - **G1:** apply **0023**, then **0024**, to production (each with the owner's go-ahead), check them, and only then merge the app code (switch Off). Merging first would break the live app: the sync, the organiser hub and the daily privacy clean-up all need 0024's tables.
   - **G2:** back up the Logic Engine, and add the 4 columns (Approved Facts, People & Roles, Social Prompt, Social Prompt Status) to both tabs, on the staging copy first. RTD Event Sync then needs to send the new columns to the app.
@@ -53,7 +53,7 @@
   - The privacy notice covers the form, and is dated 18 October.
 - **Hosts:** the Private option on the session form now explains what shows. The admin editor calls it **Private game**.
 - **Cleeples** is set to booking **Optional** in the live database (set directly, recorded in the audit log).
-- **Database:** migration `0023_enquiries.sql` adds one table. **Not applied to production yet: it needs the owner's go-ahead.** Until it is applied, the form answers "Something went wrong" and sends nothing.
+- **Database:** migration `0023_enquiries.sql` adds one table. **Applied to production 2026-10-19 10:27 UTC** with the owner's go-ahead.
 
 ## 2026-10-18 (Admin event editor)
 - **Admins can change or cancel every event from one place:** Organise › Events & dates › **All events**. This covers café events from both sheet tabs, hosts' sessions and markets, whether public, app-bookable, private or hidden, running or stopped. Search, and filters for Café, Host sessions, Markets, Stopped, and Hidden or private.

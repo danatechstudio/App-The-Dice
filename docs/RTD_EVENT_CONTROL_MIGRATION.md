@@ -126,7 +126,10 @@ Nothing existing changes. Emails already in the outbox read as queued or sent, e
 One new table, `enquiries`, for the message form on a private game's page (spec `docs/superpowers/specs/2026-10-18-private-events-design.md`). Additive; nothing else changes.
 - **Order:** apply the migration first (`npx wrangler d1 migrations apply rtd-app --remote`, or through the Cloudflare connector, then record it in `d1_migrations`), then merge the code. Code that runs before the table exists makes the form fail with "Something went wrong", and nothing else.
 - **Rollback:** `npx wrangler rollback`; the table can stay.
-- **Status:** not yet applied to production. Waiting on the owner's go-ahead.
+**Applied to production:** 2026-10-19 10:27 UTC, with the owner's go-ahead, through the Cloudflare connector, one statement at a time (the table and its two indexes); recorded in `d1_migrations`.
+- **Restore point:** 2026-10-19T10:27:04Z.
+- **Before:** 32 events, 79 occurrences, 0 bookings, 326 audit rows, 16 settings; the 10:15 sync `ok`.
+- **After:** the same; `enquiries` (empty) and both indexes are present.
 
 ## 0024_social_prompts.sql (event social prompts, Stage 1)
 
@@ -171,7 +174,8 @@ Nothing existing changes. **At Off nothing is checked or recorded, and nothing p
   ```
   The `events.social_values` column can stay; nothing old reads it. This loses the prompt history and check log. The prompts themselves are still in the Logic Engine's Social Prompt cells, once Stage 2 has written them.
 
-**Status:** not yet applied to production. Waiting on the owner's go-ahead, after 0023.
+**Applied to production:** 2026-10-19 10:28 UTC, straight after 0023, with the owner's go-ahead, through the Cloudflare connector, one statement at a time (the column, the two tables, their three indexes, the setting); recorded in `d1_migrations`. Restore point as for 0023: 2026-10-19T10:27:04Z.
+- **After:** 32 events, 79 occurrences, 0 bookings, 326 audit rows (unchanged); 17 settings (`social_prompts = off` added); `events.social_values` present; both tables empty.
 
 ## Admin event editor (2026-10-18, no migration)
 
