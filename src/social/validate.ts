@@ -518,11 +518,16 @@ const NEXT_ITEM_GAP = /(?:\s|,|(?<!\p{L})(?:or|and|nor)(?!\p{L}))*/iuy;
 // Where an item is forbidden, written after it: "in the prompt", "in captions", "anywhere".
 const ITEM_PLACE = `(?:in|within|from)${HSPACE}+(?:(?:the|any|a|an|your|our|each|every|all)${HSPACE}+)?(?:prompts?|posts?|captions?|copy|text|wording|messages?|hashtags?)`;
 const ITEM_SCOPE = `(?:anywhere(?:${HSPACE}+${ITEM_PLACE})?|${ITEM_PLACE})(?!\\p{L})${HSPACE}*`;
+// What may follow a comma after a forbidden item: another item, a list joiner or the end of the line.
+// Anything else is a clause about the item ('"£10", which is paid on the door').
+const AFTER_COMMA = `${HSPACE}*(?=$|${LINE_BREAK}|["“‘']|(?:or|and|nor)(?!\\p{L}))`;
 // What must follow a forbidden item, so that it isn't the start of a claim ('"£10 door fee" applies'):
 // a list joiner, a closing bracket, the end of a clause or sentence, or the end of the line.
-const ITEM_END = new RegExp(`${HSPACE}*(?:${ITEM_SCOPE})?(?:$|${LINE_BREAK}|[,.!?;:)\\]]|(?:or|and|nor)(?!\\p{L}))`, 'iuy');
-// An item whose clause ends inside its own quote marks ('"tonight," "tomorrow," or "this weekend."') has ended already.
-const ENDS_INSIDE = /[,.!?;:]\s*$/u;
+const ITEM_END = new RegExp(`${HSPACE}*(?:${ITEM_SCOPE})?(?:$|${LINE_BREAK}|[.!?;:)\\]]|,${AFTER_COMMA}|(?:or|and|nor)(?!\\p{L}))`, 'iuy');
+const AFTER_INSIDE_COMMA = new RegExp(`${HSPACE}*(?:$|${LINE_BREAK}|[.!?;:)\\]]|,${AFTER_COMMA}|["“‘']|(?:or|and|nor)(?!\\p{L}))`, 'iuy');
+// An item whose clause ends inside its own quote marks ('"tonight." or "this weekend."') has ended already;
+// one ending in a comma ('"tonight," "tomorrow,"') is followed as if the comma were outside.
+const ENDS_INSIDE = /[.!?;:]\s*$/u;
 const MAX_ITEM_WORDS = 3;
 // A price straight after one of these is the thing forbidden: "never describe it as free", "do not imply free entry".
 const MONEY_PROHIBITION = new RegExp(
@@ -588,8 +593,10 @@ function quotedStretches(text: string): Span[] | null {
 function isListItem(text: string, [start, end]: Span): boolean {
   const inside = text.slice(start + 1, end - 1);
   if ((inside.match(/[\p{L}\p{N}]+/gu) ?? []).length > MAX_ITEM_WORDS || LINE_BREAK_CHAR.test(inside)) return false;
-  ITEM_END.lastIndex = end;
-  return ENDS_INSIDE.test(inside) || ITEM_END.test(text);
+  if (ENDS_INSIDE.test(inside)) return true;
+  const follows = /,\s*$/u.test(inside) ? AFTER_INSIDE_COMMA : ITEM_END;
+  follows.lastIndex = end;
+  return follows.test(text);
 }
 
 /**

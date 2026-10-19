@@ -820,3 +820,27 @@ describe('prompt validation, review round 5', () => {
     expect(performance.now() - started).toBeLessThan(100);
   });
 });
+
+describe('prompt validation, controller ruling after round 5', () => {
+  const reviewed = (prompt: string) => validatePrompt(output({ master_prompt: prompt }), dnd, ctx);
+  const status = (extra: string) => reviewed(goodPrompt + extra).status;
+
+  it('ends a quoted item at a comma only when another item, a list joiner or the end of the line follows', () => {
+    for (const extra of [
+      ' Never mention the price "£10", which is paid on the door.',
+      ' Never say "tonight", it starts at 7pm.',
+      ' Never say "tonight," it starts at 7pm.',
+      ' Never write "Friday" in the prompt, the session is on friday 23 october.',
+    ]) {
+      expect(status(extra), extra).toBe('review_required');
+    }
+    for (const extra of [
+      ' Never say "tonight", "tomorrow" or "this weekend".',
+      ' Never say "tonight," "tomorrow," or "this weekend."',
+      ' Never say "tonight", or "tomorrow".',
+      ' Never say "tonight",\nKeep it friendly.',
+    ]) {
+      expect(reviewed(goodPrompt + extra).errors, extra).toEqual([]);
+    }
+  });
+});
