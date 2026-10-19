@@ -545,28 +545,44 @@ Every 15 minutes, created **unpublished**, with `Studio: Error Handler`.
 **Nodes, in order:**
 1. **Every 15 Minutes** and **Run By Hand** → **Read rtd_config** (every row) → **Builder Settings** (the app URL, dry run, which sheet, the limit; it refuses a staging ID that is the live sheet).
 2. **Read Event Index** and **Read Standard Diary** on the chosen sheet.
-3. **Get Due Events** (`GET /due?limit=<limit>`) → **Due Events** (one item each) → **Write Prompt (Gemini)**: `request.system` as the system message, `request.user` as the only message, JSON output, temperature 0.2, 2 tries, errors carried on as items.
-4. **Answer For App** builds `{ fingerprint, job_id, model, output }`, or `{ fingerprint, job_id, error }` when Gemini failed or answered nothing → **Send Prompt To App** (`POST /:eventId`; the status code is read, never thrown) → **App Answer**:
-   - **stored**: a 200 with cells. They are written in step 5 of the same run.
+3. **Get Due Events** (`GET /due?limit=<limit>`) → **Due Events** (one item each) → **Loop Over Events**, one event at a time, so each gets its own tries:
+   - **Write Prompt (Gemini)**: `request.system` as the system message, `request.user` as the only message, JSON output, temperature 0.2, 2 tries. Errors are carried on as items.
+   - **Answer For App** builds `{ fingerprint, job_id, model, output }`, or `{ fingerprint, job_id, error }` when Gemini failed or answered nothing.
+   - **Prepare Try** → **Send Prompt To App** (`POST /:eventId`; the status code is read, never thrown) → **Check Answer** → **Try Again?**
+   - A 5xx or no answer goes through **Wait Before Retry** (5 s) and is sent again, up to 3 tries. That is safe because a repeated POST gets the stored answer back. A 409, 400 or 404 is never retried.
+4. When the loop is done, **Tally Answers** counts the final answers:
+   - **stored**: a 200 with cells, written in step 5 of the same run.
    - **failed**: a 200 with `status: 'failed'`. Ends quietly; the event stays due.
    - **409**: stale, no longer due, or a race. Ends quietly.
-   - **unexpected** (400, 401, 404, 413, 5xx, no answer) → **Unexpected App Answer** stops the run, so the error workflow alerts.
-5. From Get Due Events, a second branch, placed below so it runs after the first has finished: **Get Prompts To Write** (`GET /to-write`) → **Prompts To Write** maps each Event ID to its tab (Event Index first, then Standard Diary). In a dry run it outputs nothing; an ID on neither tab is skipped (it stays in `/to-write`) → **Which Tab** → **Update Event Index Cells** or **Update Standard Diary Cells** (Google Sheets update, matched on **Event ID**, only **Social Prompt** and **Social Prompt Status**, RAW) → **Mark Written In App** (`POST /:eventId/written { version }`).
+   - **unexpected**: 400, 401, 404, 413, a 5xx after 3 tries, or no answer. The other events and step 5 still run.
+5. From Get Due Events, a second branch, placed below so it runs after the first has finished:
+   - **Get Prompts To Write** (`GET /to-write`) → **Prompts To Write** maps each trimmed Event ID to its tab (Event Index first, then Standard Diary). In a dry run it outputs nothing. An ID on neither tab is skipped and stays in `/to-write`.
+   - **Which Tab** → **Update Event Index Cells** or **Update Standard Diary Cells**: Google Sheets update, matched on the Event ID exactly as the sheet holds it, only **Social Prompt** and **Social Prompt Status**, RAW.
+   - **Read Back …** → **Confirm … Writes**: a version counts as written only when the row with its trimmed Event ID now holds both cells.
+   - **Live And Matched** → **Mark Written In App** (`POST /:eventId/written { version }`). It runs **only on the live sheet**: `/written` marks the version written for the event, not for one sheet, so a staging write must never call it.
+6. **End Of Run Check**, the lowest branch, so it runs last, raises **one** error for the run (the error workflow emails it) when:
+   - any answer was unexpected;
+   - every Gemini call in the run failed (for example a revoked key);
+   - or cells weren't found on the sheet after writing.
+   Otherwise it outputs a summary of the run's counts.
 
-Versions answered in step 4 are written by step 5, because `/to-write` lists them until `/written` is called. So one write path covers new answers, an admin's approvals and unfinished writes.
+Versions answered in step 3 are written by step 5, because `/to-write` lists them until `/written` is called. So one write path covers new answers, an admin's approvals and unfinished writes.
 
 **rtd_config keys** (none of the sheet IDs belong in this repository):
 
 | key | value | meaning |
 | --- | --- | --- |
 | `SOCIAL_BUILDER_DRY_RUN` | `true` (added 2026-10-19) | Anything but `false`, or missing, is a dry run: Gemini runs and the app stores its answers, but no sheet cell is written and `/written` is never called. |
-| `SOCIAL_BUILDER_SHEET` | `staging` (added 2026-10-19) | `staging` (or missing) uses `RTD_STAGING_LOGIC_ENGINE_ID`. `live` uses `RTD_LOGIC_ENGINE_ID`, or the sheet RTD Event Sync reads when that isn't set. |
+| `SOCIAL_BUILDER_SHEET` | `staging` (added 2026-10-19) | `staging` (or missing) uses `RTD_STAGING_LOGIC_ENGINE_ID`; its writes are tests and never call `/written`. `live` uses `RTD_LOGIC_ENGINE_ID`, or the sheet RTD Event Sync reads when that isn't set. |
+| `RTD_LOGIC_ENGINE_ID` | the live sheet (added 2026-10-19) | The live Logic Engine, the same sheet RTD Event Sync reads. RTD Sheet Writer reads it too, for its shadow and live targets. |
 | `SOCIAL_BUILDER_LIMIT` | not set | Events per run, 1 to 20. Missing means 5 on the schedule and **1 for Run By Hand**. |
 
 **How to run it:**
 - **Dry run, by hand:** keep `SOCIAL_BUILDER_DRY_RUN=true` and `SOCIAL_BUILDER_SHEET=staging`, open the workflow and click **Run By Hand**. It takes the single soonest due event. For the G4 rehearsal of 3 events, add `SOCIAL_BUILDER_LIMIT=3` first and delete it afterwards. Check D1: `SELECT event_id, version, status, substr(validation_errors,1,200) FROM social_prompts`.
 - **Write to staging (G4, owner's go-ahead):** set `SOCIAL_BUILDER_DRY_RUN=false`, run by hand once, and check that only Social Prompt and Social Prompt Status changed on the staging copy.
-- **Go live (owner's go-ahead):** set `SOCIAL_BUILDER_SHEET=live`, make sure `SOCIAL_BUILDER_LIMIT` is gone (or 5), then publish. Rolling back means unpublishing it, or setting `SOCIAL_BUILDER_DRY_RUN=true`.
+  - Staging writes are **test-only**: `/written` is never called, so the versions stay in `/to-write` for the live sheet.
+  - **Before going live, set `SOCIAL_BUILDER_DRY_RUN=true` again** (or go straight to live). Otherwise every scheduled run rewrites the staging cells.
+- **Go live (owner's go-ahead):** set `SOCIAL_BUILDER_SHEET=live` and `SOCIAL_BUILDER_DRY_RUN=false`, make sure `SOCIAL_BUILDER_LIMIT` is gone (or 5), then publish. Rolling back means unpublishing it, or setting `SOCIAL_BUILDER_DRY_RUN=true`.
 - The app's `social_prompts` setting has no effect here: `/due` ignores it.
 
 **Tested 2026-10-19** (the app's setting stayed Off throughout):
@@ -574,7 +590,17 @@ Versions answered in step 4 are written by step 5, because `/to-write` lists the
 - **Write path, simulated** (execution `68983`): rtd_config pinned with the dry run off, `/to-write` pinned with three prompts, the sheet updates and `/written` pinned. The Event Index ID went to the Event Index update, the Standard Diary ID to the Standard Diary update, and an unknown ID was skipped. Nothing was written.
 - **One-event dry run** (execution `68994`): staging, dry run, limit 1, nothing pinned. One Gemini call, which returned JSON. The app answered **200** `review_required`, version 1, for RTD-EVT-00005 (Home Education Support Club). D1 holds one `social_prompts` row, with `written_at` empty. Its review reasons: "Monday" and "Thursday" from Base Details, and "open play", "booking", "child" and "families" with no Approved Facts behind them. `/to-write` listed it; no sheet cell changed and `/written` wasn't called.
 - **Stale answer** (execution `68996`): `/due` pinned with a wrong fingerprint for RTD-EVT-00001, and Gemini pinned. The app answered **409** "Stale: …". It went to the 409 output and the run succeeded. D1 gained no row and no audit entry. (Manual runs never call the error workflow; in production a 409 doesn't either, because nothing fails.)
-- **Not yet:** a real sheet write and `/written`, the 3-event rehearsal (it waits for the owner's facts), and publishing.
+- **Fix round 1** (after review):
+  - `68976` and `68983` above predate the fixes.
+  - **Wiring with nothing due** (`69061`): success. No Gemini call; to-write ran (dry run, nothing written); End Of Run Check reported due 0.
+  - **Stale answer** (`69514`): 409 after 1 try, no retry, counted as dropped. The run succeeded.
+  - **A 5xx doesn't stop the run** (`69520`): two events pinned, with Gemini and the POST pinned to answer 503; the dry run was off on staging, and `/to-write` and the sheet were pinned.
+    - Each event was sent 3 times, with two 5 s waits.
+    - The second event still ran after the first failed.
+    - The to-write branch ran, and the read-back matched an Event ID that has a trailing space. On staging nothing went to `/written`.
+    - Then End Of Run Check raised one error: "The app did not take 2 answer(s): … 503 after 3 tries".
+  - **Every Gemini call failed** (`69522`): Gemini pinned to a key error, and the POST pinned to `status: 'failed'`. One error at the end of the run.
+- **Not yet:** a real sheet write, a live `/written`, the 3-event rehearsal (it waits for the owner's facts), and publishing.
 
 ### Every post: RTD Master V1 and the poster path (Stage 2)
 
