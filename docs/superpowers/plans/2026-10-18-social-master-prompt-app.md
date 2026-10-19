@@ -331,3 +331,7 @@ These are n8n changes, each needing the owner's go-ahead (spec §6):
 - the Master V1 and Poster Generator edits
 - the two logging fixes
 - the dry run on 3 events, shadow week and enforce
+
+## Changes during build
+
+The build changed some points in this plan. Most importantly, Task 1's `UNIQUE (event_id, source_fingerprint)` became `UNIQUE (event_id, version)`, with an index on `(event_id, source_fingerprint)`, and `social_checks` gained `image_text`. The full list is at the end of the spec, under "Changes during build".

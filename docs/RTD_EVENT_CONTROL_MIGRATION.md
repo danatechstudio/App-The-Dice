@@ -128,6 +128,49 @@ One new table, `enquiries`, for the message form on a private game's page (spec 
 - **Rollback:** `npx wrangler rollback`; the table can stay.
 - **Status:** not yet applied to production. Waiting on the owner's go-ahead.
 
+## 0024_social_prompts.sql (event social prompts, Stage 1)
+
+The app side of event-specific social master prompts (spec `docs/superpowers/specs/2026-10-18-social-master-prompt-design.md`; the n8n contract is in [RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#event-social-prompts-contract-for-stage-2)). Additive.
+
+**What it adds:**
+- column `events.social_values` (nullable): Approved Facts, People & Roles and Banned Phrases as the last sync read them. It is kept out of each event's change hash, so filling it changes no event.
+- table `social_prompts`: one row per version of an event's master prompt. Each version number is unique per event (`UNIQUE (event_id, version)`), with an index on the event and its facts (`social_prompts_by_facts`).
+- table `social_checks`: one row per check made before a post, with two indexes (`social_checks_by_time`, `social_checks_by_result`). The caption and poster wording are deleted after 90 days.
+- setting **`social_prompts = off`**.
+
+Nothing existing changes. **At Off nothing is checked or recorded, and nothing posts differently.** That stays true until Stage 2's n8n changes are made and an admin changes the switch, each with the owner's go-ahead.
+
+**Order:**
+1. **0023 first.** `0023_enquiries.sql` (private games) isn't applied yet either. 0024 goes after it, never before.
+2. **Restore point**, as for every migration.
+3. **Apply.** Try it locally first with `npx wrangler d1 migrations apply rtd-app --local`. Then, **only after the owner's go-ahead**, the owner's step: `npx wrangler d1 migrations apply rtd-app --remote`. That applies whatever is waiting, in number order, so 0023 then 0024. Or use the Cloudflare connector, one statement at a time, and record the file in `d1_migrations`.
+4. **Verify:** the column, both tables, the three indexes and `social_prompts = off` are present. Existing row counts are unchanged, and the next RTD Event Sync is `ok`.
+5. **Then merge** the branch.
+
+**Why it must be applied before the deploy:**
+- The new sync writes `events.social_values`. On the old schema every sync would fail (and be retried), so the diary would stop updating.
+- The organiser hub's count reads `social_prompts` and `social_checks`.
+
+**What changes when the code is deployed:**
+- The first sync stores `social_values` for every event. It changes no event's hash, so `events_changed` stays as usual and no audit rows are written.
+- The columns stay blank until RTD Event Sync is changed to send them (Stage 2, [RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#first-rtd-event-sync-must-carry-the-new-columns)).
+- Admins see **Social prompts** under Organise › Events & dates, switched **Off**, and a **Social prompt** section on each event's edit page.
+- Hosts and approvers see nothing new.
+
+**Rollback, from the least drastic:**
+- Leave the switch at **Off** (or set it back to Off). The tables stay, unused and harmless.
+- `npx wrangler rollback` to the previous Worker. The old code ignores the column, tables and setting.
+- **Remove it entirely,** only after the code is rolled back:
+  ```sql
+  DROP TABLE social_checks;   -- its two indexes go with it
+  DROP TABLE social_prompts;  -- and its index
+  DELETE FROM settings WHERE key = 'social_prompts';
+  DELETE FROM d1_migrations WHERE name = '0024_social_prompts.sql';
+  ```
+  The `events.social_values` column can stay; nothing old reads it. This loses the prompt history and check log. The prompts themselves are still in the Logic Engine's Social Prompt cells, once Stage 2 has written them.
+
+**Status:** not yet applied to production. Waiting on the owner's go-ahead, after 0023.
+
 ## Admin event editor (2026-10-18, no migration)
 
 The editor (spec `docs/superpowers/specs/2026-10-18-admin-event-editor-design.md`) sends café event details through the Stage 6 queue below, so **they reach the sheet only once RTD Sheet Writer (`TAa4F7wKzzeIDKm8`) is published**.

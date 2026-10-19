@@ -298,3 +298,28 @@ The brief's acceptance cases map like this:
 - The inactive workflows: Render Engine, Auto-Draft Event Copy, Seats Check, and the Creatomate branch. They stay inactive, and the plan notes that each must call the check before it's re-enabled.
 - Metrics, cadence and volume changes.
 - Changing who owns event facts: the Logic Engine stays the master.
+
+## Changes during build (Stage 1, 18–19 October)
+
+The sections above are the design as approved. The build changed these points; where they differ, this list wins. The as-built contract for n8n is in `docs/RTD_N8N_WORKFLOWS.md` ("Event social prompts (contract for Stage 2)").
+
+1. **Uniqueness (§1, §2, §7 case 10).** `social_prompts` is `UNIQUE (event_id, version)`, with an index on `(event_id, source_fingerprint)`. It is not unique on (event, fingerprint): several versions can share one set of facts (a Regenerate, or an admin's approval), and the newest one for the facts counts. A duplicate answer is made harmless by the code: a version is added only if no other has been added for those facts since.
+2. **Poster wording (§1).** `social_checks.image_text` holds the poster wording, and `text` holds only the caption. Both are cleared after 90 days.
+3. **Synced owner columns (§1).** `events.social_values` (JSON) holds Approved Facts, People & Roles and Banned Phrases as the last sync read them. It is kept out of `source_hash`.
+4. **RTD Event Sync (§1, §6 G2).** Its Build Snapshot sends a fixed list of columns, so it must be changed to send Approved Facts, People & Roles and Banned Phrases (Event Index), and the first two on Standard Diary. Until then the app sees them as blank. Not in the original gates; it belongs with G2.
+5. **Projected dates (§3, §4B).** A date the app only projected from the event's cadence is never a target. The context skips it, and a check on it fails with "date not in the app yet".
+6. **The context's target date (§3).** It is the next date that is public (the event and the date), not projected, and still to come or still running (its end time hasn't passed). `sheet_dates` is also accepted on the check.
+7. **Price (§4B).** A date's own price overrides App Price.
+8. **"This week" (§4B).** It is allowed when every target falls within the next 7 days (today to six days ahead, London). "This weekend", "next week" and "next <weekday>" still fail.
+9. **Claim words (§4B).** A booking, drop-in, level, prize or age word is also supported when the same word is in that target's Base Details. The owner made Base Details an approved source.
+10. **Round-ups (§4B).** Blocks are split at blank lines. A block naming exactly one target is checked against that target alone. Other blocks need dates, times and names in some target, and prices, weekdays and claims suited to every target.
+11. **Roles (§4B).** A role word near any capitalised name, sentence-initial ones included, must match that person's listed role. A role is matched along a list of names only when the list starts within three words.
+12. **Quoted prohibitions (§4A).** Prompts may quote short forbidden phrases ("never say 'drop in'") without failing. A quoted item must be six words or fewer, carry no date, time, money or name, and end its sentence. Posts get no such exemption.
+13. **Generation failures (§2).** Below three failures, `POST /internal/social-prompts/:eventId` answers 200 `{ status: 'failed', failures }` and stores nothing. Failures are counted from the audit log; malformed output counts as one.
+14. **Due rule (§2).** A host's change approved but not yet in the sheet also keeps an event off `/due`, and fails its posts' check. Price and capacity are whitelisted for every event that has them, not only hosts' sessions.
+15. **Market events (§5)** get prompts like any other event, and their edit page shows the Social prompt section.
+16. **Hub (§5).** There are two parts, `social_prompts` (prompts to review) and `social_held` (posts held in the last 7 days), instead of one `social_review`. Both are admin-only and left out at Off.
+17. **Review list (§5).** It counts only events still running and Public or App Bookable.
+18. **Admin approval (§5).** The admin's text gets the same text checks as a generated prompt (dates, times, prices, other events, names, claim words and roles), but no claim tracing or ambiguity questions. A reason is required. The schedule rule is added exactly once.
+19. **Endpoints.** There are six internal endpoints, not five: `/social-prompts/due`, `/social-prompts/:eventId`, `/social-prompts/to-write`, `/social-prompts/:eventId/written`, `/social/context` and `/social/check`.
+20. **Known limits** of the fixed-rule check are listed in `docs/RTD_N8N_WORKFLOWS.md` ("Known limits").
