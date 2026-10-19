@@ -160,6 +160,36 @@ describe('the organiser summary', () => {
     expect((await summary(MICHELLE)).sections.events!.count).toBe(0);
   });
 
+  it('counts social items on the hub for admins only, and not at Off', async () => {
+    const prompt = (id: string, event: string, version: number, status: string) =>
+      run(
+        "INSERT INTO social_prompts (prompt_id, event_id, version, status, source_fingerprint, source_snapshot, created_at) VALUES (?1, ?2, ?3, ?4, 'fp', '{}', ?5)",
+        id, event, version, status, NOW,
+      );
+    await prompt('RTD-SP-00001', 'RTD-EVT-00001', 1, 'review_required');
+    await prompt('RTD-SP-00002', 'RTD-EVT-00001', 2, 'pending'); // a regenerate request waiting: version 1 still needs review
+    await prompt('RTD-SP-00003', 'RTD-EVT-00002', 1, 'blocked');
+    await prompt('RTD-SP-00004', 'RTD-EVT-00003', 1, 'review_required');
+    await prompt('RTD-SP-00005', 'RTD-EVT-00003', 2, 'approved'); // answered since
+    const check = (id: string, result: string, created: string) =>
+      run(
+        "INSERT INTO social_checks (check_id, mode, kind, targets, text, result, reasons, created_at) VALUES (?1, 'shadow', 'event_post', '[]', 't', ?2, '[]', ?3)",
+        id, result, created,
+      );
+    await check('RTD-SC-00001', 'fail', daysAgo(1));
+    await check('RTD-SC-00002', 'fail', daysAgo(8)); // more than a week ago
+    await check('RTD-SC-00003', 'pass', daysAgo(1));
+
+    // Off (the default): nothing is counted, and the part isn't there.
+    expect((await summary(DAN)).sections.events).toEqual({ count: 0, parts: { sheet_edit_problems: 0 } });
+    await run("UPDATE settings SET value = 'shadow' WHERE key = 'social_prompts'");
+    expect((await summary(DAN)).sections.events).toEqual({ count: 3, parts: { sheet_edit_problems: 0, social_review: 3 } });
+    await run("UPDATE settings SET value = 'enforce' WHERE key = 'social_prompts'");
+    expect((await summary(DAN)).sections.events!.parts!.social_review).toBe(3);
+    const michelle = await summary(MICHELLE);
+    expect(michelle.sections.events).toEqual({ count: 0 });
+  });
+
   it('shows booked dates this week as information, not as waiting', async () => {
     const booking = (id: string, occ: string) =>
       run(

@@ -14,6 +14,7 @@ import { toast } from '../lib/toast';
 import { useTitle } from '../lib/title';
 import { KIND_LABEL } from './OrganiseEvents';
 import { DatePlaces } from './OrganisePlaces';
+import { EventSocialSection } from './OrganiseSocial';
 
 const CATEGORIES = ['Gaming', 'Quiz', 'Social', 'Club', 'Tournament', 'Market', 'Workshop', 'Other'];
 const VISIBILITY: { value: EventVisibility; label: string; hint: string }[] = [
@@ -91,6 +92,7 @@ export function EventEditor({ eventId }: { eventId: string }) {
             <>
               <DetailsForm key={JSON.stringify(event)} event={event} onSaved={load} />
               <DatesList event={event} onChanged={load} />
+              <EventSocialSection eventId={event.event_id} />
               <StopEvent event={event} onStopped={load} />
             </>
           )}

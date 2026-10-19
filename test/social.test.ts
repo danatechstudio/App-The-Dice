@@ -2,6 +2,7 @@
 // Task 1: the owner columns the sync reads, the facts they hold, and the fingerprint of what Gemini may see.
 // Task 4: the prompt store, the builder's internal endpoints and the switch.
 // Task 5: what n8n is given before a post (the event layer) and the check every post goes through.
+// Task 6: the admin screens' endpoints: the switch, what needs review, held posts, and each event's prompt.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/lib/auth';
 import { fingerprint, parseFacts, parsePeople, sourceFields, type SourceFields } from '../src/social/facts';
@@ -1003,5 +1004,210 @@ describe('posting', () => {
     for (const path of ['/internal/social/context', '/internal/social/check']) {
       expect((await post(path, {}, { 'Content-Type': 'application/json' })).status, path).toBe(401);
     }
+  });
+});
+
+describe('admin screens', () => {
+  // Monday 19 October 2026, 11:00 in London. Dungeons & Dragons is on Friday 23 October.
+  const NOW = new Date('2026-10-19T10:00:00Z');
+  beforeEach(async () => {
+    await freshDb();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW);
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO users VALUES ('u-dan', 'dan@example.com', 'Dan', 'admin', 1, ?1, ?1)").bind(NOW.toISOString()),
+      env.DB.prepare("INSERT INTO users VALUES ('u-mich', 'michelle@example.com', 'Michelle', 'staff', 1, ?1, ?1)").bind(NOW.toISOString()),
+      env.DB.prepare("INSERT INTO users VALUES ('u-sam', 'sam@example.com', 'Sam Host', 'host', 1, ?1, ?1)").bind(NOW.toISOString()),
+    ]);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const as = (email: string) => ({ ENVIRONMENT: 'development', DEV_AUTH_EMAIL: email });
+  const DAN = as('dan@example.com'); // admin
+  const MICHELLE = as('michelle@example.com'); // approver
+  const SAM = as('sam@example.com'); // host
+  const AUTH = { Authorization: 'Bearer test-sync-token', 'Content-Type': 'application/json' };
+  const DND = 'RTD-EVT-00007';
+  const DND_OCC = 'RTD-OCC-00007-20261023';
+  const FACTS = 'Booking: essential\nColour: red';
+  const dndRow = (over: Record<string, unknown> = {}) =>
+    indexRow(7, {
+      'Event Name': 'Dungeons & Dragons',
+      'Base Details': 'MoreThanABitDicey hosts her infamous DnD sessions!',
+      'App Category': 'Gaming',
+      'Approved Facts': FACTS,
+      'People & Roles': 'MoreThanABitDicey — host',
+      'Banned Phrases': 'open table\ndrop in',
+      ...over,
+    });
+  const goodPrompt =
+    'Write about Dungeons & Dragons, a hosted game at Roll The Dice in Cleethorpes. MoreThanABitDicey hosts her infamous DnD sessions. ' +
+    'Booking is essential. Never describe it as open play or a drop-in, and never add other people, prizes or levels.';
+  const reviewOutput = {
+    status: 'review_required',
+    master_prompt: goodPrompt,
+    claims: [{ claim: 'Dungeons & Dragons', source_field: 'name' }],
+    ambiguities: [],
+    questions: ['Is it for beginners?'],
+  };
+
+  const get = (path: string, who: Partial<Env> = DAN) => request(path, {}, who);
+  const send = (path: string, body: unknown, who: Partial<Env> = DAN) =>
+    request(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, who);
+  const setUp = async () => {
+    expect((await sync({ run_id: 'admin-1', sources: { event_index: [dndRow(), indexRow(2, { 'Event Name': 'Bingo' })] } })).status).toBe(200);
+    const row = await env.DB.prepare('SELECT * FROM events WHERE event_id = ?1').bind(DND).first<Record<string, unknown>>();
+    const res = await request(`/internal/social-prompts/${DND}`, {
+      method: 'POST',
+      headers: AUTH,
+      body: JSON.stringify({ fingerprint: await fingerprint(sourceFields(row!)), job_id: 'exec-1', output: reviewOutput }),
+    });
+    expect(await res.json()).toMatchObject({ status: 'review_required', version: 1 });
+  };
+  const check = (text: string) => ({ kind: 'event_post', platform: 'facebook', targets: [{ event_id: DND, occurrence_id: DND_OCC, prompt_version: 1 }], text });
+
+  type Overview = {
+    mode: string;
+    review: { event_id: string; name: string; status: string; version: number; questions: string[] }[];
+    held: { check_id: string; event_ids: string[]; mode: string; reasons: string[]; created_at: string; text: string | null }[];
+  };
+
+  it('shows an admin the switch, items to review and held posts', async () => {
+    await setUp();
+    let overview = await (await get('/api/staff/social')).json<Overview>();
+    expect(overview.mode).toBe('off');
+    expect(overview.review).toEqual([
+      { event_id: DND, name: 'Dungeons & Dragons', status: 'review_required', version: 1, questions: expect.arrayContaining(['Is it for beginners?']) },
+    ]);
+    expect(overview.held).toEqual([]);
+
+    // The switch: only off, shadow or enforce, and every change is audited.
+    expect((await send('/api/staff/social/mode', { mode: 'loud' })).status).toBe(400);
+    const set = await send('/api/staff/social/mode', { mode: 'shadow' });
+    expect(set.status).toBe(200);
+    expect(await set.json()).toEqual({ mode: 'shadow' });
+    expect(await socialMode(env.DB)).toBe('shadow');
+
+    // A post that would have been held in Shadow, one held in Enforce, and one that passed.
+    const shadowFail = await runCheck(env.DB, check('Dungeons & Dragons: just drop in on Saturday!'), NOW);
+    expect(shadowFail).toMatchObject({ allow: true, result: 'fail' });
+    expect((await send('/api/staff/social/mode', { mode: 'enforce' })).status).toBe(200);
+    expect(await runCheck(env.DB, check('Dungeons & Dragons, with cash prizes.'), NOW)).toMatchObject({ allow: false, result: 'fail' });
+    // A check from long ago whose text retention has cleared.
+    await env.DB.prepare(
+      "INSERT INTO social_checks (check_id, mode, kind, targets, text, result, reasons, created_at) VALUES ('RTD-SC-00099', 'shadow', 'event_post', ?1, NULL, 'fail', ?2, '2026-06-01T09:00:00Z')",
+    )
+      .bind(JSON.stringify([{ event_id: DND, occurrence_id: DND_OCC, prompt_version: 0 }]), JSON.stringify(['Dungeons & Dragons: prompt missing']))
+      .run();
+    await env.DB.prepare(
+      "INSERT INTO social_checks (check_id, mode, kind, targets, text, result, reasons, created_at) VALUES ('RTD-SC-00098', 'enforce', 'event_post', ?1, 'Fine', 'pass', '[]', ?2)",
+    )
+      .bind(JSON.stringify([{ event_id: DND, occurrence_id: DND_OCC, prompt_version: 1 }]), NOW.toISOString())
+      .run();
+
+    overview = await (await get('/api/staff/social')).json<Overview>();
+    expect(overview.mode).toBe('enforce');
+    expect(overview.held.map(h => [h.mode, h.event_ids])).toEqual([
+      ['enforce', [DND]],
+      ['shadow', [DND]],
+      ['shadow', [DND]],
+    ]);
+    expect(overview.held[0]!.reasons.some(r => /cash/.test(r))).toBe(true);
+    expect(overview.held[0]!.text).toBe('Dungeons & Dragons, with cash prizes.');
+    expect(overview.held[1]!.reasons.some(r => /drop in/.test(r))).toBe(true);
+    expect(overview.held[2]).toMatchObject({ check_id: 'RTD-SC-00099', text: null, created_at: '2026-06-01T09:00:00Z' });
+
+    // The event's own page: its facts as the café wrote them, the prompt, its history and recent checks.
+    const page = await (await get(`/api/staff/events/${DND}/social`)).json<{
+      facts: { key: string; value: string }[];
+      people: { name: string; role: string }[];
+      banned: string[];
+      parse_errors: string[];
+      prompt: { version: number; status: string; master_prompt: string | null; approved_by: string | null; validated_at: string | null; questions: string[]; errors: string[] } | null;
+      history: { version: number; status: string }[];
+      checks: { check_id: string; result: string; reasons: string[] }[];
+    }>();
+    expect(page.facts).toEqual([{ key: 'Booking', value: 'essential' }]);
+    expect(page.people).toEqual([{ name: 'MoreThanABitDicey', role: 'host' }]);
+    expect(page.banned).toEqual(['open table', 'drop in']);
+    expect(page.parse_errors).toEqual([expect.stringMatching(/Colour/)]);
+    expect(page.prompt).toMatchObject({ version: 1, status: 'review_required', master_prompt: goodPrompt, approved_by: null, questions: expect.arrayContaining(['Is it for beginners?']) });
+    expect(page.history.map(h => [h.version, h.status])).toEqual([[1, 'review_required']]);
+    expect(page.checks.map(c => c.result)).toEqual(['pass', 'fail', 'fail', 'fail']);
+    expect((await get('/api/staff/events/RTD-EVT-09999/social')).status).toBe(404);
+
+    // Regenerate: the event is due again on the builder's next run.
+    expect((await send(`/api/staff/events/${DND}/social/regenerate`, {})).status).toBe(200);
+    expect((await duePrompts(env.DB, NOW, 10)).map(d => d.event_id)).toContain(DND);
+    expect((await send('/api/staff/events/RTD-EVT-09999/social/regenerate', {})).status).toBe(404);
+  });
+
+  it('refuses approvers and hosts', async () => {
+    await setUp();
+    const routes: [string, string, unknown?][] = [
+      ['GET', '/api/staff/social'],
+      ['POST', '/api/staff/social/mode', { mode: 'shadow' }],
+      ['GET', `/api/staff/events/${DND}/social`],
+      ['POST', `/api/staff/events/${DND}/social/regenerate`, {}],
+      ['POST', `/api/staff/events/${DND}/social/approve`, { text: goodPrompt, reason: 'Looks right' }],
+    ];
+    for (const [method, path, body] of routes) {
+      const mich = method === 'GET' ? await get(path, MICHELLE) : await send(path, body, MICHELLE);
+      expect(mich.status, `approver ${path}`).toBe(403);
+      expect(await mich.json(), `approver ${path}`).toEqual({ error: 'Only admins can manage social prompts.' });
+      const sam = method === 'GET' ? await get(path, SAM) : await send(path, body, SAM);
+      expect(sam.status, `host ${path}`).toBe(403);
+    }
+    // Nothing changed.
+    expect(await socialMode(env.DB)).toBe('off');
+    expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM social_prompts').first<{ n: number }>())!.n).toBe(1);
+  });
+
+  it('validates an admin override like a generated prompt, and records who approved it', async () => {
+    await setUp();
+    const approve = (body: unknown) => send(`/api/staff/events/${DND}/social/approve`, body);
+
+    // A date, a time, a price that isn't the event's and another event's name are each refused, with the problems listed.
+    const bad = await approve({ text: `${goodPrompt} Next one is Friday 23 October at 7pm, £5 a head, straight after Bingo.`, reason: 'Added the date' });
+    expect(bad.status).toBe(400);
+    const why = await bad.json<{ error: string; errors: string[] }>();
+    expect(why.errors.length).toBeGreaterThanOrEqual(3);
+    expect(why.errors.join(' ')).toMatch(/date|weekday/i);
+    expect(why.errors.join(' ')).toMatch(/£5/);
+    expect(why.errors.join(' ')).toMatch(/Bingo/);
+    // A reason is needed, and it can't be an essay.
+    expect((await approve({ text: goodPrompt })).status).toBe(400);
+    expect((await approve({ text: goodPrompt, reason: '   ' })).status).toBe(400);
+    expect((await approve({ text: goodPrompt, reason: 'x'.repeat(501) })).status).toBe(400);
+    // A body far too big is refused before it is read.
+    expect((await approve({ text: 'a'.repeat(70_000), reason: 'big' })).status).toBe(413);
+    expect((await currentPrompt(env.DB, DND))).toBeNull();
+
+    const ok = await approve({ text: goodPrompt, reason: 'Yes, beginners are welcome' });
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ version: 2 });
+
+    const page = await (await get(`/api/staff/events/${DND}/social`)).json<{
+      prompt: { version: number; status: string; master_prompt: string; approved_by: string; validated_at: string | null; override_reason: string | null };
+      history: { version: number; status: string; approved_by: string | null; override_reason: string | null }[];
+    }>();
+    expect(page.prompt).toMatchObject({
+      version: 2,
+      status: 'approved',
+      master_prompt: `${goodPrompt}\n\n${SCHEDULE_RULE}`,
+      approved_by: 'dan@example.com',
+      validated_at: NOW.toISOString(),
+      override_reason: 'Yes, beginners are welcome',
+    });
+    expect(page.history.map(h => [h.version, h.status, h.approved_by])).toEqual([
+      [2, 'approved', 'dan@example.com'],
+      [1, 'review_required', null],
+    ]);
+    const audit = await env.DB.prepare("SELECT actor_id, new_value FROM audit_log WHERE action = 'social_prompt.overridden'").first<{ actor_id: string; new_value: string }>();
+    expect(audit!.actor_id).toBe('dan@example.com');
+    expect(JSON.parse(audit!.new_value)).toMatchObject({ version: 2, reason: 'Yes, beginners are welcome' });
+
+    // Approved, it no longer needs review.
+    expect((await (await get('/api/staff/social')).json<Overview>()).review).toEqual([]);
   });
 });

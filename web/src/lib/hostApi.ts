@@ -255,3 +255,63 @@ export interface AdminEventForm extends AdminEventRow {
     bookings: number;
   }[];
 }
+
+/** Social prompts (src/social/admin.ts): admins only. */
+export type SocialMode = 'off' | 'shadow' | 'enforce';
+export type SocialPromptStatus = 'pending' | 'validated' | 'review_required' | 'approved' | 'superseded' | 'blocked';
+
+export interface SocialReviewItem {
+  event_id: string;
+  name: string;
+  status: 'review_required' | 'blocked';
+  version: number;
+  questions: string[];
+}
+
+/** A check made before a post. Failed ones were held (enforce) or would have been (shadow). */
+export interface SocialCheck {
+  check_id: string;
+  event_ids: string[];
+  names: string[];
+  mode: 'shadow' | 'enforce';
+  kind: string;
+  platform: string | null;
+  result: 'pass' | 'fail';
+  reasons: string[];
+  created_at: string;
+  /** Shortened for the screen; null once cleared (after 90 days). */
+  text: string | null;
+  image_text: string | null;
+}
+
+export interface SocialOverview {
+  mode: SocialMode;
+  review: SocialReviewItem[];
+  held: SocialCheck[];
+}
+
+export interface SocialPromptVersion {
+  version: number;
+  status: SocialPromptStatus;
+  master_prompt: string | null;
+  approved_by: string | null;
+  generated_at: string | null;
+  validated_at: string | null;
+  approved_at: string | null;
+  override_reason: string | null;
+  created_at: string;
+  current_facts: boolean;
+}
+
+export interface EventSocial {
+  mode: SocialMode;
+  facts: { key: string; value: string }[];
+  people: { name: string; role: string }[];
+  banned: string[];
+  parse_errors: string[];
+  prompt: (SocialPromptVersion & { questions: string[]; errors: string[] }) | null;
+  in_use: number | null;
+  regenerating: boolean;
+  history: SocialPromptVersion[];
+  checks: SocialCheck[];
+}
