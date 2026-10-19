@@ -1436,7 +1436,8 @@ describe('post check, review round 3', () => {
     passes('Quiz is every 2nd Friday.');
     passes('Quiz is the first and third Friday.');
     passes('Quiz is on the last Friday of the month.');
-    passes('Our 3rd quiz of the season!');
+    // Changed in review round 4 (ruling 2): "quiz" no longer stops an ordinal being a day, so this fails closed.
+    fails('Our 3rd quiz of the season!');
   });
 
   it('reads "by" and a bare number as an hour unless it counts something or follows "followed", "hosted" and the like', () => {
@@ -1488,5 +1489,180 @@ describe('post check, review round 3', () => {
     fails('Entry is two fifty.');
     fails('Tickets are one hundred pounds.');
     expect(findMoney('one hundred pounds, two thousand pounds, entry is two fifty, only twenty five places').map(m => m.pence)).toEqual([10000, 200000, 250]);
+  });
+});
+
+describe('post check, review round 4', () => {
+  const now = new Date('2026-10-18T19:00:00Z');
+  const quiz: CheckTarget = {
+    event_id: 'RTD-EVT-00001',
+    name: 'Quiz',
+    date: '2026-10-23',
+    start_time: '18:30',
+    end_time: '22:00',
+    price: '£2',
+    facts: {},
+    base_details: 'A family quiz night with prizes at stake!',
+    people: [],
+    banned: [],
+    booking_mode: 'optional',
+  };
+  const check = (text: string, targets: CheckTarget[] = [quiz]) => checkPostText(text, targets, { now, otherEventNames: ['Bingo'] });
+  const passes = (text: string, targets: CheckTarget[] = [quiz]) => {
+    const result = check(text, targets);
+    expect(result.reasons, text).toEqual([]);
+    expect(result.pass, text).toBe(true);
+  };
+  const fails = (text: string, targets: CheckTarget[] = [quiz]) => expect(check(text, targets).pass, text).toBe(false);
+  const booked = [{ ...quiz, facts: { Booking: ['essential'] } }];
+
+  it('reads an ordinal weekday of a named month as a date', () => {
+    fails('Quiz is on the last Friday of October.');
+    fails('Quiz is on the 2nd Friday of October.');
+    passes('Quiz is on the 4th Friday of October.');
+    passes('Quiz is on the last Friday in October.', [{ ...quiz, date: '2026-10-30' }]);
+    expect(findDates('the last Friday of October').map(d => [d.text, d.month, d.weekday])).toEqual([['the last Friday of October', 10, 5]]);
+    // Without a month, with "of the month", or after every/each, it is still a recurrence.
+    passes('Quiz is on the last Friday of the month.');
+    passes('Quiz is every 2nd Friday.');
+  });
+
+  it('reads an ordinal before quiz, night or event as a day of the month', () => {
+    fails('See you 30th quiz night!');
+    fails('Next one is the 30th Quiz Night!');
+    fails('Join us 30th night of fun!');
+    expect(findDates('the 5th edition, the 2nd game, our 10th anniversary, the 3rd tournament, the 4th league, the 6th meetup')).toEqual([]);
+  });
+
+  it('reads "not booked yet" as booking only when no reassurance follows, and "can\'t … without booking" only with a joining verb', () => {
+    for (const text of [
+      'Not booked? No worries, just come along.',
+      "Haven't booked yet? Doesn't matter!",
+      'Not reserved a table? No problem.',
+      'Nobody can stop you joining without booking.',
+    ]) {
+      fails(text, booked);
+    }
+    passes('Not booked yet? Book now!', booked);
+    passes('Nobody can play without booking.', booked);
+    passes("Not got tickets yet? Book now. No worries if you can't make it.", booked);
+  });
+
+  it('reads a negated drop-in as a booking claim', () => {
+    for (const text of [
+      'Sorry, no walk-ins - booking essential.',
+      'Sorry, no drop-ins, booking only.',
+      'No ticket, no entry!',
+      'Nobody gets in without a ticket.',
+    ]) {
+      passes(text, booked);
+      fails(text, [{ ...quiz, booking_mode: 'none' }]);
+    }
+  });
+
+  it('needs an optional Booking fact, or booking set to Optional with no essential fact, for booking-optional wording', () => {
+    for (const text of ["You don't need to have booked.", "Booking isn't really necessary.", 'Booking: not essential.', 'Booking is optional.']) {
+      fails(text, booked);
+      passes(text, [{ ...quiz, booking_mode: 'required', facts: { Booking: ['optional'] } }]);
+    }
+    passes('Booking is optional.');
+    fails('Booking is optional.', [{ ...quiz, booking_mode: 'none' }]);
+  });
+
+  it('reads squashed hashtags for short weekdays at the start, relative days, money and drop-in words', () => {
+    const saturday = [{ ...quiz, date: '2026-10-24' }];
+    fails('Quiz is back! #frinight', saturday);
+    fails('Quiz is back! #FRINIGHT', saturday);
+    fails('Quiz is back! #satnight');
+    fails('Quiz is back! #thisweekend');
+    fails('Quiz is back! #fivepoundentry');
+    fails('Quiz is back! #fiverentry');
+    fails('Quiz is back! #ticketsnotneeded', booked);
+    fails('Quiz is back! #noticketneeded', booked);
+    fails('Quiz is back! #justturnup', booked);
+    passes('Quiz is back! #frinight');
+    passes('Quiz is back! #FreeParking');
+    passes('Quiz is back! #freewifi');
+    passes('Quiz is back! #notebook', [{ ...quiz, booking_mode: 'none' }]);
+    passes('Quiz is back! #FridayNight');
+    passes('Quiz is back! #twopoundentry');
+  });
+
+  it('reads a number-word amount after a price word, and "<number> each", as money', () => {
+    for (const text of ["Entry's two fifty.", 'Entry: two fifty.', 'Entry is two-fifty.', 'Just two fifty!', 'Entry is three.', 'Tickets are five each.'])
+      fails(text);
+    passes('Entry is two pounds.');
+    passes('Entry is two.');
+    passes('Only two places left!');
+    expect(findMoney("Entry's two fifty, entry: three, just two-fifty! It's four. Tickets are five each.").map(m => m.pence)).toEqual([
+      250, 300, 250, 400, 500,
+    ]);
+  });
+
+  it('breaks role tracing at brackets and negation, and lets two joined names share a role', () => {
+    fails('Jo hosts.', [{ ...quiz, base_details: 'Bob (not Jo) hosts.' }]);
+    fails('Bob hosts.', [{ ...quiz, base_details: 'Bob never hosts; Jo does.' }]);
+    passes('Quiz hosted by Bob and Jo.', [{ ...quiz, base_details: 'Bob and Jo host.' }]);
+    fails('Bob hosts.', [{ ...quiz, base_details: 'Bob, Trixie and Jo host.' }]);
+  });
+
+  it('reads New Year’s Eve, the day before or after a holiday, and Christmas as a December theme', () => {
+    fails('Quiz is back! #NYE');
+    passes('Quiz is back! #NYE', [{ ...quiz, date: '2026-12-31' }]);
+    fails('Quiz the day after Halloween!', [{ ...quiz, date: '2026-10-31' }]);
+    passes('Quiz the day after Halloween!', [{ ...quiz, date: '2026-11-01' }]);
+    passes('Quiz on the day before Christmas Eve.', [{ ...quiz, date: '2026-12-23' }]);
+    passes('Our Christmas Quiz is on Friday 18 December at 6:30pm.', [{ ...quiz, date: '2026-12-18' }]);
+    fails('Our Christmas Quiz!', [{ ...quiz, date: '2026-12-28' }]);
+    passes('Enjoy this sun and join us for Quiz!');
+    fails('Quiz is this Sun.');
+  });
+
+  it('lets a Base Details prize word support win words, but not cash or jackpot', () => {
+    passes('Quiz has prizes for the winners.');
+    passes('Who will win?');
+    fails('Win the jackpot!');
+    fails('Cash for the winners!');
+    fails('Who will win?', [{ ...quiz, base_details: 'A family quiz night.' }]);
+  });
+
+  it('checks the new wording quickly', () => {
+    for (const text of [
+      'booking '.repeat(250),
+      'Booking is not really '.repeat(90),
+      'not booked? '.repeat(166),
+      "don't don't need to have ".repeat(80),
+      'the last Friday of '.repeat(105),
+      'the day after the day after '.repeat(70),
+      '#' + 'fri'.repeat(660),
+      '#' + 'twentyfive'.repeat(199),
+      'entry is two '.repeat(150),
+      'Bob and Jo and '.repeat(130) + 'host',
+      'no ticket, no '.repeat(140),
+    ]) {
+      const started = performance.now();
+      check(text, booked);
+      expect(performance.now() - started, text.slice(0, 20)).toBeLessThan(1000);
+    }
+  });
+});
+
+describe('prompt validation, Task 3 review round 4', () => {
+  const reviewed = (prompt: string) => validatePrompt(output({ master_prompt: prompt }), dnd, ctx);
+
+  it('reads "can\'t … without booking" as booking only with a joining verb', () => {
+    expect(reviewed(`${goodPrompt} Nobody can stop you joining without booking.`).status).toBe('review_required');
+    expect(reviewed(`${goodPrompt} Nobody can play without booking.`).status).toBe('approved');
+  });
+
+  it('exempts a quoted forbidden item of up to six plain words', () => {
+    for (const extra of [' Never say "you don\'t need to book".', ' Never say "no need to book" or "just turn up".', ' Never say "you do not need tickets".']) {
+      const verdict = reviewed(goodPrompt + extra);
+      expect(verdict.errors, extra).toEqual([]);
+      expect(verdict.status, extra).toBe('approved');
+    }
+    for (const extra of [' Never say "join us on friday at 7pm".', ' Never say "tonight", "tomorrow" or "turn up and pay ten pounds".']) {
+      expect(reviewed(goodPrompt + extra).status, extra).toBe('review_required');
+    }
   });
 });
