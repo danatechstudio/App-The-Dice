@@ -140,7 +140,7 @@ export interface DateMention {
   month?: number;
   year?: number;
   weekday?: number;
-  /** "today", "tonight", "tomorrow", "this weekend" … */
+  /** "today", "tonight", "tomorrow", "this weekend" …; "this", "coming", "next" or "last" before a weekday. */
   relative?: string;
 }
 type DateFields = Omit<DateMention, 'text' | 'index'>;
@@ -181,21 +181,28 @@ const DATE_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => DateFields | n
       return !m[0].endsWith('.') && MAY_THEN_VERB.test(m.input!.slice(m.index! + m[0].length)) ? null : {};
     },
   },
-  // October 23, Oct 23rd, October 23, 2026
+  // October 23, Oct 23rd, October 23, 2026 (not "October 23:45", which is a month and a time)
   {
-    re: new RegExp(`(?<!\\p{L})${MONTH}\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?(?!${LETTER_OR_DIGIT})`, 'giu'),
+    re: new RegExp(`(?<!\\p{L})${MONTH}\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?(?!${LETTER_OR_DIGIT}|[:.]\\d)`, 'giu'),
     read: m => (monthOf(m[1]!) ? dmy(m[2], monthOf(m[1]!), m[3]) : {}),
   },
   // on the 23rd, the 1st
   { re: new RegExp(`(?<!\\p{L})(?:on\\s+the|the|on)\\s+(\\d{1,2})(?:st|nd|rd|th)(?!\\p{L})${NOT_A_DAY_AFTER}`, 'giu'), read: m => dayOnly(m[1]) },
   // 23rd of
   { re: new RegExp(`(?<!${LETTER_OR_DIGIT})(\\d{1,2})(?:st|nd|rd|th)\\s+of(?!\\p{L})`, 'giu'), read: m => dayOnly(m[1]) },
+  // 23rd, Friday 30th: an ordinal on its own is a day of the month
+  { re: new RegExp(`(?<!${LETTER_OR_DIGIT})(\\d{1,2})(?:st|nd|rd|th)(?!\\p{L})${NOT_A_DAY_AFTER}`, 'giu'), read: m => dayOnly(m[1]) },
   // October 2026
   { re: new RegExp(`(?<!\\p{L})${MONTH}\\s+(\\d{4})(?!\\d)`, 'giu'), read: m => (monthOf(m[1]!) ? { month: monthOf(m[1]!), year: Number(m[2]) } : {}) },
   // October, Oct: a month on its own, except lower-case "may" and "march", which are usually verbs
   {
     re: /(?<!\p{L})(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec)\.?(?!\p{L})/giu,
     read: m => (m[1] === 'may' || m[1] === 'march' ? null : { month: monthOf(m[1]!) }),
+  },
+  // this Friday, coming Friday, next Friday: a weekday relative to today
+  {
+    re: /(?<!\p{L})(this|coming|next|last)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?!\p{L})/giu,
+    read: m => ({ weekday: WEEKDAY_NAMES.indexOf(m[2]!.toLowerCase()), relative: m[1]!.toLowerCase() }),
   },
   // Friday, Fridays
   {
@@ -231,6 +238,13 @@ const pence = (pounds: string, part: string | undefined): number => Number(pound
 // A "free" straight after a negative isn't a price: "not free", "isn't entirely free", "no free play".
 const NOT_NEGATED = "(?<!(?<!\\p{L})(?:not|isn['’]t|aren['’]t|wasn['’]t|no|never)\\s+(?:(?:entirely|completely|totally|really|actually|quite|always)\\s+)?)";
 
+// Pounds written as words: "five pounds", "ten quid".
+const POUND_WORDS = 'one two three four five six seven eight nine ten eleven twelve fifteen twenty thirty forty fifty'.split(' ');
+const poundWord = (w: string): number => {
+  const i = POUND_WORDS.indexOf(w.toLowerCase());
+  return i < 12 ? i + 1 : [15, 20, 30, 40, 50][i - 12]!;
+};
+
 const MONEY_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => { pence: number } }[] = [
   // £4, £4.00, £ 10, £1,000
   { re: /£\s?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?(?!\d)/gu, read: m => ({ pence: pence(m[1]!, m[2]) }) },
@@ -238,6 +252,9 @@ const MONEY_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => { pence: numb
   { re: /(?<!\p{L})gbp\s?(\d+)(?:\.(\d{1,2}))?(?!\d)/giu, read: m => ({ pence: pence(m[1]!, m[2]) }) },
   // 10 pounds, 5 quid, 10 GBP
   { re: /(?<![\d.£])(\d+)(?:\.(\d{1,2}))?\s*(?:pounds?|quid|gbp)(?!\p{L})/giu, read: m => ({ pence: pence(m[1]!, m[2]) }) },
+  // five pounds, ten quid, a fiver, a tenner
+  { re: new RegExp(`(?<!\\p{L})(${POUND_WORDS.join('|')})\\s+(?:pounds?|quid)(?!\\p{L})`, 'giu'), read: m => ({ pence: poundWord(m[1]!) * 100 }) },
+  { re: /(?<!\p{L})(fiver|tenner)s?(?!\p{L})/giu, read: m => ({ pence: m[1]!.toLowerCase() === 'fiver' ? 500 : 1000 }) },
   // 50p (not "7pm" or "7p.m.")
   { re: /(?<![\d.£])(\d+)p(?!\p{L}|\.m)/giu, read: m => ({ pence: Number(m[1]) }) },
   // free of charge, complimentary, costs nothing, no entry fee, no cover charge
@@ -247,6 +264,11 @@ const MONEY_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => { pence: numb
   },
   // no charge, no cost
   { re: /(?<!\p{L})no (?:charge|cost)(?!\p{L})/giu, read: () => ({ pence: 0 }) },
+  // free-to-enter, free-entry, free-of-charge
+  {
+    re: new RegExp(`(?<![\\p{L}-])${NOT_NEGATED}free-(?:to-(?:enter|play|join|attend)|entry|admission|of-charge)(?![\\p{L}-])`, 'giu'),
+    read: () => ({ pence: 0 }),
+  },
   // free (not "feel free" or "gluten-free")
   { re: new RegExp(`(?<![\\p{L}-])(?<!feel\\s+)${NOT_NEGATED}free(?![\\p{L}-])`, 'giu'), read: () => ({ pence: 0 }) },
 ];
@@ -305,9 +327,9 @@ const readClockShaped = (h: string | undefined, min: string | undefined, meridie
 // A number after "at" or "from" that counts something else: "from 2 to 6 players", "at 4 tables", "18+".
 // "capped at 6" and "max at 6" are counts too.
 const NOT_AN_HOUR_AFTER = `(?:\\s*(?:-|–|to)\\s*(?:\\d{1,3}|${NUMBER_WORDS.join('|')}))?\\s*(?:\\+|%|(?:players?|people|persons?|years?|yrs?|teams?|tables?|seats?|places?|spaces?|guests?|rounds?|games?|minutes?|mins?|hours?|hrs?|weeks?|months?|days?|kids|children|adults|percent|pence|pounds?|quid|p)(?!\\p{L}))`;
-// The words that start a bare hour: "at 7", "from seven till late", "doors 7", "starts at 7", "until 9".
+// The words that start a bare hour: "at 7", "from seven till late", "doors 7", "starts at 7", "until 9", "by 7".
 const TIME_CUE =
-  '(?<!\\p{L})(?:(?<!(?<!\\p{L})(?:capped|limited|max|maximum|up\\s+to)\\s+)at|from|until|till|til|doors(?:\\s+open)?(?:\\s+at)?|starts?(?:\\s+at)?|starting(?:\\s+at)?|begins?(?:\\s+at)?)';
+  '(?<!\\p{L})(?:(?<!(?<!\\p{L})(?:capped|limited|max|maximum|up\\s+to)\\s+)at|from|until|till|til|by|doors(?:\\s+open)?(?:\\s+at)?|starts?(?:\\s+at)?|starting(?:\\s+at)?|begins?(?:\\s+at)?)';
 // Minutes in words after an hour in words ("seven thirty"): a time, but not one that can be read reliably.
 const WORD_MINUTES = `(?:${SPACE}+|${SPACE}*-${SPACE}*)(?:fifteen|thirty|(?:twenty|forty|fifty)(?:${SPACE}|-)*five|twenty|forty|fifty|five|ten|\\d{2})(?!\\p{L})`;
 
@@ -342,6 +364,14 @@ const TIME_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => { readings: nu
     ),
     read: m => (m[3] ? { readings: [] } : readClock(m[1] ?? hourOf(m[2]!), '0', undefined)),
   },
+  // A bare hour after a time and "to" or a dash: the 11 of "6:30pm to 11" (not "from 2 to 6 players")
+  {
+    re: new RegExp(
+      `(?<=(?:\\d[:.]\\d{2}|\\d\\s*[ap]\\.?m\\.?)\\s*)(?:to|-|–)\\s*(\\d{1,2})(?!\\d|[.:]\\d)(?!\\s*[ap]\\.?m(?!\\p{L}))(?!${NOT_AN_HOUR_AFTER})`,
+      'giu',
+    ),
+    read: m => readClock(m[1], '0', undefined),
+  },
   // A bare hour before "till late": "7 till late"
   { re: new RegExp(`(?<![\\d.,:/£])(\\d{1,2})\\s*${TILL_LATE}`, 'giu'), read: m => readClock(m[1], '0', undefined) },
   // ... or before "onwards" (not "round 7 onwards", "ages 8 onwards")
@@ -370,6 +400,7 @@ const COMMON_WORDS = [
   ...['fact', 'people', 'roles', 'role', 'category', 'price', 'capacity', 'source', 'field', 'fields', 'terminology', 'permitted', 'prohibited'],
   ...['assumptions', 'tone', 'boundaries', 'call', 'calls', 'action', 'actions', 'cta', 'safe', 'rule', 'rules', 'schedule', 'guidance', 'editorial'],
   ...['key', 'post', 'posts', 'caption', 'captions', 'hashtag', 'hashtags', 'social', 'media', 'board', 'game', 'games', 'cafe', 'café', 'venue'],
+  ...['trivia', 'fun', 'team', 'teams', 'friend', 'friends', 'food', 'drink', 'drinks', 'snack', 'snacks'],
 ];
 const SHORT_DAYS_AND_MONTHS = [
   ...MONTH_NAMES.map(m => m.slice(0, 3)),
@@ -766,7 +797,8 @@ function promptTextErrors(prompt: string, f: SourceFields, otherEventNames: stri
   const exempt = [...own, ...forbidden.quoted, ...forbiddenLists(prompt)];
   const support = { name: f.name, base_details: f.base_details, facts: parseFacts(f.approved_facts).facts, booking_mode: null };
   for (const p of claimProblems(prompt, exempt, support)) errors.push(`In the prompt, ${p}`);
-  for (const p of roleProblems(prompt, exempt, people, notNameWords([f.base_details, f.approved_facts]))) errors.push(`In the prompt, ${p}`);
+  // A role beside a name is allowed only as People & Roles give it, or where Base Details or Approved Facts write that name with that role.
+  for (const p of roleProblems(prompt, exempt, people, rolePairs([f.base_details, f.approved_facts]))) errors.push(`In the prompt, ${p}`);
   return errors;
 }
 
@@ -795,9 +827,15 @@ function instructionFlags(f: SourceFields): string[] {
   });
 }
 
-// Booking wording: "drop in" and its kind, and "booking essential" and its kind.
-const DROP_IN =
-  /(?<!\p{L})(drop[ -]?ins?|walk[ -]?ins?|just turn up|turn up on the (?:night|day)|pop in|open table|open play|no booking(?: needed| required)?|no need to book|booking (?:is )?not (?:required|needed|necessary|essential))(?!\p{L})/giu;
+// Booking wording: "drop in" and its kind, and "booking essential" and its kind. Booking said not to be
+// needed ("no bookings needed", "you don't need to book", "booking isn't required") is drop in too; "don't
+// forget to book" isn't.
+const NOT_NEEDED = "(?:is\\s+not|are\\s+not|isn['’]t|aren['’]t|not)\\s+(?:required|needed|necessary|essential)";
+const NEGATED_BOOKING_GAP = "(?:\\s+(?!(?:forget|miss|hesitate|wait|delay|leave)(?!\\p{L}))\\p{L}+(?:['’]\\p{L}+)?){0,2}";
+const DROP_IN = new RegExp(
+  `(?:(?<!\\p{L})(?:drop[ -]?ins?|walk[ -]?ins?|just turn up|turn up on the (?:night|day)|pop in|rock up|come along on the (?:night|day)|open table|open play|no need to book|(?:bookings?|reservations?)\\s+${NOT_NEEDED})|(?:(?<!\\p{L})(?:no|not|without)|n['’]t)${NEGATED_BOOKING_GAP}\\s+(?:book|reserv|ticket)\\p{L}*(?:\\s+(?:needed|required|necessary))?)(?!\\p{L})`,
+  'giu',
+);
 const BOOKED =
   /(?<!\p{L})(booking (?:is )?(?:essential|required|needed|necessary)|must book|book ahead|book in advance|pre-?book(?:ing)?|advance booking|booking only)(?!\p{L})/iu;
 // A Booking fact's value only has to say the word: "Booking: essential", "Booking: not required".
@@ -961,10 +999,10 @@ interface Support {
 const BOOKING_WORDS =
   /(?<![\p{L}\p{N}])(?:book(?:s|ed|ings?)?|reserv(?:e|es|ed|ing|ations?)|secure\s+(?:a|your)\s+(?:seat|spot|place|table)s?|places|spaces|sell(?:s|ing)?\s+out|sold\s+out)(?![\p{L}\p{N}])/giu;
 const LEVEL_WORDS =
-  /(?<![\p{L}\p{N}])(?:beginners?(?:[- ]friendly)?|no\s+(?:prior\s+)?experience(?:\s+(?:needed|necessary|required))?|all\s+(?:skill\s+)?levels|learn(?:ing)?\s+(?:how\s+)?to\s+play|first[- ]?timers?|newcomers?|novices?|never\s+played)(?![\p{L}\p{N}])/giu;
-const PRIZE_WORDS = /(?<![\p{L}\p{N}])(?:prizes?|win(?:s|ning|ners?)?|cash|troph(?:y|ies))(?![\p{L}\p{N}])/giu;
+  /(?<![\p{L}\p{N}])(?:beginners?(?:[- ]friendly)?|no\s+(?:prior\s+)?experience(?:\s+(?:needed|necessary|required))?|all\s+(?:skill\s+)?levels|learn(?:ing)?\s+(?:how\s+)?to\s+play|first[- ]?timers?|newbies?|newcomers?|novices?|never\s+played)(?![\p{L}\p{N}])/giu;
+const PRIZE_WORDS = /(?<![\p{L}\p{N}])(?:prizes?|win(?:s|ning|ners?)?|cash|troph(?:y|ies)|jackpots?)(?![\p{L}\p{N}])/giu;
 const AGE_WORDS =
-  /(?<![\p{L}\p{N}])(?:kids?|child(?:ren)?|famil(?:y|ies)|all\s+ages|\d{1,2}\s?\+|(?:over|under)[- ]?\d{1,2}s?|adults?(?:\s+only)?|teen(?:s|agers?)?|grown[- ]ups?)(?![\p{L}\p{N}])/giu;
+  /(?<![\p{L}\p{N}])(?:kids?|child(?:ren)?|famil(?:y|ies)|all\s+ages|ages?\s+\d{1,2}(?:\s*\+|\s+and\s+(?:up|over|above))?|\d{1,2}\s+and\s+(?:over|up|above)|\d{1,2}\s?\+|(?:over|under)[- ]?\d{1,2}s?|adults?(?:\s+only)?|teen(?:s|agers?)?|grown[- ]ups?)(?![\p{L}\p{N}])/giu;
 
 /** Whether Base Details say the same word: "prizes" there allows "prize" and "prizes", but not "cash". */
 function sameWordIn(word: string, text: string): boolean {
@@ -1007,12 +1045,12 @@ function claimProblems(text: string, skip: Span[], t: Support): string[] {
   return problems;
 }
 
-// Role words, each group one role: host, DM, GM, organiser, runs, sets up ("sets it up"), leads.
+// Role words, each group one role: host, DM, GM, organiser, runs, sets up ("sets it up"), leads, quizmaster, MC, caller, presenter.
 const ROLE_WORDS = new RegExp(
-  `(?<![\\p{L}\\p{N}])(?:(host(?:s|ed|ing|ess)?)|(dm|dungeon${HSPACE}+masters?)|(gm|game${HSPACE}+masters?)|(organi[sz](?:e|es|ed|ing|er|ers))|(run|runs|running|ran)|((?:set|sets|setting)${HSPACE}+(?:\\p{L}{1,10}${HSPACE}+)?up)|(lead|leads|leading|led))(?![\\p{L}\\p{N}])`,
+  `(?<![\\p{L}\\p{N}])(?:(host(?:s|ed|ing|ess)?)|(dm|dungeon${HSPACE}+masters?)|(gm|game${HSPACE}+masters?)|(organi[sz](?:e|es|ed|ing|er|ers))|(run|runs|running|ran)|((?:set|sets|setting)${HSPACE}+(?:\\p{L}{1,10}${HSPACE}+)?up)|(lead|leads|leading|led)|(quiz${HSPACE}*masters?)|(mc|emcee|compere)|(callers?)|(presenters?))(?![\\p{L}\\p{N}])`,
   'giu',
 );
-const ROLES = ['host', 'DM', 'GM', 'organiser', 'runs', 'sets up', 'leads'];
+const ROLES = ['host', 'DM', 'GM', 'organiser', 'runs', 'sets up', 'leads', 'quizmaster', 'MC', 'caller', 'presenter'];
 const roleOf = (m: RegExpMatchArray): string => ROLES[m.slice(1).findIndex(g => g !== undefined)]!;
 /** The roles a People & Roles entry gives, read with the same role words: "Dungeon Master" is DM, "sets up" is sets up. */
 const rolesIn = (text: string): Set<string> => new Set([...text.matchAll(ROLE_WORDS)].map(roleOf));
@@ -1025,25 +1063,21 @@ const NOT_A_NAME = [
   ...['fantastic', 'wonderful', 'guess', 'tonight', 'today', 'tomorrow'],
 ];
 
-/** The capitalised words that aren't names beside a role word: the built-in list, and words written with a capital in the event's own text. */
-function notNameWords(texts: string[]): Set<string> {
-  const ok = new Set([...BASE_ALLOWED, ...NOT_A_NAME]);
-  for (const t of texts) for (const w of capitalisedWords(t)) addWords(ok, w);
-  return ok;
-}
+// The capitalised words that are never a name beside a role word. Words from Base Details or Approved Facts aren't among them:
+// "Trixie" written there could be a person.
+const NOT_NAMES_BY_ROLES = new Set([...BASE_ALLOWED, ...NOT_A_NAME]);
 
 // A clause ends at . ! ? ; or … before a space, or at a line break. A comma doesn't end one, so "Trixie, our host" is checked.
 const CLAUSE_END = new RegExp(`[.!?;…]+(?=\\s|$)|${LINE_BREAK}`, 'gu');
 const ROLE_REACH = 3;
 
 /**
- * Capitalised names within three words of a role word in the same clause, a sentence-initial
- * name included, checked against People & Roles: the name must be listed, and its listed role
- * must be that role ("host" covers hosts, hosted and hosting). Text in `skip` (the event's own
- * name) is left out, and so are the words in `notNames`.
+ * Capitalised words within three words of a role word in the same clause, a sentence-initial word
+ * included, each with that role. Text in `skip` (the event's own name) is left out, and so are role
+ * words themselves, hashtags and the never-a-name words.
  */
-function roleProblems(text: string, skip: Span[], people: Person[], notNames: Set<string>): string[] {
-  const problems: string[] = [];
+function roleNeighbours(text: string, skip: Span[]): { word: string; role: string; said: string }[] {
+  const found: { word: string; role: string; said: string }[] = [];
   const clauses: Span[] = [];
   let start = 0;
   for (const m of text.matchAll(CLAUSE_END)) {
@@ -1066,16 +1100,35 @@ function roleProblems(text: string, skip: Span[], people: Person[], notNames: Se
       for (let i = Math.max(0, first - ROLE_REACH); i <= Math.min(words.length - 1, last + ROLE_REACH); i++) {
         const w = words[i]!;
         if (i >= first && i <= last) continue;
-        if (!/^\p{Lu}/u.test(w.word) || text[w.at - 1] === '#' || within(w.at, w.end, [...skip, ...roleSpans]) || isAllowed(w.word, notNames)) continue;
-        const key = wordKey(w.word);
-        const listed = people.filter(p => (p.name.match(WORD) ?? []).some(n => wordKey(n) === key));
-        if (!listed.length) problems.push(`${w.word}: not in People & Roles`);
-        else if (!listed.some(p => rolesIn(p.role).has(r.role)))
-          problems.push(`${w.word}: People & Roles gives the role "${listed[0]!.role}", not "${r.said}"`);
+        if (!/^\p{Lu}/u.test(w.word) || text[w.at - 1] === '#' || within(w.at, w.end, [...skip, ...roleSpans]) || isAllowed(w.word, NOT_NAMES_BY_ROLES))
+          continue;
+        found.push({ word: w.word, role: r.role, said: r.said });
       }
     }
   }
+  return found;
+}
+
+/**
+ * Names beside a role word, checked against People & Roles: the name must be listed, and its
+ * listed role must be that role ("host" covers hosts, hosted and hosting). `traced` holds
+ * word|role pairs the event's own text already gives (a prompt only; a post has none).
+ */
+function roleProblems(text: string, skip: Span[], people: Person[], traced: Set<string> = new Set()): string[] {
+  const problems: string[] = [];
+  for (const n of roleNeighbours(text, skip)) {
+    const key = wordKey(n.word);
+    if (traced.has(`${key}|${n.role}`)) continue;
+    const listed = people.filter(p => (p.name.match(WORD) ?? []).some(w => wordKey(w) === key));
+    if (!listed.length) problems.push(`${n.word}: not in People & Roles`);
+    else if (!listed.some(p => rolesIn(p.role).has(n.role))) problems.push(`${n.word}: People & Roles gives the role "${listed[0]!.role}", not "${n.said}"`);
+  }
   return problems;
+}
+
+/** The word|role pairs written in the event's own text: "Trixie sets up" in Base Details pairs Trixie with sets up, and nothing else. */
+function rolePairs(texts: string[]): Set<string> {
+  return new Set(texts.flatMap(t => roleNeighbours(t, []).map(n => `${wordKey(n.word)}|${n.role}`)));
 }
 
 // What a prompt forbids without quoting it: "never add other people, prizes or levels", "no hype about prizes", "avoid words like beginners".
@@ -1112,20 +1165,27 @@ function forbiddenLists(text: string): Span[] {
     const first = p.index! + p[0].length + start.length;
     let pos = first;
     let words = 0;
+    let items = 1;
+    // Several items need "or", "and" or "nor" before the last: "people, prizes or levels", not "the dice, cash prizes".
+    let joined = false;
     for (;;) {
       const word = stickyAt(LIST_WORD, text, pos);
       if (word === null) break;
       pos += word.length;
       words++;
       if (stickyAt(LIST_STOP, text, pos) !== null || stickyAt(LIST_NEXT, text, pos) !== null) {
-        spans.push([first, pos]);
+        if (items === 1 || joined) spans.push([first, pos]);
         break;
       }
       const sep = stickyAt(LIST_SEP, text, pos);
       const gap = sep === null && words < MAX_ITEM_WORDS ? stickyAt(LIST_WORD_GAP, text, pos) : null;
       if (sep === null && gap === null) break;
       pos += (sep ?? gap)!.length;
-      if (sep !== null) words = 0;
+      if (sep !== null) {
+        words = 0;
+        items++;
+        joined = /(?<!\p{L})(?:or|and|nor)(?!\p{L})/iu.test(sep);
+      }
     }
   }
   return spans;
@@ -1187,17 +1247,25 @@ function occurrenceOf(t: CheckTarget): { occurrence: Occurrence | null; problems
   return { occurrence: { iso: t.date, day, month, year, weekday: at.getUTCDay(), times }, problems };
 }
 
-/** Why a date, weekday or relative day in a post isn't true of the occurrences, or null when it is. A weekday must be every occurrence's. */
+/** Why a date, weekday or relative day in a post isn't true of the occurrences, or null when it is. A weekday or "this week" must be every occurrence's. */
 function dateProblem(d: DateMention, occurrences: Occurrence[], today: string, label: { any: string; every: string }): string | null {
+  if (d.relative && d.weekday !== undefined) {
+    // "next Friday" could mean this week's or next week's.
+    if (d.relative === 'next' || d.relative === 'last') return `"${d.text}": a relative day that can't be checked`;
+    const [first, last] = d.relative === 'this' ? [today, addDays(today, 6)] : [addDays(today, 1), addDays(today, 7)];
+    const inWeek = (o: Occurrence) => o.weekday === d.weekday && o.iso >= first && o.iso <= last;
+    return occurrences.length && occurrences.every(inWeek) ? null : `"${d.text}": not true of ${label.every} at the time of posting`;
+  }
   if (d.relative) {
+    // "This week" must be true of every event it covers.
+    if (d.relative === 'this week') {
+      const last = addDays(today, 6);
+      return occurrences.length && occurrences.every(o => o.iso >= today && o.iso <= last)
+        ? null
+        : `"${d.text}": not true of ${label.every} at the time of posting`;
+    }
     const days =
-      d.relative === 'today' || d.relative === 'tonight'
-        ? [today, today]
-        : d.relative === 'tomorrow'
-          ? [addDays(today, 1), addDays(today, 1)]
-          : d.relative === 'this week'
-            ? [today, addDays(today, 6)]
-            : null;
+      d.relative === 'today' || d.relative === 'tonight' ? [today, today] : d.relative === 'tomorrow' ? [addDays(today, 1), addDays(today, 1)] : null;
     if (!days) return `"${d.text}": a relative date that can't be checked`;
     return occurrences.some(o => o.iso >= days[0]! && o.iso <= days[1]!) ? null : `"${d.text}": not true of ${label.any} at the time of posting`;
   }
@@ -1212,6 +1280,26 @@ function dateProblem(d: DateMention, occurrences: Occurrence[], today: string, l
 
 const factTexts = (t: CheckTarget): string[] => Object.values(t.facts).flatMap(v => v ?? []);
 
+// Words that, straight after an event's name or one of its words, are part of it: "Quiz Night" for Quiz.
+const NAME_SUFFIX = '(?:Night|Nights|Evening|Session|Sessions|Club|Day)';
+
+/** The spans of such words in the text. */
+function suffixSpans(name: string, text: string): Span[] {
+  const words = [...new Set(name.match(WORD) ?? [])].map(w => w.replace(/['’]/g, "['’]"));
+  if (!words.length) return [];
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])(?:${words.join('|')})${SPACE}{1,3}(${NAME_SUFFIX})(?![\\p{L}\\p{N}])`, 'giu');
+  return [...text.matchAll(re)].map(m => [m.index! + m[0].length - m[1]!.length, m.index! + m[0].length] as Span);
+}
+
+/** A hashtag's words: "#CashPrizes" reads "Cash Prizes", "#Over18s" "Over 18 s". */
+const hashtagWords = (body: string): string =>
+  body
+    .replace(/_/g, ' ')
+    .replace(/(\p{Ll})(\p{Lu})/gu, '$1 $2')
+    .replace(/(\p{Lu})(\p{Lu}\p{Ll})/gu, '$1 $2')
+    .replace(/(\p{L})(\p{N})/gu, '$1 $2')
+    .replace(/(\p{N})(\p{L})/gu, '$1 $2');
+
 /**
  * One part of a post, against the targets it is about. Dates, times and names must each belong
  * to one of them; prices, weekdays and claims must be true of every one of them.
@@ -1222,8 +1310,9 @@ function blockProblems(block: string, targets: { t: CheckTarget; occurrence: Occ
   const occurrences = targets.flatMap(x => (x.occurrence ? [x.occurrence] : []));
   const label =
     ts.length === 1 ? { any: ts[0]!.name, every: ts[0]!.name } : { any: 'any event in this part of the post', every: 'every event in this part of the post' };
-  // The events' own names are their identity, not claims: "Friday Night Magic" isn't a weekday.
-  const skip = ts.flatMap(t => spansOf(phraseRegex(t.name), block));
+  // The events' own names are their identity, not claims: "Friday Night Magic" isn't a weekday. "Night" after Quiz is part of it.
+  const suffixes = ts.flatMap(t => suffixSpans(t.name, block));
+  const skip = [...ts.flatMap(t => spansOf(phraseRegex(t.name), block)), ...suffixes];
   const counts = (m: { index: number; text: string }) => !within(m.index, m.index + m.text.length, skip);
 
   for (const d of findDates(block)) {
@@ -1244,8 +1333,10 @@ function blockProblems(block: string, targets: { t: CheckTarget; occurrence: Occ
   }
   const people = ts.flatMap(t => t.people);
   const allowed = ts.flatMap(t => [t.name, ...t.people.map(p => p.name), ...[t.base_details, ...factTexts(t)].flatMap(capitalisedWords)]);
-  for (const n of findNames(block, allowed)) problems.push(`${n}: not in People & Roles`);
-  problems.push(...roleProblems(block, skip, people, notNameWords(ts.flatMap(t => [t.base_details, ...factTexts(t)]))));
+  let unsuffixed = block;
+  for (const [at, end] of suffixes) unsuffixed = unsuffixed.slice(0, at) + ' '.repeat(end - at) + unsuffixed.slice(end);
+  for (const n of findNames(unsuffixed, allowed)) problems.push(`${n}: not in People & Roles`);
+  problems.push(...roleProblems(block, skip, people));
   return problems;
 }
 
@@ -1279,8 +1370,15 @@ export function checkPostText(text: string, targets: CheckTarget[], ctx: { now: 
     if (spansOf(phraseRegex(name), text).some(([at, end]) => !within(at, end, own)) || inHashtag(text, name, names))
       reasons.push(`Names another event, "${name}"`);
   }
+  // Hashtags read as words ("#CashPrizes"): their claims must be true of every target, and no Banned Phrase may be in them.
+  const tags = [...text.matchAll(/#([\p{L}\p{N}_]+)/gu)].map(m => hashtagWords(m[1]!)).join('\n');
+  const tagSkip = names.flatMap(n => spansOf(phraseRegex(n), tags));
   for (const t of targets) {
-    for (const phrase of t.banned) if (phraseRegex(phrase)?.test(text)) reasons.push(`Uses a Banned Phrase of ${t.name}, "${phrase.trim()}"`);
+    for (const phrase of t.banned) {
+      if (phraseRegex(phrase)?.test(text) || phraseRegex(phrase)?.test(tags)) reasons.push(`Uses a Banned Phrase of ${t.name}, "${phrase.trim()}"`);
+    }
+    const support = { name: t.name, base_details: t.base_details, facts: t.facts, booking_mode: t.booking_mode };
+    for (const p of claimProblems(tags, tagSkip, support)) reasons.push(`${p} (in a hashtag${targets.length > 1 ? `, ${t.name}` : ''})`);
   }
 
   const parts =

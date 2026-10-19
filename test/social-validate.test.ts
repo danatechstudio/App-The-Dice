@@ -1137,3 +1137,123 @@ describe('prompt validation, Task 3 carry-overs', () => {
     expect(trixie.errors.some(e => e.includes('Trixie'))).toBe(true);
   });
 });
+
+describe('post check, review round 1', () => {
+  const now = new Date('2026-10-18T19:00:00Z');
+  const quiz: CheckTarget = {
+    event_id: 'RTD-EVT-00001',
+    name: 'Quiz',
+    date: '2026-10-23',
+    start_time: '18:30',
+    end_time: '22:00',
+    price: '£2',
+    facts: {},
+    base_details: 'A family quiz night with prizes at stake!',
+    people: [],
+    banned: [],
+    booking_mode: 'optional',
+  };
+  const check = (text: string, targets: CheckTarget[] = [quiz]) => checkPostText(text, targets, { now, otherEventNames: ['Bingo'] });
+  const passes = (text: string, targets: CheckTarget[] = [quiz]) => {
+    const result = check(text, targets);
+    expect(result.reasons, text).toEqual([]);
+    expect(result.pass, text).toBe(true);
+  };
+  const fails = (text: string, targets: CheckTarget[] = [quiz]) => expect(check(text, targets).pass, text).toBe(false);
+
+  it('needs every target in "this week"', () => {
+    const bingo = { ...quiz, event_id: 'RTD-EVT-00002', name: 'Bingo', date: '2026-10-31', start_time: '19:00', end_time: null };
+    fails('Two great nights this week!\n\nQuiz is on 23 October.\n\nBingo is on 31 October.', [quiz, bingo]);
+    passes('Two great nights this week!\n\nQuiz is on 23 October.\n\nBingo is on 24 October.', [quiz, { ...bingo, date: '2026-10-24' }]);
+  });
+
+  it('checks "this Friday" and bare ordinals', () => {
+    const later = { ...quiz, date: '2026-10-30' };
+    fails('Quiz is this Friday at 6:30pm.', [later]);
+    passes('Quiz is this Friday at 6:30pm.');
+    passes('Quiz is coming Friday at 6:30pm.');
+    fails('Quiz is next Friday at 6:30pm.');
+    fails('Quiz is on Friday 30th.');
+    passes('Quiz is on Friday 23rd.');
+    expect(findDates('the 5th edition, 1st prize, our 20th session')).toEqual([]);
+  });
+
+  it('reads negated booking as a drop-in claim', () => {
+    const booked = { ...quiz, facts: { Booking: ['essential'] } };
+    for (const text of [
+      "Booking isn't required.",
+      'No bookings needed.',
+      'No reservation needed, just come along.',
+      "You don't need to book, just rock up.",
+      'Come along on the night.',
+      'Pop in any time.',
+    ]) {
+      fails(text, [booked]);
+    }
+    passes("Don't forget to book.", [booked]);
+  });
+
+  it('never takes a name next to a role word from Base Details', () => {
+    const base_details = 'Trixie sets up a family quiz';
+    fails('Trixie hosts Quiz.', [{ ...quiz, base_details, people: [{ name: 'Trixie', role: 'sets up' }] }]);
+    fails('Trixie hosts Quiz.', [{ ...quiz, base_details }]);
+    passes('Trixie sets it up.', [{ ...quiz, base_details, people: [{ name: 'Trixie', role: 'sets up' }] }]);
+    fails('Trixie is our quizmaster.');
+    fails('Trixie is our MC.');
+  });
+
+  it('reads more ways of saying free and of writing money', () => {
+    for (const text of ['Quiz is free-to-enter.', 'Free-entry quiz!', 'Free admission.', 'Entry is five pounds.', 'Entry is a fiver.', 'Bring a tenner.'])
+      fails(text);
+    expect(findMoney('five pounds, ten quid, a fiver, a tenner, free-entry').map(m => m.pence)).toEqual([500, 1000, 500, 1000, 0]);
+  });
+
+  it('checks claims and banned phrases inside hashtags', () => {
+    fails('Quiz is back! #CashPrizes');
+    fails('Quiz is back! #AllAges');
+    fails('Quiz is back! #KidsWelcome');
+    fails('Quiz is back! #OpenTable', [{ ...quiz, banned: ['open table'], facts: { Booking: ['drop in'] } }]);
+    passes('Quiz is back! #FamilyFun #QuizNight #RollTheDice');
+  });
+
+  it('does not take the words after an event name, or common words, for names', () => {
+    passes("We're hosting our Quiz Night on Friday 23 October at 6:30pm. Entry £2. Book a table now!");
+    passes('Test your Trivia skills at Quiz Night!');
+    passes('Bring your Friends and Team to Quiz Evening for Food, Drinks and Snacks at the Café.');
+  });
+
+  it('reads an hour after "to", "until" or "by", and a time after a month', () => {
+    passes('Quiz runs 6:30pm to 10.');
+    fails('Quiz runs 6:30pm to 11.');
+    fails('Quiz runs 6:30pm until 11.');
+    fails('Be there by 7.');
+    fails('Quiz, Friday, October 23:45 finish.');
+    expect(findTimes('from 2 to 6 players, run by 2 people')).toEqual([]);
+  });
+
+  it('knows more claim words', () => {
+    fails('Win the jackpot!', [{ ...quiz, base_details: '' }]);
+    fails('For ages 8 and up.');
+    fails('Ages 12+.');
+    fails('For 18 and over.');
+    fails('Newbies welcome.');
+  });
+});
+
+describe('prompt validation, review round 1', () => {
+  const reviewed = (prompt: string, f: SourceFields = dnd) => validatePrompt(output({ master_prompt: prompt }), f, ctx);
+
+  it('needs a joiner before the last of several unquoted forbidden items', () => {
+    for (const extra of [' Never mention the dice, cash prizes.', ' Never mention the dice, all ages.', ' Do not add prizes or levels, first-timers.']) {
+      expect(reviewed(goodPrompt + extra).status, extra).toBe('review_required');
+    }
+  });
+
+  it('allows a role beside a Base Details word only where Base Details give that word that role', () => {
+    const f = { ...dnd, base_details: 'MoreThanABitDicey hosts her infamous DnD sessions! Trixie sets up.' };
+    const trixie = reviewed(`${goodPrompt} Trixie hosts the table.`, f);
+    expect(trixie.status).toBe('review_required');
+    expect(trixie.errors.some(e => e.includes('Trixie'))).toBe(true);
+    expect(reviewed(`${goodPrompt} Trixie sets up.`, f).errors).toEqual([]);
+  });
+});
