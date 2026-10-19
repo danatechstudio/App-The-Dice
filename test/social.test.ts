@@ -408,6 +408,23 @@ describe('prompt store', () => {
     expect(await currentPrompt(env.DB, DND)).toMatchObject({ version: 1, current: true });
   });
 
+  it('keeps the old version and its fingerprint as they were when a regenerate makes a new one', async () => {
+    await syncRows([dndRow()]);
+    const fp = await currentFp();
+    await propose(DND, { fingerprint: fp, output: output() });
+    expect(await requestRegenerate(env.DB, admin, DND, NOW)).toEqual({ ok: true });
+    expect(await (await propose(DND, { fingerprint: fp, output: output() })).json()).toMatchObject({ status: 'approved', version: 2 });
+    const stored = await env.DB.prepare('SELECT version, status, source_fingerprint FROM social_prompts WHERE event_id = ?1 ORDER BY version')
+      .bind(DND)
+      .all<{ version: number; status: string; source_fingerprint: string }>();
+    expect(stored.results).toEqual([
+      { version: 1, status: 'superseded', source_fingerprint: fp },
+      { version: 2, status: 'approved', source_fingerprint: fp },
+    ]);
+    expect(await currentPrompt(env.DB, DND)).toMatchObject({ version: 2, fingerprint: fp, current: true });
+    expect(await dueIds()).toEqual([]);
+  });
+
   it('writes each approved or overridden version once', async () => {
     await syncRows([dndRow()]);
     await propose(DND, { fingerprint: await currentFp(), output: output() });

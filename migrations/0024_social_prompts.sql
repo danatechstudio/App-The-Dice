@@ -18,7 +18,8 @@ CREATE TABLE social_prompts (
   status              TEXT NOT NULL CHECK (status IN ('pending', 'validated', 'review_required', 'approved', 'superseded', 'blocked')),
   schema_version      INTEGER NOT NULL DEFAULT 1,
   instruction_version INTEGER NOT NULL DEFAULT 1,
-  -- sha256 of the whitelisted source fields (src/social/facts.ts): the same facts never make a second prompt.
+  -- sha256 of the whitelisted source fields (src/social/facts.ts), exactly as computed. Several versions can
+  -- share one (an admin's Regenerate or override for the same facts); the newest is the one that counts.
   source_fingerprint  TEXT NOT NULL,
   source_snapshot     TEXT NOT NULL,                     -- JSON of those fields: approved facts only, never dates
   master_prompt       TEXT,                              -- the prompt text; none until generated
@@ -36,9 +37,9 @@ CREATE TABLE social_prompts (
   written_at          TEXT,                              -- when the Social Prompt cells were written to the sheet
   last_used_at        TEXT,                              -- when a post last used this version
   created_at          TEXT NOT NULL,
-  UNIQUE (event_id, source_fingerprint)
+  UNIQUE (event_id, version)
 );
-CREATE INDEX social_prompts_by_event ON social_prompts (event_id, version);
+CREATE INDEX social_prompts_by_facts ON social_prompts (event_id, source_fingerprint);
 
 -- One row per check made before a post.
 CREATE TABLE social_checks (

@@ -4,11 +4,10 @@
 // (src/social/validate.ts), stores it as a new version and hands back the two Logic Engine cells to
 // write (Social Prompt, Social Prompt Status); n8n writes them and says so.
 //
-// - One row per (event, fingerprint): the same facts never make a second prompt, and a duplicate
-//   post is harmless. When a row for the current facts has to give way to a newer one (an admin
-//   pressed Regenerate or approved their own text), the old row keeps its content and history but
-//   its fingerprint is marked "#v{version}", so it no longer holds the place; it still counts as
-//   matching those facts.
+// - Versions are numbered per event (unique). Several can share a fingerprint, when an admin
+//   pressed Regenerate or approved their own text for the same facts: the newest one for the
+//   facts is the one that counts, and the older ones stay as they were, as history. A duplicate
+//   post is harmless: a version is only added when no other has been added for those facts since.
 // - A failed generation (malformed output, or n8n reporting a timeout or quota error) stores no
 //   version; it is audited, and the event stays due. The third failure for the same facts stores a
 //   blocked version ("generation failed"), and the event stops being due until an admin regenerates.
@@ -89,9 +88,6 @@ interface PromptRow {
   created_at: string;
 }
 
-/** The facts a row was made from: its fingerprint without any "#v{n}" mark. */
-const baseFingerprint = (fp: string): string => fp.split('#')[0]!;
-
 const list = (json: string | null): string[] => {
   try {
     const v: unknown = json ? JSON.parse(json) : [];
@@ -137,9 +133,9 @@ async function otherEventNames(db: D1Database, eventId: string, own: Record<stri
   return [...names];
 }
 
-/** The row holding the place for these facts, if any. */
+/** The newest version for these facts, if any: the one that counts for them. */
 const slotRow = (db: D1Database, eventId: string, fp: string) =>
-  db.prepare('SELECT * FROM social_prompts WHERE event_id = ?1 AND source_fingerprint = ?2').bind(eventId, fp).first<PromptRow>();
+  db.prepare('SELECT * FROM social_prompts WHERE event_id = ?1 AND source_fingerprint = ?2 ORDER BY version DESC LIMIT 1').bind(eventId, fp).first<PromptRow>();
 
 /** The event's newest version that isn't a waiting regenerate request. */
 async function latestVersion(db: D1Database, eventId: string): Promise<number> {
@@ -164,7 +160,7 @@ async function inUse(db: D1Database, eventId: string, fp: string): Promise<strin
     .prepare("SELECT master_prompt, source_fingerprint FROM social_prompts WHERE event_id = ?1 AND status = 'approved' ORDER BY version DESC LIMIT 1")
     .bind(eventId)
     .first<{ master_prompt: string | null; source_fingerprint: string }>();
-  return row && baseFingerprint(row.source_fingerprint) === fp ? (row.master_prompt ?? '') : '';
+  return row && row.source_fingerprint === fp ? (row.master_prompt ?? '') : '';
 }
 
 /**
@@ -200,13 +196,16 @@ export interface NewPrompt {
   approved_by?: string | null;
   override_text?: string | null;
   override_reason?: string | null;
+  /** The newest version for these facts when this one was decided on (null: none). Nothing is added if another has come since. */
+  replaces?: string | null;
 }
 
 const asJson = (v: unknown): string | null => (v === undefined ? null : JSON.stringify(v));
 
 /**
  * A new version. Its number (per event) and its RTD-SP id are worked out inside the INSERT, so two
- * versions made at once can never share one. Nothing happens when a row already holds these facts.
+ * versions made at once can never share one. Nothing happens when another version for these facts
+ * has been added since this one was decided on (`replaces`), so a duplicate post adds nothing.
  */
 export function insertPrompt(db: D1Database, p: NewPrompt): D1PreparedStatement {
   const approved = p.status === 'approved';
@@ -218,8 +217,7 @@ export function insertPrompt(db: D1Database, p: NewPrompt): D1PreparedStatement 
        SELECT (SELECT printf('RTD-SP-%05d', COALESCE(MAX(CAST(substr(prompt_id, 8) AS INTEGER)), 0) + 1) FROM social_prompts), ?1,
          (SELECT COALESCE(MAX(version), 0) + 1 FROM social_prompts WHERE event_id = ?1),
          ?2, 1, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18
-       WHERE true
-       ON CONFLICT (event_id, source_fingerprint) DO NOTHING`,
+       WHERE COALESCE((SELECT prompt_id FROM social_prompts WHERE event_id = ?1 AND source_fingerprint = ?4 ORDER BY version DESC LIMIT 1), '') = ?19`,
     )
     .bind(
       p.event_id,
@@ -240,6 +238,7 @@ export function insertPrompt(db: D1Database, p: NewPrompt): D1PreparedStatement 
       p.override_text ?? null,
       p.override_reason ?? null,
       p.now,
+      p.replaces ?? '',
     );
 }
 
@@ -272,12 +271,6 @@ function fillPrompt(db: D1Database, promptId: string, p: NewPrompt): D1PreparedS
     );
 }
 
-/** Moves an older row for these facts out of the way, keeping it as history (see the top of this file). */
-const stepAside = (db: D1Database, eventId: string, fp: string) =>
-  db
-    .prepare("UPDATE social_prompts SET source_fingerprint = source_fingerprint || '#v' || version WHERE event_id = ?1 AND source_fingerprint = ?2")
-    .bind(eventId, fp);
-
 /** Once a version is approved, every earlier approved version of the event is superseded. */
 const supersede = (db: D1Database, eventId: string) =>
   db
@@ -288,16 +281,14 @@ const supersede = (db: D1Database, eventId: string) =>
     .bind(eventId);
 
 /**
- * Stores a version for these facts: it fills a waiting regenerate request, takes the place of an
- * older row, or is new. Returns the row now holding the place (an existing one if another post won).
+ * Stores a version for these facts: it fills a waiting regenerate request, or is a new version
+ * (any older one for the facts stays as history). Returns the newest version for the facts (another
+ * post's, if it got there first).
  */
 async function store(db: D1Database, existing: PromptRow | null, p: NewPrompt): Promise<PromptRow> {
   const steps: D1PreparedStatement[] = [];
   if (existing?.status === 'pending') steps.push(fillPrompt(db, existing.prompt_id, p));
-  else {
-    if (existing) steps.push(stepAside(db, p.event_id, p.fingerprint));
-    steps.push(insertPrompt(db, p));
-  }
+  else steps.push(insertPrompt(db, { ...p, replaces: existing?.prompt_id ?? null }));
   if (p.status === 'approved') steps.push(supersede(db, p.event_id));
   await db.batch(steps);
   return (await slotRow(db, p.event_id, p.fingerprint))!;
@@ -362,7 +353,8 @@ export async function duePrompts(db: D1Database, now: Date, limit: number): Prom
     const fp = await fingerprint(fields);
     const rows = byEvent.get(fields.event_id) ?? [];
     const latest = Math.max(0, ...rows.filter(r => r.status !== 'pending').map(r => r.version));
-    if (settles(rows.find(r => r.source_fingerprint === fp) ?? null, latest)) continue;
+    const newest = rows.filter(r => r.source_fingerprint === fp).sort((a, b) => b.version - a.version)[0] ?? null;
+    if (settles(newest, latest)) continue;
     due.push({ event_id: fields.event_id, fingerprint: fp, request: buildRequest(fields), instruction_version: INSTRUCTION_VERSION });
   }
   return due;
@@ -484,8 +476,7 @@ export async function currentPrompt(
     .bind(eventId)
     .first<{ version: number; master_prompt: string | null; source_fingerprint: string }>();
   if (!row) return null;
-  const fp = baseFingerprint(row.source_fingerprint);
-  return { version: row.version, master_prompt: row.master_prompt ?? '', fingerprint: fp, current: fp === event.fp };
+  return { version: row.version, master_prompt: row.master_prompt ?? '', fingerprint: row.source_fingerprint, current: row.source_fingerprint === event.fp };
 }
 
 // ---- Admins ----
@@ -504,7 +495,6 @@ export async function requestRegenerate(db: D1Database, admin: AuthUser, eventId
   const existing = await slotRow(db, eventId, event.fp);
   const steps: D1PreparedStatement[] = [];
   if (existing?.status !== 'pending') {
-    if (existing) steps.push(stepAside(db, eventId, event.fp));
     steps.push(
       insertPrompt(db, {
         event_id: eventId,
@@ -513,6 +503,7 @@ export async function requestRegenerate(db: D1Database, admin: AuthUser, eventId
         snapshot: JSON.stringify(event.fields),
         now: iso,
         override_reason: 'regenerate',
+        replaces: existing?.prompt_id ?? null,
       }),
     );
   }
