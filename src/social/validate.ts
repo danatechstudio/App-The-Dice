@@ -1,13 +1,16 @@
-// The deterministic checks on what Gemini writes (spec §4). Pure functions: no I/O and no
-// clock, so the same input always gets the same answer. They fail closed: anything they can't
-// verify is a fail with a reason, and nothing is approved on Gemini's word alone.
+// The deterministic checks on what Gemini writes (spec §4): the master prompt (§4A) and the
+// final post (§4B). Pure functions: no I/O, and the post check is given the time rather than
+// reading a clock, so the same input always gets the same answer. They fail closed: anything
+// they can't verify is a fail with a reason, and nothing is approved on Gemini's word alone.
 //
 // The text helpers (findDates, findTimes, findMoney, findNames, capitalisedWords, phraseRegex,
 // ownPrices) are shared with the post check, which works on the same kinds of text. A date or
 // time they can't read is still reported (with nothing read from it), so callers fail it.
 
+import type { BookingMode } from '../lib/queries';
+import { addDays, londonDate } from '../lib/time';
 import { CATEGORIES } from '../sync/normalise';
-import { FACT_KEYS, parseFacts, parsePeople, type FactKey, type SourceFields } from './facts';
+import { FACT_KEYS, parseFacts, parsePeople, type FactKey, type Person, type SourceFields } from './facts';
 import { SCHEDULE_RULE } from './instruction';
 
 export type PromptStatus = 'approved' | 'review_required' | 'blocked';
@@ -253,13 +256,17 @@ export function findMoney(text: string): MoneyMention[] {
   return scan(text, MONEY_PATTERNS);
 }
 
-/** The event's own prices in pence: its App Price (a bare number counts as pounds) and any Approved Facts `Price` line. */
-export function ownPrices(f: SourceFields): number[] {
-  const { facts } = parseFacts(f.approved_facts);
-  const amounts = [f.price, ...(facts.Price ?? [])].flatMap(t => findMoney(t).map(m => m.pence));
-  const bare = /^\s*(\d+)(?:\.(\d{1,2}))?\s*$/.exec(f.price);
+/** Prices in pence from an App Price (a bare number counts as pounds) and Approved Facts `Price` lines. */
+function pricesOf(price: string, priceFacts: string[] = []): number[] {
+  const amounts = [price, ...priceFacts].flatMap(t => findMoney(t).map(m => m.pence));
+  const bare = /^\s*(\d+)(?:\.(\d{1,2}))?\s*$/.exec(price);
   if (bare) amounts.push(pence(bare[1]!, bare[2]));
   return amounts;
+}
+
+/** The event's own prices in pence: its App Price (a bare number counts as pounds) and any Approved Facts `Price` line. */
+export function ownPrices(f: SourceFields): number[] {
+  return pricesOf(f.price, parseFacts(f.approved_facts).facts.Price);
 }
 
 /**
@@ -345,10 +352,11 @@ const TIME_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => { readings: nu
   { re: new RegExp(`(?<!\\p{L})(${NUMBER_WORDS.join('|')})\\s*([ap])\\.?m\\.?(?!\\p{L})`, 'giu'), read: m => readClockShaped(hourOf(m[1]!), '0', m[2]) },
 ];
 
-/** Every clock time in the text. Money is ignored, so "£4.50" isn't a time. */
+/** Every clock time in the text. Money and dates are ignored, so "£4.50" isn't a time, and nor is the 21 of "starting 21/10/2026". */
 export function findTimes(text: string): TimeMention[] {
   let masked = text;
-  for (const m of findMoney(text)) masked = masked.slice(0, m.index) + ' '.repeat(m.text.length) + masked.slice(m.index + m.text.length);
+  for (const m of [...findMoney(text), ...findDates(text)])
+    masked = masked.slice(0, m.index) + ' '.repeat(m.text.length) + masked.slice(m.index + m.text.length);
   return scan(masked, TIME_PATTERNS).map(t => ({ ...t, text: text.slice(t.index, t.index + t.text.length) }));
 }
 
@@ -659,10 +667,10 @@ const positions = (hay: string, needle: string): number[] => {
   return at;
 };
 
-/** Whether an event name of six letters or more is squashed into a hashtag ("#RTDQuizNight"), other than inside `ownName` there. */
-function inHashtag(text: string, name: string, ownName: string): boolean {
+/** Whether an event name of six letters or more is squashed into a hashtag ("#RTDQuizNight"), other than inside one of `ownNames` there. */
+function inHashtag(text: string, name: string, ownNames: string[]): boolean {
   if ((name.match(/\p{L}/gu) ?? []).length < 6) return false;
-  const own = squashed(ownName);
+  const own = ownNames.flatMap(squashed);
   return [...text.matchAll(/#([\p{L}\p{N}_]+)/gu)].some(([, body]) => {
     const tag = squash(body!);
     const ownSpans = own.flatMap(o => positions(tag, o).map(i => [i, i + o.length] as Span));
@@ -746,14 +754,19 @@ function promptTextErrors(prompt: string, f: SourceFields, otherEventNames: stri
   for (const other of otherEventNames) {
     const name = other.trim();
     if (name.length < 4) continue;
-    const named = spansOf(phraseRegex(name), prompt).some(([at, end]) => !within(at, end, own)) || inHashtag(prompt, name, f.name);
+    const named = spansOf(phraseRegex(name), prompt).some(([at, end]) => !within(at, end, own)) || inHashtag(prompt, name, [f.name]);
     if (named) errors.push(`The prompt names another event, "${name}"`);
   }
-  const people = parsePeople(f.people_roles).people.map(p => p.name);
-  const allowed = [f.name, f.category, ...people, ...[f.base_details, f.approved_facts, f.people_roles].flatMap(capitalisedWords)];
+  const people = parsePeople(f.people_roles).people;
+  const allowed = [f.name, f.category, ...people.map(p => p.name), ...[f.base_details, f.approved_facts, f.people_roles].flatMap(capitalisedWords)];
   for (const n of findNames(prompt, allowed)) {
     errors.push(`The prompt names "${n}", which isn't in People & Roles or the event's own fields`);
   }
+  // Format claims and role words, as in a post, except where the prompt forbids them ('never say "drop in"').
+  const exempt = [...own, ...forbidden.quoted, ...forbiddenLists(prompt)];
+  const support = { name: f.name, base_details: f.base_details, facts: parseFacts(f.approved_facts).facts, booking_mode: null };
+  for (const p of claimProblems(prompt, exempt, support)) errors.push(`In the prompt, ${p}`);
+  for (const p of roleProblems(prompt, exempt, people, notNameWords([f.base_details, f.approved_facts]))) errors.push(`In the prompt, ${p}`);
   return errors;
 }
 
@@ -930,4 +943,364 @@ export function validatePrompt(output: unknown, f: SourceFields, ctx: { otherEve
     ambiguities: unique(ambiguities),
     errors: unique(errors),
   };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Claims and roles, checked in the prompt and in posts
+
+/** What an event's own data supports: its name, Base Details, Approved Facts and, for a post, the app's booking setting. */
+interface Support {
+  name: string;
+  base_details: string;
+  facts: Partial<Record<FactKey, string[]>>;
+  /** null for a prompt: the fields Gemini sees have no booking setting. */
+  booking_mode: BookingMode | null;
+}
+
+// The keyword groups (spec §4B). Each word needs its fact, or the same word in Base Details. Drop-in words are DROP_IN.
+const BOOKING_WORDS =
+  /(?<![\p{L}\p{N}])(?:book(?:s|ed|ings?)?|reserv(?:e|es|ed|ing|ations?)|secure\s+(?:a|your)\s+(?:seat|spot|place|table)s?|places|spaces|sell(?:s|ing)?\s+out|sold\s+out)(?![\p{L}\p{N}])/giu;
+const LEVEL_WORDS =
+  /(?<![\p{L}\p{N}])(?:beginners?(?:[- ]friendly)?|no\s+(?:prior\s+)?experience(?:\s+(?:needed|necessary|required))?|all\s+(?:skill\s+)?levels|learn(?:ing)?\s+(?:how\s+)?to\s+play|first[- ]?timers?|newcomers?|novices?|never\s+played)(?![\p{L}\p{N}])/giu;
+const PRIZE_WORDS = /(?<![\p{L}\p{N}])(?:prizes?|win(?:s|ning|ners?)?|cash|troph(?:y|ies))(?![\p{L}\p{N}])/giu;
+const AGE_WORDS =
+  /(?<![\p{L}\p{N}])(?:kids?|child(?:ren)?|famil(?:y|ies)|all\s+ages|\d{1,2}\s?\+|(?:over|under)[- ]?\d{1,2}s?|adults?(?:\s+only)?|teen(?:s|agers?)?|grown[- ]ups?)(?![\p{L}\p{N}])/giu;
+
+/** Whether Base Details say the same word: "prizes" there allows "prize" and "prizes", but not "cash". */
+function sameWordIn(word: string, text: string): boolean {
+  const stem = word.length > 3 && /[^s]s$/.test(word) ? word.slice(0, -1) : word;
+  return phraseRegex(stem)?.test(text) ?? false;
+}
+
+/** Every keyword-group word in the text, outside `skip`, that the event's data doesn't support, as "cash: needs a Prizes fact". */
+function claimProblems(text: string, skip: Span[], t: Support): string[] {
+  const problems: string[] = [];
+  const found = (re: RegExp, alsoSkip: Span[] = []) =>
+    [...text.matchAll(re)]
+      .filter(m => !within(m.index!, m.index! + m[0].length, [...skip, ...alsoSkip]))
+      .map(m => ({ m, word: m[0].toLowerCase().replace(/\s+/g, ' ') }));
+  const booking = t.facts.Booking ?? [];
+
+  // Drop-in words need a Booking fact saying so (or the same words in Base Details); the booking setting never supports them.
+  const dropIns = found(DROP_IN);
+  const dropInFact = booking.some(v => bookingFact(v).dropIn);
+  for (const { word } of dropIns) if (!dropInFact && !sameWordIn(word, t.base_details)) problems.push(`${word}: needs a Booking fact saying so`);
+
+  // Booking words ("no booking needed" is drop-in, above) need a Booking fact that isn't only drop in, or booking set to Required or Optional.
+  const bookedFact = booking.some(v => !bookingFact(v).dropIn || bookingFact(v).booked);
+  const bookingSet = t.booking_mode === 'required' || t.booking_mode === 'optional';
+  const dropInSpans = dropIns.map(({ m }) => [m.index!, m.index! + m[0].length] as Span);
+  for (const { word } of found(BOOKING_WORDS, dropInSpans)) {
+    if (!bookedFact && !bookingSet && !sameWordIn(word, t.base_details)) {
+      problems.push(`${word}: needs a Booking fact${t.booking_mode === null ? '' : ', or booking set to Required or Optional'}`);
+    }
+  }
+
+  for (const [re, key] of [
+    [LEVEL_WORDS, 'Level'],
+    [PRIZE_WORDS, 'Prizes'],
+    [AGE_WORDS, 'Age'],
+  ] as [RegExp, FactKey][]) {
+    if (t.facts[key]?.length) continue;
+    for (const { word } of found(re)) if (!sameWordIn(word, t.base_details)) problems.push(`${word}: needs a${key === 'Age' ? 'n' : ''} ${key} fact`);
+  }
+  return problems;
+}
+
+// Role words, each group one role: host, DM, GM, organiser, runs, sets up ("sets it up"), leads.
+const ROLE_WORDS = new RegExp(
+  `(?<![\\p{L}\\p{N}])(?:(host(?:s|ed|ing|ess)?)|(dm|dungeon${HSPACE}+masters?)|(gm|game${HSPACE}+masters?)|(organi[sz](?:e|es|ed|ing|er|ers))|(run|runs|running|ran)|((?:set|sets|setting)${HSPACE}+(?:\\p{L}{1,10}${HSPACE}+)?up)|(lead|leads|leading|led))(?![\\p{L}\\p{N}])`,
+  'giu',
+);
+const ROLES = ['host', 'DM', 'GM', 'organiser', 'runs', 'sets up', 'leads'];
+const roleOf = (m: RegExpMatchArray): string => ROLES[m.slice(1).findIndex(g => g !== undefined)]!;
+/** The roles a People & Roles entry gives, read with the same role words: "Dungeon Master" is DM, "sets up" is sets up. */
+const rolesIn = (text: string): Set<string> => new Set([...text.matchAll(ROLE_WORDS)].map(roleOf));
+
+// Words that start a sentence beside a role word without being anyone's name: "Meet our host", "We're hosting".
+const NOT_A_NAME = [
+  ...['we', 'were', 'well', 'weve', 'you', 'youre', 'youll', 'your', 'our', 'they', 'theyre', 'he', 'she', 'who', 'whos', 'what', 'whats', 'why', 'how'],
+  ...['when', 'where', 'there', 'theres', 'here', 'heres', 'lets', 'meet', 'join', 'come', 'ask', 'say', 'grab', 'bring', 'get', 'see', 'hi', 'hello'],
+  ...['thanks', 'thank', 'everyone', 'new', 'big', 'great', 'huge', 'special', 'friendly', 'expert', 'resident', 'amazing', 'brilliant', 'lovely'],
+  ...['fantastic', 'wonderful', 'guess', 'tonight', 'today', 'tomorrow'],
+];
+
+/** The capitalised words that aren't names beside a role word: the built-in list, and words written with a capital in the event's own text. */
+function notNameWords(texts: string[]): Set<string> {
+  const ok = new Set([...BASE_ALLOWED, ...NOT_A_NAME]);
+  for (const t of texts) for (const w of capitalisedWords(t)) addWords(ok, w);
+  return ok;
+}
+
+// A clause ends at . ! ? ; or … before a space, or at a line break. A comma doesn't end one, so "Trixie, our host" is checked.
+const CLAUSE_END = new RegExp(`[.!?;…]+(?=\\s|$)|${LINE_BREAK}`, 'gu');
+const ROLE_REACH = 3;
+
+/**
+ * Capitalised names within three words of a role word in the same clause, a sentence-initial
+ * name included, checked against People & Roles: the name must be listed, and its listed role
+ * must be that role ("host" covers hosts, hosted and hosting). Text in `skip` (the event's own
+ * name) is left out, and so are the words in `notNames`.
+ */
+function roleProblems(text: string, skip: Span[], people: Person[], notNames: Set<string>): string[] {
+  const problems: string[] = [];
+  const clauses: Span[] = [];
+  let start = 0;
+  for (const m of text.matchAll(CLAUSE_END)) {
+    clauses.push([start, m.index!]);
+    start = m.index! + m[0].length;
+  }
+  clauses.push([start, text.length]);
+  for (const [from, to] of clauses) {
+    const clause = text.slice(from, to);
+    const roles = [...clause.matchAll(ROLE_WORDS)]
+      .map(m => ({ said: m[0], role: roleOf(m), span: [from + m.index!, from + m.index! + m[0].length] as Span }))
+      .filter(r => !within(r.span[0], r.span[1], skip));
+    if (!roles.length) continue;
+    const roleSpans = roles.map(r => r.span);
+    const words = [...clause.matchAll(WORD)].map(m => ({ word: m[0], at: from + m.index!, end: from + m.index! + m[0].length }));
+    for (const r of roles) {
+      const inRole = words.map((w, i) => (w.at >= r.span[0] && w.end <= r.span[1] ? i : -1)).filter(i => i >= 0);
+      const first = inRole[0]!;
+      const last = inRole[inRole.length - 1]!;
+      for (let i = Math.max(0, first - ROLE_REACH); i <= Math.min(words.length - 1, last + ROLE_REACH); i++) {
+        const w = words[i]!;
+        if (i >= first && i <= last) continue;
+        if (!/^\p{Lu}/u.test(w.word) || text[w.at - 1] === '#' || within(w.at, w.end, [...skip, ...roleSpans]) || isAllowed(w.word, notNames)) continue;
+        const key = wordKey(w.word);
+        const listed = people.filter(p => (p.name.match(WORD) ?? []).some(n => wordKey(n) === key));
+        if (!listed.length) problems.push(`${w.word}: not in People & Roles`);
+        else if (!listed.some(p => rolesIn(p.role).has(r.role)))
+          problems.push(`${w.word}: People & Roles gives the role "${listed[0]!.role}", not "${r.said}"`);
+      }
+    }
+  }
+  return problems;
+}
+
+// What a prompt forbids without quoting it: "never add other people, prizes or levels", "no hype about prizes", "avoid words like beginners".
+// A prohibition, then a list of short items (at most three words each, joined by commas, "or", "and"
+// or "nor") that runs to the end of the sentence or to the next prohibition. Anything else ends it,
+// and then none of its items are exempt. Posts never get this.
+const LIST_PROHIBITION = new RegExp(
+  `(?:${NEGATIVE}(?:${PROHIBITION_VERB}|add(?:s|ing)?|invent(?:s|ing)?|offer(?:s|ing)?|hype|assume|promote|make${HSPACE}+up|talk${HSPACE}+about)|(?<!\\p{L})no${HSPACE}+(?:hype|mention|claims?|promises?|talk)${HSPACE}+(?:about|of)|(?<!\\p{L})(?<!(?:never|not|n['’]t)\\s+)avoid)(?!\\p{L})`,
+  'giu',
+);
+// Before the first item: an object ("it as", "words like", "other"), as for quoted items, then perhaps a colon.
+const LIST_START = new RegExp(`(?:${OBJECT}(?:${HSPACE}*(?:(?:such${HSPACE}+as|like|as)(?!\\p{L})|e\\.g\\.))?)?(?:${HSPACE}*:)?${HSPACE}+`, 'iuy');
+// An item word. A pronoun or a verb like "is" or "await" means a clause has started ("prizes, and kids are welcome"), so the list ends there.
+const CLAUSE_WORD =
+  "(?:or|and|nor|is|are|was|were|be|been|will|would|can|could|may|might|must|shall|should|do|does|did|has|have|had|it|it['’]s|they|we|you|he|she|everyone|there|here|gets?|got|welcomed?|awaits?|waiting)(?![\\p{L}\\p{N}'’])";
+const LIST_WORD = new RegExp(`["“‘']?(?!${CLAUSE_WORD})[\\p{L}\\p{N}]+(?:['’-][\\p{L}\\p{N}]+)*["”’']?`, 'iuy');
+const LIST_WORD_GAP = new RegExp(`${HSPACE}+`, 'uy');
+const LIST_SEP = new RegExp(`${HSPACE}*,${HSPACE}*(?:(?:or|and|nor)${HSPACE}+)?|${HSPACE}+(?:or|and|nor)${HSPACE}+`, 'iuy');
+const LIST_STOP = new RegExp(`${HSPACE}*(?:${ITEM_SCOPE})?(?:[.!?)]|$|${LINE_BREAK})`, 'iuy');
+const LIST_NEXT = new RegExp(`${HSPACE}*[,;]?${HSPACE}*(?:(?:and|or|but)${HSPACE}+)?(?=${LIST_PROHIBITION.source})`, 'iuy');
+
+/** The match of a sticky pattern at `at`, or null. */
+function stickyAt(re: RegExp, text: string, at: number): string | null {
+  re.lastIndex = at;
+  return re.exec(text)?.[0] ?? null;
+}
+
+/** The stretches of a prompt that are unquoted lists of what it forbids. */
+function forbiddenLists(text: string): Span[] {
+  const spans: Span[] = [];
+  for (const p of text.matchAll(LIST_PROHIBITION)) {
+    const start = stickyAt(LIST_START, text, p.index! + p[0].length);
+    if (start === null) continue;
+    const first = p.index! + p[0].length + start.length;
+    let pos = first;
+    let words = 0;
+    for (;;) {
+      const word = stickyAt(LIST_WORD, text, pos);
+      if (word === null) break;
+      pos += word.length;
+      words++;
+      if (stickyAt(LIST_STOP, text, pos) !== null || stickyAt(LIST_NEXT, text, pos) !== null) {
+        spans.push([first, pos]);
+        break;
+      }
+      const sep = stickyAt(LIST_SEP, text, pos);
+      const gap = sep === null && words < MAX_ITEM_WORDS ? stickyAt(LIST_WORD_GAP, text, pos) : null;
+      if (sep === null && gap === null) break;
+      pos += (sep ?? gap)!.length;
+      if (sep !== null) words = 0;
+    }
+  }
+  return spans;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The final post (§4B)
+
+/** One event a post is about, at its target occurrence. Date and times are London ("YYYY-MM-DD", "HH:MM"). */
+export interface CheckTarget {
+  event_id: string;
+  name: string;
+  date: string;
+  start_time: string | null;
+  end_time: string | null;
+  price: string;
+  facts: Partial<Record<FactKey, string[]>>;
+  base_details: string;
+  people: Person[];
+  banned: string[];
+  booking_mode: BookingMode;
+}
+
+interface Occurrence {
+  iso: string;
+  day: number;
+  month: number;
+  year: number;
+  weekday: number;
+  /** Start and end, in minutes after midnight. */
+  times: number[];
+}
+
+const clockMinutes = (hhmm: string): number | null => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
+  return m && Number(m[1]) < 24 && Number(m[2]) < 60 ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+
+/** A target's date and times, or the reasons they can't be read. */
+function occurrenceOf(t: CheckTarget): { occurrence: Occurrence | null; problems: string[] } {
+  const problems: string[] = [];
+  const times: number[] = [];
+  for (const [label, value] of [
+    ['start time', t.start_time],
+    ['end time', t.end_time],
+  ] as const) {
+    if (value === null) continue;
+    const minutes = clockMinutes(value);
+    if (minutes === null) problems.push(`${t.name}: its ${label} "${value}" can't be read`);
+    else times.push(minutes);
+  }
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t.date);
+  const [year, month, day] = m ? [Number(m[1]), Number(m[2]), Number(m[3])] : [0, 0, 0];
+  const at = new Date(Date.UTC(year, month - 1, day));
+  if (!m || at.getUTCMonth() !== month - 1 || at.getUTCDate() !== day) {
+    problems.push(`${t.name}: its date "${t.date}" can't be read`);
+    return { occurrence: null, problems };
+  }
+  return { occurrence: { iso: t.date, day, month, year, weekday: at.getUTCDay(), times }, problems };
+}
+
+/** Why a date, weekday or relative day in a post isn't true of the occurrences, or null when it is. A weekday must be every occurrence's. */
+function dateProblem(d: DateMention, occurrences: Occurrence[], today: string, label: { any: string; every: string }): string | null {
+  if (d.relative) {
+    const days =
+      d.relative === 'today' || d.relative === 'tonight'
+        ? [today, today]
+        : d.relative === 'tomorrow'
+          ? [addDays(today, 1), addDays(today, 1)]
+          : d.relative === 'this week'
+            ? [today, addDays(today, 6)]
+            : null;
+    if (!days) return `"${d.text}": a relative date that can't be checked`;
+    return occurrences.some(o => o.iso >= days[0]! && o.iso <= days[1]!) ? null : `"${d.text}": not true of ${label.any} at the time of posting`;
+  }
+  if (d.weekday !== undefined) {
+    return occurrences.length && occurrences.every(o => o.weekday === d.weekday) ? null : `"${d.text}": not the weekday of ${label.every}`;
+  }
+  if (d.day === undefined && d.month === undefined && d.year === undefined) return `"${d.text}": a date that can't be read`;
+  const matches = (o: Occurrence) =>
+    (d.day === undefined || d.day === o.day) && (d.month === undefined || d.month === o.month) && (d.year === undefined || d.year === o.year);
+  return occurrences.some(matches) ? null : `"${d.text}": not the date of ${label.any}`;
+}
+
+const factTexts = (t: CheckTarget): string[] => Object.values(t.facts).flatMap(v => v ?? []);
+
+/**
+ * One part of a post, against the targets it is about. Dates, times and names must each belong
+ * to one of them; prices, weekdays and claims must be true of every one of them.
+ */
+function blockProblems(block: string, targets: { t: CheckTarget; occurrence: Occurrence | null }[], today: string, roundUp: boolean): string[] {
+  const problems: string[] = [];
+  const ts = targets.map(x => x.t);
+  const occurrences = targets.flatMap(x => (x.occurrence ? [x.occurrence] : []));
+  const label =
+    ts.length === 1 ? { any: ts[0]!.name, every: ts[0]!.name } : { any: 'any event in this part of the post', every: 'every event in this part of the post' };
+  // The events' own names are their identity, not claims: "Friday Night Magic" isn't a weekday.
+  const skip = ts.flatMap(t => spansOf(phraseRegex(t.name), block));
+  const counts = (m: { index: number; text: string }) => !within(m.index, m.index + m.text.length, skip);
+
+  for (const d of findDates(block)) {
+    const why = counts(d) ? dateProblem(d, occurrences, today, label) : null;
+    if (why) problems.push(why);
+  }
+  for (const time of findTimes(block)) {
+    if (!counts(time)) continue;
+    if (!time.readings.length) problems.push(`"${time.text}": a time that can't be checked`);
+    else if (!occurrences.some(o => o.times.some(x => time.readings.includes(x)))) problems.push(`"${time.text}": not the start or end time of ${label.any}`);
+  }
+  for (const m of findMoney(block)) {
+    if (counts(m) && !ts.every(t => pricesOf(t.price, t.facts.Price).includes(m.pence))) problems.push(`"${m.text}": not the price of ${label.every}`);
+  }
+  for (const t of ts) {
+    const support = { name: t.name, base_details: t.base_details, facts: t.facts, booking_mode: t.booking_mode };
+    for (const p of claimProblems(block, skip, support)) problems.push(roundUp ? `${p} (${t.name})` : p);
+  }
+  const people = ts.flatMap(t => t.people);
+  const allowed = ts.flatMap(t => [t.name, ...t.people.map(p => p.name), ...[t.base_details, ...factTexts(t)].flatMap(capitalisedWords)]);
+  for (const n of findNames(block, allowed)) problems.push(`${n}: not in People & Roles`);
+  problems.push(...roleProblems(block, skip, people, notNameWords(ts.flatMap(t => [t.base_details, ...factTexts(t)]))));
+  return problems;
+}
+
+// A round-up's parts are separated by blank lines; a line of nothing but hashtags is no part.
+const BLANK_LINE = new RegExp(`${LINE_BREAK}(?:${HSPACE}*${LINE_BREAK})+`, 'u');
+const HASHTAG_LINE = /^\s*#[\p{L}\p{N}_]+(?:\s+#[\p{L}\p{N}_]+)*\s*$/u;
+
+/**
+ * Checks a post (or poster wording) against the occurrence(s) it is about (spec §4B): every date,
+ * time, price, claim and name in it must belong to them; no other event and none of their Banned
+ * Phrases may appear. "Tonight", "today", "tomorrow" and "this week" are judged in London at
+ * `ctx.now`. Quoted text is checked like any other. With several targets the text is checked part
+ * by part: a part naming exactly one target is checked against it alone; any other part needs its
+ * dates, times and names in one of the targets, and its prices, weekdays and claims in every one.
+ */
+export function checkPostText(text: string, targets: CheckTarget[], ctx: { now: Date; otherEventNames: string[] }): { pass: boolean; reasons: string[] } {
+  if (!targets.length) return { pass: false, reasons: ['The post has no target event'] };
+  const reasons: string[] = [];
+  if (!text.trim()) reasons.push('The post is empty');
+  const read = targets.map(t => ({ t, ...occurrenceOf(t) }));
+  for (const r of read) reasons.push(...r.problems);
+  const today = londonDate(ctx.now);
+
+  // Another event counts anywhere, hashtags included, except as part of a target's own name.
+  const names = targets.map(t => t.name);
+  const own = names.flatMap(n => spansOf(phraseRegex(n), text));
+  const targetKeys = new Set(names.map(squash));
+  for (const other of ctx.otherEventNames) {
+    const name = other.trim();
+    if (name.length < 4 || targetKeys.has(squash(name))) continue;
+    if (spansOf(phraseRegex(name), text).some(([at, end]) => !within(at, end, own)) || inHashtag(text, name, names))
+      reasons.push(`Names another event, "${name}"`);
+  }
+  for (const t of targets) {
+    for (const phrase of t.banned) if (phraseRegex(phrase)?.test(text)) reasons.push(`Uses a Banned Phrase of ${t.name}, "${phrase.trim()}"`);
+  }
+
+  const parts =
+    targets.length === 1
+      ? [{ block: text, about: read }]
+      : text
+          .split(BLANK_LINE)
+          .map(block =>
+            block
+              .split(LINE_BREAKS)
+              .filter(line => !HASHTAG_LINE.test(line))
+              .join('\n'),
+          )
+          .filter(block => block.trim() !== '')
+          .map(block => {
+            const named = read.filter(r => phraseRegex(r.t.name)?.test(block));
+            return { block, about: named.length === 1 ? named : read };
+          });
+  for (const { block, about } of parts) reasons.push(...blockProblems(block, about, today, targets.length > 1));
+
+  const unique = [...new Set(reasons)];
+  return { pass: unique.length === 0, reasons: unique };
 }
