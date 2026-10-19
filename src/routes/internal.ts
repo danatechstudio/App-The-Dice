@@ -24,6 +24,8 @@ import { changesToApply, markChangeApplied } from '../host/changes';
 import { markFailed, markSent, unsent } from '../notify/outbox';
 import { decidedApplicationsForApplicants, markApplicationNotified, newApplicationsForApprovers } from '../team/applications';
 import { applySync, parsePayload } from '../sync/apply';
+import { runCheck, socialContext } from '../social/check';
+import { duePrompts, markPromptWritten, promptsToWrite, proposePrompt } from '../social/prompts';
 import { checkEdit, claimEdits, markEditFailed, markEditWritten, parseWriterBody } from '../sync/edits';
 
 const MAX_BODY_BYTES = 1_000_000;
@@ -326,6 +328,82 @@ internalRoutes.post('/social-posts/:id/failed', async c => {
   const error = typeof body.error === 'string' && body.error.trim() ? body.error.trim() : 'Buffer refused the post';
   const done = await markSocial(c.env.DB, Number(c.req.param('id')), { ok: false, error }, new Date());
   return done ? c.json({ ok: true }) : c.json({ error: 'No post waiting with that ID' }, 404);
+});
+
+// --- Event social prompts (n8n RTD Social Prompt Builder, src/social/prompts.ts) ---
+
+/** Events that need a prompt: { events: [{ event_id, fingerprint, request: { system, user }, instruction_version }] }. ?limit= 1–20, default 5. */
+internalRoutes.get('/social-prompts/due', async c => {
+  const asked = Number(c.req.query('limit') ?? 5);
+  const limit = Number.isInteger(asked) ? Math.min(Math.max(asked, 1), 20) : 5;
+  return c.json({ events: await duePrompts(c.env.DB, new Date(), limit) });
+});
+
+/** Versions whose cells aren't in the sheet yet: { prompts: [{ event_id, version, cells }] }. */
+internalRoutes.get('/social-prompts/to-write', async c => c.json({ prompts: await promptsToWrite(c.env.DB) }));
+
+/**
+ * Gemini's answer. Body: { fingerprint, job_id?, model?, output }, or { fingerprint, job_id?, error }
+ * when the generation failed. Answers { ok, status, version, cells } (cells to write, matched on
+ * Event ID), or { ok, status: 'failed', failures } below three failures. 409: stale, drop it.
+ */
+internalRoutes.post('/social-prompts/:eventId', async c => {
+  const text = await c.req.text();
+  if (text.length > MAX_BODY_BYTES) return c.json({ error: 'Body too large' }, 413);
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return c.json({ error: 'Body must be JSON' }, 400);
+  }
+  const res = await proposePrompt(c.env.DB, c.req.param('eventId'), body, new Date());
+  if (!res.ok) return c.json(res.errors ? { error: res.error, errors: res.errors } : { error: res.error }, res.status);
+  return c.json(res);
+});
+
+/** n8n wrote a version's cells. Body: { version }. */
+internalRoutes.post('/social-prompts/:eventId/written', async c => {
+  const body = ((await c.req.json().catch(() => ({}))) ?? {}) as { version?: unknown };
+  if (typeof body.version !== 'number' || !Number.isInteger(body.version) || body.version < 1) return c.json({ error: 'version is required' }, 400);
+  const res = await markPromptWritten(c.env.DB, c.req.param('eventId'), body.version, new Date());
+  return res === 'ok' ? c.json({ ok: true }) : c.json({ error: 'No version with that number for that event' }, 404);
+});
+
+// --- Every social post (n8n RTD Master V1 and the poster path, src/social/check.ts) ---
+
+/** The body as JSON, or a refusal saying why not. */
+async function jsonBody(c: { req: { text(): Promise<string> } }): Promise<{ body: unknown } | { error: string; status: 400 | 413 }> {
+  const text = await c.req.text();
+  if (text.length > MAX_BODY_BYTES) return { error: 'Body too large', status: 413 };
+  try {
+    return { body: JSON.parse(text) };
+  } catch {
+    return { error: 'Body must be JSON', status: 400 };
+  }
+}
+
+/**
+ * Each event's layer before a caption is written. Body: { event_ids, sheet_dates? } (sheet_dates:
+ * { event_id: the Logic Engine's date }). Answers { mode, events: [{ event_id, prompt, prompt_version,
+ * base_details, approved_facts, people_roles, banned_phrases, occurrence, sync_pending }] }; at off, no events.
+ */
+internalRoutes.post('/social/context', async c => {
+  const read = await jsonBody(c);
+  if ('error' in read) return c.json({ error: read.error }, read.status);
+  const res = await socialContext(c.env.DB, read.body, new Date());
+  return 'ok' in res ? c.json({ error: res.error }, res.status) : c.json(res);
+});
+
+/**
+ * The check just before a post goes to Buffer. Body: { kind, platform, targets: [{ event_id,
+ * occurrence_id, prompt_version }], text, image_text?, workflow, execution_id, sheet_dates? }.
+ * Answers { allow, result, reasons, mode }: post only when allow is true. 400: the body can't be checked.
+ */
+internalRoutes.post('/social/check', async c => {
+  const read = await jsonBody(c);
+  if ('error' in read) return c.json({ error: read.error }, read.status);
+  const res = await runCheck(c.env.DB, read.body, new Date());
+  return 'ok' in res ? c.json({ error: res.error }, res.status) : c.json(res);
 });
 
 // --- The food and drinks menu (n8n RTD Menu Sync, docs/RTD_FOOD_MENU.md) ---

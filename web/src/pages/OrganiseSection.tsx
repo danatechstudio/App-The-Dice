@@ -22,6 +22,7 @@ import { AllEventsPanel } from './OrganiseEvents';
 import { EventPlacesPanel } from './OrganisePlaces';
 import { RemindersAdmin } from './OrganiseReminders';
 import { SheetSyncPanel } from './OrganiseSheetSync';
+import { SocialPanel } from './OrganiseSocial';
 import { StatsAdmin } from './OrganiseStats';
 import { ApproversPanel, JoinRequests } from './OrganiseTeam';
 
@@ -60,7 +61,11 @@ export const SECTIONS: SectionDef[] = [
     title: 'Events & dates',
     blurb: 'Every event: change, cancel or stop it; dates, booking and places',
     adminOnly: false,
-    partLabels: { sheet_edit_problems: ['Logic Engine change stuck', 'Logic Engine changes stuck'] },
+    partLabels: {
+      sheet_edit_problems: ['Logic Engine change stuck', 'Logic Engine changes stuck'],
+      social_prompts: ['social prompt to review', 'social prompts to review'],
+      social_held: ['post held this week', 'posts held this week'],
+    },
   },
   { key: 'bookings', title: 'Bookings', blurb: 'Booked dates coming up', adminOnly: false, partLabels: {} },
   { key: 'people', title: 'People', blurb: 'Hosts and approvers', adminOnly: false, partLabels: {} },
@@ -151,6 +156,7 @@ function SectionPanels({ section, me, isAdmin, onDecided }: { section: SectionKe
           <DatesPanel />
           <EventPlacesPanel refresh={refresh} />
           {isAdmin && <SheetSyncPanel />}
+          {isAdmin && <SocialPanel />}
         </>
       );
     case 'bookings':

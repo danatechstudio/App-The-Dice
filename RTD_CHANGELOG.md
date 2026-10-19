@@ -1,5 +1,60 @@
 # RTD App Changelog
 
+## 2026-10-19 (Event social prompts, Stage 1: the app side)
+- **What it's for:** each event gets its own social media master prompt, built only from the facts the café wrote down. Every post is checked against that event's facts and its real date before it goes out, so posts stop inventing things: cash prizes that don't exist, "drop in" for a booked game, the wrong night, someone in the wrong role.
+- **Switched Off, so nothing posts differently.** This is Stage 1, the app side. The n8n side (the prompt builder, and the changes to RTD Master V1 and posters) is Stage 2, and each step needs the owner's go-ahead.
+- **Two new Logic Engine columns, for Dan and Michelle to fill in** (they're added in Stage 2, after a backup):
+  - **Approved Facts:** one fact per line, `Key: value`. The keys are Booking, Level, Age, Prizes, Format, Price, Bring, Food and Other. For example `Booking: essential`, `Prizes: cash`.
+  - **People & Roles:** one person per line, `Name — role`, for example `Trixie — sets up`. A plain `-` works too. Posts may name only these people, in these roles.
+  - The app now reads both, plus **Banned Phrases**, on every sync.
+- **The master prompt:**
+  - Gemini writes it from Base Details (Notes on Standard Diary), Approved Facts, People & Roles, the name, category, visibility, price and places. Nothing else.
+  - It never sees dates, times, other events, emails, posting history or the hand-written prompts in the sheet. The prompt never contains a date; the date comes fresh from the app each time a post is made.
+  - The app checks each prompt with fixed rules (no dates, no other prices, no other events, no unknown names, every fact traced to the column it came from). It approves it only when every check passes. Anything unclear goes to an admin with the question.
+  - Every version is kept. A prompt is remade when the facts change, not when the date changes.
+- **The check before every post:**
+  - The event must be running and public, the date real and still to come, and the prompt current.
+  - Every date, weekday, time and price must be that date's own.
+  - Booking, drop-in, level, prize and age words need a matching Approved Fact (or the same word in Base Details).
+  - Every name must be in People & Roles, in their role. No other event's name may appear, and none of the Banned Phrases.
+- **The switch** (Organise › Events & dates › **Social prompts**, admins only):
+  - **Off** (now): nothing checked, nothing recorded.
+  - **Shadow:** every post is checked and recorded, none is held. Admins see what would have been held.
+  - **Enforce:** a post that fails is held, and listed with the reasons.
+  - Every change is in the audit log.
+- **Admin screens:**
+  - Each event's edit page has a **Social prompt** section: the facts as last synced (with any lines that don't read), the prompt and its versions, questions, the last 10 checks, **Regenerate**, and **Approve with a note**. An admin's own text gets the same checks as Gemini's. Markets have it too.
+  - The organiser hub counts **social prompts to review** and **posts held this week** (only when the switch isn't Off).
+  - Hosts never see prompts.
+- **A safety net, not a guarantee.** The check works from fixed rules and fails safe, so it will sometimes hold a good post. It can also miss a few unusual wordings. The list is in [RTD_N8N_WORKFLOWS.md](docs/RTD_N8N_WORKFLOWS.md#known-limits). That's why it runs in Shadow for about a week first.
+- **Privacy:** the text of each checked post is deleted after 90 days; the result is kept.
+- **Database:** migration `0024_social_prompts.sql` adds one column, two tables and the switch (Off). **Applied to production 2026-10-19 10:28 UTC**, straight after `0023`, with the owner's go-ahead ([RTD_EVENT_CONTROL_MIGRATION.md](docs/RTD_EVENT_CONTROL_MIGRATION.md#0024_social_promptssql-event-social-prompts-stage-1)).
+- **The owner's steps (spec §6), each with a go-ahead:**
+  - **G1:** apply **0023**, then **0024**, to production (each with the owner's go-ahead), check them, and only then merge the app code (switch Off). Merging first would break the live app: the sync, the organiser hub and the daily privacy clean-up all need 0024's tables.
+  - **G2:** back up the Logic Engine, and add the 4 columns (Approved Facts, People & Roles, Social Prompt, Social Prompt Status) to both tabs, on the staging copy first. RTD Event Sync then needs to send the new columns to the app.
+  - **G3:** Dan and Michelle fill in Approved Facts and People & Roles. Suggested wording from Base Details comes in a doc for them to confirm; nothing is written to the sheet for them.
+  - **G4:** run the builder by hand for 3 events (a dry run that writes no cells), review them on the screen, then publish it.
+  - **G5:** publish the Master V1 and poster changes with the switch Off, then Shadow for about a week.
+  - **G6:** the owner reviews the Shadow results, then switches to Enforce.
+- **Tests:** 659 in all, all passing.
+
+## 2026-10-18 (Private games)
+- **Private events now show as private games, not "Private session".**
+  - The diary, Home ("Coming up" and "Also on today") and the event cards show the real name, such as **Arkham Horror Card Game**, with its time, description and a **Private game** tag.
+  - There's no booking button, price, places or photo.
+- **Each private game has its own page** with **"Interested in joining? Get in touch!"** instead of booking. Share and Add to calendar work as on any event.
+- **The message form:**
+  - People enter their name, email and a message (up to 1,000 characters), and tick to agree their details go to the organiser.
+  - It goes to the café's bookings inbox, and to the host for a hosted game. Reply-to is the person asking, so the organiser just replies.
+  - Nothing is emailed to the person asking, so the form can't be used to email strangers.
+  - **Spam:** a hidden trap field, and at most 3 messages an hour from one network.
+- **Privacy:**
+  - Messages are deleted after 90 days, and the scrambled network code after 2 days.
+  - The privacy notice covers the form, and is dated 18 October.
+- **Hosts:** the Private option on the session form now explains what shows. The admin editor calls it **Private game**.
+- **Cleeples** is set to booking **Optional** in the live database (set directly, recorded in the audit log).
+- **Database:** migration `0023_enquiries.sql` adds one table. **Applied to production 2026-10-19 10:27 UTC** with the owner's go-ahead.
+
 ## 2026-10-18 (Admin event editor)
 - **Admins can change or cancel every event from one place:** Organise › Events & dates › **All events**. This covers café events from both sheet tabs, hosts' sessions and markets, whether public, app-bookable, private or hidden, running or stopped. Search, and filters for Café, Host sessions, Markets, Stopped, and Hidden or private.
 - **Each event opens one form:**

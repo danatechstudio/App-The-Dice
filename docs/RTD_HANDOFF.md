@@ -1,4 +1,4 @@
-# RTD App: Handoff (updated 2026-10-18)
+# RTD App: Handoff (updated 2026-10-19)
 
 Read this first. Stage 6 (Event Control) has its own, longer handoff: [RTD_EVENT_CONTROL_HANDOFF.md](RTD_EVENT_CONTROL_HANDOFF.md).
 
@@ -40,6 +40,33 @@ Admins change or cancel **every** event from Organise › Events & dates › **A
 
 **Blocker for café details:** RTD Sheet Writer has never been published, although Logic Engine changes are set to Live. Until the owner says go and it's published (test copy first, [RTD_EVENT_CONTROL_MIGRATION.md](RTD_EVENT_CONTROL_MIGRATION.md#admin-event-editor-2026-10-18-no-migration)), café detail changes wait in the queue. Everything else in the editor works without it.
 
+## Event social prompts, Stage 1 (19 Oct, built on branch `ccr-b9b076a7-f9fv6q`)
+
+The app side of event-specific social master prompts ([changelog](../RTD_CHANGELOG.md); spec and plan in `docs/superpowers/`, dated 2026-10-18).
+- **What's built:** storage of each event's prompt versions, the fixed-rule checks (on prompts and on every post), the endpoints n8n will call, the **Off / Shadow / Enforce** switch, and the admin screens (Organise › Events & dates › **Social prompts**, and a **Social prompt** section on each event's edit page).
+- **Switched Off.** Nothing posts differently until Stage 2's n8n changes are made and the switch is changed.
+- **The n8n contract for Stage 2** (six endpoints, and what n8n does at each setting): [RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#event-social-prompts-contract-for-stage-2).
+- **Known limits:** it's a safety net built from fixed rules, not a guarantee. It's why Shadow comes first ([the list](RTD_N8N_WORKFLOWS.md#known-limits)).
+- **Database:** `0024_social_prompts.sql`, **not applied**. It goes after `0023` ([RTD_EVENT_CONTROL_MIGRATION.md](RTD_EVENT_CONTROL_MIGRATION.md#0024_social_promptssql-event-social-prompts-stage-1)).
+- **Found while writing the docs:** RTD Event Sync sends a fixed list of columns. It must be changed to send Approved Facts, People & Roles and Banned Phrases, or the app sees them as blank. This isn't in the spec's gates; it fits with G2, with its own go-ahead.
+
+**The owner's to-dos:**
+1. Fill in **Approved Facts** and **People & Roles** in the Logic Engine, with Michelle (G3, once the columns exist).
+2. Give the go-ahead for **0023**, then **0024**.
+3. Publish **RTD Sheet Writer** (test copy first). For now the two columns are edited in the sheet, and the edit page says so. Editing them from the app also needs a small app change later: adding both to the list of columns the app may change.
+4. Say when to start **Stage 2**.
+
+**Gates (spec §6), each with the owner's go-ahead:**
+
+| Gate | What happens | Rollback |
+| --- | --- | --- |
+| G1 | Apply **0023**, then **0024**, to production (each with the owner's go-ahead), check them, and only then merge the app code (switch Off). Merging first would break the live app: the sync, the organiser hub and the daily privacy clean-up all need 0024's tables | `wrangler rollback`; the tables can stay |
+| G2 | Back up the Logic Engine; a one-off workflow adds the 4 columns to both tabs (staging copy first); RTD Event Sync sends the new columns | The columns can stay (the app ignores empty ones); the backup is there |
+| G3 | Dan and Michelle fill in Approved Facts and People & Roles, from suggested wording in a doc they confirm | — |
+| G4 | The builder runs by hand for 3 events (a dry run that writes no cells), reviewed on the screen; then it's published | Unpublish |
+| G5 | Master V1 and poster changes published with the switch Off, then Shadow for about a week | Switch Off; restore Master V1's previous version |
+| G6 | The owner reviews the Shadow results, then switches to Enforce | Switch back to Shadow |
+
 ## Next steps
 
 1. ~~Owner: switch the menu to Preview~~ (done; it's Live).
@@ -54,6 +81,7 @@ Admins change or cancel **every** event from Organise › Events & dates › **A
 4. **Stage 6 is live and switched Off** (PR #11; `0022` applied 08:38, the 09:00 sync on the new code ok, `sheet_values` filled for all 32 events; [RTD_EVENT_CONTROL_MIGRATION.md](RTD_EVENT_CONTROL_MIGRATION.md)). Next, each with the owner's go-ahead: the **test copy** (publish RTD Sheet Writer, set Test copy), then at least a week's **trial**, then Live.
 5. **Tidy up:** delete the merged branches listed above (owner's call).
 6. **Next food menu stage:** offers (Stage 3 in [RTD_FOOD_MENU_AUDIT.md](RTD_FOOD_MENU_AUDIT.md#5-delivery)). It waits for the owner.
+7. **Event social prompts:** merge Stage 1 (with 0023 and 0024 applied first), then Stage 2 gate by gate, as above.
 
 ## Blockers and gotchas
 

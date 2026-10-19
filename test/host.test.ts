@@ -270,7 +270,7 @@ describe('into the diary', () => {
     expect(mine.sessions[0]).toMatchObject({ status: 'published', event_id: 'RTD-EVT-00007' });
     const { occurrences } = await (await request('/api/events')).json<{ occurrences: Record<string, unknown>[] }>();
     expect(occurrences.find(o => o.event_id === 'RTD-EVT-00007')).toMatchObject({ name: 'D&D One Shot', price_display: '£5', capacity: 6 });
-    expect(occurrences.find(o => o.event_id === 'RTD-EVT-00008')).toMatchObject({ name: 'Private session', capacity: null, price_display: null });
+    expect(occurrences.find(o => o.event_id === 'RTD-EVT-00008')).toMatchObject({ name: 'Campaign Night', capacity: null, price_display: null, bookable: false });
   });
 
   it('tells n8n which new submissions the café still needs emailing about', async () => {

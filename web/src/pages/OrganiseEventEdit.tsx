@@ -14,12 +14,13 @@ import { toast } from '../lib/toast';
 import { useTitle } from '../lib/title';
 import { KIND_LABEL } from './OrganiseEvents';
 import { DatePlaces } from './OrganisePlaces';
+import { EventSocialSection } from './OrganiseSocial';
 
 const CATEGORIES = ['Gaming', 'Quiz', 'Social', 'Club', 'Tournament', 'Market', 'Workshop', 'Other'];
 const VISIBILITY: { value: EventVisibility; label: string; hint: string }[] = [
   { value: 'public', label: 'Public', hint: 'In the diary with its name and details.' },
   { value: 'app_bookable', label: 'App Bookable', hint: 'In the diary, and people can book it in the app.' },
-  { value: 'private', label: 'Private (invite only)', hint: 'The diary shows the café is busy, without the name or details.' },
+  { value: 'private', label: 'Private game', hint: 'In the diary by name and description, with no booking. People can message to ask about joining.' },
   { value: 'hidden', label: 'Hidden', hint: 'Not in the app at all.' },
 ];
 const MODES: { value: BookingMode | 'default'; label: string }[] = [
@@ -79,18 +80,22 @@ export function EventEditor({ eventId }: { eventId: string }) {
             </div>
           )}
           {event.kind === 'market' ? (
-            <section class="card card--pad stack" style={{ '--gap': '12px' }}>
-              <p>Markets have their own editor, with pitches and vendors.</p>
-              <p>
-                <a class="btn btn--secondary btn--sm" href="/organise/content#markets-admin">
-                  Open Markets
-                </a>
-              </p>
-            </section>
+            <>
+              <section class="card card--pad stack" style={{ '--gap': '12px' }}>
+                <p>Markets have their own editor, with pitches and vendors.</p>
+                <p>
+                  <a class="btn btn--secondary btn--sm" href="/organise/content#markets-admin">
+                    Open Markets
+                  </a>
+                </p>
+              </section>
+              <EventSocialSection eventId={event.event_id} />
+            </>
           ) : (
             <>
               <DetailsForm key={JSON.stringify(event)} event={event} onSaved={load} />
               <DatesList event={event} onChanged={load} />
+              <EventSocialSection eventId={event.event_id} />
               <StopEvent event={event} onStopped={load} />
             </>
           )}

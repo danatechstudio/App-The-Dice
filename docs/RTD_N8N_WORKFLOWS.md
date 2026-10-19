@@ -467,6 +467,172 @@ Posts each admin's event reminder on the café's Facebook page ([RTD_ALERTS.md](
 - **Errors:** the app calls retry 3 times; failures go to `Studio: Error Handler`.
 - **Live since 2026-10-08 13:10** (published).
 
+## Event social prompts (contract for Stage 2)
+
+**Nothing in n8n has changed yet.** Stage 1 is the app side only. It ships with the switch (setting `social_prompts`) at **Off**, so every post goes out exactly as it does today. The n8n side is Stage 2: the new **RTD Social Prompt Builder**, and edits to **RTD Master V1** and the poster path. Each step needs the owner's go-ahead (gates G1–G6 in the [spec §6](superpowers/specs/2026-10-18-social-master-prompt-design.md#6-rollout-each-gate-needs-the-owners-go-ahead-and-rollback)). This section is what those workflows must do, matched to the code in `src/routes/internal.ts`, `src/social/prompts.ts` and `src/social/check.ts`.
+
+**The idea, in short:**
+- Each event gets its own master prompt, written by Gemini from the facts the café wrote down: Base Details (Notes on Standard Diary), **Approved Facts** and **People & Roles**.
+- The app checks the prompt with fixed rules, stores each version, and approves it only when every check passes. Otherwise it goes to an admin for review.
+- Before every post, n8n asks the app for each event's prompt, facts and the date to use. Just before posting, it sends the finished caption back to be checked.
+- Gemini never sees dates, times, other events, emails or posting history. The prompt never holds a date; the date comes fresh from the app at posting time.
+
+**For every endpoint:**
+- Authentication: the `rtd-app` header-auth credential (`Authorization: Bearer <INTERNAL_SYNC_TOKEN>`), as for every other `/internal/*` route. A missing, malformed or wrong token gets **401**; **503** means the app has no token set.
+- Bodies are JSON. A body over 1 MB gets **413**, and one that isn't JSON gets **400**.
+- Refusals are `{ "error": "…" }` in plain words, sometimes with `errors: [ … ]`.
+
+### First, RTD Event Sync must carry the new columns
+
+**Build Snapshot** in RTD Event Sync (`fOYrFBOElFkWx7R3`) sends only a fixed list of columns. Until **Approved Facts**, **People & Roles** and **Banned Phrases** are added to its Event Index list, and **Approved Facts** and **People & Roles** to its Standard Diary list, the app sees them as blank. Every prompt would then be built from Base Details alone, and every post naming a person or a booking rule would fail its check.
+- This goes after G2 (once the columns exist), with its own go-ahead.
+- The app keeps these columns out of each event's change hash, so the first sync that carries them changes no event and writes no audit noise.
+- **Social Prompt** and **Social Prompt Status** must never be sent. The app wouldn't read them anyway, so a generated prompt can't feed back into its own facts.
+
+### The builder: RTD Social Prompt Builder (Stage 2)
+
+Every 15 minutes, created **unpublished**, with `Studio: Error Handler`.
+
+**1. `GET /internal/social-prompts/due?limit=5`**
+- Answers `{ "events": [{ "event_id", "fingerprint", "request": { "system", "user" }, "instruction_version": 1 }] }`, soonest first.
+- `limit` is 1 to 20; anything else means 5.
+- `request.system` is the instruction (the brief's §7 wording) plus the JSON shape Gemini must return. `request.user` is the event's whitelisted fields as quoted JSON data. Send both to Gemini exactly as given, asking for JSON.
+- **An event is due when:**
+  - it is running, Public or App Bookable, and has a scheduled, public date still to come;
+  - nothing is on its way to the Logic Engine for it (an organiser's change, a host's request waiting for a decision, or an approved one not yet in the sheet);
+  - and its current facts have no answer yet, or an admin pressed **Regenerate**.
+- Market events and hosts' sessions are due like café events.
+- Past, cancelled, private, hidden and stopped events are never due.
+
+**2. Gemini**, then **`POST /internal/social-prompts/:eventId`**
+- **Body:** `{ "fingerprint": <from /due>, "job_id": <the n8n execution ID>, "model": <the model name>, "output": <Gemini's answer, as JSON or as its text> }`.
+- **When the generation failed** (a timeout or a quota error), send `{ "fingerprint", "job_id", "error": <the error, as text or the error object> }` instead.
+- **Answers (200):**
+  - `{ "ok": true, "status": "approved" | "review_required" | "blocked", "version": 3, "cells": { "Social Prompt": "…", "Social Prompt Status": "…" } }`: write the two cells (step 3).
+  - `{ "ok": true, "status": "failed", "failures": 1, "version": null, "cells": null }`: the generation failed and nothing was stored. **Write nothing.** The event stays due and is tried on the next run.
+    - Malformed output counts as a failure too: not JSON, the wrong shape, or a prompt over 3,000 characters.
+    - On the **third** failure for the same facts, the app stores a `blocked` version ("generation failed") and answers with its cells. The event then stops being due until an admin presses Regenerate.
+  - The same answer sent twice gets back the stored answer. Nothing is added.
+- **Refusals:**
+  - **409, stale:** the event's facts changed since `/due`. Drop it and write nothing; the event is due again from its latest facts.
+  - **409, no longer due:** it stopped running, lost its last date, or a change is on its way. Drop it.
+  - **409, "another answer is being stored just now":** a rare race. Drop it.
+  - **404:** no event with that ID.
+  - **400:** no fingerprint, or neither `output` nor `error`.
+
+**3. Write the cells, then `POST /internal/social-prompts/:eventId/written`**
+- Write **only** Social Prompt and Social Prompt Status, on the row matched on **Event ID** (Google Sheets update, `ATECHGoogleSheets`).
+- Then send `{ "version": 3 }`. It answers `{ "ok": true }`. Saying so twice is fine. **400** means a missing or bad version; **404** means there's no such version for that event.
+- **What the cells say:**
+  - **Social Prompt** is always the prompt in use: the approved text, or blank when there is none. A version that needs review never replaces a working prompt.
+  - **Social Prompt Status** is `approved · v3`, `review · v3: <the first question or problem>` or `blocked · v3: <the reason>`. The reason is one line, up to 200 characters.
+
+**4. `GET /internal/social-prompts/to-write`** on the same run
+- Answers `{ "prompts": [{ "event_id", "version", "cells" }] }`: each event's newest version whose cells aren't in the sheet yet (up to 50).
+- It picks up versions an admin approved on the screen, and any write that didn't finish. Write them as in step 3, then call `/written`.
+- A version just returned by step 2 also appears here until `/written` is called. Writing it twice is harmless.
+
+**What the app adds itself:** the fixed schedule rule is appended by code to every stored prompt, exactly once: "Use ONLY the date and time supplied for the target occurrence at posting time; never state any other date or time." Gemini isn't trusted to include it.
+
+### Every post: RTD Master V1 and the poster path (Stage 2)
+
+**5. `POST /internal/social/context`**, before Gemini writes a caption
+- **Body:** `{ "event_ids": [1 to 50 Event IDs], "sheet_dates": { "<event_id>": <the Logic Engine's date as n8n read it> } }`. `sheet_dates` is optional; UK, ISO and sheet serial dates are all read.
+- **At Off:** `{ "mode": "off", "events": [] }`. The body isn't even read. Caption nodes carry on exactly as today.
+- **At Shadow or Enforce:** `{ "mode": "shadow" | "enforce", "events": [ <layer>, … ] }`. Each layer is:
+  - `event_id`
+  - `prompt`: the approved master prompt in use, or `""` when there is none for the current facts
+  - `prompt_version`: its version, or `0` for none. Send it back with the check.
+  - `base_details`, `approved_facts`, `people_roles`, `banned_phrases`: as the last sync read them
+  - `occurrence`: the date the post is about, or `null` when there is none. That is `{ "occurrence_id", "date": "2026-10-23", "label": "Friday 23 October, 6:30pm", "start_time", "end_time", "is_today", "is_tomorrow" }`.
+    - It is the event's next date that the public can see and that is still to come, or still running.
+    - A date the app only **projected** from the event's cadence is never used: the Logic Engine hasn't confirmed it.
+  - `sync_pending`: `true` when the sheet's date (from `sheet_dates`) isn't the app's date yet, because the sync can be up to 15 minutes behind. The check will fail it.
+- An Event ID the app doesn't know is left out.
+- **400:** `event_ids` missing, empty, over 50 or not IDs; or `sheet_dates` isn't an object of dates.
+- **Where it goes:** the event layer before the global persona prompt, and the occurrence's date block after it. Round-ups get one block per event, each from its own layer.
+
+**6. `POST /internal/social/check`**, immediately before every "Post to Buffer (…)" and "Buffer: Instagram Carousel (…)" node
+- **Body:**
+  ```json
+  { "kind": "event_post | roundup | poster", "platform": "facebook",
+    "targets": [{ "event_id": "RTD-EVT-00001", "occurrence_id": "…", "prompt_version": 3 }],
+    "text": "the caption, exactly as it will be posted",
+    "image_text": "the poster's wording, when there is a poster",
+    "workflow": "RTD Master V1", "execution_id": "12345",
+    "sheet_dates": { "RTD-EVT-00001": "23/10/2026" } }
+  ```
+  - `targets`: 1 to 50. Use the `occurrence_id` and `prompt_version` the context gave.
+  - `text`: up to 20,000 characters, as is `image_text`.
+  - `platform`, `workflow` and `execution_id` are kept for the record (up to 100 characters each).
+  - `image_text` and `sheet_dates` are optional.
+- **Answer (200):** `{ "allow": true | false, "result": "pass" | "fail" | null, "reasons": [ … ], "mode": "off" | "shadow" | "enforce" }`.
+  - Reasons are plain sentences for admins. Those about an event or its date start with the event's name, such as `"Quiz: its date 2026-10-23 was cancelled"`. Those about the words quote them, such as `'"£5": not the price of …'`. Reasons about the poster start with `Poster: `.
+- **400:** the body can't be checked (a bad `kind`, `targets`, `text` or `sheet_dates`). The app never answers "allowed" to a body it couldn't check, except at Off, where it doesn't read the body.
+
+**What n8n does at each setting:**
+
+| Setting | Context | Check | n8n posts when… |
+| --- | --- | --- | --- |
+| **Off** (now) | No layers | `{ allow: true, result: null, mode: "off" }`; nothing read or recorded | Always, as today |
+| **Shadow** | Layers | Every post is checked and recorded; `allow` is always `true` | Always. A failure is only recorded, and shown to admins as "would have been held" |
+| **Enforce** | Layers | Every post is checked and recorded; `allow` is `true` only on a pass | **Only on a 200 with `allow: true`.** Any other answer (`allow: false`, a 400, 401, 413, 5xx or a timeout) means **don't post**: append a Post Log row with Automation Status **`Held`** |
+
+- The app lists held posts (and, in Shadow, the posts that would have been held) under Organise › Events & dates › **Social prompts**.
+- **Still to decide in Stage 2:** what to do when the app can't be reached at all, so n8n doesn't know the setting. The safe choice is to use the `mode` from this run's context call, and hold if that is Enforce or unknown.
+
+**Posters (Stage 2):**
+- Poster Generator records the exact quoted poster text, and the time it used, in the Drive file's description.
+- Master V1 reads it and sends it as `image_text`.
+- At Enforce, a poster whose wording or time doesn't match, or that has none (as with older posters), isn't attached. Event Guard's poster step makes a new one.
+
+### What the check looks at
+
+A post passes only when **every** one of these holds for each target:
+- **The event:** it is running and Public or App Bookable, and no change is on its way to the Logic Engine.
+- **The date:** it belongs to the event and is public. It is scheduled, not cancelled or moved, and hasn't happened yet. It is a real date in the app, not one only projected from the cadence, and the sheet's date matches (`sheet_dates`).
+- **The prompt:** an approved prompt exists for the event's current facts, and the version sent is that one.
+- **The words** (caption and poster):
+  - **Dates:** every date is the target's date. A weekday is the target's weekday.
+  - **Relative words:** "today", "tonight" and "tomorrow" must be true at the moment of the check, in London. "This week" passes only when every target falls within the next 7 days. "This weekend", "next week" and "next Friday" always fail.
+  - **Times:** every time is the target's start or end time.
+  - **Prices:** every £ amount, and "free", matches the date's own price, else App Price, or an Approved Facts `Price` line.
+  - **Claims:** booking, drop-in, level, prize and age words need the matching Approved Facts line, or the same word in Base Details. Booking words are also allowed when the event's booking is set to Required or Optional in the app.
+  - **People:** every name must be in People & Roles. A role word next to a name ("hosts", "DM", "runs", "sets up") must match that person's listed role.
+  - **Other events:** no other running event's name appears, unless it's also a target (round-ups).
+  - **Banned Phrases:** none of the targets' Banned Phrases appear.
+- **Round-ups** are split into blocks at blank lines. A block naming exactly one target is checked against that target alone. Other blocks need every date, time and name to belong to some target, and every price, weekday and claim to suit every target.
+- **Records:** each Shadow or Enforce call adds one row to the app's check log. The caption and poster wording are deleted after 90 days; the result and reasons are kept.
+
+### Known limits
+
+The check is a **safety net built from fixed rules, not a guarantee.** It can't understand a sentence the way a person does, which is why it runs in Shadow first: a week of real posts shows what it catches and what it gets wrong before anything is held. Where it isn't sure, it fails rather than guesses, so most of its mistakes hold a good post rather than let a bad one through.
+
+**Things it can miss** (accepted during the build):
+- **A stranger's name at the start of a sentence**, with no role word nearby. "Sam will be there too" isn't caught, because the first word of every sentence is capitalised anyway. With a role word ("Sam hosts…") it is caught.
+- **Weekdays squashed into a hashtag**, such as "#frigames" for Friday. Hashtags are read for whole weekday names, dates, other events and the main claim words, not every abbreviation.
+- **A role word along a list of names** is checked only when the list starts within three words of it. In a longer sentence, the names further away aren't checked against that role.
+- **"At seven of the evening"** reads as no time at all, so it isn't checked. (Unlikely wording.)
+
+**Things it holds although they're fine** (it fails safe):
+- Everyday words that look like claims: "#adulting" reads as an age claim, "£2 two-for-one" as a second price, and wording such as "only five twenty-somethings" trips the number rules.
+- Times written as "half seven" or "seven o'clock": they can't be matched to a time, so they fail. Write "7:30pm" or "7pm".
+- "Next Friday" always fails, even when it's right. Use the date or "this Friday".
+- Decimals such as 4.75 written without a £ read as a time it can't match.
+- People named like months (May, June) read as dates.
+- Phrases such as "no walk-ins", "#FreeParking" and "Christmas Quiz" can trip the drop-in, price or date rules.
+
+**For prompts (the builder):**
+- A prompt that quotes a longer phrase in a "don't say…" rule (more than six words, or one that carries on after the quote) goes to review rather than being approved automatically. So does one where the event's own wording reads like an instruction ("act as Dungeon Master", "don't ignore the house rules").
+- An admin's own approved text gets the same checks on dates, times, prices, other events, names, claim words and roles. Claim tracing doesn't apply to it, because the admin is answering the questions.
+
+**Other limits:**
+- **Base Details goes to Gemini as written.** It's one of the approved fields, so if the café or a host puts a date, a time or an email address in it, Gemini sees that too. The prompt Gemini writes back is still checked for dates, times and prices before it's stored, so nothing like that ends up in a prompt. But keep dates, times and contact details out of Base Details.
+- **A date with its own price:** the check uses that date's price, but the prompt only knows the event's App Price. A caption that repeats the App Price for a special-price date is held. Rare; fails safe.
+- **The sheet's prompt cell can lag:** if the facts change between an admin's approval and n8n writing the cell, the sheet shows the older approved prompt until the next run. Posts aren't affected: they use the app's copy, which is checked against the current facts.
+- If n8n retries a check, the log gets two rows for the same post. That's harmless.
+- None of this has met real Gemini output or real posts yet. That happens in G4 (three events, a dry run) and G5 (the Shadow week).
+
 ## Spec §46 workflow map
 
 | Spec workflow | Covered by |

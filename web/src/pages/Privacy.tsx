@@ -11,7 +11,7 @@ interface PrivacyInfo {
   booking_retention_months: number;
 }
 
-const UPDATED = '17 October 2026';
+const UPDATED = '18 October 2026';
 
 export function Privacy() {
   useTitle('Privacy');
@@ -63,6 +63,11 @@ export function Privacy() {
             Your name, the email address you sign in with, what you'd like to run and the sessions you plan. We use them to decide on requests, put your
             sessions in the diary, and email you about bookings and changes.
           </p>
+          <h3>If you ask to join a private game</h3>
+          <p>
+            Your name, email address and message. We pass them to the café and the game's organiser so they can reply to you, with your agreement, which you
+            give by ticking the box on the form. A scrambled code made from your network address limits how many messages can be sent.
+          </p>
           <h3>If you apply for a market stall</h3>
           <p>
             Your stall name, your name, email address and mobile number, what you sell, any links you give, your insurance details, any photos and any
@@ -105,6 +110,9 @@ export function Privacy() {
               <strong>The host of a hosted session</strong> sees your name, how many are coming and your note. Not your email address or phone number.
             </li>
             <li>
+              <strong>Messages asking to join a private game</strong> go to the café and the game's organiser (the host, for a hosted game), who can reply to you.
+            </li>
+            <li>
               <strong>Market applications</strong> are seen only by the café team, photos included. They're also kept in the café's market list.
             </li>
             <li>
@@ -142,6 +150,9 @@ export function Privacy() {
             </li>
             <li>
               <strong>Requests to host</strong> that weren't approved, or were withdrawn, are erased after 12 months.
+            </li>
+            <li>
+              <strong>Messages asking to join a private game</strong> are deleted from the app 90 days after you send them, and their scrambled code after 2 days.
             </li>
             <li>
               <strong>Market applications</strong> are erased 12 months after the market, photos included, and cleared from the café's market list at the

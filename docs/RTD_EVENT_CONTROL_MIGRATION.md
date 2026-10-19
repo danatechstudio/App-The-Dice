@@ -121,6 +121,62 @@ Nothing existing changes. Emails already in the outbox read as queued or sent, e
 - **First runs on the new code:** RTD Outbox at 15:40 and 15:45 succeeded; collect answered `{ messages: [] }` as before (nothing was waiting). The 15:45 sync: `ok`, 32 events, nothing changed, still 289 audit rows and 8 open items.
 - **The RTD Outbox change** waited for its own go-ahead, then was published at 17:23 UTC (version `e50af06e…`; rollback `a1b77acb…`). The 17:25 and 17:30 runs on it succeeded ([RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md)).
 
+## 0023_enquiries.sql (private games: messages asking to join)
+
+One new table, `enquiries`, for the message form on a private game's page (spec `docs/superpowers/specs/2026-10-18-private-events-design.md`). Additive; nothing else changes.
+- **Order:** apply the migration first (`npx wrangler d1 migrations apply rtd-app --remote`, or through the Cloudflare connector, then record it in `d1_migrations`), then merge the code. Code that runs before the table exists makes the form fail with "Something went wrong", and nothing else.
+- **Rollback:** `npx wrangler rollback`; the table can stay.
+**Applied to production:** 2026-10-19 10:27 UTC, with the owner's go-ahead, through the Cloudflare connector, one statement at a time (the table and its two indexes); recorded in `d1_migrations`.
+- **Restore point:** 2026-10-19T10:27:04Z.
+- **Before:** 32 events, 79 occurrences, 0 bookings, 326 audit rows, 16 settings; the 10:15 sync `ok`.
+- **After:** the same; `enquiries` (empty) and both indexes are present.
+
+## 0024_social_prompts.sql (event social prompts, Stage 1)
+
+The app side of event-specific social master prompts (spec `docs/superpowers/specs/2026-10-18-social-master-prompt-design.md`; the n8n contract is in [RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#event-social-prompts-contract-for-stage-2)). Additive.
+
+**What it adds:**
+- column `events.social_values` (nullable): Approved Facts, People & Roles and Banned Phrases as the last sync read them. It is kept out of each event's change hash, so filling it changes no event.
+- table `social_prompts`: one row per version of an event's master prompt. Each version number is unique per event (`UNIQUE (event_id, version)`), with an index on the event and its facts (`social_prompts_by_facts`).
+- table `social_checks`: one row per check made before a post, with two indexes (`social_checks_by_time`, `social_checks_by_result`). The caption and poster wording are deleted after 90 days.
+- setting **`social_prompts = off`**.
+
+Nothing existing changes. **At Off nothing is checked or recorded, and nothing posts differently.** That stays true until Stage 2's n8n changes are made and an admin changes the switch, each with the owner's go-ahead.
+
+**Order:**
+1. **0023 first.** `0023_enquiries.sql` (private games) isn't applied yet either. 0024 goes after it, never before.
+2. **Restore point**, as for every migration.
+3. **Apply.** Try it locally first with `npx wrangler d1 migrations apply rtd-app --local`. Then, **only after the owner's go-ahead**, the owner's step: `npx wrangler d1 migrations apply rtd-app --remote`. That applies whatever is waiting, in number order, so 0023 then 0024. Or use the Cloudflare connector, one statement at a time, and record the file in `d1_migrations`.
+4. **Verify:** the column, both tables, the three indexes and `social_prompts = off` are present. Existing row counts are unchanged, and the next RTD Event Sync is `ok`.
+5. **Then merge** the branch.
+
+**Why it must be applied before the deploy:**
+- The new sync writes `events.social_values`. On the old schema every sync would fail (and be retried), so the diary would stop updating.
+- The organiser hub's counts read `social_prompts` and `social_checks` in one batch, so on the old schema the whole hub fails for every staff user, not just one count.
+- The daily privacy clean-up clears old check text from `social_checks` in the same batch as the booking and enquiry erasure, so on the old schema that whole clean-up stops.
+- So: apply 0023, then 0024, check them, and only then merge. Never merge this branch first.
+
+**What changes when the code is deployed:**
+- The first sync stores `social_values` for every event. It changes no event's hash, so `events_changed` stays as usual and no audit rows are written.
+- The columns stay blank until RTD Event Sync is changed to send them (Stage 2, [RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#first-rtd-event-sync-must-carry-the-new-columns)).
+- Admins see **Social prompts** under Organise › Events & dates, switched **Off**, and a **Social prompt** section on each event's edit page.
+- Hosts and approvers see nothing new.
+
+**Rollback, from the least drastic:**
+- Leave the switch at **Off** (or set it back to Off). The tables stay, unused and harmless.
+- `npx wrangler rollback` to the previous Worker. The old code ignores the column, tables and setting.
+- **Remove it entirely,** only after the code is rolled back:
+  ```sql
+  DROP TABLE social_checks;   -- its two indexes go with it
+  DROP TABLE social_prompts;  -- and its index
+  DELETE FROM settings WHERE key = 'social_prompts';
+  DELETE FROM d1_migrations WHERE name = '0024_social_prompts.sql';
+  ```
+  The `events.social_values` column can stay; nothing old reads it. This loses the prompt history and check log. The prompts themselves are still in the Logic Engine's Social Prompt cells, once Stage 2 has written them.
+
+**Applied to production:** 2026-10-19 10:28 UTC, straight after 0023, with the owner's go-ahead, through the Cloudflare connector, one statement at a time (the column, the two tables, their three indexes, the setting); recorded in `d1_migrations`. Restore point as for 0023: 2026-10-19T10:27:04Z.
+- **After:** 32 events, 79 occurrences, 0 bookings, 326 audit rows (unchanged); 17 settings (`social_prompts = off` added); `events.social_values` present; both tables empty.
+
 ## Admin event editor (2026-10-18, no migration)
 
 The editor (spec `docs/superpowers/specs/2026-10-18-admin-event-editor-design.md`) sends café event details through the Stage 6 queue below, so **they reach the sheet only once RTD Sheet Writer (`TAa4F7wKzzeIDKm8`) is published**.

@@ -21,10 +21,12 @@ export function Home() {
   const feature =
     tonight.find(o => o.start_time && o.image) ?? tonight.find(o => o.start_time) ?? tonight.find(o => o.image) ?? tonight[0] ??
     upcoming.find(o => o.start_time) ?? upcoming[0];
-  const comingUp = firstPerEvent(upcoming.filter(o => o.date <= addDays(today, 14)), feature ? [feature] : []).slice(0, 8);
+  // Coming up includes private games: they show the café is busy, and people can ask to join.
+  const soon = (withPrivate ?? []).filter(o => isUpcoming(o) && o.date <= addDays(today, 14));
+  const comingUp = firstPerEvent(soon, feature ? [feature] : []).slice(0, 8);
   const heading = tonight.length ? 'Tonight at Roll The Dice' : 'Next up at Roll The Dice';
-  // Private sessions are never featured, but they do show the café is busy.
-  const busyToday = (withPrivate ?? []).filter(o => isPrivate(o) && o.date === today && isUpcoming(o)).length;
+  // Private games are never featured, but they do show the café is busy.
+  const busyToday = (withPrivate ?? []).filter(o => isPrivate(o) && o.date === today && isUpcoming(o));
 
   return (
     <>
@@ -52,11 +54,17 @@ export function Home() {
               </div>
             )}
             {feature && <EventCard o={feature} feature today={today} />}
-            {busyToday > 0 && (
+            {busyToday.length > 0 && (
               <p class="meta home-busy">
                 <Lock size={15} aria-hidden="true" />
                 <span>
-                  Plus {busyToday} private {busyToday === 1 ? 'session' : 'sessions'} today. <a href="/diary">See the diary</a>
+                  Also on today: {busyToday.map((o, i) => (
+                    <span key={o.occurrence_id}>
+                      {i > 0 && ', '}
+                      <a href={`/event/${o.occurrence_id}`}>{o.name}</a>
+                    </span>
+                  ))}{' '}
+                  (private {busyToday.length === 1 ? 'game' : 'games'}).
                 </span>
               </p>
             )}

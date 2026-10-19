@@ -2,6 +2,7 @@ import { CalendarDays, CalendarPlus, ChevronDown, ChevronLeft, Clock, MapPin, Po
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { AlertsInline } from '../components/Alerts';
 import { BookingPanel } from '../components/BookingPanel';
+import { JoinPanel } from '../components/JoinPanel';
 import { MarketVendorPanel } from './Markets';
 import { Chip, ChipRow, occurrenceChips } from '../components/Chips';
 import { eventHref } from '../components/EventCard';
@@ -175,7 +176,13 @@ function EventDetail({ o, others, images }: { o: Occurrence; others: Occurrence[
                 <span><strong>Roll The Dice</strong>Board Game Café</span>
               </div>
             </div>
-            {o.market_id ? <MarketVendorPanel marketId={o.market_id} /> : <BookingPanel key={o.occurrence_id} o={o} />}
+            {o.visibility === 'private' ? (
+              <JoinPanel key={o.occurrence_id} o={o} />
+            ) : o.market_id ? (
+              <MarketVendorPanel marketId={o.market_id} />
+            ) : (
+              <BookingPanel key={o.occurrence_id} o={o} />
+            )}
             <div class="event-page__actions">
               <CalendarMenu o={o} />
               <ShareMenu data={eventShare(o, location.origin)} eventId={o.event_id} />

@@ -15,6 +15,7 @@ import { decideSession, listHosts, listSessions, type SessionStatus } from '../h
 import { afterResponse } from '../lib/background';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
 import { staffSummary } from '../staff/summary';
+import { approve as approvePrompt, eventSocial, regenerate as regeneratePrompt, setMode as setSocialMode, socialOverview } from '../social/admin';
 import { drain, overview, parseReminder, sendReminder } from '../notify/alerts';
 import { PERIODS, statsOverview, type Period } from '../stats/stats';
 import { adminLibrary, applyImport, attachCover, confirmReview, confirmReviews, createGame, rejectReview, removeCover, reviewList, setCoverStatus, setLive, setRetired, updateGame } from '../games/admin';
@@ -257,6 +258,52 @@ staffRoutes.post('/events/:id/booking-mode', async c => {
   const result = await setBookingMode(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), { now: now.toISOString(), today: londonDate(now) });
   if (result.ok) return c.json({ booking_mode: result.booking_mode, booking_mode_set: result.booking_mode_set });
   return 'warning' in result ? c.json({ warning: result.warning }, 409) : c.json({ error: result.error, errors: result.errors }, result.status);
+});
+
+// --- Social prompts (docs/superpowers/specs/2026-10-18-social-master-prompt-design.md §5): admins only ---
+
+/** Far more than a prompt (3,000 characters) and a reason need. */
+const MAX_SOCIAL_BODY = 64_000;
+
+/** The switch, the prompts waiting for a person, and the posts the check held (or would have). */
+staffRoutes.get('/social', async c => {
+  const res = await socialOverview(c.env.DB, c.get('user'));
+  return res.ok ? c.json({ mode: res.mode, review: res.review, held: res.held }) : c.json({ error: res.error }, res.status);
+});
+
+/** Body: { mode: 'off' | 'shadow' | 'enforce' } */
+staffRoutes.post('/social/mode', async c => {
+  const res = await setSocialMode(c.env.DB, c.get('user'), await c.req.json().catch(() => null), new Date());
+  return res.ok ? c.json({ mode: res.mode }) : c.json({ error: res.error }, res.status);
+});
+
+/** One event: its facts as the last sync read them, its prompt and versions, and its last 10 checks. */
+staffRoutes.get('/events/:id/social', async c => {
+  const res = await eventSocial(c.env.DB, c.get('user'), c.req.param('id'));
+  if (!res.ok) return c.json({ error: res.error }, res.status);
+  const { ok: _ok, ...page } = res;
+  return c.json(page);
+});
+
+/** Make the event due again on the builder's next run. */
+staffRoutes.post('/events/:id/social/regenerate', async c => {
+  const res = await regeneratePrompt(c.env.DB, c.get('user'), c.req.param('id'), new Date());
+  return res.ok ? c.json({ ok: true }) : c.json({ error: res.error }, res.status);
+});
+
+/** Approve with a note. Body: { text?, reason }. 400 { error, errors } when the text fails the checks a generated prompt gets. */
+staffRoutes.post('/events/:id/social/approve', async c => {
+  if (c.get('user').role !== 'admin') return c.json({ error: 'Only admins can manage social prompts.' }, 403);
+  const text = await c.req.text();
+  if (text.length > MAX_SOCIAL_BODY) return c.json({ error: 'That is too long to be a prompt.' }, 413);
+  let body: unknown = null;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return c.json({ error: 'Send JSON' }, 400);
+  }
+  const res = await approvePrompt(c.env.DB, c.get('user'), c.req.param('id'), body, new Date());
+  return res.ok ? c.json({ version: res.version }) : c.json({ error: res.error, errors: res.errors }, res.status);
 });
 
 /** Hosts. Everyone joins through a join request; there's no adding people directly. */

@@ -3,6 +3,7 @@
 
 import { parseClock, parseSheetDate } from '../lib/time';
 import { sheetValuesOf } from './sheetValues';
+import type { SocialValues } from '../social/facts';
 
 export const CATEGORIES = ['Gaming', 'Quiz', 'Social', 'Club', 'Tournament', 'Market', 'Workshop', 'Other'] as const;
 export type Category = (typeof CATEGORIES)[number];
@@ -40,6 +41,8 @@ export interface NormalisedEvent {
   sheet_date_raw: string | null;
   /** The columns the organiser can change, canonical (src/sync/sheetValues.ts): left out of source_hash. */
   sheet_values: Record<string, string>;
+  /** The owner columns for social posts, raw cell text (src/social/facts.ts): left out of source_hash. */
+  social_values: SocialValues;
 }
 
 export interface SyncWarning {
@@ -56,6 +59,15 @@ const MARKET_ID = /^RTD-MKT-\d{5,}$/;
 
 const text = (v: unknown): string => String(v ?? '').trim();
 const orNull = (s: string): string | null => (s === '' ? null : s);
+
+/** Approved Facts, People & Roles and Banned Phrases (Standard Diary has no Banned Phrases). */
+function socialValuesOf(source: Source, row: SheetRow): SocialValues {
+  return {
+    approved_facts: text(row['Approved Facts']),
+    people_roles: text(row['People & Roles']),
+    banned_phrases: source === 'event_index' ? text(row['Banned Phrases']) : '',
+  };
+}
 
 function rowNumber(row: SheetRow): number | null {
   const n = Number(row['row_number']);
@@ -165,6 +177,7 @@ export function normaliseRows(
       next: date ? { date, start_time: start, end_time: end, all_day: start === null } : null,
       sheet_date_raw: orNull(text(dateRaw).slice(0, 60)),
       sheet_values: sheetValuesOf(source, row),
+      social_values: socialValuesOf(source, row),
     });
   }
 

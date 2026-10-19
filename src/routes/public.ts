@@ -1,10 +1,12 @@
 // Public, read-only endpoints for the diary. Only active events with Public or
 // App Bookable visibility are ever returned in full. Private ones appear in the
-// diary list only as "Private session" with their time; Hidden never appears.
+// diary list and on their date's page as a private game (name, time, description:
+// redactPrivate), with a message form instead of booking; Hidden never appears.
 // Only dates still to come or still running are shown: a date stops being public
 // the moment it ends (docs/RTD_EVENT_CONTROL_AUDIT.md, G-1), whatever n8n has done.
 
 import { Hono } from 'hono';
+import { sendEnquiry } from '../events/enquiries';
 import { imagesByEvent, withImages } from '../images/store';
 import { calendarFile, googleCalendarUrl } from '../lib/calendar';
 import {
@@ -98,11 +100,11 @@ publicRoutes.get('/events/:eventId', async c => {
  */
 publicRoutes.get('/occurrences/:occurrenceId', async c => {
   const now = new Date();
-  const found = await findOccurrence(c.env.DB, c.req.param('occurrenceId'));
+  const found = await findOccurrence(c.env.DB, c.req.param('occurrenceId'), { listed: true });
   if (!found) return c.json({ error: 'Not found' }, 404);
   const reason = goneReason(found, now);
   if (reason) {
-    const next = await nextOccurrence(c.env.DB, found.event_id, now);
+    const next = await nextOccurrence(c.env.DB, found.event_id, now, { listed: true });
     const gone = {
       occurrence_id: found.occurrence_id,
       event_id: found.event_id,
@@ -113,19 +115,34 @@ publicRoutes.get('/occurrences/:occurrenceId', async c => {
     };
     return c.json({ error: GONE[reason], gone }, 410, next ? publicCache([next], now) : CACHE);
   }
+  if (found.visibility === 'private') return c.json({ occurrence: { ...redactPrivate(found), images: [] } }, 200, publicCache([found], now));
   const [occurrence] = await withImages(c.env.DB, [found]);
   const images = (await imagesByEvent(c.env.DB, [found.event_id])).get(found.event_id) ?? [];
   return c.json({ occurrence: { ...occurrence, images } }, 200, publicCache([found], now));
 });
 
+/**
+ * "Interested in joining? Get in touch!" on a private game (src/events/enquiries.ts). Body:
+ * { name, email, message, consent, website }. 201 when sent; 400 { errors }; 404 if it isn't a
+ * private game still to come; 429 after 3 in an hour from one network.
+ */
+publicRoutes.post('/occurrences/:occurrenceId/enquiry', async c => {
+  const res = await sendEnquiry(c.env.DB, c.req.param('occurrenceId'), await c.req.json().catch(() => null), {
+    now: new Date(),
+    ip: c.req.header('CF-Connecting-IP') ?? null,
+    origin: new URL(c.req.url).origin,
+  });
+  return res.ok ? c.json({ ok: true }, 201) : c.json({ error: res.error, errors: res.errors }, res.status);
+});
+
 /** Add to Calendar (spec §39): an .ics file for Apple, Outlook and most others. */
 publicRoutes.get('/occurrences/:occurrenceId/calendar.ics', async c => {
   const now = new Date();
-  const o = await findOccurrence(c.env.DB, c.req.param('occurrenceId'));
+  const o = await findOccurrence(c.env.DB, c.req.param('occurrenceId'), { listed: true });
   if (!o || goneReason(o, now)) return c.json({ error: 'Not found' }, 404);
   const origin = new URL(c.req.url).origin;
   const slug = o.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'event';
-  return c.body(calendarFile(o, { origin, location: c.env.VENUE_LOCATION, now }), 200, {
+  return c.body(calendarFile(redactPrivate(o), { origin, location: c.env.VENUE_LOCATION, now }), 200, {
     'Content-Type': 'text/calendar; charset=utf-8',
     'Content-Disposition': `attachment; filename="rtd-${slug}-${o.date}.ics"`,
     ...publicCache([o], now),
@@ -134,7 +151,7 @@ publicRoutes.get('/occurrences/:occurrenceId/calendar.ics', async c => {
 
 /** Add to Calendar, Google flavour: a redirect to Google's prefilled form. */
 publicRoutes.get('/occurrences/:occurrenceId/google-calendar', async c => {
-  const o = await findOccurrence(c.env.DB, c.req.param('occurrenceId'));
+  const o = await findOccurrence(c.env.DB, c.req.param('occurrenceId'), { listed: true });
   if (!o || goneReason(o, new Date())) return c.json({ error: 'Not found' }, 404);
-  return c.redirect(googleCalendarUrl(o, { origin: new URL(c.req.url).origin, location: c.env.VENUE_LOCATION }), 302);
+  return c.redirect(googleCalendarUrl(redactPrivate(o), { origin: new URL(c.req.url).origin, location: c.env.VENUE_LOCATION }), 302);
 });
