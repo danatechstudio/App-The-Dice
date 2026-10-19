@@ -35,7 +35,7 @@ export type Cells = { 'Social Prompt': string; 'Social Prompt Status': string };
 
 /** Failures for the same facts before the event is blocked. */
 const MAX_FAILURES = 3;
-const REASON_MAX = 300;
+const REASON_MAX = 500;
 const ID_MAX = 100;
 /** How long a reason can be in the one-line Social Prompt Status cell. */
 const CELL_REASON_MAX = 200;
@@ -285,13 +285,28 @@ const supersede = (db: D1Database, eventId: string) =>
  * (any older one for the facts stays as history). Returns the newest version for the facts (another
  * post's, if it got there first).
  */
-async function store(db: D1Database, existing: PromptRow | null, p: NewPrompt): Promise<PromptRow> {
+async function store(db: D1Database, existing: PromptRow | null, p: NewPrompt): Promise<{ row: PromptRow; stored: boolean }> {
   const steps: D1PreparedStatement[] = [];
-  if (existing?.status === 'pending') steps.push(fillPrompt(db, existing.prompt_id, p));
-  else steps.push(insertPrompt(db, { ...p, replaces: existing?.prompt_id ?? null }));
+  // A waiting regenerate request is filled only while it is the event's newest version. One that a
+  // version for other facts has overtaken since is closed, and the answer becomes a new version.
+  const fill = existing?.status === 'pending' && existing.version > (await latestVersion(db, p.event_id));
+  if (fill) steps.push(fillPrompt(db, existing.prompt_id, p));
+  else {
+    steps.push(insertPrompt(db, { ...p, replaces: existing?.prompt_id ?? null }));
+    if (existing?.status === 'pending') {
+      steps.push(
+        db
+          .prepare(
+            `UPDATE social_prompts SET status = 'superseded' WHERE prompt_id = ?1 AND status = 'pending'
+               AND EXISTS (SELECT 1 FROM social_prompts WHERE event_id = ?2 AND source_fingerprint = ?3 AND version > ?4)`,
+          )
+          .bind(existing.prompt_id, p.event_id, p.fingerprint, existing.version),
+      );
+    }
+  }
   if (p.status === 'approved') steps.push(supersede(db, p.event_id));
-  await db.batch(steps);
-  return (await slotRow(db, p.event_id, p.fingerprint))!;
+  const [first] = await db.batch(steps);
+  return { row: (await slotRow(db, p.event_id, p.fingerprint))!, stored: (first?.meta.changes ?? 0) > 0 };
 }
 
 const audit = (db: D1Database, eventId: string, actor: { type: 'n8n' | 'staff'; id: string }, action: string, value: unknown, iso: string) =>
@@ -314,28 +329,32 @@ export interface DuePrompt {
 }
 
 /**
+ * The events that can have a prompt made now (?1 = today, London), with their next date: active,
+ * Public or App Bookable, with a scheduled, visible date still to come, and no change on its way to
+ * the Logic Engine. The builder's list and its answers both go by this.
+ */
+const ELIGIBLE = `SELECT * FROM (
+  SELECT ${EVENT_FIELDS},
+    (SELECT MIN(o.event_date) FROM occurrences o WHERE o.event_id = e.event_id AND o.status = 'scheduled' AND o.event_date >= ?1
+       AND COALESCE(o.visibility, e.visibility) IN ('public', 'app_bookable')) AS next_date
+  FROM events e
+  WHERE e.active = 1 AND e.visibility IN ('public', 'app_bookable')
+    AND NOT EXISTS (SELECT 1 FROM sheet_edits s WHERE s.event_id = e.event_id AND ${OPEN})
+    AND NOT EXISTS (SELECT 1 FROM event_change_requests r WHERE r.event_id = e.event_id
+                      AND (r.status = 'pending' OR (r.status = 'approved' AND r.applied_at IS NULL)))
+) WHERE next_date IS NOT NULL`;
+
+const eligible = async (db: D1Database, eventId: string, now: Date): Promise<boolean> =>
+  !!(await db.prepare(`${ELIGIBLE} AND event_id = ?2`).bind(londonDate(now), eventId).first());
+
+/**
  * Events that need a prompt, soonest first: active, Public or App Bookable, with a scheduled date
  * still to come; no change on its way to the Logic Engine (an organiser edit, a host's request
  * waiting for a decision, or an approved one not yet in the sheet), since the facts may be about to
  * change; and nothing settled for their current facts, or an admin asked for a regenerate.
  */
 export async function duePrompts(db: D1Database, now: Date, limit: number): Promise<DuePrompt[]> {
-  const { results } = await db
-    .prepare(
-      `SELECT * FROM (
-         SELECT ${EVENT_FIELDS},
-           (SELECT MIN(o.event_date) FROM occurrences o WHERE o.event_id = e.event_id AND o.status = 'scheduled' AND o.event_date >= ?1
-              AND COALESCE(o.visibility, e.visibility) IN ('public', 'app_bookable')) AS next_date
-         FROM events e
-         WHERE e.active = 1 AND e.visibility IN ('public', 'app_bookable')
-           AND NOT EXISTS (SELECT 1 FROM sheet_edits s WHERE s.event_id = e.event_id AND ${OPEN})
-           AND NOT EXISTS (SELECT 1 FROM event_change_requests r WHERE r.event_id = e.event_id
-                             AND (r.status = 'pending' OR (r.status = 'approved' AND r.applied_at IS NULL)))
-       ) WHERE next_date IS NOT NULL
-       ORDER BY next_date, event_id LIMIT 500`,
-    )
-    .bind(londonDate(now))
-    .all<Record<string, unknown>>();
+  const { results } = await db.prepare(`${ELIGIBLE} ORDER BY next_date, event_id LIMIT 500`).bind(londonDate(now)).all<Record<string, unknown>>();
   if (!results.length) return [];
 
   const ids = results.map(r => String(r.event_id));
@@ -367,6 +386,26 @@ export type ProposeResult =
 
 const shortText = (v: unknown, max: number): string | null => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
 
+/** A failure report's error as n8n sends it: text, or an error object (its message, or else the whole of it as JSON). */
+function errorText(v: unknown): string | null {
+  if (v === undefined || v === null) return null;
+  if (typeof v === 'object') {
+    const message = (v as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return shortText(message, REASON_MAX);
+    return shortText(JSON.stringify(v), REASON_MAX);
+  }
+  return shortText(String(v), REASON_MAX);
+}
+
+/** What the stored version says, for n8n. Null for a row that isn't an answer (one still waiting). */
+const answer = (row: PromptRow, prompt: string): ProposeResult | null =>
+  row.status === 'approved' || row.status === 'review_required' || row.status === 'blocked'
+    ? { ok: true, status: row.status, version: row.version, cells: cellsFor(row, prompt) }
+    : null;
+/** Each copy of the schedule rule in a text, with the white space either side of it. */
+const RULE_COPIES = new RegExp(`\\s*${SCHEDULE_RULE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'g');
+const RACE: Fail = { ok: false, status: 409, error: 'Another answer for these facts is being stored just now. Drop this one.' };
+
 /**
  * Gemini's answer for an event. Body: { fingerprint, job_id?, model?, output } with Gemini's raw
  * output (JSON or its text), or { fingerprint, job_id?, error } when the generation failed (a
@@ -377,18 +416,19 @@ export async function proposePrompt(db: D1Database, eventId: string, body: unkno
   if (!body || typeof body !== 'object' || Array.isArray(body)) return fail(400, 'Body must be a JSON object');
   const b = body as Record<string, unknown>;
   if (typeof b.fingerprint !== 'string' || !b.fingerprint) return fail(400, 'fingerprint is required (from /due)');
-  const error = shortText(b.error, REASON_MAX);
+  const error = errorText(b.error);
   if (!error && b.output === undefined) return fail(400, 'output (what Gemini returned) or error (why there is none) is required');
 
   const event = await loadEvent(db, eventId);
   if (!event) return fail(404, 'No event with that ID');
   if (b.fingerprint !== event.fp) return fail(409, "Stale: the event's facts changed since this was asked for. Drop it; the event is due again.");
+  // It stopped running, lost its last date or has a change on its way since /due: nothing is stored.
+  if (!(await eligible(db, eventId, now))) return fail(409, 'The event is no longer due (not running, no date to come, or a change on its way). Drop it.');
 
   const iso = now.toISOString();
   const [existing, latest] = await Promise.all([slotRow(db, eventId, event.fp), latestVersion(db, eventId)]);
   // These facts already have their answer (a duplicate post): hand back what is stored.
-  if (settles(existing, latest))
-    return { ok: true, status: existing.status as PromptStatus, version: existing.version, cells: cellsFor(existing, await inUse(db, eventId, event.fp)) };
+  if (settles(existing, latest)) return answer(existing, await inUse(db, eventId, event.fp)) ?? RACE;
 
   const meta = { model: shortText(b.model, ID_MAX), job_id: shortText(b.job_id, ID_MAX) };
   const base = { event_id: eventId, fingerprint: event.fp, snapshot: JSON.stringify(event.fields), now: iso, ...meta, generated: true };
@@ -408,19 +448,25 @@ export async function proposePrompt(db: D1Database, eventId: string, body: unkno
       .bind(eventId, event.fp, since?.t ?? '')
       .all<{ reason: string }>();
     if (failures.length < MAX_FAILURES) return { ok: true, status: 'failed', failures: failures.length, version: null, cells: null };
-    const row = await store(db, existing, { ...base, status: 'blocked', validation_errors: ['generation failed', ...failures.map(f => String(f.reason))] });
-    await audit(
-      db,
-      eventId,
-      N8N,
-      'social_prompt.generated',
-      { version: row.version, status: row.status, fingerprint: event.fp, job_id: meta.job_id },
-      iso,
-    ).run();
-    return { ok: true, status: 'blocked', version: row.version, cells: cellsFor(row, await inUse(db, eventId, event.fp)) };
+    const { row, stored } = await store(db, existing, {
+      ...base,
+      status: 'blocked',
+      validation_errors: ['generation failed', ...failures.map(f => String(f.reason))],
+    });
+    // Only what was stored is audited: when another post got there first, its answer comes back.
+    if (stored)
+      await audit(
+        db,
+        eventId,
+        N8N,
+        'social_prompt.generated',
+        { version: row.version, status: row.status, fingerprint: event.fp, job_id: meta.job_id },
+        iso,
+      ).run();
+    return answer(row, await inUse(db, eventId, event.fp)) ?? RACE;
   }
 
-  const row = await store(db, existing, {
+  const { row, stored } = await store(db, existing, {
     ...base,
     status: verdict.status,
     master_prompt: verdict.master_prompt,
@@ -429,8 +475,16 @@ export async function proposePrompt(db: D1Database, eventId: string, body: unkno
     validation_errors: verdict.errors,
     approved_by: 'system',
   });
-  await audit(db, eventId, N8N, 'social_prompt.generated', { version: row.version, status: row.status, fingerprint: event.fp, job_id: meta.job_id }, iso).run();
-  return { ok: true, status: row.status as PromptStatus, version: row.version, cells: cellsFor(row, await inUse(db, eventId, event.fp)) };
+  if (stored)
+    await audit(
+      db,
+      eventId,
+      N8N,
+      'social_prompt.generated',
+      { version: row.version, status: row.status, fingerprint: event.fp, job_id: meta.job_id },
+      iso,
+    ).run();
+  return answer(row, await inUse(db, eventId, event.fp)) ?? RACE;
 }
 
 /**
@@ -536,9 +590,12 @@ export async function approveOverride(
   const existing = await slotRow(db, eventId, event.fp);
   const given = typeof b.text === 'string' && b.text.trim() ? b.text : existing?.master_prompt;
   if (!given?.trim()) return fail(400, 'There is no prompt for these facts to approve: paste the text.');
-  // The rule is code's to add: take it off the end if it's there, check the rest, then add it once.
-  let text = given.trim();
-  if (text.endsWith(SCHEDULE_RULE)) text = text.slice(0, -SCHEDULE_RULE.length).trim();
+  // The rule is code's to add: take out every copy pasted in (with the blank lines around it, or
+  // the spaces within a line), check the rest, then add it once at the end.
+  const text = given
+    .replace(RULE_COPIES, copy => (copy.includes('\n') ? '\n\n' : ' '))
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
   if (!text) return fail(400, 'There is no prompt for these facts to approve: paste the text.');
   if ([...text].length > MAX_PROMPT_CHARS) return fail(400, `The prompt is over ${MAX_PROMPT_CHARS} characters.`);
   const errors = promptTextErrors(text, event.fields, await otherEventNames(db, eventId, event.row));
@@ -546,7 +603,7 @@ export async function approveOverride(
 
   const final = `${text}\n\n${SCHEDULE_RULE}`;
   const iso = now.toISOString();
-  const row = await store(db, existing, {
+  const { row, stored } = await store(db, existing, {
     event_id: eventId,
     status: 'approved',
     fingerprint: event.fp,
@@ -557,6 +614,7 @@ export async function approveOverride(
     override_reason: reason,
     approved_by: admin.email,
   });
+  if (!stored) return fail(409, 'The prompt for this event changed just now. Look again, then approve.');
   await audit(db, eventId, { type: 'staff', id: admin.email }, 'social_prompt.overridden', { version: row.version, fingerprint: event.fp, reason }, iso).run();
   return { ok: true, version: row.version };
 }

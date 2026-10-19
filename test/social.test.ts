@@ -248,12 +248,30 @@ describe('prompt store', () => {
     (await env.DB.prepare('SELECT * FROM audit_log WHERE action = ?1 ORDER BY audit_id').bind(action).all<Record<string, string>>()).results;
 
   it('lists an event as due until it has a prompt for its facts, and never a past, private or hidden one', async () => {
-    await syncRows([
-      dndRow(),
+    const others = [
       indexRow(2, { 'App Visibility': 'Private' }),
       indexRow(3, { 'App Visibility': 'Hidden' }),
       indexRow(4, { 'Event Date': '01/10/2026' }),
       indexRow(5),
+      indexRow(8, { Status: 'Inactive' }),
+      indexRow(9),
+      indexRow(10),
+      indexRow(11),
+    ];
+    await syncRows([dndRow(), ...others]);
+    // Its only date cancelled; its only date hidden.
+    await env.DB.prepare("UPDATE occurrences SET status = 'cancelled' WHERE event_id = 'RTD-EVT-00009'").run();
+    await env.DB.prepare("UPDATE occurrences SET visibility = 'hidden' WHERE event_id = 'RTD-EVT-00010'").run();
+    // A host's change request waiting for a decision.
+    const iso = NOW.toISOString();
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO users VALUES ('u-sam', 'sam@example.com', 'Sam', 'host', 1, ?1, ?1)").bind(iso),
+      env.DB.prepare(
+        "INSERT INTO host_sessions (session_id, host_user_id, name, event_date, start_time, max_players, status, created_at, updated_at) VALUES ('RTD-HS-00001', 'u-sam', 'D&D', '2026-10-23', '18:00', 6, 'published', ?1, ?1)",
+      ).bind(iso),
+      env.DB.prepare(
+        "INSERT INTO event_change_requests (request_id, session_id, event_id, requested_by, published, proposed, status, created_at, updated_at) VALUES ('RTD-CR-00001', 'RTD-HS-00001', 'RTD-EVT-00011', 'sam@example.com', '{}', '{}', 'pending', ?1, ?1)",
+      ).bind(iso),
     ]);
     // A change on its way to the Logic Engine: the facts may be about to change, so not yet.
     await env.DB.prepare(
@@ -287,8 +305,72 @@ describe('prompt store', () => {
     // A prompt for these facts: not due. New facts: due again.
     expect((await propose(DND, { fingerprint: await currentFp(), job_id: 'exec-1', model: 'm', output: output() })).status).toBe(200);
     expect(await dueIds()).toEqual(['RTD-EVT-00005']);
-    await syncRows([dndRow({ 'Approved Facts': `${FACTS}\nLevel: all levels` }), indexRow(5)]);
+    await syncRows([dndRow({ 'Approved Facts': `${FACTS}\nLevel: all levels` }), ...others]);
     expect((await dueIds()).sort()).toEqual(['RTD-EVT-00005', DND]);
+  });
+
+  it('refuses an answer (409) for an event that stopped being due meanwhile, and stores nothing', async () => {
+    await syncRows([dndRow()]);
+    const fp = await currentFp();
+    expect(await dueIds()).toEqual([DND]);
+    // A change on its way to the Logic Engine.
+    await env.DB.prepare(
+      `INSERT INTO sheet_edits (edit_id, event_id, source, target, fields, requested_by, status, created_at, updated_at)
+       VALUES ('RTD-SE-00001', ?1, 'event_index', 'live', '{}', 'dan@example.com', 'queued', ?2, ?2)`,
+    )
+      .bind(DND, NOW.toISOString())
+      .run();
+    expect((await propose(DND, { fingerprint: fp, output: output() })).status).toBe(409);
+    await env.DB.prepare("UPDATE sheet_edits SET status = 'synced'").run();
+    // Stopped running (the facts, and so the fingerprint, are the same).
+    await syncRows([dndRow({ Status: 'Inactive' })]);
+    expect(await currentFp()).toBe(fp);
+    const res = await propose(DND, { fingerprint: fp, output: output() });
+    expect(res.status).toBe(409);
+    expect((await propose(DND, { fingerprint: fp, error: 'quota' })).status).toBe(409);
+    expect(await rows()).toEqual([]);
+    expect(await audits('social_prompt.failed')).toEqual([]);
+    expect(await audits('social_prompt.generated')).toEqual([]);
+  });
+
+  it('stores one version when the same answer is posted twice at once', async () => {
+    await syncRows([dndRow()]);
+    const fp = await currentFp();
+    const both = await Promise.all([propose(DND, { fingerprint: fp, output: output() }), propose(DND, { fingerprint: fp, output: output() })]);
+    for (const res of both) expect(await res.json()).toMatchObject({ ok: true, status: 'approved', version: 1 });
+    expect((await rows()).map(r => [r.version, r.status])).toEqual([[1, 'approved']]);
+    // Only what was stored is audited.
+    expect(await audits('social_prompt.generated')).toHaveLength(1);
+    // Posted again later: the stored answer, nothing new.
+    expect(await (await propose(DND, { fingerprint: fp, output: reviewOutput() })).json()).toMatchObject({ status: 'approved', version: 1 });
+    expect(await rows()).toHaveLength(1);
+    expect(await audits('social_prompt.generated')).toHaveLength(1);
+  });
+
+  it('makes a fresh version when the facts come back to a set whose regenerate request was overtaken', async () => {
+    await syncRows([dndRow()]);
+    const a = await currentFp();
+    await propose(DND, { fingerprint: a, output: output() });
+    expect(await requestRegenerate(env.DB, admin, DND, new Date())).toEqual({ ok: true });
+    await syncRows([dndRow({ 'Approved Facts': `${FACTS}\nLevel: all levels` })]);
+    expect(await (await propose(DND, { fingerprint: await currentFp(), output: output() })).json()).toMatchObject({ status: 'approved', version: 3 });
+
+    await syncRows([dndRow()]);
+    expect(await dueIds()).toEqual([DND]);
+    expect(await (await propose(DND, { fingerprint: a, output: output() })).json()).toEqual({
+      ok: true,
+      status: 'approved',
+      version: 4,
+      cells: { 'Social Prompt': `${goodPrompt}\n\n${SCHEDULE_RULE}`, 'Social Prompt Status': 'approved · v4' },
+    });
+    expect((await rows()).map(r => [r.version, r.status])).toEqual([
+      [1, 'superseded'],
+      [2, 'superseded'],
+      [3, 'superseded'],
+      [4, 'approved'],
+    ]);
+    expect(await currentPrompt(env.DB, DND)).toMatchObject({ version: 4, fingerprint: a, current: true });
+    expect(await dueIds()).toEqual([]);
   });
 
   it('approves a valid proposal, supersedes the old version, and returns the cells', async () => {
@@ -358,6 +440,11 @@ describe('prompt store', () => {
     expect(await dueIds()).toEqual([]);
     expect((await rows()).map(r => r.status)).toEqual(['blocked']);
     expect(await audits('social_prompt.failed')).toHaveLength(3);
+    expect((await audits('social_prompt.failed')).map(r => JSON.parse(r.new_value!).reason)).toEqual([
+      'The output is not JSON',
+      'Gemini: quota exceeded',
+      expect.any(String),
+    ]);
 
     // Regenerate: only an admin, and the event is due again with a fresh count.
     expect(await requestRegenerate(env.DB, staff, DND, NOW)).toEqual({ ok: false, status: 403, error: 'Only admins can manage social prompts.' });
@@ -367,7 +454,10 @@ describe('prompt store', () => {
     expect(await requestRegenerate(env.DB, admin, DND, new Date())).toEqual({ ok: true });
     expect(await audits('social_prompt.regenerate_requested')).toHaveLength(2);
     expect(await dueIds()).toEqual([DND]);
-    expect(await (await propose(DND, { fingerprint: fp, error: 'timeout' })).json()).toMatchObject({ status: 'failed', failures: 1 });
+    // n8n may pass its error object as it is.
+    expect(await (await propose(DND, { fingerprint: fp, error: { message: 'quota' } })).json()).toMatchObject({ status: 'failed', failures: 1 });
+    expect(await (await propose(DND, { fingerprint: fp, error: { code: 429 } })).json()).toMatchObject({ status: 'failed', failures: 2 });
+    expect((await audits('social_prompt.failed')).slice(3).map(r => JSON.parse(r.new_value!).reason)).toEqual(['quota', '{"code":429}']);
     expect(await (await propose(DND, { fingerprint: fp, output: output() })).json()).toMatchObject({ status: 'approved', version: 2 });
     expect((await rows()).map(r => [r.version, r.status, r.override_reason])).toEqual([
       [1, 'blocked', null],
@@ -479,6 +569,11 @@ describe('prompt store', () => {
     expect(stored[2]!.master_prompt).toBe(`${goodPrompt}\n\n${SCHEDULE_RULE}`);
     expect(stored[2]!.master_prompt!.split(SCHEDULE_RULE)).toHaveLength(2);
     expect(await audits('social_prompt.overridden')).toHaveLength(2);
+
+    // The rule pasted in the middle is taken out there and added once at the end.
+    const middle = `${goodPrompt}\n\n${SCHEDULE_RULE}\n\nKeep it short. ${SCHEDULE_RULE} Be warm.`;
+    expect(await approveOverride(env.DB, admin, DND, { text: middle, reason: 'Moved the rule' }, NOW)).toEqual({ ok: true, version: 4 });
+    expect((await rows())[3]!.master_prompt).toBe(`${goodPrompt}\n\nKeep it short. Be warm.\n\n${SCHEDULE_RULE}`);
   });
 
   it('gives two versions made in one batch different numbers', async () => {
