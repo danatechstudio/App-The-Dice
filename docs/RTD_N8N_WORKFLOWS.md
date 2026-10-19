@@ -11,7 +11,7 @@ Stage 2, Task 3. The Facebook event post now goes through the Context and Gate s
 | | Version |
 | --- | --- |
 | **Rollback point** (recorded before any edit; still the published version) | `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b` |
-| New draft (not published) | `df78f5ec-b1eb-49b1-a300-9785aa7c1b75` |
+| New draft (not published) | `df78f5ec-b1eb-49b1-a300-9785aa7c1b75`, then `7361e5e3-3dfb-4dd0-b1a5-ac23e6b4e24f` after the follow-up (held retry, Food log fix) |
 
 To roll back after G5, publish `38b1d6d1-…` again. See [As built: Master V1, the Facebook event post](#as-built-master-v1-the-facebook-event-post) under the contract below.
 
@@ -716,15 +716,16 @@ The two test copies are archived. D1 `social_checks` had 0 rows before and after
 
 #### As built: Master V1, the Facebook event post
 
-**Edited 2026-10-19, in the draft only** (draft `df78f5ec-b1eb-49b1-a300-9785aa7c1b75`; the published version is still `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b`, the rollback point). Only the Facebook event path changed (integration point 1). The round-ups, Instagram and posters are Tasks 4 and 5.
+**Edited 2026-10-19, in the draft only** (latest draft `7361e5e3-3dfb-4dd0-b1a5-ac23e6b4e24f`; the published version is still `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b`, the rollback point). Only the Facebook event path changed (integration point 1). The round-ups, Instagram and posters are Tasks 4 and 5.
 
 **New nodes** (all named `… (Event Post)`):
 - **Social Context (Event Post):** Execute Workflow → RTD Social Context (sub), once per due event, with `events: [{ event_id: <Event ID>, sheet_date: <Event Date> }]` as a real array. `onError: continueRegularOutput`, so a failed call means no layer.
 - **Add Social Layer (Event Post):** Code. It copies Pair With Event Metrics' item unchanged and adds `social: { mode, ok, event_id, sheet_date, block, date_block, occurrence_id, prompt_version }`. With no layer, `block` is `''`. It never throws.
 - **Social Gate (Event Post):** Execute Workflow → RTD Social Gate (sub), after Build Photo Context (Master). It sends `kind: 'event_post'`, `platform: 'facebook'`, `targets: [{ event_id, occurrence_id, prompt_version }]` (a real array, and `occurrence_id` may be `null`), `text` = the caption exactly as Buffer gets it, `workflow: 'RTD Master V1'`, `execution_id`, and `sheet_dates: { <Event ID>: <Event Date> }` (a real object). `image_text` is empty until Task 5. `onError: continueRegularOutput`.
 - **Merge Gate Answer (Event Post):** Code. Build Photo Context's item (caption and photos, untouched), plus `social_post` and `social_held_reason`. If the Gate gives no `post`, the post is held with the reason "the social gate gave no answer" or the error.
-- **Social Gate Says Post? (Event Post):** IF on `social_post === true` only, never on the reason. True → **Post to Buffer (Master)**, as before. False → **Log Held Post (Event Post)**.
-- **Log Held Post (Event Post):** Google Sheets append to Post Log, like Write Execution Transaction Log. Automation Status is `Held: <reason>`; Script / Copy Content is the caption. It never reaches Buffer, and Next Post isn't advanced.
+- **Social Gate Says Post? (Event Post):** IF on `social_post === true` only, never on the reason. True → **Post to Buffer (Master)**, as before. False → **Log Held Post (Event Post)** and **Retry Held Post Tomorrow (Event Post)**.
+- **Log Held Post (Event Post):** Google Sheets append to Post Log, like Write Execution Transaction Log. Automation Status is `Held: <reason>`; Script / Copy Content is the caption. It never reaches Buffer.
+- **Retry Held Post Tomorrow (Event Post):** on the same false branch, alongside Log Held Post. A Google Sheets update of Event Index, matched on `row_number` the way Advance Next Post Date (Master) matches, sets **Next Post only** to tomorrow: `$now.setZone('Europe/London').plus({ days: 1 })`, written as `dd/MM/yyyy`. It does not use the post frequency, and Last Post is not changed. A held event steps aside for the rest of the evening, so the next due event can post on the next run, and the held one is tried again tomorrow (after someone fixes its facts). Retries 3 times.
 - **Social Gate Note (Event Post):** a sticky note.
 
 **Changed nodes:**
@@ -738,7 +739,7 @@ The two test copies are archived. D1 `social_checks` had 0 rows before and after
 - **BufferID:** `data.createPost.post.id`.
 - **Asset used:** read from Pair With Event Metrics. It read `$json.fbUnderperforming`, which Buffer's answer doesn't have, so it always said `Standard`.
 
-Transport errors still go to Log Failed Post (Master), which is unchanged. The Food path's **Write Execution Transaction Log1** has the same `$json.id` bug and is not changed here.
+Transport errors still go to Log Failed Post (Master), which is unchanged. The Food path's **Write Execution Transaction Log1** had the same `$json.id` bug and the same `Asset used` bug. It now has the same fix: Automation Status and BufferID read from `data.createPost.post.id` (it wrote no BufferID before), and Asset used is read from Pair With Event Metrics1. This is logging only, so nothing that is posted changes.
 
 **Tested 2026-10-19** on two no-post test copies, both now archived:
 - `IMkiWNALz3CAmkl9` is the pre-edit path.
@@ -752,6 +753,7 @@ In both, Post to Buffer was replaced by a code stand-in that sends nothing, and 
 | `69622` | (b) Post-edit path at **Off**; the real Context (`69623`) and Gate (`69624`) subs were called | The context answered `{ mode: 'off', layers: {}, ok: true }`. Gemini input was **byte-identical to (a)**: 1,884 characters, the same sha256. The Gate got `targets` as an array (`occurrence_id: null`) and `sheet_dates` as an object, and answered `post: true`. The Buffer stand-in was reached, and the Post Log row read `Success` with the BufferID. |
 | `69626` | (c) **Shadow**, check fails; Context pinned (a layer with `RTD-OCC-00001-20261023`, v3) and Gate pinned (`post: true`) | Gemini input = block, a blank line, today's prompt, a blank line, `Date: Friday 23 October, 6:30pm`. Buffer was reached; Log Held Post was not. |
 | `69628` | (c) **Enforce**, check fails; Gate pinned (`post: false`, 3 reasons) | **Log Held Post** was reached, with `Held: Quiz: "cash prizes": …`. Buffer, the Post Log success row and Advance Next Post did not run. |
+| `69678` | Follow-up: a separate no-post test copy (`WhLP3TYABpkZVdT3`, archived). (1) Enforce: the gate is pinned to `post: false`. (2) The Food log: Buffer is a stand-in that answers success, and `fbUnderperforming` is true. | (1) The false branch ran: the Held log row stand-in, and **Retry Held Post Tomorrow**, which was disabled so its input shows (the held item; Buffer was not reached). A parallel capture of its column expressions gave `Next Post: 20/10/2026`, `row_number: 2`, run on 19/10/2026. (2) Before the fix: `Failed`, `Standard`, no BufferID. After: `Success`, `KPI Hook`, BufferID `TEST-FOOD-NOT-POSTED-0`. |
 
 ### What the check looks at
 
