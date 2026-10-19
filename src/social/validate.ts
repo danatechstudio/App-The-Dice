@@ -186,7 +186,8 @@ function nthWeekday(year: number, month: number, weekday: number, nth: number): 
   return day <= days ? `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}` : null;
 }
 
-// Fixed holidays are dates. "Christmas" on its own is a theme, fine from 1 to 26 December; Easter and the other moveable feasts can't be checked.
+// Fixed holidays are dates. "Christmas" on its own is a theme, fine from 1 to 26 December, and so is "Halloween" (but not "on
+// Halloween" or "Halloween night") all October; Easter and the other moveable feasts can't be checked.
 const HOLIDAYS: Record<string, DateFields> = {
   halloween: { day: 31, month: 10 },
   'christmas day': { day: 25, month: 12 },
@@ -242,8 +243,10 @@ const DATE_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => DateFields | n
     re: new RegExp(`(?<![\\p{L}\\p{N}])${RECUR_LIST}\\s+${RECUR_WEEKDAY}\\s+of\\s+(?:the|each|every)\\s+month(?!\\p{L})`, 'giu'),
     read: m => ({ weekday: weekdayOf(m[1]!) }),
   },
-  // Halloween, Christmas Eve, Bonfire Night …
-  { re: new RegExp(HOLIDAY, 'giu'), read: m => holidayOf(m[1]!) },
+  // "on Halloween" and "Halloween night" are 31 October
+  { re: /(?<!\p{L})(?:on\s+halloween|halloween\s+night)(?!\p{L})/giu, read: () => ({ day: 31, month: 10 }) },
+  // Halloween, Christmas Eve, Bonfire Night … ("Halloween" on its own is a theme, fine all October)
+  { re: new RegExp(HOLIDAY, 'giu'), read: m => (m[1]!.toLowerCase() === 'halloween' ? { relative: 'halloween' } : holidayOf(m[1]!)) },
   // 2026-10-23
   { re: /(?<!\d)(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)/g, read: m => dmy(m[3], m[2], m[1]) },
   // 23/10/2026, 23-10-2026, 23.10.2026 (a hyphen or dot needs the year, so "2-4 players" isn't a date)
@@ -1009,15 +1012,16 @@ const DROP_IN = new RegExp(
     `|${NEGATIVE_WORD}(?:${GAP_WORD}){0,2}\\s+${BOOKING_WORD})(?!\\p{L})`,
   'giu',
 );
-// "Not booked yet?", "haven't got tickets?": booking is needed, unless the same or the next sentence reassures ("No worries, just come along").
+// "Not booked yet?", "haven't got tickets?": booking is needed, unless the same or the next sentence reassures ("No worries, just come along",
+// "You're still welcome", "Swing by anyway").
 const NOT_BOOKED_YET = new RegExp(
   "(?<!\\p{L})(?:(?:not|haven['’]t|have\\s+not|yet\\s+to)\\s+(?:booked|got\\s+(?:(?:your|a|any)\\s+)?tickets?|reserved)|(?:haven['’]t|have\\s+not|yet\\s+to)\\s+book)(?:\\s+yet)?(?!\\p{L})",
   'giu',
 );
 const REASSURANCE = new RegExp(
   "(?<!\\p{L})(?:no\\s+(?:worries|worry|problems?|bother|stress)|(?:doesn['’]t|does\\s+not|don['’]t|won['’]t)\\s+matter|don['’]t\\s+worry|never\\s+mind" +
-    "|(?:that['’]s|it['’]s|that\\s+is|it\\s+is)\\s+(?:fine|ok|okay|alright|all\\s+right)|still\\s+(?:come|join|turn\\s+up|drop\\s+in|pop\\s+in|play)" +
-    '|come\\s+(?:along\\s+|down\\s+)?anyway|just\\s+(?:come|turn\\s+up|drop\\s+in|pop\\s+in|rock\\s+up|show\\s+up|walk\\s+in))(?!\\p{L})',
+    "|(?:that['’]s|it['’]s|that\\s+is|it\\s+is)\\s+(?:fine|ok|okay|alright|all\\s+right)|still\\s+(?:come|join|turn\\s+up|drop\\s+in|pop|play|welcome|love|swing)" +
+    '|come\\s+anyway|\\p{L}+\\s+(?:by|in|along|down|over)\\s+anyway|just\\s+(?:come|turn\\s+up|drop\\s+in|pop\\s+in|rock\\s+up|show\\s+up|walk\\s+in))(?!\\p{L})',
   'iu',
 );
 // A sentence ends at . ! ? or … before a space, or at a line break; a blank line is one end.
@@ -1057,9 +1061,15 @@ const dropInMatches = (text: string): RegExpMatchArray[] => {
   return [...text.matchAll(DROP_IN)].filter(m => !within(m.index!, m.index! + m[0].length, needed));
 };
 // Booking said to be optional: "booking is optional", "booking: not essential", "booking isn't really necessary", "you don't need to have booked".
-const OPTIONAL_SAID = `(?:(?:is|are)\\s+)?(?:optional|(?:not|isn['’]t|aren['’]t|is\\s+not|are\\s+not)\\s+(?:(?:really|strictly|absolutely|totally)\\s+)?(?:essential|required|necessary|needed|compulsory|mandatory))`;
+const NOT_ESSENTIAL = "(?:not|isn['’]t|aren['’]t|is\\s+not|are\\s+not)\\s+(?:(?:really|strictly|absolutely|totally)\\s+)?(?:essential|required|necessary|needed|compulsory|mandatory)";
+const OPTIONAL_SAID = `(?:(?:is|are)\\s+)?(?:(?<!(?:not|n['’]t)\\s+)optional|${NOT_ESSENTIAL})`;
+// "Recommended, not essential", "advised, not required", "not essential, but recommended": optional too, with a booking word within three words.
+const ADVISED = '(?:(?:highly|strongly)\\s+)?(?:recommended|advised|suggested|encouraged|preferred)';
+const ADVISED_NOT_ESSENTIAL = `(?:${ADVISED}\\s*,\\s*(?:but\\s+)?${NOT_ESSENTIAL}|${NOT_ESSENTIAL}\\s*,\\s*(?:but\\s+)?${ADVISED})`;
 const BOOKING_OPTIONAL = new RegExp(
-  `(?:(?<!\\p{L})${BOOKING_WORD}[?:.,]?(?:\\s+\\p{L}+(?:['’]\\p{L}+)?){0,3}?\\s+${OPTIONAL_SAID}|(?<!\\p{L})optional(?:\\s+\\p{L}+){0,3}?\\s+${BOOKING_WORD}` +
+  `(?:(?<!\\p{L})${BOOKING_WORD}[?:.,]?(?:\\s+\\p{L}+(?:['’]\\p{L}+)?){0,3}?\\s+${ADVISED_NOT_ESSENTIAL}` +
+    `|(?<!\\p{L})${ADVISED_NOT_ESSENTIAL}(?:\\s+\\p{L}+(?:['’]\\p{L}+)?){0,3}?\\s+${BOOKING_WORD}` +
+    `|(?<!\\p{L})${BOOKING_WORD}[?:.,]?(?:\\s+\\p{L}+(?:['’]\\p{L}+)?){0,3}?\\s+${OPTIONAL_SAID}|(?<!\\p{L})(?<!(?:not|n['’]t)\\s+)optional(?:\\s+\\p{L}+){0,3}?\\s+${BOOKING_WORD}` +
     `|${NEGATIVE_WORD}(?:${GAP_WORD}){0,3}\\s+need(?:ed)?\\s+to\\s+have\\s+(?:pre-?)?(?:booked|reserved|got\\s+(?:(?:a|any|your)\\s+)?tickets?))(?!\\p{L})`,
   'giu',
 );
@@ -1336,6 +1346,9 @@ function breaksClause(between: string, nameFirst: boolean): boolean {
   return CLAUSE_BREAK.test(between.replace(joined, ''));
 }
 
+// What joins two names in a list: "Bob, Jo", "Bob and Jo", "Bob & Jo", "Jo, and Sam".
+const JOINED_NAMES = /^(?:\s*,\s*(?:(?:and|&)\s+)?|\s+(?:and|&)\s+)$/iu;
+
 /**
  * Capitalised words within three words of a role word in the same clause, a sentence-initial word
  * included, each with that role. Text in `skip` (the event's own name) is left out, and so are role
@@ -1362,14 +1375,31 @@ function roleNeighbours(text: string, skip: Span[], oneClause = false): { word: 
       const inRole = words.map((w, i) => (w.at >= r.span[0] && w.end <= r.span[1] ? i : -1)).filter(i => i >= 0);
       const first = inRole[0]!;
       const last = inRole[inRole.length - 1]!;
+      const isName = (w: { word: string; at: number; end: number }) =>
+        /^\p{Lu}/u.test(w.word) && text[w.at - 1] !== '#' && !within(w.at, w.end, [...skip, ...roleSpans]) && !isAllowed(w.word, NOT_NAMES_BY_ROLES);
+      const near = new Set<number>();
       for (let i = Math.max(0, first - ROLE_REACH); i <= Math.min(words.length - 1, last + ROLE_REACH); i++) {
         const w = words[i]!;
-        if (i >= first && i <= last) continue;
-        if (!/^\p{Lu}/u.test(w.word) || text[w.at - 1] === '#' || within(w.at, w.end, [...skip, ...roleSpans]) || isAllowed(w.word, NOT_NAMES_BY_ROLES))
-          continue;
+        if ((i >= first && i <= last) || !isName(w)) continue;
         const between = w.end <= r.span[0] ? text.slice(w.end, r.span[0]) : text.slice(r.span[1], w.at);
         if (oneClause && breaksClause(between, w.end <= r.span[0])) continue;
+        near.add(i);
         found.push({ word: w.word, role: r.role, said: r.said });
+      }
+      if (oneClause) continue;
+      // Names joined to the nearest one ("hosted by Bob, Jo and Sam", "Bob & Jo host") share the role, up to three names, however far.
+      for (const step of [1, -1]) {
+        let at = [...near].filter(i => (step === 1 ? i > last : i < first)).sort((a, b) => step * (a - b))[0];
+        for (let named = 1; at !== undefined && named < 3; named++) {
+          const and = words[at + step]?.word.toLowerCase() === 'and' ? 2 : 1;
+          const next = at + step * and;
+          const w = words[next];
+          if (!w || !isName(w)) break;
+          const gap = step === 1 ? text.slice(words[at]!.end, w.at) : text.slice(w.end, words[at]!.at);
+          if (!JOINED_NAMES.test(gap)) break;
+          if (!near.has(next)) found.push({ word: w.word, role: r.role, said: r.said });
+          at = next;
+        }
       }
     }
   }
@@ -1533,6 +1563,8 @@ function dateProblem(d: DateMention, occurrences: Occurrence[], today: string, l
     if (d.relative === 'christmas') {
       return occurrences.some(o => o.month === 12 && o.day <= 26) ? null : `"${d.text}": not true of ${label.any}`;
     }
+    // So is "Halloween", for an occurrence in October.
+    if (d.relative === 'halloween') return occurrences.some(o => o.month === 10) ? null : `"${d.text}": not true of ${label.any}`;
     // "This week" must be true of every event it covers.
     if (d.relative === 'this week') {
       const last = addDays(today, 6);
@@ -1633,8 +1665,9 @@ function squashedPence(m: RegExpMatchArray): number {
   const pounds = m[1] ? (TENS.indexOf(m[1]) + 2) * 10 + (m[2] ? ONES.indexOf(m[2]) + 1 : 0) : m[3] ? TEENS.indexOf(m[3]) + 10 : ONES.indexOf(m[4]!) + 1;
   return pounds * 100;
 }
-// A short weekday or "nye" at the start of a squashed hashtag ("#frinight", "#nyeparty"), when no full weekday name is there.
-const SQUASHED_DAY_START = /^(mon|tues?|weds?|thu(?:rs?)?|fri|sat|sun|nye)/;
+// A short weekday or "nye" at the start of a squashed hashtag ("#frinight", "#nyeparty"), when no full weekday name is there. A short
+// weekday counts only alone or before a word like night or fun ("#fri", "#satnight", "#fridayfun"), so "#monopoly" and "#sunshine" aren't days.
+const SQUASHED_DAY_START = /^(?:(mon|tues?|weds?|thu(?:rs?)?|fri|sat|sun)(?: *(?:nights?|day|funday|fun|sessions?|vibes|plans)| *$)|(nye))/;
 // Dates squashed into a hashtag, spaced out to be read: holidays, weekdays, months, relative days, numbers.
 const SQUASHED_HOLIDAYS: Record<string, string> = {
   halloween: 'halloween',
@@ -1786,9 +1819,12 @@ export function checkPostText(text: string, targets: CheckTarget[], ctx: { now: 
   }
   const tagDates = findDates(tags).filter(d => !within(d.index, d.index + d.text.length, tagSkip));
   const squashedDates = squashedTags.flatMap(tag => findDates(tag.replace(SQUASHED_DATE_WORDS, m => ` ${SQUASHED_RELATIVE[m] ?? SQUASHED_HOLIDAYS[m] ?? m} `)));
+  // "#Halloween" on its own is the day itself; "#HalloweenQuiz" is a theme.
+  for (const body of bodies) if (squash(body) === 'halloween') squashedDates.push({ text: body, index: 0, day: 31, month: 10 });
   for (const tag of squashedTags) {
     const start = tag.trimStart();
-    const day = SQUASHED_DAY_START.exec(start)?.[1];
+    const found = SQUASHED_DAY_START.exec(start);
+    const day = found?.[1] ?? found?.[2];
     if (!day || WEEKDAY_NAMES.some(d => start.startsWith(d))) continue;
     squashedDates.push(day === 'nye' ? { text: day, index: 0, day: 31, month: 12 } : { text: day, index: 0, weekday: weekdayOf(day) });
   }

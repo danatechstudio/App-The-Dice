@@ -1465,13 +1465,16 @@ describe('post check, review round 3', () => {
     fails('Quiz is back! #Halloween');
     passes('Quiz is back! #Halloween', halloween);
     passes('A Halloween Quiz!', halloween);
-    fails('A Halloween Quiz!');
+    // Round 5 ruling 3: plain "Halloween" is a theme, fine for any October date ("on Halloween" is still 31 October).
+    passes('A Halloween Quiz!');
+    fails('Quiz on Halloween!');
     fails('Quiz on Christmas Eve.');
     passes('Quiz on Christmas Eve.', [{ ...quiz, date: '2026-12-24' }]);
     passes('A Christmas Quiz!', [{ ...quiz, date: '2026-12-26' }]);
     fails('A Christmas Quiz!');
     fails('An Easter Quiz!');
-    expect(findDates("Halloween, Bonfire Night, New Year's Eve, Valentine's Day").map(d => [d.day, d.month])).toEqual([
+    // Round 5 ruling 3: "on Halloween" is the date; plain "Halloween" is now an October theme.
+    expect(findDates("on Halloween, Bonfire Night, New Year's Eve, Valentine's Day").map(d => [d.day, d.month])).toEqual([
       [31, 10],
       [5, 11],
       [31, 12],
@@ -1663,6 +1666,122 @@ describe('prompt validation, Task 3 review round 4', () => {
     }
     for (const extra of [' Never say "join us on friday at 7pm".', ' Never say "tonight", "tomorrow" or "turn up and pay ten pounds".']) {
       expect(reviewed(goodPrompt + extra).status, extra).toBe('review_required');
+    }
+  });
+});
+
+describe('post check, review round 5', () => {
+  const now = new Date('2026-10-18T19:00:00Z');
+  const quiz: CheckTarget = {
+    event_id: 'RTD-EVT-00001',
+    name: 'Quiz',
+    date: '2026-10-23',
+    start_time: '18:30',
+    end_time: '22:00',
+    price: '£2',
+    facts: {},
+    base_details: 'A family quiz night with prizes at stake!',
+    people: [],
+    banned: [],
+    booking_mode: 'optional',
+  };
+  const check = (text: string, targets: CheckTarget[] = [quiz]) => checkPostText(text, targets, { now, otherEventNames: ['Bingo'] });
+  const passes = (text: string, targets: CheckTarget[] = [quiz]) => {
+    const result = check(text, targets);
+    expect(result.reasons, text).toEqual([]);
+    expect(result.pass, text).toBe(true);
+  };
+  const fails = (text: string, targets: CheckTarget[] = [quiz], reason?: string) => {
+    const result = check(text, targets);
+    expect(result.pass, text).toBe(false);
+    if (reason) expect(result.reasons.join(' | '), text).toContain(reason);
+  };
+  const booked = [{ ...quiz, facts: { Booking: ['essential'] } }];
+
+  it('reads a short weekday at the start of a squashed hashtag only as a weekday tag', () => {
+    const saturday = [{ ...quiz, date: '2026-10-24' }];
+    for (const tag of ['#monopoly', '#sunshine', '#Monopoly', '#saturdaynightgames', '#wedding', '#satnight', '#SatNightVibes'])
+      passes(`Quiz is back! ${tag}`, saturday);
+    for (const tag of ['#frinight', '#FRINIGHT', '#wednight', '#fri', '#sunday', '#fridayfun', '#sunfunday', '#monsessions', '#thursvibes'])
+      fails(`Quiz is back! ${tag}`, saturday, 'in a hashtag');
+  });
+
+  it('checks every name joined to a role word against that role, however far', () => {
+    const bobJo = [{ ...quiz, people: [{ name: 'Bob', role: 'host' }, { name: 'Jo', role: 'sets up' }] }];
+    fails('Quiz hosted by Bob and Jo.', bobJo, 'role');
+    fails('Hosted by Bob and Jo.', bobJo, 'role');
+    fails('Quiz hosted by Bob & Jo.', bobJo, 'role');
+    fails('Bob, Sam and Jo host the quiz.', [{ ...quiz, people: [...bobJo[0]!.people, { name: 'Sam', role: 'host' }] }], 'Jo');
+    fails('Jo, Sam and Bob host the quiz.', [{ ...quiz, people: [...bobJo[0]!.people, { name: 'Sam', role: 'host' }] }], 'Jo');
+    const three = [{ ...quiz, people: [{ name: 'Bob', role: 'host' }, { name: 'Jo', role: 'host' }, { name: 'Sam', role: 'sets up' }] }];
+    fails('Hosted by Bob, Jo and Sam.', three, 'Sam');
+    fails('Hosted by Bob, Jo and Sam.', bobJo);
+    const hosts = [{ ...quiz, people: [{ name: 'Bob', role: 'host' }, { name: 'Jo', role: 'host' }, { name: 'Sam', role: 'host' }] }];
+    passes('Quiz hosted by Bob and Jo.', hosts);
+    passes('Hosted by Bob and Jo.', hosts);
+    passes('Quiz hosted by Bob & Jo.', hosts);
+    passes('Hosted by Bob, Jo and Sam.', hosts);
+    passes('Bob, Jo and Sam host the quiz.', hosts);
+    // Tracing in the event's own text still doesn't share a role along a list.
+    fails('Bob hosts.', [{ ...quiz, base_details: 'Bob, Trixie and Jo host.' }]);
+  });
+
+  it('lets plain Halloween be an October theme, but not "on Halloween" or "Halloween night", nor #Halloween alone', () => {
+    const halloween = [{ ...quiz, date: '2026-10-31' }];
+    passes('Join us for our Halloween Quiz on Friday 23 October at 6:30pm!');
+    passes('A Halloween Quiz!');
+    passes('Quiz is back! #HalloweenQuiz');
+    passes('Quiz is back! #HalloweenQuiz', [{ ...quiz, date: '2026-10-02' }]);
+    fails('A Halloween Quiz!', [{ ...quiz, date: '2026-11-06' }]);
+    fails('Quiz is back! #HalloweenQuiz', [{ ...quiz, date: '2026-11-06' }]);
+    fails('See you on Halloween!', [quiz], 'Halloween');
+    fails('Quiz on Halloween night!', [{ ...quiz, date: '2026-10-30' }]);
+    fails('Quiz is back! #Halloween');
+    fails('Quiz is back! #halloween');
+    passes('See you on Halloween!', halloween);
+    passes('Quiz on Halloween night!', halloween);
+    passes('Quiz is back! #Halloween', halloween);
+    fails('Quiz the day after Halloween!', halloween);
+    passes('Quiz the day after Halloween!', [{ ...quiz, date: '2026-11-01' }]);
+  });
+
+  it('hears "still" and "<verb> by anyway" as reassurance after "not booked"', () => {
+    for (const text of [
+      'Not booked? You are still welcome!',
+      "Haven't booked? We'd still love to see you.",
+      'Not booked? Swing by anyway.',
+      'Not booked? Pop in anyway.',
+    ])
+      fails(text, booked);
+    passes('Not booked yet? Book now!', booked);
+  });
+
+  it('reads booking-optional wording across a comma', () => {
+    for (const text of [
+      'Booking recommended, not essential.',
+      'Booking is advised, not required.',
+      'Booking: not essential, but recommended.',
+      'Not essential, but recommended to book.',
+    ]) {
+      fails(text, booked);
+      passes(text);
+    }
+    passes('Booking essential, not optional.', booked);
+    passes('Booking essential. Costumes recommended, not essential.', booked);
+  });
+
+  it('checks the new wording quickly', () => {
+    for (const text of [
+      'Hosted by ' + 'Bob, Jo & '.repeat(200),
+      'Booking recommended, '.repeat(95),
+      'not essential, but '.repeat(105),
+      'Not booked? ' + 'swing by '.repeat(220),
+      '#' + 'satnight'.repeat(250),
+      'on Halloween night '.repeat(105),
+    ]) {
+      const started = performance.now();
+      check(text, booked);
+      expect(performance.now() - started, text.slice(0, 20)).toBeLessThan(1000);
     }
   });
 });
