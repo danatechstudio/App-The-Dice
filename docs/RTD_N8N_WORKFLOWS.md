@@ -4,6 +4,10 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### 2026-10-19: RTD Social Prompt Builder (new, not published)
+
+Stage 2, Task 1. A new workflow, **RTD Social Prompt Builder** (`lh9MzioBdpBpBIVo`). It is **unpublished** and in a dry run against the staging copy, with rtd_config keys `SOCIAL_BUILDER_DRY_RUN=true` and `SOCIAL_BUILDER_SHEET=staging`. Writing to the sheet and publishing wait for the owner (G4). See [As built](#as-built-rtd-social-prompt-builder-lh9mziobdpbpbivo) under the contract below.
+
 ### 2026-10-16 (evening): RTD Sheet Writer (new, not published)
 
 Approved by the owner (D-13): a new writer limited to mapped columns, by Event ID, on the staging copy first. **Created unpublished**; it does nothing until the app has migration `0022_sheet_edits.sql` and the Stage 6 code, an admin sets **Logic Engine changes** to something other than Off, and the workflow is published (owner's go-ahead). See [RTD Sheet Writer](#rtd-sheet-writer-taa4f7wkzzeidkm8) below.
@@ -469,7 +473,7 @@ Posts each admin's event reminder on the café's Facebook page ([RTD_ALERTS.md](
 
 ## Event social prompts (contract for Stage 2)
 
-**Nothing in n8n has changed yet.** Stage 1 is the app side only. It ships with the switch (setting `social_prompts`) at **Off**, so every post goes out exactly as it does today. The n8n side is Stage 2: the new **RTD Social Prompt Builder**, and edits to **RTD Master V1** and the poster path. Each step needs the owner's go-ahead (gates G1–G6 in the [spec §6](superpowers/specs/2026-10-18-social-master-prompt-design.md#6-rollout-each-gate-needs-the-owners-go-ahead-and-rollback)). This section is what those workflows must do, matched to the code in `src/routes/internal.ts`, `src/social/prompts.ts` and `src/social/check.ts`.
+**Stage 2 has started:** the Builder exists, unpublished (see [As built](#as-built-rtd-social-prompt-builder-lh9mziobdpbpbivo)). Stage 1 was the app side only. It ships with the switch (setting `social_prompts`) at **Off**, so every post goes out exactly as it does today. The n8n side is Stage 2: the new **RTD Social Prompt Builder**, and edits to **RTD Master V1** and the poster path. Each step needs the owner's go-ahead (gates G1–G6 in the [spec §6](superpowers/specs/2026-10-18-social-master-prompt-design.md#6-rollout-each-gate-needs-the-owners-go-ahead-and-rollback)). This section is what those workflows must do, matched to the code in `src/routes/internal.ts`, `src/social/prompts.ts` and `src/social/check.ts`.
 
 **The idea, in short:**
 - Each event gets its own master prompt, written by Gemini from the facts the café wrote down: Base Details (Notes on Standard Diary), **Approved Facts** and **People & Roles**.
@@ -533,6 +537,44 @@ Every 15 minutes, created **unpublished**, with `Studio: Error Handler`.
 - A version just returned by step 2 also appears here until `/written` is called. Writing it twice is harmless.
 
 **What the app adds itself:** the fixed schedule rule is appended by code to every stored prompt, exactly once: "Use ONLY the date and time supplied for the target occurrence at posting time; never state any other date or time." Gemini isn't trusted to include it.
+
+#### As built: RTD Social Prompt Builder (`lh9MzioBdpBpBIVo`)
+
+**Created 2026-10-19, not published, in dry run against the staging sheet.** Credentials: `rtd-app` (header auth), `ATECHGoogleSheets`, the Gemini API credential. Settings: error workflow `Studio: Error Handler` (`IClMUs9ByRmVBYJf`), Europe/London, executions saved, 900 s timeout.
+
+**Nodes, in order:**
+1. **Every 15 Minutes** and **Run By Hand** → **Read rtd_config** (every row) → **Builder Settings** (the app URL, dry run, which sheet, the limit; it refuses a staging ID that is the live sheet).
+2. **Read Event Index** and **Read Standard Diary** on the chosen sheet.
+3. **Get Due Events** (`GET /due?limit=<limit>`) → **Due Events** (one item each) → **Write Prompt (Gemini)**: `request.system` as the system message, `request.user` as the only message, JSON output, temperature 0.2, 2 tries, errors carried on as items.
+4. **Answer For App** builds `{ fingerprint, job_id, model, output }`, or `{ fingerprint, job_id, error }` when Gemini failed or answered nothing → **Send Prompt To App** (`POST /:eventId`; the status code is read, never thrown) → **App Answer**:
+   - **stored**: a 200 with cells. They are written in step 5 of the same run.
+   - **failed**: a 200 with `status: 'failed'`. Ends quietly; the event stays due.
+   - **409**: stale, no longer due, or a race. Ends quietly.
+   - **unexpected** (400, 401, 404, 413, 5xx, no answer) → **Unexpected App Answer** stops the run, so the error workflow alerts.
+5. From Get Due Events, a second branch, placed below so it runs after the first has finished: **Get Prompts To Write** (`GET /to-write`) → **Prompts To Write** maps each Event ID to its tab (Event Index first, then Standard Diary). In a dry run it outputs nothing; an ID on neither tab is skipped (it stays in `/to-write`) → **Which Tab** → **Update Event Index Cells** or **Update Standard Diary Cells** (Google Sheets update, matched on **Event ID**, only **Social Prompt** and **Social Prompt Status**, RAW) → **Mark Written In App** (`POST /:eventId/written { version }`).
+
+Versions answered in step 4 are written by step 5, because `/to-write` lists them until `/written` is called. So one write path covers new answers, an admin's approvals and unfinished writes.
+
+**rtd_config keys** (none of the sheet IDs belong in this repository):
+
+| key | value | meaning |
+| --- | --- | --- |
+| `SOCIAL_BUILDER_DRY_RUN` | `true` (added 2026-10-19) | Anything but `false`, or missing, is a dry run: Gemini runs and the app stores its answers, but no sheet cell is written and `/written` is never called. |
+| `SOCIAL_BUILDER_SHEET` | `staging` (added 2026-10-19) | `staging` (or missing) uses `RTD_STAGING_LOGIC_ENGINE_ID`. `live` uses `RTD_LOGIC_ENGINE_ID`, or the sheet RTD Event Sync reads when that isn't set. |
+| `SOCIAL_BUILDER_LIMIT` | not set | Events per run, 1 to 20. Missing means 5 on the schedule and **1 for Run By Hand**. |
+
+**How to run it:**
+- **Dry run, by hand:** keep `SOCIAL_BUILDER_DRY_RUN=true` and `SOCIAL_BUILDER_SHEET=staging`, open the workflow and click **Run By Hand**. It takes the single soonest due event. For the G4 rehearsal of 3 events, add `SOCIAL_BUILDER_LIMIT=3` first and delete it afterwards. Check D1: `SELECT event_id, version, status, substr(validation_errors,1,200) FROM social_prompts`.
+- **Write to staging (G4, owner's go-ahead):** set `SOCIAL_BUILDER_DRY_RUN=false`, run by hand once, and check that only Social Prompt and Social Prompt Status changed on the staging copy.
+- **Go live (owner's go-ahead):** set `SOCIAL_BUILDER_SHEET=live`, make sure `SOCIAL_BUILDER_LIMIT` is gone (or 5), then publish. Rolling back means unpublishing it, or setting `SOCIAL_BUILDER_DRY_RUN=true`.
+- The app's `social_prompts` setting has no effect here: `/due` ignores it.
+
+**Tested 2026-10-19** (the app's setting stayed Off throughout):
+- **Wiring with nothing due** (execution `68976`): `/due` pinned to `{ "events": [] }`; everything else ran for real. Success. No Gemini call; the to-write branch ran (`{ prompts: [] }`) and wrote nothing.
+- **Write path, simulated** (execution `68983`): rtd_config pinned with the dry run off, `/to-write` pinned with three prompts, the sheet updates and `/written` pinned. The Event Index ID went to the Event Index update, the Standard Diary ID to the Standard Diary update, and an unknown ID was skipped. Nothing was written.
+- **One-event dry run** (execution `68994`): staging, dry run, limit 1, nothing pinned. One Gemini call, which returned JSON. The app answered **200** `review_required`, version 1, for RTD-EVT-00005 (Home Education Support Club). D1 holds one `social_prompts` row, with `written_at` empty. Its review reasons: "Monday" and "Thursday" from Base Details, and "open play", "booking", "child" and "families" with no Approved Facts behind them. `/to-write` listed it; no sheet cell changed and `/written` wasn't called.
+- **Stale answer** (execution `68996`): `/due` pinned with a wrong fingerprint for RTD-EVT-00001, and Gemini pinned. The app answered **409** "Stale: …". It went to the 409 output and the run succeeded. D1 gained no row and no audit entry. (Manual runs never call the error workflow; in production a 409 doesn't either, because nothing fails.)
+- **Not yet:** a real sheet write and `/written`, the 3-event rehearsal (it waits for the owner's facts), and publishing.
 
 ### Every post: RTD Master V1 and the poster path (Stage 2)
 
