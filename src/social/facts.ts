@@ -120,12 +120,29 @@ export function sourceFields(row: Record<string, unknown>): SourceFields {
   };
 }
 
+// The ten whitelisted fields the fingerprint covers (every one but event_id), named one by one
+// and in sorted order, so nothing else on the object (a date, an email) can ever change it.
+const FINGERPRINTED = [
+  'approved_facts',
+  'base_details',
+  'capacity',
+  'category',
+  'frequency',
+  'name',
+  'people_roles',
+  'price',
+  'source',
+  'visibility',
+] as const satisfies readonly Exclude<keyof SourceFields, 'event_id'>[];
+
+// A field added to SourceFields without being added above stops the build here.
+type Unhashed = Exclude<keyof SourceFields, 'event_id' | (typeof FINGERPRINTED)[number]>;
+const _everyFieldHashed: [Unhashed] extends [never] ? true : never = true;
+
 /**
  * sha256 of the fields' canonical JSON (keys sorted) without the event id, so two events with
  * the same facts share a fingerprint and a prompt is regenerated only when a fact changes.
  */
 export async function fingerprint(f: SourceFields): Promise<string> {
-  const { event_id: _eventId, ...rest } = f;
-  const sorted = Object.entries(rest).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  return sha256(JSON.stringify(Object.fromEntries(sorted)));
+  return sha256(JSON.stringify(Object.fromEntries(FINGERPRINTED.map(k => [k, textOf(f[k])]))));
 }

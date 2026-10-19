@@ -24,6 +24,7 @@ import { changesToApply, markChangeApplied } from '../host/changes';
 import { markFailed, markSent, unsent } from '../notify/outbox';
 import { decidedApplicationsForApplicants, markApplicationNotified, newApplicationsForApprovers } from '../team/applications';
 import { applySync, parsePayload } from '../sync/apply';
+import { duePrompts, markPromptWritten, promptsToWrite, proposePrompt } from '../social/prompts';
 import { checkEdit, claimEdits, markEditFailed, markEditWritten, parseWriterBody } from '../sync/edits';
 
 const MAX_BODY_BYTES = 1_000_000;
@@ -326,6 +327,45 @@ internalRoutes.post('/social-posts/:id/failed', async c => {
   const error = typeof body.error === 'string' && body.error.trim() ? body.error.trim() : 'Buffer refused the post';
   const done = await markSocial(c.env.DB, Number(c.req.param('id')), { ok: false, error }, new Date());
   return done ? c.json({ ok: true }) : c.json({ error: 'No post waiting with that ID' }, 404);
+});
+
+// --- Event social prompts (n8n RTD Social Prompt Builder, src/social/prompts.ts) ---
+
+/** Events that need a prompt: { events: [{ event_id, fingerprint, request: { system, user }, instruction_version }] }. ?limit= 1–20, default 5. */
+internalRoutes.get('/social-prompts/due', async c => {
+  const asked = Number(c.req.query('limit') ?? 5);
+  const limit = Number.isInteger(asked) ? Math.min(Math.max(asked, 1), 20) : 5;
+  return c.json({ events: await duePrompts(c.env.DB, new Date(), limit) });
+});
+
+/** Versions whose cells aren't in the sheet yet: { prompts: [{ event_id, version, cells }] }. */
+internalRoutes.get('/social-prompts/to-write', async c => c.json({ prompts: await promptsToWrite(c.env.DB) }));
+
+/**
+ * Gemini's answer. Body: { fingerprint, job_id?, model?, output }, or { fingerprint, job_id?, error }
+ * when the generation failed. Answers { ok, status, version, cells } (cells to write, matched on
+ * Event ID), or { ok, status: 'failed', failures } below three failures. 409: stale, drop it.
+ */
+internalRoutes.post('/social-prompts/:eventId', async c => {
+  const text = await c.req.text();
+  if (text.length > MAX_BODY_BYTES) return c.json({ error: 'Body too large' }, 413);
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return c.json({ error: 'Body must be JSON' }, 400);
+  }
+  const res = await proposePrompt(c.env.DB, c.req.param('eventId'), body, new Date());
+  if (!res.ok) return c.json(res.errors ? { error: res.error, errors: res.errors } : { error: res.error }, res.status);
+  return c.json(res);
+});
+
+/** n8n wrote a version's cells. Body: { version }. */
+internalRoutes.post('/social-prompts/:eventId/written', async c => {
+  const body = ((await c.req.json().catch(() => ({}))) ?? {}) as { version?: unknown };
+  if (typeof body.version !== 'number' || !Number.isInteger(body.version) || body.version < 1) return c.json({ error: 'version is required' }, 400);
+  const res = await markPromptWritten(c.env.DB, c.req.param('eventId'), body.version, new Date());
+  return res === 'ok' ? c.json({ ok: true }) : c.json({ error: 'No version with that number for that event' }, 404);
 });
 
 // --- The food and drinks menu (n8n RTD Menu Sync, docs/RTD_FOOD_MENU.md) ---

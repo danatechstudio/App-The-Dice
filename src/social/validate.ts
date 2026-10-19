@@ -929,8 +929,8 @@ function untraced(c: Claim, ref: FieldRef, f: SourceFields, facts: Partial<Recor
   return `Claim "${c.claim}" not found in ${field}${problem ? `: ${problem}` : ''}`;
 }
 
-/** What's wrong with the prompt text itself: dates, times, other prices, other events and unknown names. */
-function promptTextErrors(prompt: string, f: SourceFields, otherEventNames: string[]): string[] {
+/** What's wrong with the prompt text itself: dates, times, other prices, other events and unknown names. Also run on an admin's own text (src/social/prompts.ts). */
+export function promptTextErrors(prompt: string, f: SourceFields, otherEventNames: string[]): string[] {
   const errors: string[] = [];
   // The event's own name is its identity, not a claim: "Friday Night Magic" isn't a weekday.
   const own = spansOf(phraseRegex(f.name), prompt);
