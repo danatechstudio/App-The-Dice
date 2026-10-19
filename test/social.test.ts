@@ -889,6 +889,64 @@ describe('posting', () => {
     await held(/prompt out of date/, checkBody({ targets: [{ event_id: QUIZ, occurrence_id: QUIZ_OCC, prompt_version: 2 }] }));
   });
 
+  it('picks the next date still to come and public, never one the app only guessed', async () => {
+    await setUp('shadow');
+    // The week after: Friday 30 October, 18:30–22:00 (GMT by then).
+    const NEXT = 'RTD-OCC-00001-20261030';
+    await env.DB.prepare(
+      `INSERT INTO occurrences (occurrence_id, event_id, event_date, start_time, end_time, starts_at, ends_at, status, created_at, updated_at)
+       VALUES (?1, ?2, '2026-10-30', '18:30', '22:00', '2026-10-30T18:30:00.000Z', '2026-10-30T22:00:00.000Z', 'scheduled', ?3, ?3)`,
+    )
+      .bind(NEXT, QUIZ, NOW.toISOString())
+      .run();
+    const target = async (now = NOW) => ((await socialContext(env.DB, { event_ids: [QUIZ] }, now)) as { events: EventLayer[] }).events[0]!.occurrence;
+    expect(await target()).toMatchObject({ occurrence_id: QUIZ_OCC, label: 'Friday 23 October, 6:30pm' });
+
+    // 22:30 on the 23rd: that night's Quiz ended at 22:00, so the next one is the target.
+    expect(await target(new Date('2026-10-23T21:30:00Z'))).toMatchObject({ occurrence_id: NEXT, date: '2026-10-30', is_today: false });
+    // Still running at 21:30: tonight's is.
+    expect(await target(new Date('2026-10-23T20:30:00Z'))).toMatchObject({ occurrence_id: QUIZ_OCC, is_today: true });
+
+    // The 23rd hidden: the 30th is the target.
+    await env.DB.prepare("UPDATE occurrences SET visibility = 'hidden' WHERE occurrence_id = ?1").bind(QUIZ_OCC).run();
+    expect(await target()).toMatchObject({ occurrence_id: NEXT });
+    await env.DB.prepare('UPDATE occurrences SET visibility = NULL WHERE occurrence_id = ?1').bind(QUIZ_OCC).run();
+
+    // The 23rd only projected by the app (the Logic Engine hasn't reached it): not a target, and a post about it is held.
+    await env.DB.prepare('UPDATE occurrences SET projected = 1 WHERE occurrence_id = ?1').bind(QUIZ_OCC).run();
+    expect(await target()).toMatchObject({ occurrence_id: NEXT });
+    const res = await runCheck(env.DB, checkBody(), NOW);
+    expect(res).toMatchObject({ allow: true, result: 'fail' });
+    expect(said(res, /date not in the app yet/)).toBe(true);
+    // Nothing confirmed to come: no target.
+    await env.DB.prepare('UPDATE occurrences SET projected = 1 WHERE occurrence_id = ?1').bind(NEXT).run();
+    expect(await target()).toBeNull();
+  });
+
+  it('marks a prompt version as used only when it is the current one', async () => {
+    await setUp('shadow');
+    const used = async (version: number) =>
+      (
+        await env.DB.prepare('SELECT last_used_at FROM social_prompts WHERE event_id = ?1 AND version = ?2')
+          .bind(QUIZ, version)
+          .first<{ last_used_at: string | null }>()
+      )!.last_used_at;
+    expect(await approveOverride(env.DB, admin, QUIZ, { text: QUIZ_PROMPT, reason: 'Again' }, NOW)).toEqual({ ok: true, version: 2 });
+    const v = (n: number) => checkBody({ targets: [{ event_id: QUIZ, occurrence_id: QUIZ_OCC, prompt_version: n }] });
+
+    // An old version: allowed in Shadow, but not marked.
+    expect(await runCheck(env.DB, v(1), NOW)).toMatchObject({ allow: true, result: 'fail' });
+    expect(await used(1)).toBeNull();
+    expect(await runCheck(env.DB, v(2), NOW)).toMatchObject({ allow: true, result: 'pass' });
+    expect(await used(2)).toBe(NOW.toISOString());
+
+    // The facts changed: version 2 is stale, and isn't marked again.
+    await syncRows([quizRow({ 'Approved Facts': 'Prizes: cash prizes' }), bingoRow()]);
+    const later = new Date(NOW.getTime() + 60_000);
+    expect(await runCheck(env.DB, v(2), later)).toMatchObject({ allow: true, result: 'fail' });
+    expect(await used(2)).toBe(NOW.toISOString());
+  });
+
   it("holds while the sheet's date hasn't reached the app", async () => {
     await setUp('enforce');
     // The sheet has moved the Quiz to the 30th; the app's sync hasn't caught up.

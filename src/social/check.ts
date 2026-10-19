@@ -11,7 +11,7 @@
 // already in the app), its approved prompt is the one in use for the current facts, and the words
 // pass the deterministic check (src/social/validate.ts). Anything that can't be confirmed fails.
 
-import { BOOKING_MODE, OCCURRENCE_FIELDS, type BookingMode } from '../lib/queries';
+import { BOOKING_MODE, OCCURRENCE_FIELDS, upcoming, VISIBLE, type BookingMode } from '../lib/queries';
 import { addDays, londonDate, parseSheetDate } from '../lib/time';
 import { parseFacts, parsePeople, sourceFields } from './facts';
 import { activeEventNamesExcept, currentPrompt, EVENT_FIELDS, OPEN_SHEET_EDIT, PENDING_CHANGE_REQUEST, socialMode, type Fail, type Mode } from './prompts';
@@ -143,13 +143,16 @@ export async function socialContext(db: D1Database, body: unknown, now: Date): P
     const fields = sourceFields(row);
     const prompt = await currentPrompt(db, id);
     const usable = prompt?.current ? prompt : null;
-    // Its next scheduled date (London): the one the post is about. Whether it can be posted about is the check's to say.
+    // The date the post is about: its next one the public can see that is still to come or still running, as
+    // the public pages pick it (src/lib/queries.ts). A date the app only projected from the event's cadence isn't
+    // one: the Logic Engine hasn't confirmed it.
     const occ = await db
       .prepare(
-        `SELECT occurrence_id, event_date, start_time, end_time FROM occurrences
-         WHERE event_id = ?1 AND status = 'scheduled' AND event_date >= ?2 ORDER BY event_date LIMIT 1`,
+        `SELECT o.occurrence_id, o.event_date, o.start_time, o.end_time FROM occurrences o JOIN events e ON e.event_id = o.event_id
+         WHERE o.event_id = ?1 AND o.projected = 0 AND ${VISIBLE} AND ${upcoming('?2', '?3')}
+         ORDER BY o.event_date, COALESCE(o.start_time, '00:00') LIMIT 1`,
       )
-      .bind(id, today)
+      .bind(id, now.toISOString(), today)
       .first<{ occurrence_id: string; event_date: string; start_time: string | null; end_time: string | null }>();
     events.push({
       event_id: id,
@@ -237,7 +240,7 @@ async function resolveTarget(
   t: Target,
   sheetDates: Record<string, unknown>,
   now: Date,
-): Promise<{ reasons: string[]; target: CheckTarget | null; names: unknown[] }> {
+): Promise<{ reasons: string[]; target: CheckTarget | null; names: unknown[]; current: boolean }> {
   const event = await db
     .prepare(
       `SELECT ${EVENT_FIELDS}, e.active, ${BOOKING_MODE} AS booking_mode,
@@ -246,7 +249,7 @@ async function resolveTarget(
     )
     .bind(t.event_id)
     .first<Record<string, unknown>>();
-  if (!event) return { reasons: [`${t.event_id}: no event with that ID`], target: null, names: [] };
+  if (!event) return { reasons: [`${t.event_id}: no event with that ID`], target: null, names: [], current: false };
 
   const fields = sourceFields(event);
   const name = fields.name || t.event_id;
@@ -275,6 +278,7 @@ async function resolveTarget(
       ends_at: string | null;
       status: string;
       own_visibility: string | null;
+      projected: number;
       price_display: string | null;
     }>();
   let target: CheckTarget | null = null;
@@ -286,7 +290,9 @@ async function resolveTarget(
     // Over: an earlier day (London), marked completed, or ended earlier today.
     if (occ.status === 'completed' || date < londonDate(now) || (occ.ends_at && occ.ends_at <= now.toISOString())) say(`its date ${date} has already happened`);
     if (eventPublic && occ.own_visibility && !PUBLIC.includes(occ.own_visibility)) say(`its date ${date} is not public (${occ.own_visibility})`);
-    if (syncPending(sheetDates, t.event_id, date))
+    // A date the app only projected from the event's cadence: the Logic Engine hasn't reached it.
+    if (occ.projected === 1) say(`date not in the app yet (${date} is only projected from the event's cadence); wait for the sync`);
+    else if (syncPending(sheetDates, t.event_id, date))
       say(`date not in the app yet (the sheet has ${String(sheetDates[t.event_id])}, the app ${date}); wait for the sync`);
     const social = { facts: parseFacts(fields.approved_facts).facts, people: parsePeople(fields.people_roles).people };
     target = {
@@ -309,7 +315,8 @@ async function resolveTarget(
   else if (!prompt.current) say(`prompt out of date (the facts changed since version ${prompt.version} was approved)`);
   else if (t.prompt_version !== prompt.version) say(`prompt version ${t.prompt_version} isn't the current one (${prompt.version})`);
 
-  return { reasons, target, names: [event.event_name, event.display_name] };
+  const current = !!prompt?.current && t.prompt_version === prompt.version;
+  return { reasons, target, names: [event.event_name, event.display_name], current };
 }
 
 /**
@@ -326,10 +333,12 @@ export async function runCheck(db: D1Database, body: unknown, now: Date): Promis
   const reasons: string[] = [];
   const targets: CheckTarget[] = [];
   const names: unknown[] = [];
+  const current: Target[] = [];
   for (const t of req.targets) {
     const r = await resolveTarget(db, t, req.sheet_dates, now);
     reasons.push(...r.reasons);
     names.push(...r.names);
+    if (r.current) current.push(t);
     if (r.target) targets.push(r.target);
   }
   // The words are checked against the targets that exist; one that doesn't has already failed the post.
@@ -363,12 +372,11 @@ export async function runCheck(db: D1Database, body: unknown, now: Date): Promis
         iso,
       ),
   ];
-  // The prompt versions the post was written with, when it is going out.
+  // The prompt versions the post was written with, when it is going out: only a version in use for the
+  // event's current facts. An old or stale one (allowed in shadow) isn't marked.
   if (allow) {
-    for (const t of req.targets) {
-      if (t.prompt_version > 0)
-        steps.push(db.prepare('UPDATE social_prompts SET last_used_at = ?3 WHERE event_id = ?1 AND version = ?2').bind(t.event_id, t.prompt_version, iso));
-    }
+    for (const t of current)
+      steps.push(db.prepare('UPDATE social_prompts SET last_used_at = ?3 WHERE event_id = ?1 AND version = ?2').bind(t.event_id, t.prompt_version, iso));
   }
   await db.batch(steps);
   return { allow, result, reasons, mode };
