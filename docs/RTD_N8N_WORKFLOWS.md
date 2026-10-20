@@ -4,6 +4,18 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### 2026-10-20: RTD Master V1, the round-ups and the Instagram Priority caption through the social gate (draft, not published)
+
+Stage 2, Task 4. The Mon/Thu **Prospectus** and Sunday **Weekly** round-ups and the **Instagram Priority** caption now go through the Context and Gate sub-workflows, the same way as the Facebook event post. **Only the draft changed; nothing is published.** Publishing waits for the owner (G5), and the app's switch stays Off. The Daily Recap stays disabled, with a note that it must go through the gate if it is ever turned back on.
+
+| | Version |
+| --- | --- |
+| **Rollback point** (still the published version, checked after the edits and after the tests) | `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b` |
+| Draft this task started from | `f544db43-1f9c-4194-8c43-647bd34bfc28` (Task 3's last draft) |
+| New draft (not published) | `4ef9c552-7dfe-412d-b7bd-f79e01c3ed86`. It was saved in four steps: `557e0f29-…`, `cbcb6d0b-…` and `9a6e5299-…` only added the new nodes, unconnected, so they behave like `f544db43`; `4ef9c552` changed the prompts and connected them. |
+
+See [As built: Master V1, the round-ups and the Instagram Priority caption](#as-built-master-v1-the-round-ups-and-the-instagram-priority-caption) under the contract below.
+
 ### 2026-10-19: RTD Master V1, the Facebook event post through the social gate (draft, not published)
 
 Stage 2, Task 3. The Facebook event post now goes through the Context and Gate sub-workflows, and the Post Log records a real success as `Success`. **Only the draft changed; nothing is published.** Publishing waits for the owner (G5), and the app's switch stays Off.
@@ -716,7 +728,7 @@ The two test copies are archived. D1 `social_checks` had 0 rows before and after
 
 #### As built: Master V1, the Facebook event post
 
-**Edited 2026-10-19, in the draft only** (latest draft `f544db43-1f9c-4194-8c43-647bd34bfc28`; the published version is still `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b`, the rollback point). Only the Facebook event path changed (integration point 1). The round-ups, Instagram and posters are Tasks 4 and 5.
+**Edited 2026-10-19, in the draft only** (latest draft `f544db43-1f9c-4194-8c43-647bd34bfc28`; the published version is still `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b`, the rollback point). Only the Facebook event path changed (integration point 1). The round-ups and the Instagram Priority caption followed in Task 4 (draft `4ef9c552-…`, [below](#as-built-master-v1-the-round-ups-and-the-instagram-priority-caption)); posters are Task 5.
 
 **New nodes** (all named `… (Event Post)`):
 - **Social Context (Event Post):** Execute Workflow → RTD Social Context (sub), once per due event, with `events: [{ event_id: <Event ID>, sheet_date: <Event Date> }]` as a real array. `onError: continueRegularOutput`, so a failed call means no layer.
@@ -759,6 +771,75 @@ In both, Post to Buffer was replaced by a code stand-in that sends nothing, and 
 | `69750` | Review round 1: a no-post test copy (`lzIsfQDmjYOTD5uX`, archived). The Gate call points at a workflow that doesn't exist; Context mode is `off` | The Gate answered `{ error: "Workflow does not exist." }`. Merge Gate Answer gave `social_post: true` ("the social gate failed: … (context mode off)"), and the Buffer stand-in was reached. |
 | `69752` | The same, with Context mode `enforce` | `social_post: false`. The Held log row stand-in was reached, and so was Retry Held Post Tomorrow (disabled, so it passed through the held item). Its values: `Next Post: 2026-10-20` (ISO, RAW), `row_number: 2`. Buffer was not reached. |
 | (pure function) | The old and new Is Event Due Right Now? code (taken word for word from the node), run on today's real Event Index Next Post, Last Post and Post Frequency values, plus 7 edge values (blank, `23/10/2026`, an ISO timestamp, `2026-1-5`, `5.11.2026`, `garbage`, a serial number), `TZ=Europe/London` | 30 of 30 parse identically, and the due list is identical. The ISO values `2026-10-20`, `2026-11-05` and `2026-05-11` read as 20 Oct, 5 Nov and 11 May. |
+
+#### As built: Master V1, the round-ups and the Instagram Priority caption
+
+**Edited 2026-10-20, in the draft only** (draft `4ef9c552-7dfe-412d-b7bd-f79e01c3ed86`, started from `f544db43-…`; the published version is still `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b`, the rollback point). Integration points 2 and 4. The new nodes copy the Facebook event post's design: a layer added before Gemini, the Gate before Buffer, a Merge with the same no-usable-answer rule (post unless this run's Context mode is `enforce`), an IF on `social_post === true` only, and a `Held: <reason>` Post Log row.
+
+**The round-ups** (Prospectus, Mon/Thu about 20:00–21:00; Weekly, Sun 20:30). The nodes are named `… (Prospectus)` and `… (Weekly)`:
+- **Find Next 2 Diary Days & Build Prompt** and **Find Next 7 Days Events & Build Prompt** also output `social_events`: `[{ event_id, name, sheet_date }]`, one per Event ID in the round-up, earliest date first. It covers both Event Index rows (`Event Date`) and Standard Diary rows (`Date`). Rows with no Event ID are left out. `promptText` is built exactly as before.
+- **Social Context:** one call per round-up, with every event in it. `onError: continueRegularOutput`, alwaysOutputData.
+- **Add Social Layer:** the Find node's item, plus `social: { mode, ok, blocks, targets, sheet_dates }`.
+  - `blocks` is one section per event with a non-empty block, as `### <event name>\n<block>\n<date_block>`, joined by a blank line.
+  - `targets` has **every** event in the round-up, including one with no block or no date (`occurrence_id: null`, `prompt_version: 0`), so Enforce holds those.
+- **Gemini: Prospectus Post / Gemini: Weekly Recap Post:** today's message is kept character for character, with `{{ $json.social && $json.social.blocks ? $json.social.blocks + '\n\n' : '' }}` in front. With no blocks (Off, a failed context, unknown events, no approved prompts), Gemini gets exactly today's prompt. The round-ups have no date block after the prompt: each event's date is inside its own section.
+- **Social Gate:** `kind: 'roundup'`, `platform: 'facebook'`, the targets and `sheet_dates` above as a real array and object, `text` = Gemini's caption, exactly what Buffer gets. `onError: continueRegularOutput`.
+- **Merge Gate Answer → Social Gate Says Post?** True → **Post to Buffer (Prospectus / Weekly Recap)**, unchanged. False → **Log Held Post**, a Post Log append with Event Name `Prospectus Post` / `Weekly Post`, the caption, Date Posted and Automation Status `Held: <reason>`.
+- **Any `post: false` holds the whole round-up.** Round-ups don't advance Next Post, so there is no retry write.
+- **Connections:** Any Upcoming Events? / Any Events This Week? (true) → Social Context → Add Social Layer → Gemini → Social Gate → Merge → IF. Before, the IF went straight to Gemini, and Gemini straight to Buffer.
+
+**The Instagram Priority caption** (Mon, Wed and Sat at 20:15). The nodes are named `… (Instagram Priority)`:
+- **The Event ID.** The priority list is a list of event names, so the Event ID comes from the Event Index row the path already read (Pull Event Index (Priority)). It is the first row that isn't Inactive with the same name, as Select Priority Content picks it.
+  - With no Event ID, there is no layer, and the Gate gets `targets: []`. The app answers a 400 to that, which holds only at Enforce.
+  - Cafe Vibes (the filler) has an Event ID, `RTD-EVT-00008`, so it is checked like an event.
+- **Social Context:** after Aggregate Images (Priority), with `events: [{ event_id, sheet_date: Event Date }]`, or `[]` with no ID.
+- **Add Social Layer:** Aggregate Images' item, plus **only** `social: { mode, ok, event_id, sheet_date, block, date_block, occurrence_id, prompt_version }`. It does not add `eventDate` and the other fields: today's prompt reads them but never gets them, so **today's Priority caption has no date**, and Off keeps it that way.
+- **Generate Caption (Priority):** today's message is kept character for character, with `block + '\n\n'` in front and `'\n\n' + date_block` after it, **both only when the block is not empty**, as for the Facebook event post.
+- **Social Gate:** after the banned-word guardrail's true branch, so the Gate checks only a caption that would otherwise be posted. `kind: 'event_post'`, `platform: 'instagram'`.
+- **Merge → IF.** True → **Buffer: Instagram Carousel (Priority)**, unchanged. False → **Log Held Post (Instagram Priority)**: like Log Failed (Priority IG), with Automation Status `Held: <reason>` and Target Platform `Instagram`.
+- **No Next Post retry:** Priority doesn't advance Next Post today.
+
+**The Daily Recap** stays disabled. A sticky note, **Daily Recap Social Gate Note**, says it must go through Social Context and Social Gate (`roundup`) before it is ever turned back on.
+
+**Checked:** the draft was diffed against `f544db43`. Exactly 22 nodes were added: 6 per path, 3 path notes and the Daily Recap note. Exactly 5 were changed: the two Find nodes and the three Gemini nodes. 6 connections were removed and 24 added, with no other change. `update_workflow` reported only the warnings that were already there.
+
+**Tested 2026-10-20** on three no-post test copies, all now archived:
+- `ErHmjo5cMf1vFyMw`: Prospectus
+- `5FT3NsB57ZYqTZb9`: Weekly
+- `xyNK2PXNtiGvLeTM`: Instagram Priority
+
+How the copies were built:
+- Each copy was first built from the pre-edit nodes, run, and then updated with the draft's nodes.
+- The sheet reads were Code fixtures with the real rows from Master V1's 19 Oct runs (`70351`, `70380`).
+- Buffer was a Code stand-in that sends nothing, and every Post Log write was a Set node with the same column expressions.
+- Drive and ImageKit were replaced by a stand-in returning the 19 Oct ImageKit URLs.
+- Gemini was pinned to the real captions from `70351`, `66198` and `70380`.
+- A **Capture Gemini Input (TEST)** node rendered Gemini's exact message expression on Gemini's own input item, and **Hash Gemini Input (TEST)** took its sha256 in n8n.
+- Master V1 itself was never run, and the app's switch stayed Off.
+
+**Byte-identical at Off.** The before/after hashes match, and a local recomputation of each expression from the same rows gives the same hash.
+
+| Path | Before (pre-edit) | After, at Off, real subs called | Length | sha256 |
+| --- | --- | --- | --- | --- |
+| Prospectus | `73625` | `73683` (Context `73684`, Gate `73685`) | 3,333 | `9df04f324c9f4ed52f7855be521f8aeabd034348058bf1bee3f65b845fcda15f` |
+| Weekly | `73695` | `73698` (Context `73699`, Gate `73700`) | 3,944 | `a8339d60cd2e9aea3f5d495e32ea72b79ded0f2b0cdc52c6e35961321554015b` |
+| Instagram Priority | `73714` | `73716` (Context `73717`, Gate `73718`) | 1,124 | `f654b889dca09cf82f61fde7d613ff8034d8af31e73c0c31dcd5893bd1aae9d1` |
+
+At Off the context answered `{ mode: 'off', layers: {}, ok: true }`, and the Gate answered `post: true`. The Buffer stand-in and the success-log stand-in were reached, and the Held log was not. What the Gate's When Called received:
+- **Prospectus:** `kind: 'roundup'`, three targets (`RTD-EVT-00013`, `00006`, `00009`) as an array, and `sheet_dates` as an object.
+- **Instagram Priority:** `kind: 'event_post'`, `platform: 'instagram'`, `targets: [{ event_id: 'RTD-EVT-00003', … }]`, and `sheet_dates: { 'RTD-EVT-00003': '07/11/2026' }`.
+
+**Enforce and Shadow**, with the context and gate answers pinned:
+
+| Execution | Test | Result |
+| --- | --- | --- |
+| `73687` | Prospectus, **Enforce**: layers for Wednesdays and Home Education Support ClubT, none for Cleeples; Gate `post: false` | Gemini input = the two `###` sections + a blank line + today's prompt (3,695 characters). All three events were targets; Cleeples had `occurrence_id: null`. **Log Held Post** row `Held: Home Education Support ClubT: …; Cleeples: …`. Buffer and the success log did not run: the whole round-up was held. |
+| `73689` | Prospectus, **Shadow**, check fails (Gate `post: true`) | Same Gemini input. Buffer reached, success log written, Held not reached. |
+| `73701` | Weekly, **Enforce**: a bad Quiz block, Wednesdays fine, Cleeples no prompt; Gate `post: false` | Held whole: `Held: Quiz: …; Cleeples: …`. Buffer not reached. |
+| `73702` | Weekly, **Shadow**, check fails | Buffer reached. Held not reached. |
+| `73720` | Instagram Priority, **Enforce**: a layer for `RTD-EVT-00003`; Gate `post: false` | Gemini input = block + a blank line + today's prompt + a blank line + `Date: Saturday 7 November, 11am`. `Held: Blood on the Clocktower: "Marcus": …`. Buffer not reached. |
+| `73721` | Instagram Priority, **Shadow**, check fails | Buffer reached. Held not reached. |
+| `73722` | Instagram Priority at Off, an item whose name is on no Event Index row (no Event ID); real subs (`73723`, `73724`) | No layer. The Gate got `targets: []` and `sheet_dates: {}`, and Off answered `post: true`. Buffer reached. |
 
 ### What the check looks at
 
