@@ -680,7 +680,7 @@ Versions answered in step 3 are written by step 5, because `/to-write` lists the
 **Posters (Stage 2):**
 - Poster Generator records the exact quoted poster text, and the time it used, in the Drive file's description.
 - Master V1 reads it and sends it as `image_text`.
-- At Enforce, a poster whose wording or time doesn't match, or that has none (as with older posters), isn't attached. Event Guard's poster step makes a new one.
+- At Enforce, a poster whose wording or time doesn't match, or that has none (as with older posters), isn't attached. Event Guard's poster step makes a new one when the recorded time differs from the row's Event Time. See [As built: posters](#as-built-posters-through-the-social-gate-task-5).
 
 #### As built: the Context and Gate sub-workflows
 
@@ -855,6 +855,73 @@ At Off the context answered `{ mode: 'off', layers: {}, ok: true }`, and the Gat
 | `73761` | Off, Blood on the Clocktower, real subs (`73762`, `73763`) | Gemini input sha256 `f654b889…aae9d1`, 1,124 characters: **byte-identical** to the pre-edit `73714`. Context and Gate were called. Buffer reached. |
 | `73768` | **Enforce pinned** (context `enforce`, Gate `post: false`), Cafe Vibes | Social Context and Social Gate **did not run**. Gemini input sha256 `5e6787eb…c8bd0f`, 1,104 characters, which equals today's prompt computed from the pre-edit node. **Buffer reached**, success log written. (An earlier run, `73764`, used a test caption containing "Vibes" and was stopped by the existing banned-word guardrail, as today.) |
 | `73766` | Enforce pinned, Blood on the Clocktower, Gate `post: false` | Still held: `Held: Blood on the Clocktower: …`. Buffer not reached. |
+
+#### As built: posters through the social gate (Task 5)
+
+**Rollback points, recorded 2026-10-20 before any edit.** Each was the published version and the draft at the time.
+
+| Workflow | Rollback (published) version |
+| --- | --- |
+| RTD Poster Generator (sub) (`PVo8OZ59Qh5LA263`) | `e75815a7-cd78-42f6-a086-06ecf2332b2f` |
+| RTD Event Guard (sub) (`RtdEventGuardSub1`) | `4f73e19b-0f69-4abe-ae3e-2aa1b94c71c8` |
+| RTD Master V1 (`yPhchrcwuJSt3RLI`) | `37f21195-a767-4ee2-96a8-09770c3703a2` (live since 14:33 UTC; before that `38b1d6d1-…`) |
+
+**Edited 2026-10-20, in the drafts only.** Nothing was published, unpublished or restored. The app's switch stayed Off.
+
+| Workflow | Published (unchanged) | Draft now |
+| --- | --- | --- |
+| RTD Poster Generator (sub) | `e75815a7-…` | `3b065f81-1472-4459-b4db-434df5d8c871` (30 nodes, was 26) |
+| RTD Event Guard (sub) | `4f73e19b-…` | `2f4e8d13-ff6a-4689-8a24-61105e52bc3b` (15 nodes, was 14) |
+| RTD Master V1 | `37f21195-…` | `3b121622-24fa-4eb4-a014-c25d6720191d` (210 nodes, unchanged count) |
+
+Publishing all three is the owner's gate (G5). Publish order doesn't matter: until the Poster Generator draft is live, lookups return no description, so Master V1 omits `image_text` (and at Enforce leaves the poster off).
+
+**RTD Poster Generator (sub)**, all marked LOCAL EDIT (mirror in `rtd-poster-automation`):
+- **New input `approvedFacts`** (Poster Request, Normalise Request). Event Guard sends it; Master V1's lookup doesn't need it.
+- **Set Target Folder:** when Approved Facts are present, one line goes into the prompt after the style line: `Background facts about this event, only to guide the imagery and mood. Never write any of them on the poster: <facts>` (quote marks turned into `'`, line breaks into spaces). Facts are never quoted, so the existing rule (the only text is the quoted text) keeps them off the poster. **With no facts the prompt is byte-identical to today's** (checked against the real prompt of execution `71285`). It also returns `posterText` (the quoted pieces exactly as sent, one per line), `posterTime` (Event Time as `HH:MM`, 24-hour; `''` if unreadable) and `description`.
+- **Record Poster Text (new):** after Save Poster to Drive, an HTTP `PATCH https://www.googleapis.com/drive/v3/files/<saved file id>` with the existing **ATECHGoogleDrive** credential (the Drive node's Update has no description field), body `{ description }`. The description is `RTD poster text: <quoted text> | time: <HH:MM>`. Retries 3 times; on failure the poster is still kept and the result's reason says the text could not be recorded.
+- **Decide Poster Action:** returns the found poster's description as `POSTER_DESCRIPTION`. In Event Guard's modes (`generate`, `dryRun`), a poster whose description starts `RTD poster text: ` and records a time different from the row's Event Time is replaced (`GENERATE` / `WOULD_GENERATE`, with `replaces`). **A poster with no description (every existing poster) is reused as before**, so nothing is mass-regenerated on publish. No `.Stable` image: the old poster is kept. Lookup mode never regenerates.
+- **Drop Replaced Poster (new):** the re-check after the lock ignores the poster being replaced.
+- **Replaces Old Poster? / Retire Old Poster (new):** after the new poster is saved and recorded, the old one is renamed `<date>-replaced-<HHMM>-noapp.<ext>` (Drive Update, nothing deleted), so it no longer matches `<date>.<ext>`.
+- **Return Result:** adds `POSTER_DESCRIPTION` and `REPLACED`. Its helper now reads `$(node).first(0)`: with Record Poster Text on the success path, n8n's default output for Save Poster/Validate Poster became their (empty) error output, so a new poster was reported as `GENERATE` without its file (found in testing, fixed).
+
+**RTD Event Guard (sub):** Ensure Poster (Sub) also sends `approvedFacts`, the row's Approved Facts looked up from Read Event Index (Guard) by row number (no app call; Evaluate Events is unchanged). Its poster check is still keyed by name + date; with the Poster Generator draft it now also replaces a poster whose recorded time differs from Event Time. A sticky note explains this. The workflow description was updated.
+
+**RTD Master V1** (Facebook event post only; 3 nodes changed, connections unchanged):
+- **Social Gate (Event Post):** `image_text` = the attached poster's recorded wording: the description from Lookup Event Poster's `POSTER_DESCRIPTION`, the part after `RTD poster text: ` and before ` | time: …`. No description: `''`, which the Gate leaves out of the app's body.
+- **Merge Gate Answer (Event Post):** when the poster leads the photos:
+  - the Gate held the post and **every** reason (split on `; `) starts with `Poster:` → post the caption and the other photos **without the poster** (`social_poster_dropped` carries the reasons);
+  - at Enforce (this run's Context mode), a poster with no recorded text is left off (it can't be checked);
+  - otherwise exactly as before: mixed reasons hold the post as before; at Off and Shadow the photos are untouched.
+- **Social Gate Note (Event Post):** updated.
+
+**Off is byte-identical** (no-post copy, the 18 Oct Quiz row, real Context and Gate subs at Off, sha256 taken in n8n by Crypto nodes):
+
+| Run | Execution | Gemini input sha256 | Buffer body sha256 |
+| --- | --- | --- | --- |
+| Before: the live `37f21195` nodes, lookup as today (no description) | `74344` | `89e82e679a8e2eb82baffd4adb034696a81292c99c30d0a4149beca4547f6b09` | `b7b9fb98b4fd08bcf56360c909c6bb74a8a0ce2d962d00503900fb1a7eab9066` |
+| After: draft `3b121622` nodes, lookup with a recorded description | `74352` (Context `74353`, Gate `74354`) | `89e82e67…f6b09` (identical; same as Task 3's `69612`) | `b7b9fb98…ab9066` (identical) |
+
+In `74352` the Gate sent `image_text: "Quiz\nFriday, 23 October 2026\n18:30 - 22:00\nA family quiz night with prizes at stake!"` and Off answered `post: true`. In `74372` (no description) the app body had no `image_text`.
+
+**Tests** (all in archived copies: Poster Generator `CIyWnQYDnCZXnEMM`, Event Guard `oUTCM9D6jAa0ZPGT`, Master V1 event post `abGYDNvcNvzbjEuS`, folder setup `uZnVIhPt5tHz1LI8`). The Poster Generator copy wrote only to the TEST Drive folder **"RTD poster test (delete)"** (`19k3m9_8ViHH03BOMDPBCgOvrbHK-y9s7`, in My Drive; delete when done); its lock-table nodes were code stand-ins. The Guard copy had no sheet or log writes. The Master V1 copy had Buffer and every sheet write replaced by stand-ins that send nothing. No live poster, sheet or post was touched, and no real workflow was executed.
+
+| Execution | Test | Result |
+| --- | --- | --- |
+| `74247` | Generate Quiz 23 Oct 18:30 with Approved Facts | Prompt had the background-facts line; poster saved; description `RTD poster text: Quiz⏎Friday, 23 October 2026⏎18:30 - 22:00⏎A family quiz night with prizes at stake! \| time: 18:30` written. Showed the Return Result bug (`GENERATE`). |
+| `74252` | Lookup (Master V1's mode) | `POSTER_DESCRIPTION` read back from Drive. |
+| `74253` | Generate with Event Time 19:00 | Regenerated: new poster records `time: 19:00`; old renamed `2026-10-23-replaced-1830-noapp.jpg`. |
+| `74250`, `74255`, `74261`, `74267`, `74269` | Return Result debugging | Pinned runs worked; real runs read Save Poster's empty error output. `74255` also shows a failed description write (404) still returns the poster. |
+| `74276` | After the `first(0)` fix, 13 Nov | `GENERATED` with the file and its description. |
+| `74284` | 13 Nov, time moved to 7:30pm | `GENERATED`, `REPLACED: true`, `time: 19:30`; old renamed `…-replaced-1830-noapp.jpg`. |
+| `74286` | Poster with **no description**, different time (pinned Drive) | `REUSE`, Gemini not called. |
+| `74287` | Same time as recorded | `REUSE` with its description. |
+| `74291` (subs `74292`, `74293`) | Event Guard dry run: Quiz 23 Oct 18:30 with Approved Facts; Quiz 13 Nov 7:30pm | Row 1 `WOULD_GENERATE`: "Poster 2026-10-23.jpg records time 19:00 but Event Time is 18:30"; the sub got `approvedFacts`. Row 2 `REUSE`. |
+| (app suite) | The app's check on Poster Generator–style wording: `8PM` against the 6:30pm Quiz, at Enforce (a temporary test, not committed) | `Poster: "8PM": not the start or end time of Quiz`; `18:30` passes. |
+| `74356` | Enforce pinned, Gate held with only that `Poster:` reason | Posted **without the poster** (Buffer stand-in got the theme photo only). |
+| `74357` | Enforce pinned, `Poster:` + a caption reason | Held (Log Held Post reached, Buffer not). |
+| `74360` | Enforce pinned, Gate passed, poster with no description | Posted without the poster. |
+| `74361` | Shadow pinned, poster with no description | Poster kept, as today. |
 
 ### What the check looks at
 
