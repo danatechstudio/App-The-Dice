@@ -915,3 +915,11 @@ The check is a **safety net built from fixed rules, not a guarantee.** It can't 
 | RTD – Game of the Week | New (Phase 4) |
 | RTD – Host Application Notification | **RTD Team Notices** (join requests for hosts and café staff) |
 | RTD – Event / Booking Audit Logger | Not needed as workflows: the app writes `audit_log` itself; n8n actions are recorded via the API |
+
+### Master V1 published with the switch Off (20 Oct 2026, 14:33 UTC)
+
+- With the owner's go-ahead, RTD Master V1 (`yPhchrcwuJSt3RLI`) was published as version `37f21195-a767-4ee2-96a8-09770c3703a2`. This is the reviewed draft with Tasks 3 and 4: the Facebook event post, the Prospectus and Weekly round-ups and Instagram Priority go through RTD Social Context and Gate, and the two Post Log fixes are included.
+- **The app's switch is Off**, so captions and posting are exactly as before. The only visible changes are that Post Log now records `Success` with the Buffer ID, and the right "Asset used".
+- **Rollback:** republish the previous version `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b` (n8n › RTD Master V1 › Versions), or use `publish_workflow` with that `versionId`.
+- **Not in this version:** posters (Task 5) and the "Facebook Posted Food Today?" date fix (Task 6).
+
