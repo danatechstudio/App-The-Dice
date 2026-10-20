@@ -13,6 +13,7 @@ Stage 2, Task 4. The Mon/Thu **Prospectus** and Sunday **Weekly** round-ups and 
 | **Rollback point** (still the published version, checked after the edits and after the tests) | `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b` |
 | Draft this task started from | `f544db43-1f9c-4194-8c43-647bd34bfc28` (Task 3's last draft) |
 | New draft (not published) | `4ef9c552-7dfe-412d-b7bd-f79e01c3ed86`. It was saved in four steps: `557e0f29-…`, `cbcb6d0b-…` and `9a6e5299-…` only added the new nodes, unconnected, so they behave like `f544db43`; `4ef9c552` changed the prompts and connected them. |
+| Follow-up draft (not published), the latest | `37f21195-a767-4ee2-96a8-09770c3703a2`: Instagram Priority café rows skip the context and the gate |
 
 See [As built: Master V1, the round-ups and the Instagram Priority caption](#as-built-master-v1-the-round-ups-and-the-instagram-priority-caption) under the contract below.
 
@@ -791,13 +792,19 @@ In both, Post to Buffer was replaced by a code stand-in that sends nothing, and 
 **The Instagram Priority caption** (Mon, Wed and Sat at 20:15). The nodes are named `… (Instagram Priority)`:
 - **The Event ID.** The priority list is a list of event names, so the Event ID comes from the Event Index row the path already read (Pull Event Index (Priority)). It is the first row that isn't Inactive with the same name, as Select Priority Content picks it.
   - With no Event ID, there is no layer, and the Gate gets `targets: []`. The app answers a 400 to that, which holds only at Enforce.
-  - Cafe Vibes (the filler) has an Event ID, `RTD-EVT-00008`, so it is checked like an event.
+  - Cafe Vibes (the filler) has an Event ID (`RTD-EVT-00008`), but as a café row it skips the context and the gate (see "Café rows skip both steps" below).
 - **Social Context:** after Aggregate Images (Priority), with `events: [{ event_id, sheet_date: Event Date }]`, or `[]` with no ID.
 - **Add Social Layer:** Aggregate Images' item, plus **only** `social: { mode, ok, event_id, sheet_date, block, date_block, occurrence_id, prompt_version }`. It does not add `eventDate` and the other fields: today's prompt reads them but never gets them, so **today's Priority caption has no date**, and Off keeps it that way.
 - **Generate Caption (Priority):** today's message is kept character for character, with `block + '\n\n'` in front and `'\n\n' + date_block` after it, **both only when the block is not empty**, as for the Facebook event post.
 - **Social Gate:** after the banned-word guardrail's true branch, so the Gate checks only a caption that would otherwise be posted. `kind: 'event_post'`, `platform: 'instagram'`.
 - **Merge → IF.** True → **Buffer: Instagram Carousel (Priority)**, unchanged. False → **Log Held Post (Instagram Priority)**: like Log Failed (Priority IG), with Automation Status `Held: <reason>` and Target Platform `Instagram`.
 - **No Next Post retry:** Priority doesn't advance Next Post today.
+- **Café rows skip both steps** (follow-up, draft `37f21195-…`). Spec §3 says food and café rows aren't events.
+  - **Which rows:** the selected item's Event Index row has App Visibility `Hidden`, or its name is Cafe Vibes, Food1, Food2, Food3 or Drinks.
+  - **Cafe Row? (Instagram Priority):** an IF after Aggregate Images. For a café row, it goes straight to Generate Caption, so there is no context call and Gemini gets exactly today's prompt.
+  - **Cafe Row Skips Gate? (Instagram Priority):** an IF on the guardrail's true branch, with the same test. For a café row, it goes straight to Buffer, so there is no Gate call.
+  - **Effect:** a café post goes out exactly as today at every setting, Enforce included.
+  - **Exact match only:** a blank App Visibility is **not** treated as Hidden here, so such a row is still checked (fails safe).
 
 **The Daily Recap** stays disabled. A sticky note, **Daily Recap Social Gate Note**, says it must go through Social Context and Social Gate (`roundup`) before it is ever turned back on.
 
@@ -840,6 +847,14 @@ At Off the context answered `{ mode: 'off', layers: {}, ok: true }`, and the Gat
 | `73720` | Instagram Priority, **Enforce**: a layer for `RTD-EVT-00003`; Gate `post: false` | Gemini input = block + a blank line + today's prompt + a blank line + `Date: Saturday 7 November, 11am`. `Held: Blood on the Clocktower: "Marcus": …`. Buffer not reached. |
 | `73721` | Instagram Priority, **Shadow**, check fails | Buffer reached. Held not reached. |
 | `73722` | Instagram Priority at Off, an item whose name is on no Event Index row (no Event ID); real subs (`73723`, `73724`) | No layer. The Gate got `targets: []` and `sheet_dates: {}`, and Off answered `post: true`. Buffer reached. |
+
+**Follow-up tests (café rows), 2026-10-20**, in the no-post copy `IplQWLWQDwhyu0s9` (archived). It was built from draft `37f21195`'s nodes, with the same stand-ins as above, Select Priority Content pinned, and a trimmed Event Index fixture.
+
+| Execution | Test | Result |
+| --- | --- | --- |
+| `73761` | Off, Blood on the Clocktower, real subs (`73762`, `73763`) | Gemini input sha256 `f654b889…aae9d1`, 1,124 characters: **byte-identical** to the pre-edit `73714`. Context and Gate were called. Buffer reached. |
+| `73768` | **Enforce pinned** (context `enforce`, Gate `post: false`), Cafe Vibes | Social Context and Social Gate **did not run**. Gemini input sha256 `5e6787eb…c8bd0f`, 1,104 characters, which equals today's prompt computed from the pre-edit node. **Buffer reached**, success log written. (An earlier run, `73764`, used a test caption containing "Vibes" and was stopped by the existing banned-word guardrail, as today.) |
+| `73766` | Enforce pinned, Blood on the Clocktower, Gate `post: false` | Still held: `Held: Blood on the Clocktower: …`. Buffer not reached. |
 
 ### What the check looks at
 
