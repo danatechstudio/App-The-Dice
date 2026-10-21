@@ -1113,3 +1113,22 @@ To publish an older version: n8n › the workflow › Versions › pick the vers
 
 **Order to undo G5 in an emergency:** switch Off → Master V1 `37f21195-…` → Poster Generator `e75815a7-…` and Event Guard `4f73e19b-…` → Gate `d71d6ebe-…` and Context `013e6526-…`.
 
+### Stage 2 published with the switch Off (21 Oct 2026, ~10:50 UTC)
+
+With the owner's go-ahead (food fix accepted), published together with the app's switch Off:
+
+| Workflow | Now live | Previous live (rollback) |
+|---|---|---|
+| RTD Social Gate (sub) `NqC8fZUoIWWuvDnt` | `8767fea0` | `d71d6ebe` |
+| RTD Social Context (sub) `QCjohGtBuld6k5R8` | `dfa485a4` | `013e6526` |
+| RTD Poster Generator (sub) `PVo8OZ59Qh5LA263` | `beafe8be` | `e75815a7` |
+| RTD Event Guard (sub) `RtdEventGuardSub1` | `6f83b30c` | `4f73e19b` |
+| RTD Master V1 `yPhchrcwuJSt3RLI` | `3164d3c3` | `37f21195` (before Stage 2: `38b1d6d1`) |
+
+The prompt builder (`lh9MzioBdpBpBIVo`, draft `8be0614a`) stays unpublished until G4.
+
+**Same day, Logic Engine (owner's request):**
+- "Little Elves Christmas Club" (RTD-EVT-00033) was set to Status Inactive instead of being deleted, because workflows write back by row number.
+- On "Christmas Workshop" (RTD-EVT-00034) and "Christmas Workshop (hosted)" (RTD-EVT-00035), Michelle's Standard and KPI Hook prompts were rewritten to cover only each row's own session, and the half-finished TikTok Video Blueprint text was cleared.
+- **Cause:** on 20 Oct at 21:00 BST, a Christmas Workshop Facebook post went out with Gemini's assistant reply as its caption (Buffer `6ad7c850401eb284ae7953c9`). The rows came from the host-session flow, which wrote both sessions into each prompt and left half-finished text in the blueprint column.
+
