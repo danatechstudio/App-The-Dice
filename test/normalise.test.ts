@@ -63,6 +63,12 @@ describe('normaliseRows (Event Index)', () => {
     ]);
   });
 
+  it('shows an App Price that is only a number in pounds, and keeps any other price as written', () => {
+    const prices = [2, '5', ' 3 ', '2.5', 2.5, '12.00', '0.5', '£8', 'Free', 'FREE', 'Pay what you can', '2 per person', '£2.50'];
+    const { events } = normaliseRows('event_index', prices.map((p, i) => indexRow(i + 1, { 'App Price': p })));
+    expect(events.map(e => e.price_display)).toEqual(['£2', '£5', '£3', '£2.50', '£2.50', '£12', '£0.50', '£8', 'Free', 'FREE', 'Pay what you can', '2 per person', '£2.50']);
+  });
+
   it('skips blank rows silently', () => {
     const { events, warnings } = normaliseRows('event_index', [{ row_number: 9, 'Event Name': '  ', Frequency: 'x' }]);
     expect(events).toEqual([]);
