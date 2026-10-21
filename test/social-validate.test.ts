@@ -1048,6 +1048,59 @@ TONE & CALL TO ACTION:
     // A drop-in Booking fact doesn't support booking being needed.
     expect(errorsOf('Write about the Home Education Support Club. Booking is essential.', homeEd)).toEqual(['In the prompt, booking: needs a Booking fact']);
   });
+
+  // The second trial (21 Oct, after the fixes): Gemini capitalises a fact's own word ("Booking: Essential") and writes "Target Audience:".
+  it('passes the second trial prompts, verbatim', () => {
+    const quiz2 = `You are generating social media copy for the event 'Quiz'. Follow these instructions strictly:
+
+1. SCHEDULE & OCCURRENCE RULE:
+- Downstream posts must use ONLY the current verified schedule for the target event/occurrence, supplied separately at publishing time. Do not mention or infer specific dates, times, or frequency unless provided in that publishing schedule.
+
+2. PERMITTED FACTS & IDENTITY:
+- Event Name: Quiz
+- Category: Quiz
+- Details: A family quiz night with prizes at stake!
+- Host: Michelle
+- Target Audience / Age: Family friendly
+- Prizes: Cash prizes
+- Ticket Price: £2
+- Capacity: 60
+- Booking: Essential
+
+3. TONAL & EDITORIAL BOUNDARIES:
+- Maintain an inviting, family-friendly, and engaging tone suitable for a community quiz night.
+- Use only supported calls to action (e.g., prompt users to book since booking is essential).
+- Do not assume or add details about venue locations, food/drink, team sizes, parking, specific quiz topics, or external organizers not listed above.`;
+    const homeEd2 = `You are generating social media posts for Home Education Support Club. Use ONLY the approved facts listed below and follow all restrictions strictly.
+
+EVENT DETAILS:
+- Event Name: Home Education Support Club
+- Category: Club
+- Description: A get together for those home schooling.
+- Format: Free table time
+- Target Audience: Home-educating families
+- Price: FREE
+- Capacity: 60
+- Booking: No need to book
+
+PUBLISHING & EDITORIAL RULES:
+1. SCHEDULE & LOCATION: Downstream posts must use ONLY the current verified schedule for the target event/occurrence, supplied separately at publishing time. Do not infer or invent dates, start/end times, or venue locations.
+2. PERMITTED FACTS: State clearly that the event is FREE, has a capacity of 60, does not require booking, and features free table time as a get together for home-educating families.
+3. PROHIBITED ASSUMPTIONS: Do not add inferred participants, hosts, facilitators, organizers, specific games, refreshments, age ranges, or activities. Do not mention any other events.
+4. FORMAT INTEGRITY: Maintain the format as 'free table time'. Never reinterpret organised play as open play, or vice-versa.
+5. CALL TO ACTION: Keep calls to action strictly aligned with approved details (e.g., inviting home-educating families to drop in during verified scheduled hours). Do not direct users to external booking platforms or forms since no booking is needed.`;
+    expect(errorsOf(quiz2, quiz)).toEqual([]);
+    expect(errorsOf(homeEd2, homeEd)).toEqual([]);
+  });
+
+  it('still catches a name after a label when the facts never use that word', () => {
+    expect(errorsOf('- Booking: Trixie\n- Target Audience: Grimsby.', quiz)).toEqual([
+      `The prompt names "Trixie", which isn't in People & Roles or the event's own fields`,
+      `The prompt names "Grimsby", which isn't in People & Roles or the event's own fields`,
+    ]);
+    // A label of only unknown capitalised words is still a name (Trixie starts the line).
+    expect(errorsOf('- Trixie Smith: helper', quiz)).toEqual([`The prompt names "Smith", which isn't in People & Roles or the event's own fields`]);
+  });
 });
 
 describe('post check', () => {
