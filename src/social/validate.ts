@@ -658,13 +658,19 @@ function startsSentence(text: string, i: number): boolean {
 const isAllCaps = (word: string): boolean => (word.match(/\p{Lu}/gu) ?? []).length >= 2 && !/\p{Ll}/u.test(word);
 // The words a label may join with: "Safe Call to Action", "Target Audience / Age".
 const LABEL_JOINERS = new Set(['and', 'or', 'to', 'of', 'for', 'the', 'a', 'an']);
+// Words a prompt's labels are made of, known or not to the event: "Target Audience:", "Ticket Price:".
+const LABEL_WORDS = new Set(
+  [...SECTION_LABELS].flatMap(l => l.split(' ')).concat(
+    ['target', 'requirement', 'requirements', 'details', 'detail', 'name', 'price', 'ticket', 'capacity', 'category', 'info', 'information', 'cost'],
+  ),
+);
 const LABEL_LINE = /^[ \t]*(?:[-*•#>]+[ \t]*|\d{1,3}[.)][ \t]*)?[*_]*([^:]{1,80}?)[*_]*[ \t]*:/u;
 
 /**
  * The labels of a prompt's lines: the text before the first colon, after any bullet or number
  * ("- Booking Requirement:", "Target Audience / Age:"). Only up to six words, each capitalised or a
  * joiner, with nothing but spaces, "&", "/" and "-" between, and one of them a word already known
- * ("Booking", "Age", "Event"), so "- Trixie Smith: helper" and "Write about Trixie: …" aren't labels.
+ * ("Booking", "Age", "Event") or a label word ("Target Audience"), so "- Trixie Smith: helper" and "Write about Trixie: …" aren't labels.
  */
 function labelSpans(text: string, ok: Set<string>): Span[] {
   const spans: Span[] = [];
@@ -674,7 +680,7 @@ function labelSpans(text: string, ok: Set<string>): Span[] {
     if (!m || !label || !/^[\p{L}\p{N}'’ \t&/-]+$/u.test(label)) continue;
     const words = label.match(WORD) ?? [];
     const titled = words.every(w => /^[\p{Lu}\p{N}]/u.test(w) || LABEL_JOINERS.has(w.toLowerCase()));
-    if (words.length > 6 || !titled || !words.some(w => isAllowed(w, ok))) continue;
+    if (words.length > 6 || !titled || !words.some(w => isAllowed(w, ok) || LABEL_WORDS.has(w.toLowerCase()))) continue;
     const at = line.index! + m[0].lastIndexOf(label);
     spans.push([at, at + label.length]);
   }
@@ -688,6 +694,13 @@ function startsValue(text: string, at: number, end: number): boolean {
   return j >= 0 && (text[j] === ':' || text[j] === '(') && /^[ \t]{1,3}\p{Ll}/u.test(text.slice(end, end + 4));
 }
 
+/** Whether the word at `at` comes straight after a colon ("Booking: Essential"). */
+function afterColon(text: string, at: number): boolean {
+  let j = at - 1;
+  while (j >= 0 && /[ \t"“‘'*_]/.test(text[j]!)) j--;
+  return j >= 0 && text[j] === ':';
+}
+
 /**
  * Capitalised words that aren't allowed: not in `allowed` (words or phrases, any case), not a
  * built-in venue, label, month, day or common word, not starting a sentence and not a hashtag.
@@ -695,13 +708,15 @@ function startsValue(text: string, at: number, end: number): boolean {
  *
  * In a prompt (`prompt`), which is written as headings, labels and lists, neither are words in
  * capitals ("PUBLISHING", "FREE"), the words of a line's label ("Booking Requirement:"), nor the
- * first word of a value or an aside that runs on in small letters ("Age Guidance: Family friendly").
+ * first word of a value or an aside that runs on in small letters ("Age Guidance: Family friendly"),
+ * nor a value word written in `valueWords` in any case ("Booking: Essential").
  * "Host: Trixie" still names Trixie. Another event's name in capitals is caught by its own check.
  */
-export function findNames(text: string, allowed: Iterable<string>, opts: { prompt?: boolean } = {}): string[] {
+export function findNames(text: string, allowed: Iterable<string>, opts: { prompt?: boolean; valueWords?: string[] } = {}): string[] {
   const ok = new Set(BASE_ALLOWED);
   for (const a of allowed) addWords(ok, a);
   const labels = opts.prompt ? labelSpans(text, ok) : [];
+  const values = new Set((opts.valueWords ?? []).map(w => w.toLowerCase()));
   const found: string[] = [];
   let run: string[] = [];
   let lastEnd = 0;
@@ -714,7 +729,7 @@ export function findNames(text: string, allowed: Iterable<string>, opts: { promp
     const at = m.index!;
     if (!/^[ \t]+$/.test(text.slice(lastEnd, at))) flush();
     lastEnd = at + word.length;
-    const layout = opts.prompt === true && (isAllCaps(word) || within(at, lastEnd, labels) || startsValue(text, at, lastEnd));
+    const layout = opts.prompt === true && (isAllCaps(word) || within(at, lastEnd, labels) || startsValue(text, at, lastEnd) || (values.has(word.toLowerCase()) && afterColon(text, at)));
     const name = /^\p{Lu}/u.test(word) && text[at - 1] !== '#' && !isAllowed(word, ok) && !startsSentence(text, at) && !layout;
     if (name) run.push(word);
     else flush();
@@ -1000,7 +1015,9 @@ export function promptTextErrors(prompt: string, f: SourceFields, otherEventName
   }
   const people = parsePeople(f.people_roles).people;
   const allowed = [f.name, f.category, ...people.map(p => p.name), ...[f.base_details, f.approved_facts, f.people_roles].flatMap(capitalisedWords)];
-  for (const n of findNames(prompt, allowed, { prompt: true })) {
+  // Gemini capitalises a fact's own word as a label's value ("Booking: Essential").
+  const valueWords = [f.base_details, f.approved_facts].flatMap(t => t.match(WORD) ?? []);
+  for (const n of findNames(prompt, allowed, { prompt: true, valueWords })) {
     errors.push(`The prompt names "${n}", which isn't in People & Roles or the event's own fields`);
   }
   // Format claims and role words, as in a post, except where the prompt forbids them ('never say "drop in"').
