@@ -4,6 +4,67 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### 2026-10-21: Stage 2 final fixes (drafts only, not published)
+
+The final whole-branch review's fixes, in drafts only. The owner publishes them at G5 (and the Builder at G4), with the switch Off.
+
+**Versions recorded before any edit** (the rollback points; nothing below is published):
+
+| Workflow | Published before this wave (unchanged) | Draft before this wave |
+| --- | --- | --- |
+| RTD Master V1 `yPhchrcwuJSt3RLI` | `37f21195-a767-4ee2-96a8-09770c3703a2` | `1c0677ca-0f17-4c87-9e53-c9bdfdf63883` |
+| RTD Social Gate (sub) `NqC8fZUoIWWuvDnt` | `d71d6ebe-2fda-45a9-922f-02767f7bd5f1` | same as published |
+| RTD Social Context (sub) `QCjohGtBuld6k5R8` | `013e6526-407b-4da7-99a1-5f550a0c2cfb` | same as published |
+| RTD Social Prompt Builder `lh9MzioBdpBpBIVo` | not published | `4714d38a-fe06-40f8-aab5-c68e47cf12ea` |
+
+**After** (every published version checked again at the end, unchanged; nothing published, the app's switch stayed Off):
+
+| Workflow | Published | New draft (publish at G5 / G4) |
+| --- | --- | --- |
+| RTD Master V1 | `37f21195-…` | **`3164d3c3-329d-437a-8925-315fcb6de6d2`** (`8fd60ce4-…` was the same change before the two new nodes were moved into place on the canvas) |
+| RTD Social Gate (sub) | `d71d6ebe-…` | **`8767fea0-852b-4c8b-848d-8c37a5ad14f9`** |
+| RTD Social Context (sub) | `013e6526-…` | **`dfa485a4-230b-4a32-b766-3cc97548a01b`** |
+| RTD Social Prompt Builder | not published | **`8be0614a-4b08-4881-bce7-c57689005497`** (via `920b6e3c-…`) |
+
+The Gate and Context subs are now part of G5: publish their drafts with the Master V1, Poster Generator and Event Guard drafts. Manual test runs call the subs' drafts, so the Off proof below already ran against these drafts.
+
+**What changed**
+1. **Café rows skip the check on the Facebook event post** (Master V1). Two IF nodes, the same test as Instagram Priority's (App Visibility `Hidden`, or the name is Cafe Vibes, Food1, Food2, Food3 or Drinks, ignoring case; a blank visibility still goes through the check): **Cafe Row? (Event Post)** between Pair With Event Metrics and Social Context (true → Gemini with exactly today's prompt), and **Cafe Row Skips Gate? (Event Post)** between Build Photo Context and Social Gate (true → Post to Buffer as today). Such a row posts as today at every setting.
+2. **Unchecked posts are visible.** When the Gate gives no usable check but the post goes out (`post: true` with a `held_reason`), the success Post Log row reads `Success; unchecked: <reason>`: Write Execution Transaction Log, Log Successful Post1 (Prospectus), Log Successful Post2 (Weekly) and Log Success (Priority IG). The round-up logs had no Automation Status before; they now write it, but only in this case (otherwise an empty cell, as before). At Off the app answers 200, so nothing changes.
+3. **The Gate fails closed on unreadable settings.** Check Request flags `settings_unreadable` when the rtd_config read failed, or there is no `RTD_APP_BASE_URL` or no `SOCIAL_MODE_LAST`. **Settings Readable?** then skips the app call, and Gate Answer returns `post: false`, `held_reason: 'settings unreadable'`. Callers treat it as a usable answer, so the post is held (logged `Held: settings unreadable`). At Off this only bites if n8n's own data table is broken.
+4. **One retry on 502/503/504** in both subs: **Retry On 502/503/504?** → **Wait 5 s** → **Ask App To Check (Retry)** / **Ask App For Context (Retry)** → the same answer node. Other errors go straight to the fallback, as before. A Gate fallback after the retry says `(after one retry)`.
+5. **alwaysOutputData on the four Social Gate call nodes** (Event Post, Prospectus, Weekly, Instagram Priority), so a Gate that returns zero items still reaches Merge Gate Answer and its no-usable-answer rule (post unless this run's Context mode is enforce).
+6. **Builder** (before G4): Prompts To Write passes an Event ID found on neither tab on with `tab: 'none'` (Which Tab drops it, nothing is written) and End Of Run Check counts it. Mark Written In App now continues on error after its 3 tries, and End Of Run Check reads every run of it (one per tab) and counts the failures. Both go into the one end-of-run alert; the versions stay in `/to-write`.
+
+**Off evidence** (no-post copy `dIs0mDgziX5p5x0n` of the Facebook event path, real Dungeons & Dragons row `RTD-EVT-00007` and caption from live run `74415`; real Context and Gate subs at Off; sha256 taken in n8n):
+
+| Run | Execution (subs) | Gemini input | Buffer body |
+| --- | --- | --- | --- |
+| Before (nodes as in `1c0677ca`) | `76644` (`76645`, `76646`) | 2827 chars, `2c8786da2f87d11114247d0ee4cbae6ac49fe42152fbfe63553ebec44e8f1c94` | 1470 chars, `7586c5879aab4205f9f63b728d47b9dc2e7f5d42acd4873b209835583e134b13` |
+| After (nodes as in `3164d3c3`, sub drafts) | `77329` (`77330`, `77331`) | identical | identical |
+
+Post Log stand-in: `Success`, BufferID `TEST-NOT-POSTED-0` in both. The Gemini hash also matches a local sha256 of the row's KPI Hook prompt + `\n\n`.
+
+**Tests** (all copies archived: event path `dIs0mDgziX5p5x0n`, Gate `XuyvghGlURCGxFUV`, Context `DQZ1EEoqozm6rGh3`, zero-item Gate `BnhGsrWKg9f34U7T`, Post Log expressions `R7U8weXLbAOFvMvt`, Builder `b6VCR64Rp57OEPwS`; no Buffer, Meta, Instagram, ImageKit or sheet-write node in any of them; the subs' app URL was an invalid host or the HTTP answers were pinned):
+
+| Item | Execution | Test | Result |
+| --- | --- | --- | --- |
+| 1 | `76671` | Before: Cafe Vibes (Hidden), Context and Gate pinned to Enforce / `post: false` | **Held** (the bug) |
+| 1 | `77332` | After: the same pins | Context and Gate **not run**; Gemini got exactly today's prompt; **Buffer stand-in reached**, `Success` |
+| 1 | `77333` | After: D&D, Context pinned Enforce with a layer, Gate `post: false` | **Held**, Retry Held Post Tomorrow `2026-10-22`; Buffer not reached |
+| 2 | `76750` | Gate copy: last mode shadow, app pinned **400** | `post: true`, `held_reason` = the app's error |
+| 2 | `77334` | Event path: Context Shadow, Gate answer as in `76750` | Post Log `Success; unchecked: occurrence_id is required …` |
+| 2 | `77366` / `77367` / `77368` | Round-up and IG log expressions: unchecked / checked / IG café path (Merge not run) | `Success; unchecked: …` on all three / round-ups empty, IG `Success` / `Success` |
+| 3 | `76738`, `76749`, `76764` | Gate copy: rtd_config empty / an error item / no SOCIAL_MODE_LAST | `post: false`, `settings unreadable`; the app was **not** asked |
+| 3 | `77335` | Event path at Off, Gate pinned `settings unreadable` | **Held** (`Held: settings unreadable`) |
+| 4 | `76751` | Gate: 503, then 200 allow | Waited 5.0 s, retried, `post: true` |
+| 4 | `76752` | Gate: last mode enforce, 503 twice | `post: false`, `Service Unavailable (after one retry)` |
+| 4 | `76756` | Gate: enforce, 400 | No retry, held |
+| 4 | `76769` / `76773` / `76798` | Context: 502 then 200 / 504 twice / 500 | Retried, mode off / no layer after the retry / no retry, no layer |
+| 5 | `77339` | Event path at Off, Gate pointed at a sub that returns zero items | Merge Gate Answer reached: posted, `Success; unchecked: the social gate gave no answer (context mode off)` |
+| 5 | `77342` | The same, Context pinned Enforce | **Held** (`the social gate gave no answer (context mode enforce)`) |
+| 6 | `77381` | Builder copy: dry run off, live, `/to-write` with one Event Index, one Standard Diary and one unknown ID; `/written` to an invalid host | Unknown ID: nothing written; both `/written` calls failed after 3 tries (~10 s each) and the run still reached End Of Run Check, which raised one error naming `RTD-EVT-09999 v3` and both `/written` failures |
+
 ### 2026-10-21: RTD Master V1, the "Facebook Posted Food Today?" fix (draft, not published)
 
 Stage 2, Task 6. **Only the draft changed; nothing is published.** It goes live with the poster changes at G5, and the app's switch stays Off. The full list of versions and how to undo each one is in the [Stage 2 rollback record](#stage-2-rollback-record).
@@ -18,7 +79,7 @@ Stage 2, Task 6. **Only the draft changed; nothing is published.** It goes live 
 
 **The fix.** Both sides are turned into `yyyy-MM-dd` in Europe/London before they are compared. `Date Posted` is read as `dd/MM/yyyy` (UK order, as the Post Log writes it), and also as a plain ISO date, an ISO timestamp (its London date), a sheet serial number, or the older `August 11th 2026, 5:30:42 pm` form. A value it can't read never matches, as before. All 918 rows of the 20 Oct Post Log read cleanly. The rest of the node (Facebook only, the four food names, any status) is unchanged.
 
-**What changes when it is published:** on a day the Facebook food post has gone out, the 09:15 run goes to Already Covered by Facebook Today and posts **no Instagram food post**. On other days it posts as now. On the Sept–Oct pattern (Facebook food every other day), Instagram food posts drop from daily to about every other day. No other path is touched: the event post, round-ups, Instagram Priority, posters and every Gemini prompt are exactly as in `b3e51f75`, so the Off byte-identical proofs from Tasks 3 to 5 still stand.
+**What changes when it is published (an owner decision, still pending; see the G5 checklist step 1):** on a day the Facebook food post has gone out, the 09:15 run goes to Already Covered by Facebook Today and posts **no Instagram food post**. On other days it posts as now. On the Sept–Oct pattern (Facebook food every other day), Instagram food posts drop from daily to about every other day. No other path is touched: the event post, round-ups, Instagram Priority, posters and every Gemini prompt are exactly as in `b3e51f75`, so the Off byte-identical proofs from Tasks 3 to 5 still stand.
 
 **Tests** (archived no-post copy `ijPXNkh26VSswb1U`: Run By Hand → a pinned stand-in for the Post Log read → the node's exact code → the same IF → two No-Op ends; no sheet, Buffer or Meta node):
 
@@ -928,7 +989,7 @@ Publishing all three is the owner's gate (G5). Publish order doesn't matter: unt
 
 In `74352` the Gate sent `image_text: "Quiz\nFriday, 23 October 2026\n18:30 - 22:00\nA family quiz night with prizes at stake!"` and Off answered `post: true`. In `74372` (no description) the app body had no `image_text`.
 
-**Tests** (all in archived copies: Poster Generator `CIyWnQYDnCZXnEMM`, Event Guard `oUTCM9D6jAa0ZPGT`, Master V1 event post `abGYDNvcNvzbjEuS`, folder setup `uZnVIhPt5tHz1LI8`). The Poster Generator copy wrote only to the TEST Drive folder **"RTD poster test (delete)"** (`19k3m9_8ViHH03BOMDPBCgOvrbHK-y9s7`, in My Drive; delete when done); its lock-table nodes were code stand-ins. The Guard copy had no sheet or log writes. The Master V1 copy had Buffer and every sheet write replaced by stand-ins that send nothing. No live poster, sheet or post was touched, and no real workflow was executed.
+**Tests** (all in archived copies: Poster Generator `CIyWnQYDnCZXnEMM`, Event Guard `oUTCM9D6jAa0ZPGT`, Master V1 event post `abGYDNvcNvzbjEuS`, folder setup `uZnVIhPt5tHz1LI8`). The Poster Generator copy wrote only to the TEST Drive folder **"RTD poster test (delete)"** (in My Drive; delete when done); its lock-table nodes were code stand-ins. The Guard copy had no sheet or log writes. The Master V1 copy had Buffer and every sheet write replaced by stand-ins that send nothing. No live poster, sheet or post was touched, and no real workflow was executed.
 
 | Execution | Test | Result |
 | --- | --- | --- |
@@ -1032,23 +1093,23 @@ The check is a **safety net built from fixed rules, not a guarantee.** It can't 
 - With the owner's go-ahead, RTD Master V1 (`yPhchrcwuJSt3RLI`) was published as version `37f21195-a767-4ee2-96a8-09770c3703a2`. This is the reviewed draft with Tasks 3 and 4: the Facebook event post, the Prospectus and Weekly round-ups and Instagram Priority go through RTD Social Context and Gate, and the two Post Log fixes are included.
 - **The app's switch is Off**, so captions and posting are exactly as before. The only visible changes are that Post Log now records `Success` with the Buffer ID, and the right "Asset used".
 - **Rollback:** republish the previous version `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b` (n8n › RTD Master V1 › Versions), or use `publish_workflow` with that `versionId`.
-- **Not in this version:** posters (Task 5) and the "Facebook Posted Food Today?" date fix (Task 6). Both are in the draft `1c0677ca-…`, which waits for G5.
+- **Not in this version:** posters (Task 5) and the "Facebook Posted Food Today?" date fix (Task 6). Both are in the draft, now `3164d3c3-…` (with the final fixes), which waits for G5.
 
 ### Stage 2 rollback record
 
-Recorded 21 Oct 2026, after Task 6. Every Stage 2 workflow, the version before Stage 2, what is live now, and what is waiting. The app's switch is **Off**. Whatever is rolled back, **set the switch to Off first** (Organise › Events & dates › Social prompts); at Off nothing is checked or held.
+Recorded 21 Oct 2026, after Task 6; pending drafts updated after the final fix wave. Every Stage 2 workflow, the version before Stage 2, what is live now, and what is waiting. The app's switch is **Off**. Whatever is rolled back, **set the switch to Off first** (Organise › Events & dates › Social prompts); at Off nothing is checked or held.
 
 To publish an older version: n8n › the workflow › Versions › pick the version › Publish (or the n8n MCP `publish_workflow` with that `versionId`). Publishing a version doesn't delete the draft or any other version.
 
 | Workflow | Before Stage 2 | Live now | Pending draft | How to roll back |
 | --- | --- | --- | --- | --- |
-| **RTD Master V1** (`yPhchrcwuJSt3RLI`) | `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b` | `37f21195-a767-4ee2-96a8-09770c3703a2` (published 20 Oct 14:33 UTC with the switch Off: Tasks 3 and 4, the event post, round-ups and Instagram Priority through the gate, plus the two Post Log fixes) | `1c0677ca-0f17-4c87-9e53-c9bdfdf63883` (adds Task 5 posters and the Task 6 food fix) | Before G5: nothing to do, the draft isn't live. After G5, to undo only the posters and food fix: publish `37f21195-…`. To undo all of Stage 2: publish `38b1d6d1-…`. |
+| **RTD Master V1** (`yPhchrcwuJSt3RLI`) | `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b` | `37f21195-a767-4ee2-96a8-09770c3703a2` (published 20 Oct 14:33 UTC with the switch Off: Tasks 3 and 4, the event post, round-ups and Instagram Priority through the gate, plus the two Post Log fixes) | `3164d3c3-329d-437a-8925-315fcb6de6d2` (adds Task 5 posters, the Task 6 food fix and the final fixes; built on `1c0677ca-…`) | Before G5: nothing to do, the draft isn't live. After G5, to undo only the posters and food fix: publish `37f21195-…`. To undo all of Stage 2: publish `38b1d6d1-…`. |
 | **RTD Poster Generator (sub)** (`PVo8OZ59Qh5LA263`) | `e75815a7-cd78-42f6-a086-06ecf2332b2f` | `e75815a7-…` (unchanged) | `beafe8be-03b3-4ff1-9e83-775e1be85c36` (records the poster text and time; replaces a poster whose time changed) | Publish `e75815a7-…`, together with Event Guard's `4f73e19b-…`. Posters made meanwhile stay. Replaced posters are only renamed (`<date>-replaced-<HHMM>-noapp.<ext>`); rename one back to `<date>.<ext>` to use it again. |
 | **RTD Event Guard (sub)** (`RtdEventGuardSub1`) | `4f73e19b-0f69-4abe-ae3e-2aa1b94c71c8` | `4f73e19b-…` (unchanged) | `6f83b30c-37d9-47c5-b24b-135a4cdc4563` (sends Approved Facts; regenerates up to 5 stale posters a run) | Publish `4f73e19b-…`, together with the Poster Generator's `e75815a7-…`. |
-| **RTD Social Context (sub)** (`QCjohGtBuld6k5R8`) | Didn't exist | `013e6526-407b-4da7-99a1-5f550a0c2cfb` (published 19 Oct) | None | Nothing to do: at Off it answers "no layers". Unpublish only after Master V1 is back on `38b1d6d1-…`, which doesn't call it. rtd_config `SOCIAL_MODE_LAST` can stay. |
-| **RTD Social Gate (sub)** (`NqC8fZUoIWWuvDnt`) | Didn't exist | `d71d6ebe-2fda-45a9-922f-02767f7bd5f1` (published 19 Oct) | None | As Context: at Off it answers `post: true`. Unpublish only after Master V1 is back on `38b1d6d1-…`. |
-| **RTD Social Prompt Builder** (`lh9MzioBdpBpBIVo`) | Didn't exist | Not published | `4714d38a-fe06-40f8-aab5-c68e47cf12ea` (dry run, staging, by rtd_config) | Before G4: nothing to do. After G4: unpublish it, and set rtd_config `SOCIAL_BUILDER_DRY_RUN=true`. Cells it wrote (Social Prompt, Social Prompt Status) can stay or be cleared; nothing reads them for posting. |
+| **RTD Social Context (sub)** (`QCjohGtBuld6k5R8`) | Didn't exist | `013e6526-407b-4da7-99a1-5f550a0c2cfb` (published 19 Oct) | `dfa485a4-230b-4a32-b766-3cc97548a01b` (one retry on 502/503/504) | Before G5: nothing to do. After G5: publish `013e6526-…`. At Off it answers "no layers". Unpublish only after Master V1 is back on `38b1d6d1-…`, which doesn't call it. rtd_config `SOCIAL_MODE_LAST` can stay. |
+| **RTD Social Gate (sub)** (`NqC8fZUoIWWuvDnt`) | Didn't exist | `d71d6ebe-2fda-45a9-922f-02767f7bd5f1` (published 19 Oct) | `8767fea0-852b-4c8b-848d-8c37a5ad14f9` (holds when rtd_config can't be read; one retry on 502/503/504) | Before G5: nothing to do. After G5: publish `d71d6ebe-…`. At Off it answers `post: true`. Unpublish only after Master V1 is back on `38b1d6d1-…`. |
+| **RTD Social Prompt Builder** (`lh9MzioBdpBpBIVo`) | Didn't exist | Not published | `8be0614a-4b08-4881-bce7-c57689005497` (dry run, staging, by rtd_config; final fixes on top of `4714d38a-…`) | Before G4: nothing to do. After G4: unpublish it, and set rtd_config `SOCIAL_BUILDER_DRY_RUN=true`. Cells it wrote (Social Prompt, Social Prompt Status) can stay or be cleared; nothing reads them for posting. |
 | **RTD Event Sync** (`fOYrFBOElFkWx7R3`) | The 5–19 Oct version (n8n's history no longer lists it) | `cb8c73dc-9bca-4506-a7df-ae8e110f0696` (published 19 Oct, G2: also sends Banned Phrases, Approved Facts, People & Roles) | None | Not expected: the app keeps the three extra fields out of each event's change hash, so they change no event. If ever needed, take the three fields out of Build Snapshot by hand. |
 
-**Order to undo G5 in an emergency:** switch Off → Master V1 `37f21195-…` → Poster Generator `e75815a7-…` and Event Guard `4f73e19b-…`.
+**Order to undo G5 in an emergency:** switch Off → Master V1 `37f21195-…` → Poster Generator `e75815a7-…` and Event Guard `4f73e19b-…` → Gate `d71d6ebe-…` and Context `013e6526-…`.
 

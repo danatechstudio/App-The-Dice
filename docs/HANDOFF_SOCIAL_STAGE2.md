@@ -25,14 +25,15 @@ The new session needs these connectors: n8n, Google Sheets and Drive, Cloudflare
 
 | Task | State | n8n IDs |
 |---|---|---|
-| 1. RTD Social Prompt Builder | Complete. Unpublished, dry run on staging. | `lh9MzioBdpBpBIVo` (draft `4714d38a`) |
-| 2. Context and Gate sub-workflows | Complete. Published; at Off they do nothing. | Context `QCjohGtBuld6k5R8` (`013e6526`), Gate `NqC8fZUoIWWuvDnt` (`d71d6ebe`) |
+| 1. RTD Social Prompt Builder | Complete. Unpublished, dry run on staging. | `lh9MzioBdpBpBIVo` (draft `8be0614a` after the final fixes) |
+| 2. Context and Gate sub-workflows | Complete. Published; at Off they do nothing. | Context `QCjohGtBuld6k5R8` (live `013e6526`, draft `dfa485a4`), Gate `NqC8fZUoIWWuvDnt` (live `d71d6ebe`, draft `8767fea0`); the drafts are published at G5 |
 | 3. Master V1 Facebook event post, plus the Post Log fixes | Complete. **Live** in `37f21195` (G5 part 1, 20 Oct, switch Off). | Master V1 `yPhchrcwuJSt3RLI` |
 | 4. Master V1 round-ups (Prospectus, Weekly) and Instagram Priority | Complete. **Live** in `37f21195`. | — |
 | 5. Posters (Poster Generator, Event Guard, Master V1 attach) | Complete, in the **drafts** only. | Poster Generator `PVo8OZ59Qh5LA263`: live `e75815a7`, draft `beafe8be`; Event Guard `RtdEventGuardSub1`: live `4f73e19b`, draft `6f83b30c` |
-| 6. "Facebook Posted Food Today?" fix, rollback record, G5 checklist | Complete. The fix is in the Master V1 **draft** only. | Master V1: live `37f21195` (unchanged), draft **`1c0677ca-0f17-4c87-9e53-c9bdfdf63883`** (Tasks 5 and 6) |
+| 6. "Facebook Posted Food Today?" fix, rollback record, G5 checklist | Complete. The fix is in the Master V1 **draft** only. | Master V1: live `37f21195` (unchanged), draft `1c0677ca` (Tasks 5 and 6) |
+| Final fix wave (Important 1–4 and the minors) | Complete, in the **drafts** only. See [the change entry](RTD_N8N_WORKFLOWS.md#2026-10-21-stage-2-final-fixes-drafts-only-not-published). | Master V1 draft **`3164d3c3-329d-437a-8925-315fcb6de6d2`**; Gate `8767fea0`; Context `dfa485a4`; Builder `8be0614a` |
 
-**Master V1 versions:** before Stage 2 `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b`; live `37f21195-a767-4ee2-96a8-09770c3703a2`; pending draft `1c0677ca-0f17-4c87-9e53-c9bdfdf63883`. Every workflow's versions and rollback steps are in the [Stage 2 rollback record](RTD_N8N_WORKFLOWS.md#stage-2-rollback-record). The owner's next steps are the [G5 checklist](RTD_HANDOFF.md#event-social-prompts-stage-2-the-owners-g5-checklist).
+**Master V1 versions:** before Stage 2 `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b`; live `37f21195-a767-4ee2-96a8-09770c3703a2`; pending draft `3164d3c3-329d-437a-8925-315fcb6de6d2` (Tasks 5, 6 and the final fixes). Every workflow's versions and rollback steps are in the [Stage 2 rollback record](RTD_N8N_WORKFLOWS.md#stage-2-rollback-record). The owner's next steps are the [G5 checklist](RTD_HANDOFF.md#event-social-prompts-stage-2-the-owners-g5-checklist).
 
 **G5 part 1 evening check (20 Oct):** 8 Master V1 runs, all successful; 4 Facebook posts went out; Post Log rows `Success` with Buffer IDs; nothing held; D1 `social_checks` 0 rows; switch Off. No rollback.
 
@@ -106,7 +107,18 @@ The test reports for each task are in `docs/RTD_N8N_WORKFLOWS.md`, in the Builde
 - **Task 5:** a reuse-path retire is logged as "appeared while waiting for the lock"; an empty Event Time with a recorded time regenerates once (capped); over-cap or rename-failing posters stay attached until a later run (dropped at Enforce by the Gate).
 - **Task 6:** the food check counts any Facebook food row, so a Facebook food post that really failed still skips Instagram that day.
 
+**Final review (21 Oct) and the fix wave:**
+- **Important 1 (fixed in the drafts):** café rows (Hidden, Cafe Vibes, Food1–3, Drinks) on the Facebook event post would have been held forever at Enforce. They now skip Context and Gate there, as on Instagram Priority, and post as today at every setting.
+- **Important 2 (fixed):** Gate fallbacks were invisible in Shadow. A post that goes out without a usable check now logs `Success; unchecked: <reason>` (event post, round-ups, Instagram Priority). Off stays plain `Success`.
+- **Important 3 (fixed; ruling: fail closed):** an unreadable rtd_config in the Gate (no app URL or no SOCIAL_MODE_LAST) now returns `post: false`, "settings unreadable", which callers hold. At Off this only bites if n8n's own data table is broken.
+- **Important 4 (owner decision, pending):** the food fix changes what posts (Instagram food about every other day). It is G5 checklist step 1.
+- **Minors fixed:** one retry on 502/503/504 in both subs; alwaysOutputData on the four Gate calls; the Builder counts an Event ID on neither tab and a `/written` failure in its end-of-run alert.
+- **Dungeons & Dragons has no Event Date:** no occurrence, so at Enforce every D&D post is held unless its rows get dates.
+- **Not in this wave:** the food decision (owner's) and the end time / Base Details poster redo (noted for G6).
+
 **For the owner** (the full list is in the [G5 checklist](RTD_HANDOFF.md#event-social-prompts-stage-2-the-owners-g5-checklist)):
+- Decide on the food fix (G5 step 1).
+- Fix D&D's missing dates, or decide how it's handled, before G6.
 - Move the inline Meta token and ImageKit header into n8n credentials.
 - Fill in Approved Facts and People & Roles (G3).
 - The round-up's diary-row duplication fix (24× reads) needs a go-ahead.
@@ -116,9 +128,7 @@ The test reports for each task are in `docs/RTD_N8N_WORKFLOWS.md`, in the Builde
 - Delete the Drive folder "RTD poster test (delete)".
 - To run the 3-event rehearsal, add the rtd_config key `SOCIAL_BUILDER_LIMIT=3`, then remove it afterwards.
 
-## What's left (Tasks 1 to 6 are done)
+## What's left (Tasks 1 to 6, the final review and the fix wave are done)
 
-1. Run the final whole-branch review on the most capable model, covering the n8n workflows and the docs.
-2. Make one fix wave.
-3. Give the owner the "Rulings I made" list.
-4. Stop for the owner's gates, in the order of the [G5 checklist](RTD_HANDOFF.md#event-social-prompts-stage-2-the-owners-g5-checklist): publish the three drafts with the switch Off, watch an evening, G3 and G4, Shadow, review, then G6.
+1. Give the owner the "Rulings I made" list.
+2. Stop for the owner's gates, in the order of the [G5 checklist](RTD_HANDOFF.md#event-social-prompts-stage-2-the-owners-g5-checklist): the food decision, check and publish the five drafts with the switch Off, watch one of each post, G3 and G4, Shadow, review, then G6.

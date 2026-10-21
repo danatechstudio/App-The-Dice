@@ -71,22 +71,36 @@ The app side of event-specific social master prompts ([changelog](../RTD_CHANGEL
 
 All six Stage 2 tasks are built (n8n side; details in [RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#every-post-rtd-master-v1-and-the-poster-path-stage-2), and the versions in the [Stage 2 rollback record](RTD_N8N_WORKFLOWS.md#stage-2-rollback-record)). Master V1 has been live since 20 Oct with the switch Off, and the first evening was normal: 8 runs, 4 Facebook posts, every Post Log row `Success` with its Buffer ID, nothing held. What's left is yours, in this order. Each step waits for your go-ahead.
 
-1. **Publish three workflows together, with the switch still Off.** In n8n, publish the latest draft of each:
-   - **RTD Master V1** (draft `1c0677ca`): the poster changes, and the food fix. After the food fix, on a day the Facebook food post has gone out, the 09:15 Instagram food post is skipped, as it was always meant to be. So expect Instagram food posts about every other day instead of daily.
-   - **RTD Poster Generator (sub)** (draft `beafe8be`).
-   - **RTD Event Guard (sub)** (draft `6f83b30c`).
+1. **Decide on the food fix first (pending, your call).** The Master V1 draft includes a fix to "Facebook Posted Food Today?". Today that check never matches, so Instagram posts food every morning even on days the Facebook food post went out. With the fix, the 09:15 Instagram food post is skipped on those days, so Instagram food posts drop from daily to about every other day. That is a change you will see, so it's your decision. If you don't want it, say so before step 2 and the node is put back in the draft first.
+2. **Check the five drafts in n8n first, then publish them together, with the switch still Off.** In n8n, open each workflow's Versions and check that the latest draft is exactly this one before you publish it:
+   - **RTD Master V1** `yPhchrcwuJSt3RLI`: draft **`3164d3c3`** (the poster changes, the food fix, and the final fixes: café rows skip the check on the Facebook event post, unchecked posts are logged as `Success; unchecked: …`, a Gate that answers nothing still reaches the hold-or-post rule).
+   - **RTD Poster Generator (sub)** `PVo8OZ59Qh5LA263`: draft **`beafe8be`**.
+   - **RTD Event Guard (sub)** `RtdEventGuardSub1`: draft **`6f83b30c`**.
+   - **RTD Social Gate (sub)** `NqC8fZUoIWWuvDnt`: draft **`8767fea0`** (holds when rtd_config can't be read; one retry on a 502/503/504).
+   - **RTD Social Context (sub)** `QCjohGtBuld6k5R8`: draft **`dfa485a4`** (one retry on a 502/503/504).
 
-   Publish the Poster Generator and Event Guard at the same time. If one goes without the other, posters whose time changed simply aren't redone (nothing breaks).
-2. **Watch one evening.** Check the Post Log: each post should read `Success` with a Buffer ID. Then look at the first posters the Event Guard redoes (it runs at 01:15; it redoes a poster only when the event's time has changed, at most 5 a night). Check the wording and time are right, and that no "background fact" has been drawn onto the picture.
-3. **Delete the Drive folder "RTD poster test (delete)"** in My Drive. It holds only test posters from the build.
-4. **Fill in the facts (G3)** with Michelle: Approved Facts and People & Roles in the Logic Engine, using the doc "Social prompts: facts to confirm". Then **run the Builder's 3-event dry run** (it writes nothing to the sheet), look at the 3 prompts on the screen, and if they're right, **publish the Builder (G4)**.
-5. **Set the switch to Shadow** (Organise › Events & dates › Social prompts) for about a week. Nothing is held in Shadow; every post is checked and recorded.
-6. **Review "would have been held"** on the same screen. For each one, decide whether the check was right (the post was wrong) or the check was too strict (the facts or wording need changing).
-7. **Enforce (G6)**, only when you're happy with the week. From then on, a post that fails is held and listed with the reasons. To go back, switch to Shadow.
+   Publish the Poster Generator and Event Guard at the same time. If one goes without the other, posters whose time changed simply aren't redone (nothing breaks). At Off, all five behave as today (byte-identical test, final fix wave).
+3. **Watch before Shadow: one of each kind of post.** In the Post Log, each post should read `Success` with a Buffer ID, and nothing should read `Held` or `unchecked`. Cover:
+   - an evening of Facebook event posts;
+   - a **Thursday Prospectus** (20:00–21:00);
+   - a **Saturday Instagram Priority** post (20:15);
+   - a **Sunday Weekly** round-up (20:30);
+   - the **09:15 food slot** (Facebook food, then Instagram food only on days Facebook didn't post food, if you kept the food fix).
+4. **Delete the Drive folder "RTD poster test (delete)"** in My Drive. It holds only test posters from the build.
+5. **Fill in the facts (G3)** with Michelle: Approved Facts and People & Roles in the Logic Engine, using the doc "Social prompts: facts to confirm". Then **run the Builder's 3-event dry run** (it writes nothing to the sheet), look at the 3 prompts on the screen, and if they're right, **publish the Builder (G4)**.
+6. **Look at the first posters the Event Guard redoes** after G3 (it runs at 01:15; it redoes a poster only when the event's time has changed, at most 5 a night). Check the wording and time are right, and that no Approved Fact has been drawn onto the picture.
+7. **Set the switch to Shadow** (Organise › Events & dates › Social prompts) for about a week. Nothing is held in Shadow; every post is checked and recorded. A Post Log row reading `Success; unchecked: <reason>` means the check couldn't run for that post: at Enforce that post would have been held only if the last known setting was Enforce.
+8. **Review "would have been held"** on the same screen. For each one, decide whether the check was right (the post was wrong) or the check was too strict (the facts or wording need changing).
+9. **Enforce (G6)**, only when you're happy with the week. From then on, a post that fails is held and listed with the reasons. To go back, switch to Shadow.
 
 **If anything looks wrong at any point:** switch to Off first, then publish the earlier versions listed in the [rollback record](RTD_N8N_WORKFLOWS.md#stage-2-rollback-record).
 
 **Open items for you:**
+- **Final review, Important 1 (fixed in the drafts):** café rows (App Visibility Hidden, or Cafe Vibes / Food1–3 / Drinks) on the Facebook event post now skip the check, as on Instagram Priority. Before, Cafe Vibes would have been held every time at Enforce.
+- **Important 2 (fixed):** when the check can't run but the post goes out, the Post Log row now reads `Success; unchecked: <reason>` (event post, Prospectus, Weekly, Instagram Priority), so Shadow shows what Enforce would hold.
+- **Important 3 (fixed):** if the Gate can't read rtd_config (no app URL or no SOCIAL_MODE_LAST), it now holds the post (`Held: settings unreadable`). At Off this only matters if n8n's own data table is broken.
+- **Important 4 (your decision, step 1):** the food fix.
+- **Dungeons & Dragons has no Event Date,** so it has no dated occurrence to check against. At Enforce every D&D post will be held unless its rows get dates. Fix the dates (or decide how D&D should be handled) before G6.
 - **Move the inline Meta token and the ImageKit header into n8n credentials.** They're typed into 4 Meta nodes and 2 ImageKit nodes in Master V1. They were left alone during the build.
 - **The round-up's diary rows are read 24 times** (192 rows go to Gemini instead of 8). It's an old bug, left alone so Off stayed identical. Fixing it needs your go-ahead.
 - **Hidden real events skip the check on Instagram Priority.** Instagram Priority treats every Hidden row like a café row (Cafe Vibes, Food, Drinks) and posts it unchecked. Confirm that's what you want before G6.
