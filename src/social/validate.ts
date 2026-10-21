@@ -657,8 +657,8 @@ function startsSentence(text: string, i: number): boolean {
 // A prompt's headings are written in capitals ("PUBLISHING & SCHEDULE RULES:"): a word of two or more capitals and no small
 // letters, or an abbreviation's plural ("URLs", "FAQs").
 const isAllCaps = (word: string): boolean => (word.match(/\p{Lu}/gu) ?? []).length >= 2 && !/\p{Ll}/u.test(word.replace(/s$/, ''));
-// The words a label may join with: "Safe Call to Action", "Target Audience / Age".
-const LABEL_JOINERS = new Set(['and', 'or', 'to', 'of', 'for', 'the', 'a', 'an']);
+// The words a label may join with: "Safe Call to Action", "Target Audience / Age", "Strict Boundary on Content".
+const LABEL_JOINERS = new Set(['and', 'or', 'to', 'of', 'for', 'the', 'a', 'an', 'on', 'in', 'with', 'by', 'at', 'from', 'per']);
 // Words a prompt's labels are made of, known or not to the event: "Target Audience:", "Ticket Price:".
 const LABEL_WORDS = new Set(
   [...SECTION_LABELS].flatMap(l => l.split(' ')).concat(
