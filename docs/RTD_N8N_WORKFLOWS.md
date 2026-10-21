@@ -923,6 +923,26 @@ In `74352` the Gate sent `image_text: "Quiz\nFriday, 23 October 2026\n18:30 - 22
 | `74360` | Enforce pinned, Gate passed, poster with no description | Posted without the poster. |
 | `74361` | Shadow pinned, poster with no description | Poster kept, as today. |
 
+**Fix round 1 (review), 2026-10-20/21, drafts only.** Drafts now: Poster Generator `beafe8be-03b3-4ff1-9e83-775e1be85c36`, Event Guard `6f83b30c-37d9-47c5-b24b-135a4cdc4563` (19 nodes), Master V1 `b3e51f75-7178-4464-aade-def648f17233`. Published versions unchanged (`e75815a7`, `4f73e19b`, `37f21195`).
+1. **A failed rename is retried.** Still Missing?'s "already there" branch now also goes through Replaces Old Poster? → Retire Old Poster, so when the new poster exists but the out-of-date one wasn't renamed, the next run renames it (no image-model call). Return Result adds `RETIRED` and, on failure, `RENAME FAILED: <file> could not be renamed (<error>) - retried on the next run` to the reason (and so to the RTD Event Automation Log).
+2. **A dropped poster is logged.** Master V1's Write Execution Transaction Log (Post Log) Automation Status becomes `Success; posted without poster: <reason>` when the poster was dropped; BufferID unchanged. At Off it is exactly `Success`. Filters on the Post Log should use "starts with Success".
+3. **The current item's poster.** Social Gate (Event Post) `image_text` and Merge Gate Answer read Lookup Event Poster's output for the same item index (not the first hit), and `image_text` is sent only when that poster leads the photos.
+4. **Unreadable times and a cap.**
+   - Poster Generator has a new input `timeRegen`. Only `allow` regenerates a stale-time poster; otherwise it is reported `TIME_STALE` (reason `TIME STALE: …`).
+   - An Event Time it can't read (e.g. `7pm-late`) never regenerates: `TIME_UNREADABLE`, reason `… TIME UNREADABLE: Event Time '…' can't be read …`.
+   - Event Guard: Ensure Poster sends `timeRegen: check`; new **Cap Time Regenerations** sends at most **5** stale posters per run to new **Regenerate Stale Poster (Sub)** (`timeRegen: allow`), via **Regenerate Stale Poster?**, and **Regenerated Poster Results** pairs the answers back before Shape Log Rows. The rest are logged "over this run's cap of 5 … left for the next run"; unreadable times carry `[unreadable Event Times this run: N]`.
+   - Publishing the Poster Generator before the Guard means no time-change regeneration at all until the Guard is published (fails safe).
+5. Facts drawn on the image: no change (the owner will review the first regenerated posters).
+
+| Execution | Test (archived no-post copies `GB0M1zol4huabHAJ`, `DcySSigwdAcJgWRe`, `mc4jvgM1Binl2SPN`; Drive writes only to the TEST folder) | Result |
+| --- | --- | --- |
+| `76501` | Time moved to 20:00, Retire Old Poster's file id deliberately broken in the copy | New poster made (`time: 20:00`); reason `… RENAME FAILED: 2026-10-23.jpg could not be renamed (… not found) - retried on the next run` |
+| `76503` | Same run again, file id restored | `REUSE` ("appeared while waiting"), image model **not** called; old poster renamed `2026-10-23-replaced-1900-noapp.jpg`, `RETIRED: true` |
+| `76505` | Event Time `7pm-late`, poster recording 19:30, `timeRegen: allow` (pinned Drive) | `REUSE`, `TIME_UNREADABLE: true`, not regenerated |
+| `76512` | Guard dry run: 6 stale posters + 1 unreadable (pinned sub answers) | 5 sent to Regenerate Stale Poster (`WOULD_GENERATE`); the 6th logged "over this run's cap of 5 … (6 found)"; the unreadable one logged with `[unreadable Event Times this run: 1]` |
+| `76473` | Master V1 Enforce pinned, Gate held only for `Poster: "8PM": …` | Posted without the poster; Post Log stand-in `Success; posted without poster: Poster: "8PM": not the start or end time of Quiz`, BufferID `TEST-NOT-POSTED-0` |
+| `76434` → `76470` | **Off re-check**: live `37f21195` nodes vs draft `b3e51f75` nodes (with a recorded description), real subs | Gemini input sha256 `89e82e67…f6b09` and Buffer body `b7b9fb98…ab9066` identical; Post Log `Success` / `TEST-NOT-POSTED-0` in both |
+
 ### What the check looks at
 
 A post passes only when **every** one of these holds for each target:
