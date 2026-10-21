@@ -60,6 +60,18 @@ const MARKET_ID = /^RTD-MKT-\d{5,}$/;
 const text = (v: unknown): string => String(v ?? '').trim();
 const orNull = (s: string): string | null => (s === '' ? null : s);
 
+/**
+ * App Price as shown. A cell formatted as currency reaches the app as its bare number, so a value
+ * that is only a number is pounds: "2" is "£2", "2.5" is "£2.50", "12.00" is "£12". Anything else
+ * ("£8", "Free", "Pay what you can") is kept as written.
+ */
+function priceOf(v: unknown): string {
+  const s = text(v);
+  if (!/^\d{1,6}(?:\.\d{1,6})?$/.test(s)) return s;
+  const pounds = Number(s).toFixed(2);
+  return `£${pounds.endsWith('.00') ? pounds.slice(0, -3) : pounds}`;
+}
+
 /** Approved Facts, People & Roles and Banned Phrases (Standard Diary has no Banned Phrases). */
 function socialValuesOf(source: Source, row: SheetRow): SocialValues {
   return {
@@ -170,7 +182,7 @@ export function normaliseRows(
       // Event Index: only an explicit Active counts. Standard Diary has no Status column.
       active: isIndex ? status.toLowerCase() === 'active' : status === '' || status.toLowerCase() === 'active',
       photo_folder_id: orNull(text(row['Photo Folder ID'])),
-      price_display: isIndex ? orNull(text(row['App Price']).slice(0, 40)) : null,
+      price_display: isIndex ? orNull(priceOf(row['App Price']).slice(0, 40)) : null,
       default_capacity: isIndex ? capacityOf(row['App Capacity']) : null,
       host_session_id: isIndex && HOST_SESSION_ID.test(text(row['App Host Session'])) ? text(row['App Host Session']) : null,
       market_id: isIndex && MARKET_ID.test(text(row['App Host Session'])) ? text(row['App Host Session']) : null,

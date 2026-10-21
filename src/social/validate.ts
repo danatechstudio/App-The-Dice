@@ -654,14 +654,54 @@ function startsSentence(text: string, i: number): boolean {
   return j >= 0 && /[.!?…]/.test(text[j]!) && !NOT_A_SENTENCE_END.test(text.slice(Math.max(0, j - 5), j + 1));
 }
 
+// A prompt's headings are written in capitals ("PUBLISHING & SCHEDULE RULES:"): a word of two or more capitals and no small letters.
+const isAllCaps = (word: string): boolean => (word.match(/\p{Lu}/gu) ?? []).length >= 2 && !/\p{Ll}/u.test(word);
+// The words a label may join with: "Safe Call to Action", "Target Audience / Age".
+const LABEL_JOINERS = new Set(['and', 'or', 'to', 'of', 'for', 'the', 'a', 'an']);
+const LABEL_LINE = /^[ \t]*(?:[-*•#>]+[ \t]*|\d{1,3}[.)][ \t]*)?[*_]*([^:]{1,80}?)[*_]*[ \t]*:/u;
+
+/**
+ * The labels of a prompt's lines: the text before the first colon, after any bullet or number
+ * ("- Booking Requirement:", "Target Audience / Age:"). Only up to six words, each capitalised or a
+ * joiner, with nothing but spaces, "&", "/" and "-" between, and one of them a word already known
+ * ("Booking", "Age", "Event"), so "- Trixie Smith: helper" and "Write about Trixie: …" aren't labels.
+ */
+function labelSpans(text: string, ok: Set<string>): Span[] {
+  const spans: Span[] = [];
+  for (const line of text.matchAll(/^.*$/gmu)) {
+    const m = LABEL_LINE.exec(line[0]);
+    const label = m?.[1];
+    if (!m || !label || !/^[\p{L}\p{N}'’ \t&/-]+$/u.test(label)) continue;
+    const words = label.match(WORD) ?? [];
+    const titled = words.every(w => /^[\p{Lu}\p{N}]/u.test(w) || LABEL_JOINERS.has(w.toLowerCase()));
+    if (words.length > 6 || !titled || !words.some(w => isAllowed(w, ok))) continue;
+    const at = line.index! + m[0].lastIndexOf(label);
+    spans.push([at, at + label.length]);
+  }
+  return spans;
+}
+
+/** Whether the word at `at`..`end` opens a value or an aside, after a colon or "(", and runs on in small letters ("Prizes: Cash prizes", "(Check the schedule)"). */
+function startsValue(text: string, at: number, end: number): boolean {
+  let j = at - 1;
+  while (j >= 0 && /[ \t"“‘'*_]/.test(text[j]!)) j--;
+  return j >= 0 && (text[j] === ':' || text[j] === '(') && /^[ \t]{1,3}\p{Ll}/u.test(text.slice(end, end + 4));
+}
+
 /**
  * Capitalised words that aren't allowed: not in `allowed` (words or phrases, any case), not a
  * built-in venue, label, month, day or common word, not starting a sentence and not a hashtag.
  * Neighbouring finds are joined ("Trixie Smith"). Each is reported once.
+ *
+ * In a prompt (`prompt`), which is written as headings, labels and lists, neither are words in
+ * capitals ("PUBLISHING", "FREE"), the words of a line's label ("Booking Requirement:"), nor the
+ * first word of a value or an aside that runs on in small letters ("Age Guidance: Family friendly").
+ * "Host: Trixie" still names Trixie. Another event's name in capitals is caught by its own check.
  */
-export function findNames(text: string, allowed: Iterable<string>): string[] {
+export function findNames(text: string, allowed: Iterable<string>, opts: { prompt?: boolean } = {}): string[] {
   const ok = new Set(BASE_ALLOWED);
   for (const a of allowed) addWords(ok, a);
+  const labels = opts.prompt ? labelSpans(text, ok) : [];
   const found: string[] = [];
   let run: string[] = [];
   let lastEnd = 0;
@@ -674,7 +714,8 @@ export function findNames(text: string, allowed: Iterable<string>): string[] {
     const at = m.index!;
     if (!/^[ \t]+$/.test(text.slice(lastEnd, at))) flush();
     lastEnd = at + word.length;
-    const name = /^\p{Lu}/u.test(word) && text[at - 1] !== '#' && !isAllowed(word, ok) && !startsSentence(text, at);
+    const layout = opts.prompt === true && (isAllCaps(word) || within(at, lastEnd, labels) || startsValue(text, at, lastEnd));
+    const name = /^\p{Lu}/u.test(word) && text[at - 1] !== '#' && !isAllowed(word, ok) && !startsSentence(text, at) && !layout;
     if (name) run.push(word);
     else flush();
   }
@@ -959,13 +1000,13 @@ export function promptTextErrors(prompt: string, f: SourceFields, otherEventName
   }
   const people = parsePeople(f.people_roles).people;
   const allowed = [f.name, f.category, ...people.map(p => p.name), ...[f.base_details, f.approved_facts, f.people_roles].flatMap(capitalisedWords)];
-  for (const n of findNames(prompt, allowed)) {
+  for (const n of findNames(prompt, allowed, { prompt: true })) {
     errors.push(`The prompt names "${n}", which isn't in People & Roles or the event's own fields`);
   }
   // Format claims and role words, as in a post, except where the prompt forbids them ('never say "drop in"').
   const exempt = [...own, ...forbidden.quoted, ...forbiddenLists(prompt)];
   const support = { name: f.name, base_details: f.base_details, facts: parseFacts(f.approved_facts).facts, booking_mode: null };
-  for (const p of claimProblems(prompt, exempt, support)) errors.push(`In the prompt, ${p}`);
+  for (const p of claimProblems(prompt, exempt, support, true)) errors.push(`In the prompt, ${p}`);
   // A role beside a name is allowed only as People & Roles give it, or where Base Details or Approved Facts write that name with that role.
   for (const p of roleProblems(prompt, exempt, people, rolePairs([f.base_details, f.approved_facts]))) errors.push(`In the prompt, ${p}`);
   return errors;
@@ -1257,15 +1298,86 @@ function sameWordIn(word: string, text: string): boolean {
   return phraseRegex(stem)?.test(text) ?? false;
 }
 
-/** Every keyword-group word in the text, outside `skip`, that the event's data doesn't support, as "cash: needs a Prizes fact". */
-function claimProblems(text: string, skip: Span[], t: Support): string[] {
+// What a prompt tells Gemini not to do isn't a claim. A clause (to . ! ? ; : or a line break) that opens with a prohibition
+// or a negation ("Do not … open play", "Never … prizes", "No hype about …", "Without …") claims nothing after it, until a
+// comma, "and" or "or" starts a part with a verb or a pronoun of its own ("Never mention prizes, and kids are welcome"), or
+// "but" and the like. "Don't miss", "Don't forget" and "No worries" aren't prohibitions.
+const NEGATED_CLAUSE_END = new RegExp(`[.!?…]+(?=\\s|$)|[;:]|${LINE_BREAK}`, 'gu');
+const CLAUSE_OPENING = /[\s\-*•#>"“‘'(\[_]*(?:\d{1,3}[.)][ \t]*)?[*_"“‘']*/uy;
+const CLAUSE_NEGATION = new RegExp(
+  `(?:never|do${HSPACE}+not|don['’]t|must${HSPACE}+not|mustn['’]t|should${HSPACE}+not|shouldn['’]t|avoid|no|without)(?!\\p{L})` +
+    `(?!${HSPACE}+(?:forget|miss|hesitate|wait|delay|leave|worries|worry|problems?|bother|stress)(?!\\p{L}))`,
+  'iuy',
+);
+const NEGATION_BREAK = /,|(?<!\p{L})(?:and|or|but|however|although|though|while|whereas|instead)(?!\p{L})/giu;
+const NEGATION_ENDS = /^\s*(?:but|however|although|though|while|whereas|instead)(?!\p{L})/iu;
+const OWN_VERB =
+  /(?<![\p{L}\p{N}'’])(?:is|are|was|were|be|been|will|would|can|could|may|might|must|shall|should|do|does|did|has|have|had|it|it['’]s|they|we|you|he|she|everyone|there|here|gets?|got|welcomed?|welcomes|awaits?|waiting)(?![\p{L}\p{N}'’])/iu;
+// A word straight after a negation, at most two words on: "not open play", "no cash prizes". Not after "don't miss".
+const GOVERNED = new RegExp(`${NEGATIVE_WORD}(?:${GAP_WORD}){0,2}\\s+$`, 'iu');
+
+/** The stretches of a prompt that a prohibition or negation opening their clause governs, each from the negation to where it stops. */
+function negatedClauses(text: string): Span[] {
+  const spans: Span[] = [];
+  let start = 0;
+  const ends = spansOf(NEGATED_CLAUSE_END, text);
+  for (const [end, next] of [...ends, [text.length, text.length] as Span]) {
+    CLAUSE_OPENING.lastIndex = start;
+    const at = start + (CLAUSE_OPENING.exec(text)?.[0].length ?? 0);
+    CLAUSE_NEGATION.lastIndex = at;
+    if (at < end && CLAUSE_NEGATION.test(text)) {
+      // The negation reaches each part until one has a verb or a pronoun of its own, or opens with "but".
+      const clause = text.slice(at, end);
+      // Past a comma only as a list with a joiner before its last item: "rules, age cut-offs, or activities", not "the dice, cash prizes".
+      const lastComma = clause.lastIndexOf(',');
+      let stop = lastComma === -1 || /^,\s*(?:or|and|nor)(?!\p{L})/iu.test(clause.slice(lastComma)) ? clause.length : clause.indexOf(',');
+      const breaks = [...clause.slice(0, stop).matchAll(NEGATION_BREAK)].map(m => m.index!);
+      for (const [i, b] of breaks.entries()) {
+        const part = clause.slice(b, breaks[i + 1] ?? stop);
+        if (NEGATION_ENDS.test(part.replace(/^,/, '')) || OWN_VERB.test(part)) {
+          stop = b;
+          break;
+        }
+      }
+      spans.push([at, at + stop]);
+    }
+    start = next;
+  }
+  return spans;
+}
+
+/** For a prompt: whether a keyword match is only a negated or forbidden mention, not a claim. Never for wording that says booking is needed ("not booked yet?"). */
+function negatedIn(text: string): (m: RegExpMatchArray) => boolean {
+  const clauses = negatedClauses(text);
+  const needed = bookingNeededSpans(text);
+  return m => {
+    const [at, end] = [m.index!, m.index! + m[0].length];
+    if (needed.some(([s, e]) => at < e && end > s)) return false;
+    // The clause's own negation can't make the match it starts negated: "No booking needed" is drop in.
+    if (clauses.some(([s, e]) => at > s && end <= e)) return true;
+    return GOVERNED.test(text.slice(Math.max(0, at - 80), at));
+  };
+}
+
+// A booking label before a drop-in value is part of it: "Booking: No need to book".
+const BOOKING_LABEL_END = /^[ \t]{0,3}[:?][ \t]{0,3}/u;
+
+/**
+ * Every keyword-group word in the text, outside `skip`, that the event's data doesn't support, as "cash: needs a Prizes fact".
+ * In a prompt (`prompt`), a negated or forbidden mention isn't a claim, and nor is a booking label before a drop-in value.
+ */
+function claimProblems(text: string, skip: Span[], t: Support, prompt = false): string[] {
   const problems: string[] = [];
+  const negated = prompt ? negatedIn(text) : () => false;
   const found = (matches: RegExpMatchArray[], alsoSkip: Span[] = []) =>
-    matches.filter(m => !within(m.index!, m.index! + m[0].length, [...skip, ...alsoSkip])).map(m => ({ m, word: m[0].toLowerCase().replace(/\s+/g, ' ') }));
+    matches
+      .filter(m => !within(m.index!, m.index! + m[0].length, [...skip, ...alsoSkip]) && !negated(m))
+      .map(m => ({ m, word: m[0].toLowerCase().replace(/\s+/g, ' ') }));
   const booking = t.facts.Booking ?? [];
 
   // Drop-in words need a Booking fact saying so (or the same words in Base Details); the booking setting never supports them.
-  const dropIns = found(dropInMatches(text));
+  const allDropIns = dropInMatches(text);
+  const dropIns = found(allDropIns);
   const dropInFact = booking.some(v => bookingFact(v).dropIn);
   for (const { word } of dropIns) if (!dropInFact && !sameWordIn(word, t.base_details)) problems.push(`${word}: needs a Booking fact saying so`);
 
@@ -1287,7 +1399,14 @@ function claimProblems(text: string, skip: Span[], t: Support): string[] {
   const bookedFact = booking.some(v => !bookingFact(v).dropIn || bookingFact(v).booked);
   const bookingSet = t.booking_mode === 'required' || t.booking_mode === 'optional';
   const noDropIns = found([...text.matchAll(NO_DROP_IN)]);
+  const dropInStarts = new Set(allDropIns.map(m => m.index!));
+  const labelsDropIn = ([, end]: Span) => {
+    const gap = BOOKING_LABEL_END.exec(text.slice(end, end + 10));
+    return gap !== null && dropInStarts.has(end + gap[0].length);
+  };
+  const labels = prompt ? spansOf(BOOKING_WORDS, text).filter(labelsDropIn) : [];
   const notBooking = [
+    ...labels,
     ...dropInSpans,
     ...optional.map(({ m }) => [m.index!, m.index! + m[0].length] as Span),
     ...noDropIns.map(({ m }) => [m.index!, m.index! + m[0].length] as Span),

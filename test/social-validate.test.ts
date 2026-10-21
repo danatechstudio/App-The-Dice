@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SourceFields } from '../src/social/facts';
 import { buildRequest, INSTRUCTION, INSTRUCTION_VERSION, SCHEDULE_RULE } from '../src/social/instruction';
-import { checkPostText, findDates, findMoney, findNames, findTimes, ownPrices, phraseRegex, validatePrompt, type CheckTarget } from '../src/social/validate';
+import { checkPostText, findDates, findMoney, findNames, findTimes, ownPrices, phraseRegex, promptTextErrors, validatePrompt, type CheckTarget } from '../src/social/validate';
 
 const dnd: SourceFields = {
   event_id: 'RTD-EVT-00007',
@@ -884,6 +884,172 @@ describe('prompt validation, controller ruling after the final review', () => {
 });
 
 // Task 3: the deterministic check of a post against its target occurrence(s) (§4B).
+// The first live trial (21 Oct): real Gemini prompts, verbatim, sent to review by false alarms.
+describe('prompt validation, first live trial', () => {
+  const quiz: SourceFields = {
+    event_id: 'RTD-EVT-00001',
+    name: 'Quiz',
+    source: 'event_index',
+    frequency: 'monthly',
+    base_details: 'A family quiz night with prizes at stake!',
+    approved_facts: 'Booking: essential\nPrizes: cash prizes\nAge: family friendly',
+    people_roles: 'Michelle - host',
+    category: 'Quiz',
+    visibility: 'public',
+    price: '£2',
+    capacity: '60',
+  };
+  const homeEd: SourceFields = {
+    event_id: 'RTD-EVT-00006',
+    name: 'Home Education Support Club',
+    source: 'event_index',
+    frequency: 'weekly',
+    base_details: 'A get together for those home schooling.',
+    approved_facts: 'Booking: no need to book\nFormat: free table time\nAge: home-educating families.',
+    people_roles: '',
+    category: 'Club',
+    visibility: 'public',
+    price: 'FREE',
+    capacity: '60',
+  };
+  const others = ['Bingo', 'Dungeons & Dragons', 'Home Education Support Club', 'Quiz'];
+  const errorsOf = (prompt: string, f: SourceFields) => promptTextErrors(prompt, f, others.filter(o => o !== f.name));
+
+  // Gemini's text as written, "Price: 2" included (it came from the App Price bug, fixed in normalise).
+  const quizPrompt = `You are writing social media posts for the monthly 'Quiz' event hosted by Michelle. Follow these strict editorial guidelines:
+
+APPROVED EVENT DETAILS:
+- Event Name: Quiz
+- Category: Quiz
+- Description: A family quiz night with prizes at stake!
+- Host: Michelle
+- Age Guidance: Family friendly
+- Prizes: Cash prizes
+- Booking Requirement: Booking is essential
+- Price: 2
+- Capacity: 60
+
+PUBLISHING & SCHEDULE RULES:
+- Downstream posts must use ONLY the current verified schedule for the target event/occurrence, supplied separately at publishing time.
+- Do NOT invent or infer dates, start/end times, venue names, addresses, or booking links not provided in the publishing schedule.
+
+PERMITTED CONTENT & TERMINOLOGY:
+- Refer to the event as a 'family quiz night' hosted by Michelle.
+- Highlight that cash prizes are at stake.
+- Explicitly state that booking is essential.
+- Note the price of 2 and capacity limit of 60 standard spots if mentioning event size or cost.
+
+PROHIBITED ASSUMPTIONS & RESTRICTIONS:
+- Do NOT add inferred participants, organizers, sponsors, or co-hosts.
+- Do NOT add extra rules, specific age cut-offs, food/drink details, or unapproved activities.
+- Do NOT assume a currency symbol if not supplied in official details; state price as 2.
+- Do NOT mention any other events or convert this event into open play or a non-quiz format.
+
+TONE & CALL TO ACTION:
+- Keep the tone welcoming, fun, and family-friendly.
+- Safe Call to Action: Remind followers to book essential spots early due to limited capacity (60).`;
+
+  const homeEdPrompt = `You are generating social media copy for the Home Education Support Club. Follow these instructions strictly:
+
+SCHEDULE & PUBLISHING RULE:
+Downstream posts must use ONLY the current verified schedule for the target event/occurrence, supplied separately at publishing time.
+
+PERMITTED FACTS & DESCRIPTION:
+- Name: Home Education Support Club
+- Event Details: A get together for those home schooling, every Monday & Thursday.
+- Category: Club
+- Price: FREE
+- Format: Free table time
+- Booking: No need to book
+- Target Audience / Age: Home-educating families
+- Capacity: 60
+
+PROHIBITED ASSUMPTIONS & GUIDELINES:
+- Do not infer or add extra details such as specific venue locations, start/end times, specific activities, organisers, or booking instructions beyond 'no need to book'.
+- Do not reinterpret the session format or present organised play as open play or vice versa.
+- Do not mention any other events.
+- If any schedule or location details are missing at publish time, do not fill in gaps or guess.
+
+TONE & CALL TO ACTION:
+- Welcoming, community-oriented, and supportive.
+- Safe CTA: Inform home-educating families to come along and join the free table time, highlighting that no booking is required.`;
+
+  it('finds nothing wrong with the real Quiz prompt', () => {
+    expect(errorsOf(quizPrompt, quiz)).toEqual([]);
+  });
+
+  it('keeps only the real errors in the real Home Ed prompt: the days, which the facts no longer give', () => {
+    expect(errorsOf(homeEdPrompt, homeEd)).toEqual([
+      'The prompt states a date or day, "Monday"; the date comes only from the schedule at posting time',
+      'The prompt states a date or day, "Thursday"; the date comes only from the schedule at posting time',
+    ]);
+  });
+
+  it('does not take headings in capitals, labels, or the first word of a value or list item for names', () => {
+    const names = (text: string) => findNames(text, ['Quiz'], { prompt: true });
+    expect(names('PUBLISHING & SCHEDULE RULES:\nPROHIBITED ASSUMPTIONS & GUIDELINES:\n- Price: FREE')).toEqual([]);
+    expect(names('- Booking Requirement: Booking is essential\n- Target Audience / Age: Home-educating families')).toEqual([]);
+    expect(names('- Prizes: Cash prizes\n- Safe CTA: Inform families\n- Remind followers to book (Check the schedule)')).toEqual([]);
+    expect(names('1. Age Guidance: Family friendly')).toEqual([]);
+    // Only in a prompt: a post's capitals and labels are checked as before.
+    expect(findNames('Prizes: Cash prizes, as the GUIDELINES say', [])).toEqual(['Cash', 'GUIDELINES']);
+  });
+
+  it('still finds a real name mid-sentence, and another event named in capitals', () => {
+    const names = (text: string) => findNames(text, ['Michelle'], { prompt: true });
+    expect(names('Write about Trixie hosting the quiz.')).toEqual(['Trixie']);
+    expect(names('- Host: Michelle, with Trixie helping')).toEqual(['Trixie']);
+    expect(names('Prizes: Cash prizes from Trixie')).toEqual(['Trixie']);
+    // A name on its own after a label is still a name, and a line of names isn't a label.
+    expect(names('- Host: Trixie\n- Guest: Trixie.\n(Trixie)')).toEqual(['Trixie']);
+    expect(names('- Trixie Smith: helper\nWrite about Bob: he helps')).toEqual(['Smith', 'Bob']);
+    const bingo = errorsOf(`${quizPrompt}\n- Do not confuse it with BINGO.`, quiz);
+    expect(bingo).toEqual(['The prompt names another event, "Bingo"']);
+    const trixie = errorsOf(quizPrompt.replace('hosted by Michelle.', 'hosted by Michelle and Trixie.'), quiz);
+    expect(trixie.some(e => e.includes('"Trixie"'))).toBe(true);
+  });
+
+  it('does not read a negated or forbidden mention of a format word as a claim', () => {
+    const noFacts = { ...quiz, approved_facts: '', base_details: 'A quiz.' };
+    for (const line of [
+      'Do not convert this event into open play.',
+      'Do not reinterpret the session format or present organised play as open play or vice versa.',
+      'Never describe it as open play.',
+      'Avoid booking links.',
+      'Do not mention prizes.',
+      'This is not open play.',
+    ]) {
+      expect(errorsOf(`Write about the Quiz.\n- ${line}`, noFacts), line).toEqual([]);
+    }
+  });
+
+  it('lets a Booking fact saying no booking is needed support the drop-in wording and a negated booking mention', () => {
+    const noBooking = { ...homeEd, base_details: 'A get together.' };
+    for (const line of [
+      'Highlight that no booking is required.',
+      'Do not add booking instructions beyond the facts.',
+      'Do not mention booking links.',
+    ]) {
+      expect(errorsOf(`Write about the Home Education Support Club.\n- ${line}`, noBooking), line).toEqual([]);
+    }
+  });
+
+  it('still needs the fact for a positive claim', () => {
+    const noFacts = { ...quiz, approved_facts: '', base_details: 'A quiz.' };
+    expect(errorsOf('Write about the Quiz. Booking is essential.', noFacts)).toEqual(['In the prompt, booking: needs a Booking fact']);
+    expect(errorsOf('Write about the Quiz. Beginners welcome.', noFacts)).toEqual(['In the prompt, beginners: needs a Level fact']);
+    expect(errorsOf('Write about the Quiz. It is open play.', noFacts)).toEqual(['In the prompt, open play: needs a Booking fact saying so']);
+    expect(errorsOf('Write about the Quiz.\n- Booking: essential', noFacts)).toEqual(['In the prompt, booking: needs a Booking fact']);
+    expect(errorsOf('Write about the Quiz. No booking needed.', quiz)).toEqual(['In the prompt, no booking: needs a Booking fact saying so']);
+    // A negation reaches only its own clause.
+    expect(errorsOf('Write about the Quiz. Do not mention prizes, but beginners are welcome.', noFacts)).toEqual(['In the prompt, beginners: needs a Level fact']);
+    expect(errorsOf('Write about the Quiz. Never mention the dice and kids are welcome.', noFacts)).toEqual(['In the prompt, kids: needs an Age fact']);
+    expect(errorsOf("Write about the Quiz. Don't miss the cash prizes.", noFacts)).toEqual(['In the prompt, cash: needs a Prizes fact', 'In the prompt, prizes: needs a Prizes fact']);
+    // A drop-in Booking fact doesn't support booking being needed.
+    expect(errorsOf('Write about the Home Education Support Club. Booking is essential.', homeEd)).toEqual(['In the prompt, booking: needs a Booking fact']);
+  });
+});
+
 describe('post check', () => {
   const now = new Date('2026-10-18T19:00:00Z');
   const quiz: CheckTarget = {
