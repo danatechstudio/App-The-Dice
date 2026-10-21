@@ -1099,6 +1099,12 @@ PUBLISHING & EDITORIAL RULES:
     expect(errorsOf('- It is run with Chris.', quiz)).toContain(`The prompt names "Chris", which isn't in People & Roles or the event's own fields`);
   });
 
+  // The G4 staging run: "2. Strict Boundary on Content: Do not add inferred participants".
+  it('reads a numbered label joined by "on" as a label', () => {
+    expect(errorsOf('2. Strict Boundary on Content: Do not add inferred participants or organisers.', homeEd)).toEqual([]);
+    expect(errorsOf('- Talk with Trixie on stage: she hosts', homeEd)).toContain(`The prompt names "Trixie", which isn't in People & Roles or the event's own fields`);
+  });
+
   it('still catches a name after a label when the facts never use that word', () => {
     expect(errorsOf('- Booking: Trixie\n- Target Audience: Grimsby.', quiz)).toEqual([
       `The prompt names "Trixie", which isn't in People & Roles or the event's own fields`,
