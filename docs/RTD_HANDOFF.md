@@ -1,4 +1,4 @@
-# RTD App: Handoff (updated 2026-10-19)
+# RTD App: Handoff (updated 2026-10-21)
 
 Read this first. Stage 6 (Event Control) has its own, longer handoff: [RTD_EVENT_CONTROL_HANDOFF.md](RTD_EVENT_CONTROL_HANDOFF.md).
 
@@ -64,8 +64,35 @@ The app side of event-specific social master prompts ([changelog](../RTD_CHANGEL
 | G2 | Back up the Logic Engine; a one-off workflow adds the 4 columns to both tabs (staging copy first); RTD Event Sync sends the new columns  **Done 19 Oct 10:52–11:00 UTC:** backup "Logic Engine_RTD BACKUP 2026-10-19 1050 (before social prompt columns)"; headers added to the staging copy, then live (Event Index Y–AB, Standard Diary I–L), no column moved; RTD Event Sync's Build Snapshot now sends Banned Phrases, Approved Facts and People & Roles (tested by hand, run n8n-68902: 32 events, 0 changed; published) | The columns can stay (the app ignores empty ones); the backup is there |
 | G3 | Dan and Michelle fill in Approved Facts and People & Roles, from suggested wording in a doc they confirm | — |
 | G4 | The builder runs by hand for 3 events (a dry run that writes no cells), reviewed on the screen; then it's published | Unpublish |
-| G5 | Master V1 and poster changes published with the switch Off, then Shadow for about a week | Switch Off; restore Master V1's previous version |
+| G5 | Master V1 and poster changes published with the switch Off, then Shadow for about a week. **Part 1 done 20 Oct:** Master V1 `37f21195` published with the switch Off. The rest: [the G5 checklist](#event-social-prompts-stage-2-the-owners-g5-checklist) | Switch Off; publish the earlier versions in the [Stage 2 rollback record](RTD_N8N_WORKFLOWS.md#stage-2-rollback-record) |
 | G6 | The owner reviews the Shadow results, then switches to Enforce | Switch back to Shadow |
+
+## Event social prompts, Stage 2: the owner's G5 checklist
+
+All six Stage 2 tasks are built (n8n side; details in [RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#every-post-rtd-master-v1-and-the-poster-path-stage-2), and the versions in the [Stage 2 rollback record](RTD_N8N_WORKFLOWS.md#stage-2-rollback-record)). Master V1 has been live since 20 Oct with the switch Off, and the first evening was normal: 8 runs, 4 Facebook posts, every Post Log row `Success` with its Buffer ID, nothing held. What's left is yours, in this order. Each step waits for your go-ahead.
+
+1. **Publish three workflows together, with the switch still Off.** In n8n, publish the latest draft of each:
+   - **RTD Master V1** (draft `1c0677ca`): the poster changes, and the food fix. After the food fix, on a day the Facebook food post has gone out, the 09:15 Instagram food post is skipped, as it was always meant to be. So expect Instagram food posts about every other day instead of daily.
+   - **RTD Poster Generator (sub)** (draft `beafe8be`).
+   - **RTD Event Guard (sub)** (draft `6f83b30c`).
+
+   Publish the Poster Generator and Event Guard at the same time. If one goes without the other, posters whose time changed simply aren't redone (nothing breaks).
+2. **Watch one evening.** Check the Post Log: each post should read `Success` with a Buffer ID. Then look at the first posters the Event Guard redoes (it runs at 01:15; it redoes a poster only when the event's time has changed, at most 5 a night). Check the wording and time are right, and that no "background fact" has been drawn onto the picture.
+3. **Delete the Drive folder "RTD poster test (delete)"** in My Drive. It holds only test posters from the build.
+4. **Fill in the facts (G3)** with Michelle: Approved Facts and People & Roles in the Logic Engine, using the doc "Social prompts: facts to confirm". Then **run the Builder's 3-event dry run** (it writes nothing to the sheet), look at the 3 prompts on the screen, and if they're right, **publish the Builder (G4)**.
+5. **Set the switch to Shadow** (Organise › Events & dates › Social prompts) for about a week. Nothing is held in Shadow; every post is checked and recorded.
+6. **Review "would have been held"** on the same screen. For each one, decide whether the check was right (the post was wrong) or the check was too strict (the facts or wording need changing).
+7. **Enforce (G6)**, only when you're happy with the week. From then on, a post that fails is held and listed with the reasons. To go back, switch to Shadow.
+
+**If anything looks wrong at any point:** switch to Off first, then publish the earlier versions listed in the [rollback record](RTD_N8N_WORKFLOWS.md#stage-2-rollback-record).
+
+**Open items for you:**
+- **Move the inline Meta token and the ImageKit header into n8n credentials.** They're typed into 4 Meta nodes and 2 ImageKit nodes in Master V1. They were left alone during the build.
+- **The round-up's diary rows are read 24 times** (192 rows go to Gemini instead of 8). It's an old bug, left alone so Off stayed identical. Fixing it needs your go-ahead.
+- **Hidden real events skip the check on Instagram Priority.** Instagram Priority treats every Hidden row like a café row (Cafe Vibes, Food, Drinks) and posts it unchecked. Confirm that's what you want before G6.
+- **Existing posters are left off at Enforce** until they're redone, because they have no recorded wording to check. A poster is redone when its event's time changes. A one-off backfill to redo them all is optional; say if you want one.
+- **Mirror the poster changes in the `rtd-poster-automation` source.** The Poster Generator and Event Guard were edited in n8n (marked LOCAL EDIT). Rebuilding them from that source would undo the changes.
+- **For the 3-event rehearsal, add rtd_config `SOCIAL_BUILDER_LIMIT=3`**, and remove it afterwards.
 
 ## Next steps
 

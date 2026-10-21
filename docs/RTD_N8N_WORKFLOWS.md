@@ -4,6 +4,30 @@ n8n runs on the Pi at `n8n.arkham-survey.com`. The full inventory and verdicts a
 
 ## Changes made
 
+### 2026-10-21: RTD Master V1, the "Facebook Posted Food Today?" fix (draft, not published)
+
+Stage 2, Task 6. **Only the draft changed; nothing is published.** It goes live with the poster changes at G5, and the app's switch stays Off. The full list of versions and how to undo each one is in the [Stage 2 rollback record](#stage-2-rollback-record).
+
+| | Version |
+| --- | --- |
+| Published (unchanged, checked after the edit and the tests) | `37f21195-a767-4ee2-96a8-09770c3703a2` |
+| Draft this task started from | `b3e51f75-7178-4464-aade-def648f17233` (Task 5's last draft) |
+| New draft (not published) | `1c0677ca-0f17-4c87-9e53-c9bdfdf63883`. Only the one Code node changed; no connection changed (checked with n8n's version diff). |
+
+**The bug.** The 09:15 Instagram food slot (IG Food Slot → Read Post Log for FB Food Check → **Facebook Posted Food Today?** → Skip If FB Posted Food Today?) should skip Instagram when the morning Facebook food post (Food1, Food2, Food3 or Drinks) already went out that day. The node compared the Post Log's `Date Posted`, which every log node writes as `dd/MM/yyyy` (`$now.format('dd/MM/yyyy')`, for example `20/10/2026`), with today as `yyyy-MM-dd` (`2026-10-20`). The two never matched, so Instagram posted food every day. The Post Log shows it: on 13, 15, 17 and 19 Oct a Facebook food row at about 08:31 is followed by an Instagram food row at 09:15.
+
+**The fix.** Both sides are turned into `yyyy-MM-dd` in Europe/London before they are compared. `Date Posted` is read as `dd/MM/yyyy` (UK order, as the Post Log writes it), and also as a plain ISO date, an ISO timestamp (its London date), a sheet serial number, or the older `August 11th 2026, 5:30:42 pm` form. A value it can't read never matches, as before. All 918 rows of the 20 Oct Post Log read cleanly. The rest of the node (Facebook only, the four food names, any status) is unchanged.
+
+**What changes when it is published:** on a day the Facebook food post has gone out, the 09:15 run goes to Already Covered by Facebook Today and posts **no Instagram food post**. On other days it posts as now. On the Sept–Oct pattern (Facebook food every other day), Instagram food posts drop from daily to about every other day. No other path is touched: the event post, round-ups, Instagram Priority, posters and every Gemini prompt are exactly as in `b3e51f75`, so the Off byte-identical proofs from Tasks 3 to 5 still stand.
+
+**Tests** (archived no-post copy `ijPXNkh26VSswb1U`: Run By Hand → a pinned stand-in for the Post Log read → the node's exact code → the same IF → two No-Op ends; no sheet, Buffer or Meta node):
+
+| Execution | Pinned Post Log rows | Result |
+| --- | --- | --- |
+| `76566` | A Facebook `Food3` row dated today (`21/10/2026`), plus a Facebook Quiz row and an Instagram `Food1` row from today | `fbPostedFoodToday: true`, ends at Already Covered by Facebook Today (**matched**) |
+| `76568` | The same, but the Facebook `Food3` row dated yesterday (`20/10/2026`) | `false`, ends at the would-post stand-in (**not matched**) |
+| `76570` | As `76566`, with the old (live) code | `false`: the bug, reproduced |
+
 ### 2026-10-20: RTD Master V1, the round-ups and the Instagram Priority caption through the social gate (draft, not published)
 
 Stage 2, Task 4. The Mon/Thu **Prospectus** and Sunday **Weekly** round-ups and the **Instagram Priority** caption now go through the Context and Gate sub-workflows, the same way as the Facebook event post. **Only the draft changed; nothing is published.** Publishing waits for the owner (G5), and the app's switch stays Off. The Daily Recap stays disabled, with a note that it must go through the gate if it is ever turned back on.
@@ -1008,5 +1032,23 @@ The check is a **safety net built from fixed rules, not a guarantee.** It can't 
 - With the owner's go-ahead, RTD Master V1 (`yPhchrcwuJSt3RLI`) was published as version `37f21195-a767-4ee2-96a8-09770c3703a2`. This is the reviewed draft with Tasks 3 and 4: the Facebook event post, the Prospectus and Weekly round-ups and Instagram Priority go through RTD Social Context and Gate, and the two Post Log fixes are included.
 - **The app's switch is Off**, so captions and posting are exactly as before. The only visible changes are that Post Log now records `Success` with the Buffer ID, and the right "Asset used".
 - **Rollback:** republish the previous version `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b` (n8n › RTD Master V1 › Versions), or use `publish_workflow` with that `versionId`.
-- **Not in this version:** posters (Task 5) and the "Facebook Posted Food Today?" date fix (Task 6).
+- **Not in this version:** posters (Task 5) and the "Facebook Posted Food Today?" date fix (Task 6). Both are in the draft `1c0677ca-…`, which waits for G5.
+
+### Stage 2 rollback record
+
+Recorded 21 Oct 2026, after Task 6. Every Stage 2 workflow, the version before Stage 2, what is live now, and what is waiting. The app's switch is **Off**. Whatever is rolled back, **set the switch to Off first** (Organise › Events & dates › Social prompts); at Off nothing is checked or held.
+
+To publish an older version: n8n › the workflow › Versions › pick the version › Publish (or the n8n MCP `publish_workflow` with that `versionId`). Publishing a version doesn't delete the draft or any other version.
+
+| Workflow | Before Stage 2 | Live now | Pending draft | How to roll back |
+| --- | --- | --- | --- | --- |
+| **RTD Master V1** (`yPhchrcwuJSt3RLI`) | `38b1d6d1-ee8f-4683-aea1-0b94c5a1351b` | `37f21195-a767-4ee2-96a8-09770c3703a2` (published 20 Oct 14:33 UTC with the switch Off: Tasks 3 and 4, the event post, round-ups and Instagram Priority through the gate, plus the two Post Log fixes) | `1c0677ca-0f17-4c87-9e53-c9bdfdf63883` (adds Task 5 posters and the Task 6 food fix) | Before G5: nothing to do, the draft isn't live. After G5, to undo only the posters and food fix: publish `37f21195-…`. To undo all of Stage 2: publish `38b1d6d1-…`. |
+| **RTD Poster Generator (sub)** (`PVo8OZ59Qh5LA263`) | `e75815a7-cd78-42f6-a086-06ecf2332b2f` | `e75815a7-…` (unchanged) | `beafe8be-03b3-4ff1-9e83-775e1be85c36` (records the poster text and time; replaces a poster whose time changed) | Publish `e75815a7-…`, together with Event Guard's `4f73e19b-…`. Posters made meanwhile stay. Replaced posters are only renamed (`<date>-replaced-<HHMM>-noapp.<ext>`); rename one back to `<date>.<ext>` to use it again. |
+| **RTD Event Guard (sub)** (`RtdEventGuardSub1`) | `4f73e19b-0f69-4abe-ae3e-2aa1b94c71c8` | `4f73e19b-…` (unchanged) | `6f83b30c-37d9-47c5-b24b-135a4cdc4563` (sends Approved Facts; regenerates up to 5 stale posters a run) | Publish `4f73e19b-…`, together with the Poster Generator's `e75815a7-…`. |
+| **RTD Social Context (sub)** (`QCjohGtBuld6k5R8`) | Didn't exist | `013e6526-407b-4da7-99a1-5f550a0c2cfb` (published 19 Oct) | None | Nothing to do: at Off it answers "no layers". Unpublish only after Master V1 is back on `38b1d6d1-…`, which doesn't call it. rtd_config `SOCIAL_MODE_LAST` can stay. |
+| **RTD Social Gate (sub)** (`NqC8fZUoIWWuvDnt`) | Didn't exist | `d71d6ebe-2fda-45a9-922f-02767f7bd5f1` (published 19 Oct) | None | As Context: at Off it answers `post: true`. Unpublish only after Master V1 is back on `38b1d6d1-…`. |
+| **RTD Social Prompt Builder** (`lh9MzioBdpBpBIVo`) | Didn't exist | Not published | `4714d38a-fe06-40f8-aab5-c68e47cf12ea` (dry run, staging, by rtd_config) | Before G4: nothing to do. After G4: unpublish it, and set rtd_config `SOCIAL_BUILDER_DRY_RUN=true`. Cells it wrote (Social Prompt, Social Prompt Status) can stay or be cleared; nothing reads them for posting. |
+| **RTD Event Sync** (`fOYrFBOElFkWx7R3`) | The 5–19 Oct version (n8n's history no longer lists it) | `cb8c73dc-9bca-4506-a7df-ae8e110f0696` (published 19 Oct, G2: also sends Banned Phrases, Approved Facts, People & Roles) | None | Not expected: the app keeps the three extra fields out of each event's change hash, so they change no event. If ever needed, take the three fields out of Build Snapshot by hand. |
+
+**Order to undo G5 in an emergency:** switch Off → Master V1 `37f21195-…` → Poster Generator `e75815a7-…` and Event Guard `4f73e19b-…`.
 

@@ -1,5 +1,17 @@
 # RTD App Changelog
 
+## 2026-10-21 (Event social prompts, Stage 2: the n8n side)
+- **What it is:** the n8n half of the event social prompts. Posts now ask the app for each event's approved prompt and date before Gemini writes, and ask the app's check before they go out. **The switch is still Off,** so captions and posts are exactly as before. Details and test runs: [RTD_N8N_WORKFLOWS.md](docs/RTD_N8N_WORKFLOWS.md#every-post-rtd-master-v1-and-the-poster-path-stage-2).
+- **Built:**
+  - **RTD Social Prompt Builder** (new): writes each event's master prompt with Gemini, has the app check and store it, and writes only the Social Prompt and Social Prompt Status cells. Not published: dry run, on the staging copy (G4 waits on G3).
+  - **RTD Social Context** and **RTD Social Gate** (new sub-workflows): the two calls to the app. Published; they do nothing at Off.
+  - **RTD Master V1:** the Facebook event post, the Prospectus and Weekly round-ups and the Instagram Priority caption go through Context and Gate. At Enforce a failing post is held (`Held: <reason>` in the Post Log). Café rows on Instagram Priority aren't checked. Two Post Log fixes: a real success is logged as `Success` with its Buffer ID. **Published 20 Oct with the switch Off**; the first evening was normal.
+  - **Posters** (Poster Generator, Event Guard, Master V1, waiting for G5): each new poster records its exact wording and time, which the check reads. A poster whose event time changed is redone (at most 5 a night; the old one is renamed, never deleted). At Enforce a poster that fails only on its own wording is left off and the post still goes out.
+  - **The food fix** (Master V1, waiting for G5): "Facebook Posted Food Today?" compared `20/10/2026` with `2026-10-20`, so it never matched and Instagram posted food every day. Both dates are now compared as London dates. Once published, the 09:15 Instagram food post is skipped on days the Facebook food post went out (about every other day).
+- **Rollback:** every workflow's earlier version is listed in the [Stage 2 rollback record](docs/RTD_N8N_WORKFLOWS.md#stage-2-rollback-record). Switch Off first.
+- **Next, each with the owner's go-ahead:** the [G5 checklist](docs/RTD_HANDOFF.md#event-social-prompts-stage-2-the-owners-g5-checklist): publish Master V1, Poster Generator and Event Guard with the switch Off; watch an evening; G3 and G4; Shadow for a week; review; Enforce (G6).
+- **No test posted.** Every test ran in an archived copy with pinned data and no posting or sheet-writing nodes.
+
 ## 2026-10-19 (Event social prompts, Stage 1: the app side)
 - **What it's for:** each event gets its own social media master prompt, built only from the facts the café wrote down. Every post is checked against that event's facts and its real date before it goes out, so posts stop inventing things: cash prizes that don't exist, "drop in" for a booked game, the wrong night, someone in the wrong role.
 - **Switched Off, so nothing posts differently.** This is Stage 1, the app side. The n8n side (the prompt builder, and the changes to RTD Master V1 and posters) is Stage 2, and each step needs the owner's go-ahead.
