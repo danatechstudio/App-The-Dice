@@ -1113,7 +1113,7 @@ To publish an older version: n8n › the workflow › Versions › pick the vers
 
 **Order to undo G5 in an emergency:** switch Off → Master V1 `37f21195-…` → Poster Generator `e75815a7-…` and Event Guard `4f73e19b-…` → Gate `d71d6ebe-…` and Context `013e6526-…`.
 
-### Stage 2 published with the switch Off (21 Oct 2026, ~10:50 UTC)
+### Stage 2 published with the switch Off (21 Oct 2026, ~19:45 UTC)
 
 With the owner's go-ahead (food fix accepted), published together with the app's switch Off:
 
