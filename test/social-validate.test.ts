@@ -1093,6 +1093,12 @@ PUBLISHING & EDITORIAL RULES:
     expect(errorsOf(homeEd2, homeEd)).toEqual([]);
   });
 
+  // The third trial: "Do not provide unverified contact information or URLs."
+  it("doesn't take an abbreviation's plural for a name, but still catches a name ending in s", () => {
+    expect(errorsOf('- Do not provide unverified contact information or URLs.\n- Answer FAQs and DMs warmly.', quiz)).toEqual([]);
+    expect(errorsOf('- It is run with Chris.', quiz)).toContain(`The prompt names "Chris", which isn't in People & Roles or the event's own fields`);
+  });
+
   it('still catches a name after a label when the facts never use that word', () => {
     expect(errorsOf('- Booking: Trixie\n- Target Audience: Grimsby.', quiz)).toEqual([
       `The prompt names "Trixie", which isn't in People & Roles or the event's own fields`,

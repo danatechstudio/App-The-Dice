@@ -654,8 +654,9 @@ function startsSentence(text: string, i: number): boolean {
   return j >= 0 && /[.!?…]/.test(text[j]!) && !NOT_A_SENTENCE_END.test(text.slice(Math.max(0, j - 5), j + 1));
 }
 
-// A prompt's headings are written in capitals ("PUBLISHING & SCHEDULE RULES:"): a word of two or more capitals and no small letters.
-const isAllCaps = (word: string): boolean => (word.match(/\p{Lu}/gu) ?? []).length >= 2 && !/\p{Ll}/u.test(word);
+// A prompt's headings are written in capitals ("PUBLISHING & SCHEDULE RULES:"): a word of two or more capitals and no small
+// letters, or an abbreviation's plural ("URLs", "FAQs").
+const isAllCaps = (word: string): boolean => (word.match(/\p{Lu}/gu) ?? []).length >= 2 && !/\p{Ll}/u.test(word.replace(/s$/, ''));
 // The words a label may join with: "Safe Call to Action", "Target Audience / Age".
 const LABEL_JOINERS = new Set(['and', 'or', 'to', 'of', 'for', 'the', 'a', 'an']);
 // Words a prompt's labels are made of, known or not to the event: "Target Audience:", "Ticket Price:".
