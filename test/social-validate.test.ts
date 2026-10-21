@@ -1105,6 +1105,18 @@ PUBLISHING & EDITORIAL RULES:
     expect(errorsOf('- Talk with Trixie on stage: she hosts', homeEd)).toContain(`The prompt names "Trixie", which isn't in People & Roles or the event's own fields`);
   });
 
+  // The G4 live run: "Booking: recommended, drop ins welcome" supports booking being recommended, and drop-ins.
+  it('takes a recommended or preferred Booking fact with drop-ins as support for booking', () => {
+    const chess = { ...quiz, name: 'Kids Chess Club', approved_facts: 'Booking: recommended, drop ins welcome.\nAge: Kids', people_roles: 'Lucas - tutor and chess master' };
+    const lines = '- Booking Terms: Booking is recommended; drop-ins are welcome\n- Calls to action: Limit CTAs to recommending booking or mentioning drop-in availability.';
+    expect(errorsOf(lines, chess)).toEqual([]);
+    for (const value of ['preferred, drop-ins welcome', 'prefered, drop ins welcome']) {
+      expect(errorsOf('- Booking is preferred; drop-ins are welcome.', { ...chess, approved_facts: `Booking: ${value}` })).toEqual([]);
+    }
+    // Drop-ins alone still don't support booking talk.
+    expect(errorsOf('- Booking is recommended.', { ...chess, approved_facts: 'Booking: drop ins welcome' })).not.toEqual([]);
+  });
+
   it('still catches a name after a label when the facts never use that word', () => {
     expect(errorsOf('- Booking: Trixie\n- Target Audience: Grimsby.', quiz)).toEqual([
       `The prompt names "Trixie", which isn't in People & Roles or the event's own fields`,

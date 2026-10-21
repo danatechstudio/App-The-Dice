@@ -1127,6 +1127,14 @@ With the owner's go-ahead (food fix accepted), published together with the app's
 
 The prompt builder (`lh9MzioBdpBpBIVo`, draft `8be0614a`) stays unpublished until G4.
 
+### G4: prompt builder published (21 Oct 2026, 21:49 UTC)
+
+With the owner's go-ahead ("Go G4"), after three dry runs on staging and app fixes to the prompt checker (price as £, label and value words, negated mentions, abbreviations, recommended/preferred Booking facts):
+- rtd_config `SOCIAL_BUILDER_DRY_RUN=false`, `SOCIAL_BUILDER_SHEET=live`, no `SOCIAL_BUILDER_LIMIT` (5 a run, every 15 minutes). The owner set these in n8n.
+- Staging write (execution `79185`): only Social Prompt and Social Prompt Status changed, on 4 rows; nothing marked written.
+- Live write (execution `79270`): only those two columns changed, on 5 Event Index rows (Quiz approved v4, Kids Chess review v1, Home Ed Mon review v2, Home Ed Thu approved v3, Writing Club approved v1); all 5 marked written.
+- Published `8be0614a-4b08-4881-bce7-c57689005497`. Rollback: unpublish it, or set `SOCIAL_BUILDER_DRY_RUN=true`. The switch stays Off, so posting doesn't read these cells.
+
 **Same day, Logic Engine (owner's request):**
 - "Little Elves Christmas Club" (RTD-EVT-00033) was set to Status Inactive instead of being deleted, because workflows write back by row number.
 - On "Christmas Workshop" (RTD-EVT-00034) and "Christmas Workshop (hosted)" (RTD-EVT-00035), Michelle's Standard and KPI Hook prompts were rewritten to cover only each row's own session, and the half-finished TikTok Video Blueprint text was cleared.
