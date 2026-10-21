@@ -1133,7 +1133,7 @@ const BOOKING_OPTIONAL = new RegExp(
   'giu',
 );
 // A Booking fact that says booking is optional.
-const OPTIONAL_VALUE = /(?<!\p{L})(?:optional|recommended|advised|not\s+(?:essential|required|needed|necessary|compulsory))(?!\p{L})/iu;
+const OPTIONAL_VALUE = /(?<!\p{L})(?:optional|recommended|advised|preferred|prefered|encouraged|suggested|not\s+(?:essential|required|needed|necessary|compulsory))(?!\p{L})/iu;
 const blank = (text: string, spans: Span[]): string => spans.reduce((t, [at, end]) => t.slice(0, at) + ' '.repeat(end - at) + t.slice(end), text);
 /** The text with its drop-in phrases blanked out. */
 function withoutDropIns(text: string): string {
@@ -1413,8 +1413,8 @@ function claimProblems(text: string, skip: Span[], t: Support, prompt = false): 
   }
 
   // Booking words ("no booking needed" is drop-in, above), and negated drop-in ("no walk-ins"), need a Booking fact that isn't only drop
-  // in, or booking set to Required or Optional.
-  const bookedFact = booking.some(v => !bookingFact(v).dropIn || bookingFact(v).booked);
+  // in ("recommended, drop ins welcome" isn't), or booking set to Required or Optional.
+  const bookedFact = booking.some(v => !bookingFact(v).dropIn || bookingFact(v).booked || OPTIONAL_VALUE.test(v));
   const bookingSet = t.booking_mode === 'required' || t.booking_mode === 'optional';
   const noDropIns = found([...text.matchAll(NO_DROP_IN)]);
   const dropInStarts = new Set(allDropIns.map(m => m.index!));
