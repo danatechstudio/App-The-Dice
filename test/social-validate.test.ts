@@ -1125,6 +1125,258 @@ PUBLISHING & EDITORIAL RULES:
     // A label of only unknown capitalised words is still a name (Trixie starts the line).
     expect(errorsOf('- Trixie Smith: helper', quiz)).toEqual([`The prompt names "Smith", which isn't in People & Roles or the event's own fields`]);
   });
+
+  // The first night's live run (21 Oct): real Gemini prompts from social_prompts, verbatim, sent to review by false alarms.
+  describe('the first night', () => {
+    const fields = (over: Partial<SourceFields>): SourceFields => ({ ...quiz, source: 'event_index', visibility: 'public', ...over }) as SourceFields;
+    const clocktower = fields({
+      event_id: 'RTD-EVT-00003',
+      name: 'Blood on the Clocktower',
+      frequency: 'monthly',
+      base_details: 'A mysterious game of deception',
+      approved_facts: 'Booking: essential, book via https://www.eventbrite.co.uk/o/89845223753\nLevel: Beginners and Experienced alike.',
+      people_roles: 'Simon (Redmyst) - storyteller',
+      category: 'Gaming',
+      price: '£3',
+      capacity: '20',
+    });
+    const homeEd3 = fields({
+      event_id: 'RTD-EVT-00005',
+      name: 'Home Education Support Club',
+      frequency: 'weekly',
+      base_details: 'A get together for those home schooling.',
+      approved_facts: 'Booking: no need to book\nFormat: free table time\nAge: home-educating families.',
+      people_roles: '',
+      category: 'Club',
+      price: 'FREE',
+      capacity: '60',
+    });
+    const sazLou = fields({
+      event_id: 'RTD-EVT-00018',
+      name: 'SazLou',
+      frequency: 'one-off',
+      base_details: '',
+      approved_facts: 'Booking: Essential',
+      people_roles: 'SazLou - Host',
+      category: 'Other',
+      price: '',
+      capacity: '',
+    });
+    const workshop = fields({
+      event_id: 'RTD-EVT-00034',
+      name: 'Christmas Workshop',
+      frequency: 'one-off',
+      base_details: 'A festive workshop for little ones',
+      approved_facts: 'Booking: Essential\nAge: 2-4 years.',
+      people_roles: 'Lauren - leads the workshop',
+      category: 'Workshop',
+      price: '£8',
+      capacity: '10',
+    });
+    const workshopHosted = fields({
+      event_id: 'RTD-EVT-00035',
+      name: 'Christmas Workshop (hosted)',
+      frequency: 'one-off',
+      base_details: 'A festive workshop for younger children.',
+      approved_facts: 'Booking: Essential\nAge: 5-7 years.',
+      people_roles: 'Lauren - leads the workshop',
+      category: 'Workshop',
+      price: '£12',
+      capacity: '10',
+    });
+    const bingo = fields({
+      event_id: 'RTD-EVT-00002',
+      name: 'Bingo',
+      frequency: 'monthly',
+      base_details: 'A family bingo night with prizes to win',
+      approved_facts: 'Booking: essential\nPrizes: cash prizes\nAge: family friendly',
+      people_roles: 'Alex - the best bingo caller this side of the Humber',
+      category: 'Social',
+      price: '£5',
+      capacity: '60',
+    });
+
+    const clocktowerPrompt = `You are writing social media posts for the event 'Blood on the Clocktower'. Use ONLY the approved details below. Do not infer or invent dates, times, venues, target audiences, or booking terms not explicitly provided.
+
+CRITICAL SCHEDULE RULE:
+Downstream posts must use ONLY the current verified schedule for the target event/occurrence, supplied separately at publishing time.
+
+APPROVED EVENT DETAILS:
+- Name: Blood on the Clocktower
+- Description: A mysterious game of deception
+- Category: Gaming
+- Role: Simon (Redmyst) - storyteller
+- Player Level: Beginners and Experienced alike
+- Capacity: 20
+- Price: £3
+- Booking: Essential, book via https://www.eventbrite.co.uk/o/89845223753
+
+EDITORIAL & TONE GUIDELINES:
+- Tone: Intriguing, welcoming, and mystery-focused suitable for a game of deception.
+- Language: Highlight that the session welcomes both beginners and experienced players.
+- Call to Action: Direct users to book via the official Eventbrite link (https://www.eventbrite.co.uk/o/89845223753) as booking is essential.
+
+PROHIBITED ASSUMPTIONS:
+- Do not describe this as open play or free-play; maintain standard event framing.
+- Do not invent venue locations, specific start/end times, or dates.
+- Do not add extra hosts, organisers, or participant requirements not stated above.`;
+
+    const homeEd3Prompt = `You are writing social media posts for Home Education Support Club. Follow these instructions strictly:
+
+- EVENT DETAILS & PERMITTED FACTS:
+  * Event Name: Home Education Support Club
+  * Category: Club
+  * Overview: A get together for those home schooling.
+  * Target Audience/Age: Home-educating families.
+  * Format: Free table time.
+  * Price: FREE.
+  * Capacity: 60.
+  * Booking Requirement: No need to book.
+
+- MANDATORY SCHEDULE RULE:
+  * Downstream posts must use ONLY the current verified schedule for the target event/occurrence, supplied separately at publishing time. Do not state specific dates, times, or recurring frequency unless explicitly provided in that verified schedule.
+
+- PROHIBITED ASSUMPTIONS & STRICTIONS:
+  * Do not add inferred participants, organizers, audiences, booking terms, venue details, specific dates, times, or extra activities.
+  * Do not mention any other event.
+  * Do not reinterpret organized play or structured activities beyond 'free table time'.
+  * Do not imply paid entry or advance reservation is required.
+
+- TONE & CALL TO ACTION:
+  * Keep the tone welcoming, supportive, and informative for home-educating families.
+  * Use safe calls to action supported by the facts (e.g., inviting home-educating families to drop in for free table time, noting no booking is required).`;
+
+    const sazLouPrompt = `You are drafting social media content for the event "SazLou". Ensure all posts adhere strictly to the following approved guidelines and facts.
+
+APPROVED FACTS & DETAILS:
+- Event Name: SazLou
+- Host: SazLou
+- Booking: Essential
+- Category: Other
+
+PUBLISHING & SCHEDULE MANDATE:
+- Downstream posts MUST use ONLY the current verified schedule for the target event/occurrence, supplied separately at publishing time.
+- Do NOT include dates, start/end times, venue names, addresses, or room details unless provided in the publishing-time schedule.
+
+PERMITTED CONTENT & CALLS TO ACTION:
+- State clearly that booking is essential.
+- Mention SazLou as the host.
+- Keep calls to action generic regarding booking requirement (e.g., "Booking is essential") without inventing booking URLs, prices, or external contact methods.
+
+PROHIBITED ASSUMPTIONS & CONTENT RESTRICTIONS:
+- Do NOT infer or invent event activities, descriptions, topics, or sub-genres.
+- Do NOT mention ticket prices, costs, or capacity limits.
+- Do NOT reinterpret organised activities or play as open play.
+- Do NOT add external links, contact details, audiences, or additional organizers/hosts not explicitly stated.
+
+TONE AND STYLE BOUNDARIES:
+- Tone should be clear, professional, welcoming, and direct.
+- Do not use hyperbole, speculative statements, or exaggerated claims.`;
+
+    const workshopPrompt = `You are writing a social media post for the Christmas Workshop.
+
+APPROVED EVENT FACTS:
+- Name: Christmas Workshop
+- Category: Workshop
+- Description: A festive workshop for little ones
+- Host/Leader: Lauren leads the workshop
+- Target Age: 2-4 years
+- Price: £8
+- Capacity: 10
+- Booking: Essential
+
+EDITORIAL RULES & INSTRUCTIONS:
+- Strictly use ONLY the approved facts provided above.
+- Schedule & Timing Rule: Downstream posts must use ONLY the current verified schedule for the target event/occurrence, supplied separately at publishing time. Do not infer or invent dates, start/end times, or location details.
+- Prohibited Assumptions: Do not invent specific workshop activities, materials, refreshments, accompanying adult rules, booking URLs, or external organizers.
+- Tone Boundaries: Warm, encouraging, and family-friendly, appropriate for parents/carers of young children (ages 2-4).
+- Call to Action: Inform audience that booking is essential due to limited capacity (10 spaces at £8).`;
+
+    const workshopHostedPrompt = `You are creating social media copy for 'Christmas Workshop (hosted)'. Use only the verified event information below and strictly follow all guidelines.
+
+EVENT DETAILS & APPROVED FACTS:
+- Event Name: Christmas Workshop (hosted)
+- Category: Workshop
+- Description: A festive workshop for younger children.
+- Event Leader: Lauren leads the workshop.
+- Age Group: 5-7 years.
+- Price: £12.
+- Capacity: 10 places.
+- Booking: Essential.
+
+PUBLISHING RULES & CONSTRAINTS:
+- Downstream posts must use ONLY the current verified schedule for the target event/occurrence, supplied separately at publishing time. Do not invent or assume dates, start times, end times, or venue locations.
+- State clearly that booking is essential and capacity is limited to 10.
+- Do not assume or list specific craft activities, refreshments, or materials not stated in the source details.
+- Maintain the event format as a structured workshop led by Lauren; do not describe it as open play.
+- Do not introduce unverified hosts, partners, or age restrictions.
+
+TONE & CALL TO ACTION:
+- Tone: Warm, festive, friendly, and informative.
+- CTA: Encourage early booking as space is limited (10 capacity) and booking is essential.`;
+
+    const name = (n: string) => `The prompt names "${n}", which isn't in People & Roles or the event's own fields`;
+
+    it('allows a word from a URL in the facts as a name, and never takes text inside a URL for one (Blood on the Clocktower)', () => {
+      expect(errorsOf(clocktowerPrompt, clocktower)).toEqual([]);
+      // Without the URL in the facts, "Eventbrite" is still a name; a URL in the prompt never is.
+      const noUrl = { ...clocktower, approved_facts: 'Booking: essential\nLevel: Beginners and Experienced alike.' };
+      expect(errorsOf('- Book via the official Eventbrite link.', noUrl)).toEqual([name('Eventbrite')]);
+      expect(errorsOf('- Book via https://www.Trixie.co.uk/Smith?ref=Jones now.', noUrl)).toEqual([]);
+      expect(errorsOf('- Book via https://www.trixie.co.uk with Trixie.', noUrl)).toEqual([name('Trixie')]);
+      // A word of the facts' URL is allowed; an unknown name mid-sentence still isn't.
+      expect(errorsOf('- Write about Eventbrite and Trixie hosting the night.', clocktower)).toContain(name('Trixie'));
+    });
+
+    it('reads "Leader" in a line\'s label as a label, and keeps the real role error (Christmas Workshop)', () => {
+      expect(errorsOf(workshopPrompt, workshop)).toEqual(['In the prompt, Lauren: People & Roles gives the role "leads the workshop", not "Host"']);
+      expect(errorsOf(workshopHostedPrompt, workshopHosted)).toEqual([]);
+      // A name after the label is still a name, and still checked against People & Roles.
+      expect(errorsOf('- Host/Leader: Trixie', workshop)).toEqual([name('Trixie'), 'In the prompt, Trixie: not in People & Roles']);
+      expect(errorsOf('- Host: Trixie', workshop)).toEqual([name('Trixie'), 'In the prompt, Trixie: not in People & Roles']);
+    });
+
+    it('still fails the real Bingo prompt on its role', () => {
+      const bingoPrompt = `- Host/Role: Alex - the best bingo caller this side of the Humber\n- Booking: Essential`;
+      expect(errorsOf(bingoPrompt, bingo)).toEqual(['In the prompt, Alex: People & Roles gives the role "the best bingo caller this side of the Humber", not "Host"']);
+    });
+
+    it('reads a labelled booking word and a negated shared verb as no claim (Home Ed v3)', () => {
+      expect(errorsOf(homeEd3Prompt, homeEd3)).toEqual([]);
+      for (const label of ['Booking Requirement', 'Booking Terms', 'Booking Policy']) {
+        expect(errorsOf(`- ${label}: No need to book.`, homeEd3), label).toEqual([]);
+      }
+      // A booking label before a booking-needed value is still a claim.
+      expect(errorsOf('- Booking Requirement: Booking is essential.', homeEd3)).toEqual(['In the prompt, booking: needs a Booking fact', 'In the prompt, booking: needs a Booking fact']);
+      expect(errorsOf('- Reservation is required.', homeEd3)).toEqual(['In the prompt, reservation: needs a Booking fact']);
+    });
+
+    it('reads "without inventing booking" as a prohibition, not drop in (SazLou)', () => {
+      expect(errorsOf(sazLouPrompt, sazLou)).toEqual([]);
+      for (const verb of ['inventing', 'adding', 'including', 'mentioning', 'stating', 'promising']) {
+        expect(errorsOf(`- Keep it short without ${verb} booking links.`, sazLou), verb).toEqual([]);
+      }
+      // A plain "without booking", and other drop-in claims, still need a Booking fact saying so.
+      expect(errorsOf('- Come along without booking.', sazLou)).toEqual(['In the prompt, without booking: needs a Booking fact saying so']);
+      expect(errorsOf('- No booking needed.', sazLou)).toEqual(['In the prompt, no booking: needs a Booking fact saying so']);
+      expect(errorsOf('- You can just walk in.', sazLou)).toEqual(['In the prompt, walk in: needs a Booking fact saying so']);
+      const target: CheckTarget = {
+        event_id: 'RTD-EVT-00018',
+        name: 'SazLou',
+        date: '2026-10-30',
+        start_time: '19:00',
+        end_time: null,
+        price: '',
+        facts: { Booking: ['Essential'] },
+        base_details: '',
+        people: [],
+        banned: [],
+        booking_mode: 'required',
+      };
+      const post = checkPostText('SazLou on Friday 30 October at 7pm. Come along without booking!', [target], { now: new Date('2026-10-22T12:00:00Z'), otherEventNames: [] });
+      expect(post.reasons.some(r => r.includes('without booking')), post.reasons.join(' | ')).toBe(true);
+    });
+  });
 });
 
 describe('post check', () => {
