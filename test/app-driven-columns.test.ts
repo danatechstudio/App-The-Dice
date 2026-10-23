@@ -229,3 +229,60 @@ describe('changing the new columns', () => {
     expect(Object.keys((await errorsOf(res)).errors!)).toHaveLength(7);
   });
 });
+
+describe('the event editor', () => {
+  type Form = { sheet: Record<string, string | null>; frequency_options: string[]; pending_fields: Record<string, { from: string; to: string }>; unavailable: Record<string, string> };
+  const form = async (id: string) => (await (await request(`/api/staff/events/${id}`, {}, DAN)).json<{ event: Form }>()).event;
+  const save = (id: string, body: unknown) => request(`/api/staff/events/${id}`, json(body), DAN);
+  const HOSTED = 'RTD-EVT-00006';
+  const hosted = indexRow(6, { 'Event Name': 'Catan Club', 'App Host Session': 'RTD-HS-00001', ...NEW_INDEX });
+
+  it('gives each new column its value, or null while the sync doesn’t send it', async () => {
+    expect((await syncRows([quiz(TODAY_INDEX)])).status).toBe(200);
+    const f = await form(QUIZ);
+    expect(Object.keys(f.sheet)).toEqual([...EXTRA.event_index]);
+    expect(f.sheet).toMatchObject({ Frequency: 'Monthly', 'Approved Facts': '', 'App Capacity': '', "Michelle's Standard Prompt": null, 'Organiser Email': null });
+    expect(f.frequency_options).toEqual(['Weekly', 'Two-Weekly', 'Monthly', 'One-off']);
+    const d = await form(DIARY);
+    expect(Object.keys(d.sheet)).toEqual(['Frequency', 'Approved Facts', 'People & Roles']);
+    expect(d.frequency_options).toEqual(['Weekly', 'Bi-Weekly', 'Monthly']);
+  });
+
+  it('sends the new columns through the Logic Engine queue, and shows them waiting', async () => {
+    expect((await syncRows([quiz(NEW_INDEX)])).status).toBe(200);
+    // Unchanged values are left out; the rest becomes one edit with the details.
+    const res = await save(QUIZ, { details: { price: '£3' }, sheet: { 'Michelles KPI Hook Prompt': 'Ask a question.', 'Banned Phrases': 'drop in, open table' } });
+    expect(res.status).toBe(200);
+    expect((await res.json<{ sheet_edit: { fields: unknown } }>()).sheet_edit.fields).toEqual({
+      'App Price': { from: '£2', to: '£3' },
+      'Michelles KPI Hook Prompt': { from: 'Open with a question.', to: 'Ask a question.' },
+    });
+    expect((await form(QUIZ)).pending_fields).toEqual({
+      'App Price': { from: '£2', to: '£3' },
+      'Michelles KPI Hook Prompt': { from: 'Open with a question.', to: 'Ask a question.' },
+    });
+  });
+
+  it('refuses a column not synced yet, one the tab hasn’t got, and a bad value', async () => {
+    expect((await syncRows([quiz(TODAY_INDEX)])).status).toBe(200);
+    const res = await save(QUIZ, { sheet: { 'Target Post Time': '18:00', 'App Capacity': 'lots' } });
+    expect(res.status).toBe(400);
+    const { errors } = await errorsOf(res);
+    expect(errors!['Target Post Time']).toMatch(/not synced yet/);
+    expect(errors!['App Capacity']).toMatch(/whole number/);
+    const diaryRes = await save(DIARY, { sheet: { 'Banned Phrases': 'x', Day: 'Monday' } });
+    expect(diaryRes.status).toBe(400);
+    expect(Object.keys((await errorsOf(diaryRes)).errors!).sort()).toEqual(['Banned Phrases', 'Day']);
+    expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM sheet_edits').first<{ n: number }>())!.n).toBe(0);
+  });
+
+  it('keeps host sessions to their own rules', async () => {
+    expect((await syncRows([quiz(NEW_INDEX), hosted])).status).toBe(200);
+    const f = await form(HOSTED);
+    expect(f.sheet).toEqual({});
+    expect(f.unavailable.sheet).toBeTruthy();
+    const res = await save(HOSTED, { sheet: { 'Approved Facts': 'Prizes: none' } });
+    expect(res.status).toBe(400);
+    expect((await errorsOf(res)).errors!.sheet).toBeTruthy();
+  });
+});
