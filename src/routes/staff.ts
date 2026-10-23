@@ -265,10 +265,10 @@ staffRoutes.post('/events/:id/booking-mode', async c => {
 /** Far more than a prompt (3,000 characters) and a reason need. */
 const MAX_SOCIAL_BODY = 64_000;
 
-/** The switch, the prompts waiting for a person, and the posts the check held (or would have). */
+/** The switch, the prompts waiting for a person and the approved ones (each with its example post), and the posts the check held (or would have). */
 staffRoutes.get('/social', async c => {
   const res = await socialOverview(c.env.DB, c.get('user'));
-  return res.ok ? c.json({ mode: res.mode, review: res.review, held: res.held }) : c.json({ error: res.error }, res.status);
+  return res.ok ? c.json({ mode: res.mode, review: res.review, approved: res.approved, held: res.held }) : c.json({ error: res.error }, res.status);
 });
 
 /** Body: { mode: 'off' | 'shadow' | 'enforce' } */

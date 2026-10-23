@@ -282,6 +282,102 @@ describe('examples for n8n', () => {
   });
 });
 
+type Ex = { state: string; post: string | null; passed: boolean | null; problems: string[]; model: string | null; generated_at: string | null; attempts: number; error: string | null };
+type Overview = {
+  mode: string;
+  review: { event_id: string; name: string; status: string; version: number; questions: string[]; master_prompt: string | null; example: Ex | null }[];
+  approved: { event_id: string; name: string; version: number; master_prompt: string | null; approved_by: string | null; approved_at: string | null; example: Ex }[];
+  held: unknown[];
+};
+const DAN = { ENVIRONMENT: 'development', DEV_AUTH_EMAIL: 'dan@example.com' };
+const MICHELLE = { ENVIRONMENT: 'development', DEV_AUTH_EMAIL: 'michelle@example.com' };
+const staffGet = (path: string, who: Partial<Env> = DAN) => request(path, {}, who);
+const addUsers = () =>
+  env.DB.batch([
+    env.DB.prepare("INSERT INTO users VALUES ('u-dan', 'dan@example.com', 'Dan', 'admin', 1, ?1, ?1)").bind(NOW.toISOString()),
+    env.DB.prepare("INSERT INTO users VALUES ('u-mich', 'michelle@example.com', 'Michelle', 'staff', 1, ?1, ?1)").bind(NOW.toISOString()),
+  ]);
+
+describe('admin screens', () => {
+  beforeEach(async () => {
+    await freshDb();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW);
+    await addUsers();
+    await setUp();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const WAITING: Ex = { state: 'waiting', post: null, passed: null, problems: [], model: null, generated_at: null, attempts: 0, error: null };
+
+  it('shows each prompt to review with its reasons, its text and its example, and the approved ones with theirs', async () => {
+    let overview = await (await staffGet('/api/staff/social')).json<Overview>();
+    expect(overview.review).toEqual([
+      {
+        event_id: DND,
+        name: 'Dungeons & Dragons',
+        status: 'review_required',
+        version: 1,
+        questions: expect.arrayContaining(['Is it for beginners?']),
+        master_prompt: DND_PROMPT,
+        example: WAITING,
+      },
+    ]);
+    expect(overview.approved.map(a => [a.event_id, a.name, a.version])).toEqual([
+      [BINGO, 'Bingo', 1],
+      [QUIZ, 'Quiz', 1],
+    ]);
+    expect(overview.approved[1]).toMatchObject({ master_prompt: `${QUIZ_PROMPT}\n\n${SCHEDULE_RULE}`, approved_by: 'dan@example.com', approved_at: NOW.toISOString(), example: WAITING });
+
+    // An example that passed, one that would be held, and one n8n couldn't write.
+    await example(DND, { version: 1, job_id: 'exec-1', model: 'gemini-x', text: 'Dungeons & Dragons is on Friday 30 October at 6:30pm. Booking is essential. #DnD' });
+    await example(QUIZ, { version: 1, job_id: 'exec-2', model: 'gemini-x', text: 'Quiz Night is on Saturday 24 October at 6:30pm.' });
+    for (let i = 0; i < 3; i++) await example(BINGO, { version: 1, job_id: `exec-${i}`, error: 'Gemini quota' });
+
+    overview = await (await staffGet('/api/staff/social')).json<Overview>();
+    expect(overview.review[0]!.example).toEqual({
+      state: 'ready',
+      post: 'Dungeons & Dragons is on Friday 30 October at 6:30pm. Booking is essential. #DnD',
+      passed: true,
+      problems: [],
+      model: 'gemini-x',
+      generated_at: NOW.toISOString(),
+      attempts: 1,
+      error: null,
+    });
+    const quiz = overview.approved.find(a => a.event_id === QUIZ)!;
+    expect(quiz.example).toMatchObject({ state: 'ready', passed: false });
+    expect(quiz.example.problems.length).toBeGreaterThan(0);
+    expect(overview.approved.find(a => a.event_id === BINGO)!.example).toMatchObject({ state: 'failed', post: null, attempts: 3, error: 'Gemini quota' });
+
+    // The event's own page shows the same example under its prompt.
+    const page = await (await staffGet(`/api/staff/events/${DND}/social`)).json<{ prompt: { version: number; example: Ex | null } }>();
+    expect(page.prompt).toMatchObject({ version: 1, example: overview.review[0]!.example });
+
+    // Approved inline (the existing endpoint, with a note): the new version waits for its own example.
+    const ok = await request(
+      `/api/staff/events/${DND}/social/approve`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'Checked prompt and example' }) },
+      DAN,
+    );
+    expect(await ok.json()).toEqual({ version: 2 });
+    overview = await (await staffGet('/api/staff/social')).json<Overview>();
+    expect(overview.review).toEqual([]);
+    expect(overview.approved.find(a => a.event_id === DND)).toMatchObject({ version: 2, example: WAITING });
+
+    // Still admins only.
+    expect((await staffGet('/api/staff/social', MICHELLE)).status).toBe(403);
+  });
+
+  it('gives a blocked version no example', async () => {
+    await env.DB.prepare("UPDATE social_prompts SET status = 'blocked' WHERE event_id = ?1").bind(DND).run();
+    const overview = await (await staffGet('/api/staff/social')).json<Overview>();
+    expect(overview.review).toMatchObject([{ event_id: DND, status: 'blocked', example: null }]);
+    const page = await (await staffGet(`/api/staff/events/${DND}/social`)).json<{ prompt: { example: Ex | null } }>();
+    expect(page.prompt.example).toBeNull();
+  });
+});
+
 describe('before migration 0025 is applied', () => {
   beforeEach(async () => {
     await reset();
@@ -293,6 +389,25 @@ describe('before migration 0025 is applied', () => {
     vi.setSystemTime(NOW);
   });
   afterEach(() => vi.useRealTimers());
+
+  it('still shows the hub, the overview and each event, with every example on its way', async () => {
+    await addUsers();
+    await setUp();
+    const hub = await staffGet('/api/staff/summary');
+    expect(hub.status).toBe(200);
+    expect((await hub.json<{ sections: Record<string, unknown> }>()).sections.social).toEqual({ count: 1, parts: { social_prompts: 1 } });
+    const res = await staffGet('/api/staff/social');
+    expect(res.status).toBe(200);
+    const overview = await res.json<Overview>();
+    expect(overview.review.map(r => [r.event_id, r.example?.state])).toEqual([[DND, 'waiting']]);
+    expect(overview.approved.map(a => a.example.state)).toEqual(['waiting', 'waiting']);
+    const page = await staffGet(`/api/staff/events/${QUIZ}/social`);
+    expect(page.status).toBe(200);
+    expect((await page.json<{ prompt: { example: Ex } }>()).prompt.example.state).toBe('waiting');
+    // The rest of the prompt flow works as before.
+    expect((await get('/internal/social-prompts/due')).status).toBe(200);
+    expect((await get('/internal/social-prompts/to-write')).status).toBe(200);
+  });
 
   it('says the migration is missing on the example routes, rather than crashing', async () => {
     await setUp();

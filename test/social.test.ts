@@ -1077,7 +1077,15 @@ describe('admin screens', () => {
     let overview = await (await get('/api/staff/social')).json<Overview>();
     expect(overview.mode).toBe('off');
     expect(overview.review).toEqual([
-      { event_id: DND, name: 'Dungeons & Dragons', status: 'review_required', version: 1, questions: expect.arrayContaining(['Is it for beginners?']) },
+      {
+        event_id: DND,
+        name: 'Dungeons & Dragons',
+        status: 'review_required',
+        version: 1,
+        questions: expect.arrayContaining(['Is it for beginners?']),
+        master_prompt: goodPrompt,
+        example: expect.objectContaining({ state: 'waiting' }),
+      },
     ]);
     expect(overview.held).toEqual([]);
 

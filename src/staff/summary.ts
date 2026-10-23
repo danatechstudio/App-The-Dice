@@ -7,7 +7,7 @@ import type { AuthUser } from '../lib/auth';
 import { addDays, londonDate } from '../lib/time';
 import { REVIEW_SQL } from '../social/admin';
 
-export type SectionKey = 'approve' | 'attention' | 'events' | 'bookings' | 'people' | 'content' | 'stats';
+export type SectionKey = 'approve' | 'attention' | 'events' | 'social' | 'bookings' | 'people' | 'content' | 'stats';
 
 export interface SectionSummary {
   /** Things waiting on a person: the sum of parts. */
@@ -39,7 +39,7 @@ const COUNTS = {
   menu_sheet_problem: "SELECT CASE WHEN json_extract(value, '$.ok') = 0 THEN 1 ELSE 0 END AS n FROM settings WHERE key = 'food_menu_sync'",
   booked_dates_7_days: `SELECT COUNT(DISTINCT o.occurrence_id) AS n FROM occurrences o JOIN bookings b ON b.occurrence_id = o.occurrence_id
      WHERE b.status = 'confirmed' AND o.status = 'scheduled' AND o.event_date BETWEEN ?1 AND ?2`,
-  // As the Social prompts panel (src/social/admin.ts): prompts waiting for a person (any age), and posts that failed their check this week.
+  // As the Social posts panel (src/social/admin.ts): prompts waiting for a person (any age), and posts that failed their check this week.
   social_prompts: `SELECT COUNT(*) AS n FROM (${REVIEW_SQL})`,
   social_held: "SELECT COUNT(*) AS n FROM social_checks WHERE result = 'fail' AND created_at >= ?1",
   social_on: "SELECT CASE WHEN value IN ('shadow', 'enforce') THEN 1 ELSE 0 END AS n FROM settings WHERE key = 'social_prompts'",
@@ -69,8 +69,10 @@ export async function staffSummary(db: D1Database, user: AuthUser, now: Date): P
   const sections: StaffSummary['sections'] = {
     approve: section({ join_requests: n.join_requests, sessions: n.sessions, changes: n.changes, market_applications: n.market_applications }),
     attention: section({ open_items: attention ? n.open_items : 0, failed_deliveries: n.failed_emails + n.failed_pushes }),
-    // Social prompts count only while the switch isn't Off; at Off the part isn't there.
-    events: admin ? section({ sheet_edit_problems: n.sheet_edit_problems, ...(n.social_on ? { social_prompts: n.social_prompts, social_held: n.social_held } : {}) }) : { count: 0 },
+    // Held posts count only while the switch isn't Off; at Off the part isn't there.
+    events: admin ? section({ sheet_edit_problems: n.sheet_edit_problems, ...(n.social_on ? { social_held: n.social_held } : {}) }) : { count: 0 },
+    // Prompts to review count at every setting, Off included: they can be approved before posts are checked.
+    ...(admin ? { social: section({ social_prompts: n.social_prompts }) } : {}),
     bookings: { count: 0, info: { booked_dates_7_days: n.booked_dates_7_days } },
     people: { count: 0 },
   };
