@@ -715,6 +715,49 @@ Versions answered in step 3 are written by step 5, because `/to-write` lists the
   - **Every Gemini call failed** (`69522`): Gemini pinned to a key error, and the POST pinned to `status: 'failed'`. One error at the end of the run.
 - **Not yet:** a real sheet write, a live `/written`, the 3-event rehearsal (it waits for the owner's facts), and publishing.
 
+### Example posts beside each prompt (contract for the builder, 23 Oct 2026)
+
+**App side built** on branch `ccr-b9b076a7-f9fv6q`; **not deployed**, and it needs **migration `0025_social_prompt_examples.sql`** (seven new columns on `social_prompts`), applied first with the owner's go-ahead. Until then both endpoints answer **503** with the reason. The n8n side isn't built yet.
+
+**What it's for:** each prompt (approved, or waiting for review) gets one sample Facebook post beside it on Organise › **Social posts**, so the owner can see what the prompt writes before approving it. The example is written the way the live Facebook event post is, checked by the same check, and shown with its result ("would pass" or "would be held: …").
+- **It never posts,** never goes to Buffer, never writes to the sheet or the Post Log, and doesn't change the prompt's status. The app adds no `social_checks` row for it.
+- It works at **every** switch setting, Off included.
+
+**For each run** (it can share the Builder's 15-minute schedule; same credential and error handling):
+
+**1. `GET /internal/social-prompts/examples-due?limit=3`**
+- `limit` is 1 to 10 (higher counts as 10, lower as 1); anything else means 3.
+- Answers `{ "examples": [{ "event_id", "version", "occurrence_id", "layer", "date_block", "fallback_prompt" }] }`, soonest date first.
+- **A version is listed when:**
+  - its event could have a prompt made now (the same rule as `/due`: running, Public or App Bookable, a scheduled public date to come, nothing on its way to the Logic Engine), and has a confirmed date the public can see (not only a projected one);
+  - it is the event's newest version (a waiting Regenerate request doesn't count), and it is `approved` or `review_required`, with prompt text;
+  - it has no example yet, and fewer than 3 answers (examples and errors together).
+- A new version (a regenerate, new facts, or an admin's approval) is listed again for its own example. An older one never is.
+
+**2. Gemini** (the same model and settings as **Gemini Engine: Michelle Voice**), with the message built **exactly** as the live Facebook event post builds it:
+```
+layer + "\n\n" + <the event's Michelle's Standard Prompt from Event Index, matched on Event ID> + "\n\n" + date_block
+```
+- Use `fallback_prompt` in place of Michelle's Standard Prompt when the row has none (blank, or the row isn't found).
+- **`layer`** is the same text RTD Social Context (sub) builds as `block` for that event: the prompt, trimmed; then, only when at least one isn't blank, a blank line and the lines `Approved facts: <Approved Facts, trimmed>` and `People & roles: <People & Roles, trimmed>` (each only when it isn't blank), joined by a single line break. It is built in the app (`layerBlock`, `src/social/check.ts`) from the version's own prompt, which may still need review, and the facts as the last sync read them.
+- **`date_block`** is `Date: <label>`, as the live flow's `date_block`, for example `Date: Friday 23 October, 6:30pm`, or `Date: Wednesday 21 October` with no time (`dateBlock`, from the same next-date choice `/social/context` makes). `occurrence_id` is that date's.
+- `fallback_prompt` is: "Write one friendly Facebook post for Roll The Dice Café about this event, using only the details above."
+- **Don't** call `/social/context`, the Gate, Buffer or any sheet node for an example.
+
+**3. `POST /internal/social-prompts/:eventId/example`**
+- **Body:** `{ "version": <from step 1>, "job_id": <the n8n execution ID>, "model": <the model name>, "text": <Gemini's post> }`.
+  - `text` is trimmed and may be up to 5,000 characters.
+- **When Gemini failed** (a timeout, a quota error, an empty answer), send `{ "version", "job_id", "error": <the error, as text or the error object> }` instead.
+- **Answers (200):**
+  - For a text: `{ "ok": true, "passed": true | false, "problems": [ … ] }`. The problems are the reasons a live post would be held, in the same words. The prompt's own approval isn't one of them (a version waiting for review is checked as if it were in use), but "prompt out of date" is, when the facts changed since the version was made.
+  - For an error: `{ "ok": true }`. The error is kept and shown to admins after the third try ("No example (n8n couldn't write one): <error>").
+- **Refusals:**
+  - **409:** that version isn't the event's newest any more (a new version came since step 1). Nothing is stored. Drop it; the new one is listed on a later run.
+  - **404:** no event with that ID, or no such version for it.
+  - **400:** the body isn't a JSON object, `version` is missing or not a whole number from 1, `text` is blank, not text or over 5,000 characters, or there's neither `text` nor `error`.
+  - **503:** migration 0025 isn't applied yet.
+- Sending the same text twice is harmless: the second replaces the first, and counts as another answer.
+
 ### Every post: RTD Master V1 and the poster path (Stage 2)
 
 **5. `POST /internal/social/context`**, before Gemini writes a caption
@@ -759,7 +802,7 @@ Versions answered in step 3 are written by step 5, because `/to-write` lists the
 | **Shadow** | Layers | Every post is checked and recorded; `allow` is always `true` | Always. A failure is only recorded, and shown to admins as "would have been held" |
 | **Enforce** | Layers | Every post is checked and recorded; `allow` is `true` only on a pass | **Only on a 200 with `allow: true`.** Any other answer (`allow: false`, a 400, 401, 413, 5xx or a timeout) means **don't post**: append a Post Log row with Automation Status **`Held`** |
 
-- The app lists held posts (and, in Shadow, the posts that would have been held) under Organise › Events & dates › **Social prompts**.
+- The app lists held posts (and, in Shadow, the posts that would have been held) under Organise › Events & dates › **Social prompts** (once the 23 Oct change is deployed: Organise › **Social posts**).
 - **When the app can't be reached at all** (decided in Stage 2): n8n uses the last setting the app answered, kept in rtd_config `SOCIAL_MODE_LAST`. It holds only when that is `enforce`; a missing key counts as not enforce. See the Gate below.
 
 **Posters (Stage 2):**
@@ -1097,7 +1140,7 @@ The check is a **safety net built from fixed rules, not a guarantee.** It can't 
 
 ### Stage 2 rollback record
 
-Recorded 21 Oct 2026, after Task 6; pending drafts updated after the final fix wave. Every Stage 2 workflow, the version before Stage 2, what is live now, and what is waiting. The app's switch is **Off**. Whatever is rolled back, **set the switch to Off first** (Organise › Events & dates › Social prompts); at Off nothing is checked or held.
+Recorded 21 Oct 2026, after Task 6; pending drafts updated after the final fix wave. Every Stage 2 workflow, the version before Stage 2, what is live now, and what is waiting. The app's switch is **Off**. Whatever is rolled back, **set the switch to Off first** (Organise › Events & dates › Social prompts; Organise › Social posts once the 23 Oct change is deployed); at Off nothing is checked or held.
 
 To publish an older version: n8n › the workflow › Versions › pick the version › Publish (or the n8n MCP `publish_workflow` with that `versionId`). Publishing a version doesn't delete the draft or any other version.
 

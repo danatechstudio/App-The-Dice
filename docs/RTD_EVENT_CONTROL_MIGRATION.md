@@ -131,6 +131,13 @@ One new table, `enquiries`, for the message form on a private game's page (spec 
 - **Before:** 32 events, 79 occurrences, 0 bookings, 326 audit rows, 16 settings; the 10:15 sync `ok`.
 - **After:** the same; `enquiries` (empty) and both indexes are present.
 
+## 0025_social_prompt_examples.sql (example posts beside each social prompt)
+
+Seven new columns on `social_prompts`, all empty (`example_attempts` defaults to 0): `example_post`, `example_check`, `example_model`, `example_job_id`, `example_generated_at`, `example_attempts`, `example_error`. Additive; nothing else changes. Built 23 Oct 2026; **not applied**.
+- **Order:** apply it first, then merge, as for every migration. But the code is also safe the other way round: the hub, the Social posts panel and each event's social page read the example columns on their own and show every example as "on its way" when they're missing, and the two new n8n endpoints answer 503 ("migration 0025 … is not applied"). Nothing else reads them.
+- **Verify:** the seven columns are present (`SELECT name FROM pragma_table_info('social_prompts') WHERE name LIKE 'example%'`), and row counts are unchanged.
+- **Rollback:** `npx wrangler rollback`; the columns can stay. To remove them, after the code is rolled back, drop each column (`ALTER TABLE social_prompts DROP COLUMN example_post;` and so on) and delete the row from `d1_migrations`.
+
 ## 0024_social_prompts.sql (event social prompts, Stage 1)
 
 The app side of event-specific social master prompts (spec `docs/superpowers/specs/2026-10-18-social-master-prompt-design.md`; the n8n contract is in [RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md#event-social-prompts-contract-for-stage-2)). Additive.
