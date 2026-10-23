@@ -1,5 +1,18 @@
 # RTD App Changelog
 
+## 2026-10-23 (Social prompts: example posts, and a Social posts section)
+- **Built, not deployed.** It needs migration `0025_social_prompt_examples.sql` first, with the owner's go-ahead. Until then the screens work as before, with every example "on its way".
+- **A new Social posts section in the organiser** (admins only). Its card counts the prompts waiting for review at every setting, Off included, so they show the way other things to approve do. The Social prompts panel moved there from Events & dates. Held posts still count on Events & dates while checking is on.
+- **Each prompt to review shows:**
+  - every reason it needs a look;
+  - the prompt (tap to open);
+  - **an example post:** a sample Facebook post written the way the real posting flow would write it (the event's prompt, Michelle's Standard Prompt, the next real date and time), checked the same way, with "would pass" or "would be held" and why;
+  - **Approve**, with a short note already filled in ("Checked prompt and example"), and **Regenerate**, right there, without opening the event. The counts update straight away.
+  - a link to the event's editor, which shows the same example under its prompt.
+- **Approved prompts** are listed too, folded away, with their examples, to show what good ones look like.
+- **An example is never posted,** never written to the sheet, and never changes a prompt's status.
+- **The n8n side isn't built yet.** It asks the app which prompts want an example, has Gemini write one and sends it back to be checked. The contract is in [RTD_N8N_WORKFLOWS.md](docs/RTD_N8N_WORKFLOWS.md#example-posts-beside-each-prompt-contract-for-the-builder-23-oct-2026).
+
 ## 2026-10-21 (Event social prompts, Stage 2: the n8n side)
 - **What it is:** the n8n half of the event social prompts. Posts now ask the app for each event's approved prompt and date before Gemini writes, and ask the app's check before they go out. **The switch is still Off,** so captions and posts are exactly as before. Details and test runs: [RTD_N8N_WORKFLOWS.md](docs/RTD_N8N_WORKFLOWS.md#every-post-rtd-master-v1-and-the-poster-path-stage-2).
 - **Built:**

@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { hostApi, setAfterChange } from './hostApi';
 
-export type SectionKey = 'approve' | 'attention' | 'events' | 'bookings' | 'people' | 'content' | 'stats';
+export type SectionKey = 'approve' | 'attention' | 'events' | 'social' | 'bookings' | 'people' | 'content' | 'stats';
 
 export interface SectionSummary {
   count: number;

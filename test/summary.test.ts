@@ -39,11 +39,11 @@ describe('the organiser summary', () => {
     expect((await request('/api/staff/summary', {}, SAM)).status).toBe(403);
   });
 
-  it('an approver gets five sections, an admin seven', async () => {
+  it('an approver gets five sections, an admin eight', async () => {
     const res = await request('/api/staff/summary', {}, DAN);
     expect(res.headers.get('Cache-Control')).toBe('no-store');
     const dan = await res.json<Summary>();
-    expect(Object.keys(dan.sections)).toEqual(['approve', 'attention', 'events', 'bookings', 'people', 'content', 'stats']);
+    expect(Object.keys(dan.sections)).toEqual(['approve', 'attention', 'events', 'social', 'bookings', 'people', 'content', 'stats']);
     expect(dan.sections.events!.parts).toHaveProperty('sheet_edit_problems');
     const michelle = await summary(MICHELLE);
     expect(Object.keys(michelle.sections)).toEqual(['approve', 'attention', 'events', 'bookings', 'people']);
@@ -160,7 +160,7 @@ describe('the organiser summary', () => {
     expect((await summary(MICHELLE)).sections.events!.count).toBe(0);
   });
 
-  it('counts social items on the hub for admins only, and not at Off', async () => {
+  it('counts social prompts to review for admins at every setting, and held posts only while checking', async () => {
     const prompt = (id: string, event: string, version: number, status: string) =>
       run(
         "INSERT INTO social_prompts (prompt_id, event_id, version, status, source_fingerprint, source_snapshot, created_at) VALUES (?1, ?2, ?3, ?4, 'fp', '{}', ?5)",
@@ -180,14 +180,20 @@ describe('the organiser summary', () => {
     await check('RTD-SC-00002', 'fail', daysAgo(8)); // more than a week ago
     await check('RTD-SC-00003', 'pass', daysAgo(1));
 
-    // Off (the default): nothing is counted, and the part isn't there.
-    expect((await summary(DAN)).sections.events).toEqual({ count: 0, parts: { sheet_edit_problems: 0 } });
+    // Off (the default): the prompts to review are counted under Social posts; held posts aren't counted, and their part isn't there.
+    let dan = await summary(DAN);
+    expect(dan.sections.social).toEqual({ count: 2, parts: { social_prompts: 2 } });
+    expect(dan.sections.events).toEqual({ count: 0, parts: { sheet_edit_problems: 0 } });
+    // Shadow and Enforce: held posts are counted under Social posts too, where their list is.
     await run("UPDATE settings SET value = 'shadow' WHERE key = 'social_prompts'");
-    expect((await summary(DAN)).sections.events).toEqual({ count: 3, parts: { sheet_edit_problems: 0, social_prompts: 2, social_held: 1 } });
+    dan = await summary(DAN);
+    expect(dan.sections.social).toEqual({ count: 3, parts: { social_prompts: 2, social_held: 1 } });
+    expect(dan.sections.events).toEqual({ count: 0, parts: { sheet_edit_problems: 0 } });
     await run("UPDATE settings SET value = 'enforce' WHERE key = 'social_prompts'");
-    expect((await summary(DAN)).sections.events!.parts).toMatchObject({ social_prompts: 2, social_held: 1 });
+    expect((await summary(DAN)).sections.social!.parts).toEqual({ social_prompts: 2, social_held: 1 });
     const michelle = await summary(MICHELLE);
     expect(michelle.sections.events).toEqual({ count: 0 });
+    expect(michelle.sections).not.toHaveProperty('social');
   });
 
   it('leaves stopped, private and hidden events out of the social count', async () => {
@@ -199,13 +205,12 @@ describe('the organiser summary', () => {
     await prompt('RTD-SP-00001', 'RTD-EVT-00001');
     await prompt('RTD-SP-00002', 'RTD-EVT-00002');
     await prompt('RTD-SP-00003', 'RTD-EVT-00003');
-    await run("UPDATE settings SET value = 'shadow' WHERE key = 'social_prompts'");
-    expect((await summary(DAN)).sections.events!.parts!.social_prompts).toBe(3);
+    expect((await summary(DAN)).sections.social!.parts!.social_prompts).toBe(3);
     await run("UPDATE events SET active = 0 WHERE event_id = 'RTD-EVT-00001'");
     await run("UPDATE events SET visibility = 'private' WHERE event_id = 'RTD-EVT-00002'");
-    expect((await summary(DAN)).sections.events!.parts!.social_prompts).toBe(1);
+    expect((await summary(DAN)).sections.social!.parts!.social_prompts).toBe(1);
     await run("UPDATE events SET visibility = 'hidden' WHERE event_id = 'RTD-EVT-00003'");
-    expect((await summary(DAN)).sections.events!.parts!.social_prompts).toBe(0);
+    expect((await summary(DAN)).sections.social).toEqual({ count: 0, parts: { social_prompts: 0 } });
   });
 
   it('shows booked dates this week as information, not as waiting', async () => {

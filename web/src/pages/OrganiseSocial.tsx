@@ -1,15 +1,27 @@
 // Social prompts, admins only (docs/superpowers/specs/2026-10-18-social-master-prompt-design.md §5).
 // Each event gets its own master prompt, written from the facts the café put in the Logic Engine,
-// and every post is checked against that event's facts before it goes out. The panel (Events &
-// dates) has the switch, the prompts waiting for a person and the posts the check held; the event
-// editor has one event's facts, its prompt, Regenerate, Approve with a note, versions and checks.
+// and every post is checked against that event's facts before it goes out. The panel (Organise ›
+// Social posts) has the prompts waiting for a person, each with its example post and inline Approve
+// and Regenerate, the approved prompts with theirs, the switch and the posts the check held; the event
+// editor has one event's facts, its prompt and example, Regenerate, Approve with a note, versions and checks.
 
-import { AlertTriangle, Check, RefreshCw } from 'lucide-preact';
+import { AlertTriangle, Check, ExternalLink, RefreshCw } from 'lucide-preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { Chip, type ChipKind } from '../components/Chips';
 import { DiceLoader } from '../components/States';
 import { shortDate, todayLondon } from '../lib/dates';
-import { hostApi, type EventSocial, type SocialCheck, type SocialMode, type SocialOverview, type SocialPromptStatus } from '../lib/hostApi';
+import {
+  hostApi,
+  type EventSocial,
+  type SocialApprovedItem,
+  type SocialCheck,
+  type SocialExample,
+  type SocialMode,
+  type SocialOverview,
+  type SocialPromptStatus,
+  type SocialReviewItem,
+} from '../lib/hostApi';
+import { exampleView } from '../lib/socialExample';
 import { toast } from '../lib/toast';
 
 const MODES: { mode: SocialMode; label: string; hint: string }[] = [
@@ -33,7 +45,7 @@ const when = (iso: string) => `${shortDate(todayLondon(new Date(iso)))}, ${clock
 /** The problems a refused approval lists (the server sends them as a list). */
 const listOf = (errors: unknown): string[] => (Array.isArray(errors) ? errors : errors && typeof errors === 'object' ? Object.values(errors) : []).map(String);
 
-// ---- The panel (Organise › Events & dates) ----
+// ---- The panel (Organise › Social posts) ----
 
 export function SocialPanel() {
   const [data, setData] = useState<SocialOverview | null>(null);
@@ -54,13 +66,12 @@ export function SocialPanel() {
       </div>
       <p class="meta" style={{ marginBottom: '12px' }}>
         Each event gets its own master prompt, written from the facts you’ve put in the Logic Engine, and every post is checked against that event’s facts
-        before it goes out.
+        before it goes out. Each prompt has an example post beside it, written and checked the way a real post would be. Examples are never posted.
       </p>
       {error && <LoadError error={error} onRetry={load} />}
       {!data && !error && <DiceLoader label="Loading social prompts..." />}
       {data && (
         <div class="stack social" style={{ '--gap': '20px' }}>
-          <ModePicker mode={data.mode} onSaved={load} />
           <div>
             <h3 class="label social__subhead">Prompts to review</h3>
             {!data.review.length && (
@@ -68,29 +79,22 @@ export function SocialPanel() {
             )}
             <div class="list">
               {data.review.map(r => (
-                <article key={r.event_id} class="card card--pad stack" style={{ '--gap': '6px' }}>
-                  <div class="cluster" style={{ '--gap': '8px' }}>
-                    <strong>{r.name}</strong>
-                    <Chip kind={STATUS[r.status].kind}>{STATUS[r.status].label}</Chip>
-                    <span class="meta">v{r.version}</span>
-                  </div>
-                  {r.questions.length > 0 && (
-                    <ul class="meta social__reasons">
-                      {r.questions.slice(0, 3).map((q, i) => (
-                        <li key={i}>{q}</li>
-                      ))}
-                      {r.questions.length > 3 && <li>and {r.questions.length - 3} more</li>}
-                    </ul>
-                  )}
-                  <p>
-                    <a class="btn btn--secondary btn--sm" href={`/organise/events/${r.event_id}#social-prompt`} aria-label={`Review the prompt for ${r.name}`}>
-                      Review the prompt
-                    </a>
-                  </p>
-                </article>
+                <ReviewCard key={`${r.event_id}-${r.version}`} r={r} onDone={load} />
               ))}
             </div>
           </div>
+          {data.approved.length > 0 && (
+            <details class="social__group">
+              <summary class="label">Approved ({data.approved.length})</summary>
+              <p class="meta">What a good prompt looks like, with its example post.</p>
+              <div class="list">
+                {data.approved.map(a => (
+                  <ApprovedCard key={`${a.event_id}-${a.version}`} a={a} />
+                ))}
+              </div>
+            </details>
+          )}
+          <ModePicker mode={data.mode} onSaved={load} />
           <div>
             <h3 class="label social__subhead">Held posts: the last 50</h3>
             <p class="meta" style={{ marginBottom: '8px' }}>
@@ -107,6 +111,166 @@ export function SocialPanel() {
         </div>
       )}
     </section>
+  );
+}
+
+/** A prompt's text, folded away until asked for. */
+function PromptText({ text, version }: { text: string | null; version: number }) {
+  if (!text) return <p class="meta">No text: the builder couldn’t make one.</p>;
+  return (
+    <details class="social__group">
+      <summary class="label">The prompt</summary>
+      <div class="social__prompt" tabIndex={0} aria-label={`Prompt, version ${version}`}>
+        {text}
+      </div>
+    </details>
+  );
+}
+
+/** The example post beside a prompt: on its way, couldn’t be written, or written and checked (would pass, or would be held and why). */
+function ExampleBlock({ example }: { example: SocialExample }) {
+  const view = exampleView(example);
+  return (
+    <div class="stack social__example" style={{ '--gap': '6px' }}>
+      <div class="cluster" style={{ '--gap': '8px' }}>
+        <h4 class="label">Example post</h4>
+        {view.kind === 'pass' && <Chip kind="approved">Would pass</Chip>}
+        {view.kind === 'held' && <Chip kind="preview">Would be held</Chip>}
+      </div>
+      {(view.kind === 'waiting' || view.kind === 'failed') && <p class="meta">{view.line}</p>}
+      {view.kind === 'held' && example.problems.length > 0 && (
+        <ul class="meta social__reasons">
+          {example.problems.map((p, i) => (
+            <li key={i}>{p}</li>
+          ))}
+        </ul>
+      )}
+      {example.post && <p class="social__text">{example.post}</p>}
+      {example.post && example.generated_at && <p class="meta">Written {when(example.generated_at)}. Never posted.</p>}
+    </div>
+  );
+}
+
+const editorLink = (eventId: string) => `/organise/events/${eventId}#social-prompt`;
+
+/** One prompt waiting for a person: why, the prompt, its example, and Approve (with a note) or Regenerate, right here. */
+function ReviewCard({ r, onDone }: { r: SocialReviewItem; onDone: () => void }) {
+  const [note, setNote] = useState('Checked prompt and example');
+  const [busy, setBusy] = useState<null | 'approve' | 'regenerate'>(null);
+  const [asked, setAsked] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
+  const noteId = `social-note-${r.event_id}`;
+  const canApprove = r.status === 'review_required' && !!r.master_prompt;
+
+  const approve = async () => {
+    setBusy('approve');
+    setError(null);
+    setErrors([]);
+    const res = await hostApi<{ version: number }>(`/api/staff/events/${r.event_id}/social/approve`, { reason: note });
+    setBusy(null);
+    if (res.ok) {
+      toast(`${r.name}: approved as version ${res.data.version}. It’s written to the Logic Engine on the next run.`);
+      return onDone();
+    }
+    setError(res.error);
+    setErrors(res.kind === 'invalid' ? listOf(res.errors) : []);
+  };
+  const regenerate = async () => {
+    setBusy('regenerate');
+    const res = await hostApi(`/api/staff/events/${r.event_id}/social/regenerate`, {});
+    setBusy(null);
+    if (res.ok) setAsked(true);
+    toast(res.ok ? `${r.name}: a new prompt will be made on the next run, within about 15 minutes.` : res.error);
+    onDone();
+  };
+
+  return (
+    <article class="card card--pad stack social__review" style={{ '--gap': '10px' }} aria-labelledby={`review-${r.event_id}`}>
+      <div class="cluster" style={{ '--gap': '8px' }}>
+        <strong id={`review-${r.event_id}`}>{r.name}</strong>
+        <Chip kind={STATUS[r.status].kind}>{STATUS[r.status].label}</Chip>
+        <span class="meta">v{r.version}</span>
+      </div>
+      {r.questions.length > 0 && (
+        <ul class="social__reasons">
+          {r.questions.map((q, i) => (
+            <li key={i}>{q}</li>
+          ))}
+        </ul>
+      )}
+      <PromptText text={r.master_prompt} version={r.version} />
+      {r.example && <ExampleBlock example={r.example} />}
+      {canApprove && (
+        <div class={`field${error ? ' field--error' : ''}`}>
+          <label for={noteId}>Your note</label>
+          <input
+            id={noteId}
+            class="input"
+            maxLength={500}
+            value={note}
+            required
+            aria-describedby={`${noteId}-hint${error ? ` ${noteId}-error` : ''}`}
+            onInput={e => setNote(e.currentTarget.value)}
+          />
+          <p id={`${noteId}-hint`} class="field__hint">
+            Kept with the approval, for the record.
+          </p>
+          {error && (
+            <div id={`${noteId}-error`} class="field__error" role="alert">
+              <p>{error}</p>
+              {errors.length > 0 && (
+                <ul class="social__reasons">
+                  {errors.map((e, i) => (
+                    <li key={i}>{e}</li>
+                  ))}
+                </ul>
+              )}
+              <p>Open the event to change the prompt before approving it.</p>
+            </div>
+          )}
+        </div>
+      )}
+      <div class="cluster social__actions">
+        {canApprove && (
+          <button type="button" class="btn btn--primary btn--sm" disabled={!!busy || !note.trim()} onClick={approve}>
+            <Check size={16} aria-hidden="true" /> {busy === 'approve' ? 'Approving...' : 'Approve'}
+          </button>
+        )}
+        <button type="button" class="btn btn--secondary btn--sm" disabled={!!busy || asked} onClick={regenerate}>
+          <RefreshCw size={16} aria-hidden="true" /> {asked ? 'New prompt on its way' : busy === 'regenerate' ? 'Asking...' : 'Regenerate'}
+        </button>
+        <a class="btn btn--text btn--sm" href={editorLink(r.event_id)} aria-label={`Open the event editor for ${r.name}`}>
+          <ExternalLink size={16} aria-hidden="true" /> Open the event
+        </a>
+      </div>
+    </article>
+  );
+}
+
+/** An approved prompt in use, with its example. */
+function ApprovedCard({ a }: { a: SocialApprovedItem }) {
+  return (
+    <article class="card card--pad stack" style={{ '--gap': '10px' }}>
+      <div class="cluster" style={{ '--gap': '8px' }}>
+        <strong>{a.name}</strong>
+        <Chip kind={STATUS.approved.kind}>{STATUS.approved.label}</Chip>
+        <span class="meta">v{a.version}</span>
+      </div>
+      {a.approved_by && (
+        <p class="meta">
+          Approved by {a.approved_by === 'system' ? 'the checks' : a.approved_by}
+          {a.approved_at ? `, ${when(a.approved_at)}` : ''}
+        </p>
+      )}
+      <PromptText text={a.master_prompt} version={a.version} />
+      <ExampleBlock example={a.example} />
+      <p>
+        <a class="btn btn--text btn--sm" href={editorLink(a.event_id)} aria-label={`Open the event editor for ${a.name}`}>
+          <ExternalLink size={16} aria-hidden="true" /> Open the event
+        </a>
+      </p>
+    </article>
   );
 }
 
@@ -349,6 +513,7 @@ function Prompt({ data, eventId, onChanged }: { data: EventSocial; eventId: stri
           ) : (
             <p class="meta">No text: the builder couldn’t make one.</p>
           )}
+          {p.example && <ExampleBlock example={p.example} />}
         </>
       )}
       {data.in_use === null && data.mode === 'enforce' && (

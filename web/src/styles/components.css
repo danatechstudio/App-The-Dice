@@ -1691,8 +1691,33 @@ textarea.input {
   list-style: none;
 }
 
-.social__history summary {
+.social__history summary,
+.social__group summary {
   cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.social__group > .meta,
+.social__group > .list,
+.social__group > .social__prompt {
+  margin-top: 8px;
+}
+
+/* An example post: a sample, never posted, so it sits in a dashed box apart from the real checks. */
+.social__example {
+  padding: 10px 12px;
+  border: 1px dashed var(--rtd-border);
+  border-radius: 8px;
+}
+
+.social__example h4 {
+  margin: 0;
+}
+
+.social__actions .btn {
+  min-height: 44px;
 }
 
 .social__history ol {

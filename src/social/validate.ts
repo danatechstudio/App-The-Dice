@@ -591,6 +591,13 @@ for (const t of [
   addWords(BASE_ALLOWED, t);
 }
 
+/** The built-in allowed words, and the words of `allowed`. */
+function allowedSet(allowed: Iterable<string>): Set<string> {
+  const ok = new Set(BASE_ALLOWED);
+  for (const a of allowed) addWords(ok, a);
+  return ok;
+}
+
 function isAllowed(word: string, allowed: Set<string>): boolean {
   const key = wordKey(word);
   const known = (k: string) => allowed.has(k) || (k.length > 3 && k.endsWith('s') && allowed.has(k.slice(0, -1)));
@@ -663,6 +670,7 @@ const LABEL_JOINERS = new Set(['and', 'or', 'to', 'of', 'for', 'the', 'a', 'an',
 const LABEL_WORDS = new Set(
   [...SECTION_LABELS].flatMap(l => l.split(' ')).concat(
     ['target', 'requirement', 'requirements', 'details', 'detail', 'name', 'price', 'ticket', 'capacity', 'category', 'info', 'information', 'cost'],
+    ['leader', 'leaders'],
   ),
 );
 const LABEL_LINE = /^[ \t]*(?:[-*•#>]+[ \t]*|\d{1,3}[.)][ \t]*)?[*_]*([^:]{1,80}?)[*_]*[ \t]*:/u;
@@ -688,6 +696,20 @@ function labelSpans(text: string, ok: Set<string>): Span[] {
   return spans;
 }
 
+/** The words of a prompt's line labels that are label words ("Host/Leader:", "Event Leader:"): never a name beside a role word. */
+function labelWordSpans(text: string, allowed: Iterable<string>): Span[] {
+  const labels = labelSpans(text, allowedSet(allowed));
+  return [...text.matchAll(WORD)]
+    .filter(m => LABEL_WORDS.has(m[0].toLowerCase()) && within(m.index!, m.index! + m[0].length, labels))
+    .map(m => [m.index!, m.index! + m[0].length] as Span);
+}
+
+// A web address: "https://www.eventbrite.co.uk/o/89845223753", "www.example.com/events". Its host and path end at "?" or "#".
+const WEB_ADDRESS = /(?<![\p{L}\p{N}])(?:https?:\/\/|www\.)[^\s<>"'()[\]{}]{1,200}/giu;
+const URL_QUERY = /[?#].*$/su;
+/** The host and path of each web address in a text. */
+const urlsIn = (text: string): string[] => [...text.matchAll(WEB_ADDRESS)].map(m => m[0].replace(URL_QUERY, ''));
+
 /** Whether the word at `at`..`end` opens a value or an aside, after a colon or "(", and runs on in small letters ("Prizes: Cash prizes", "(Check the schedule)"). */
 function startsValue(text: string, at: number, end: number): boolean {
   let j = at - 1;
@@ -710,13 +732,13 @@ function afterColon(text: string, at: number): boolean {
  * In a prompt (`prompt`), which is written as headings, labels and lists, neither are words in
  * capitals ("PUBLISHING", "FREE"), the words of a line's label ("Booking Requirement:"), nor the
  * first word of a value or an aside that runs on in small letters ("Age Guidance: Family friendly"),
- * nor a value word written in `valueWords` in any case ("Booking: Essential").
+ * nor a value word written in `valueWords` in any case ("Booking: Essential"), nor anything inside a web address.
  * "Host: Trixie" still names Trixie. Another event's name in capitals is caught by its own check.
  */
 export function findNames(text: string, allowed: Iterable<string>, opts: { prompt?: boolean; valueWords?: string[] } = {}): string[] {
-  const ok = new Set(BASE_ALLOWED);
-  for (const a of allowed) addWords(ok, a);
+  const ok = allowedSet(allowed);
   const labels = opts.prompt ? labelSpans(text, ok) : [];
+  const urls = opts.prompt ? spansOf(WEB_ADDRESS, text) : [];
   const values = new Set((opts.valueWords ?? []).map(w => w.toLowerCase()));
   const found: string[] = [];
   let run: string[] = [];
@@ -730,7 +752,7 @@ export function findNames(text: string, allowed: Iterable<string>, opts: { promp
     const at = m.index!;
     if (!/^[ \t]+$/.test(text.slice(lastEnd, at))) flush();
     lastEnd = at + word.length;
-    const layout = opts.prompt === true && (isAllCaps(word) || within(at, lastEnd, labels) || startsValue(text, at, lastEnd) || (values.has(word.toLowerCase()) && afterColon(text, at)));
+    const layout = opts.prompt === true && (isAllCaps(word) || within(at, lastEnd, labels) || within(at, lastEnd, urls) || startsValue(text, at, lastEnd) || (values.has(word.toLowerCase()) && afterColon(text, at)));
     const name = /^\p{Lu}/u.test(word) && text[at - 1] !== '#' && !isAllowed(word, ok) && !startsSentence(text, at) && !layout;
     if (name) run.push(word);
     else flush();
@@ -1015,7 +1037,14 @@ export function promptTextErrors(prompt: string, f: SourceFields, otherEventName
     if (named) errors.push(`The prompt names another event, "${name}"`);
   }
   const people = parsePeople(f.people_roles).people;
-  const allowed = [f.name, f.category, ...people.map(p => p.name), ...[f.base_details, f.approved_facts, f.people_roles].flatMap(capitalisedWords)];
+  // A web address in Base Details or Approved Facts allows the words of its host and path, in any case ("Eventbrite").
+  const allowed = [
+    f.name,
+    f.category,
+    ...people.map(p => p.name),
+    ...[f.base_details, f.approved_facts, f.people_roles].flatMap(capitalisedWords),
+    ...[f.base_details, f.approved_facts].flatMap(urlsIn),
+  ];
   // Gemini capitalises a fact's own word as a label's value ("Booking: Essential").
   const valueWords = [f.base_details, f.approved_facts].flatMap(t => t.match(WORD) ?? []);
   for (const n of findNames(prompt, allowed, { prompt: true, valueWords })) {
@@ -1026,7 +1055,9 @@ export function promptTextErrors(prompt: string, f: SourceFields, otherEventName
   const support = { name: f.name, base_details: f.base_details, facts: parseFacts(f.approved_facts).facts, booking_mode: null };
   for (const p of claimProblems(prompt, exempt, support, true)) errors.push(`In the prompt, ${p}`);
   // A role beside a name is allowed only as People & Roles give it, or where Base Details or Approved Facts write that name with that role.
-  for (const p of roleProblems(prompt, exempt, people, rolePairs([f.base_details, f.approved_facts]))) errors.push(`In the prompt, ${p}`);
+  // A label word in a line's label ("Host/Leader:") isn't anyone's name.
+  const labelWords = labelWordSpans(prompt, allowed);
+  for (const p of roleProblems(prompt, exempt, people, rolePairs([f.base_details, f.approved_facts]), labelWords)) errors.push(`In the prompt, ${p}`);
   return errors;
 }
 
@@ -1331,6 +1362,10 @@ const NEGATION_BREAK = /,|(?<!\p{L})(?:and|or|but|however|although|though|while|
 const NEGATION_ENDS = /^\s*(?:but|however|although|though|while|whereas|instead)(?!\p{L})/iu;
 const OWN_VERB =
   /(?<![\p{L}\p{N}'’])(?:is|are|was|were|be|been|will|would|can|could|may|might|must|shall|should|do|does|did|has|have|had|it|it['’]s|they|we|you|he|she|everyone|there|here|gets?|got|welcomed?|welcomes|awaits?|waiting)(?![\p{L}\p{N}'’])/iu;
+// "Do not imply paid entry or advance reservation is required": after a verb that takes a clause, an "or" part whose verb comes after
+// its noun shares that verb with the part before, which has none of its own, so the negation covers both.
+const CLAUSE_VERB = new RegExp(`${HSPACE}+(?:imply|suggest|say|state|claim|promise)(?!\\p{L})`, 'iuy');
+const SHARED_VERB_PART = new RegExp(`^\\s*(?:or|nor)${HSPACE}+(?!${OWN_VERB.source})\\p{L}`, 'iu');
 // A word straight after a negation, at most two words on: "not open play", "no cash prizes". Not after "don't miss".
 const GOVERNED = new RegExp(`${NEGATIVE_WORD}(?:${GAP_WORD}){0,2}\\s+$`, 'iu');
 
@@ -1344,6 +1379,8 @@ function negatedClauses(text: string): Span[] {
     const at = start + (CLAUSE_OPENING.exec(text)?.[0].length ?? 0);
     CLAUSE_NEGATION.lastIndex = at;
     if (at < end && CLAUSE_NEGATION.test(text)) {
+      CLAUSE_VERB.lastIndex = CLAUSE_NEGATION.lastIndex;
+      const verbEnd = CLAUSE_VERB.test(text) ? CLAUSE_VERB.lastIndex - at : -1;
       // The negation reaches each part until one has a verb or a pronoun of its own, or opens with "but".
       const clause = text.slice(at, end);
       // Past a comma only as a list with a joiner before its last item: "rules, age cut-offs, or activities", not "the dice, cash prizes".
@@ -1352,7 +1389,9 @@ function negatedClauses(text: string): Span[] {
       const breaks = [...clause.slice(0, stop).matchAll(NEGATION_BREAK)].map(m => m.index!);
       for (const [i, b] of breaks.entries()) {
         const part = clause.slice(b, breaks[i + 1] ?? stop);
-        if (NEGATION_ENDS.test(part.replace(/^,/, '')) || OWN_VERB.test(part)) {
+        const before = clause.slice(i === 0 ? verbEnd : breaks[i - 1]!, b);
+        const shared = verbEnd !== -1 && verbEnd <= b && SHARED_VERB_PART.test(part) && !OWN_VERB.test(before);
+        if (NEGATION_ENDS.test(part.replace(/^,/, '')) || (OWN_VERB.test(part) && !shared)) {
           stop = b;
           break;
         }
@@ -1377,12 +1416,16 @@ function negatedIn(text: string): (m: RegExpMatchArray) => boolean {
   };
 }
 
-// A booking label before a drop-in value is part of it: "Booking: No need to book".
-const BOOKING_LABEL_END = /^[ \t]{0,3}[:?][ \t]{0,3}/u;
+// A booking label before a drop-in value is part of it: "Booking: No need to book", "Booking Requirement: No need to book", with at
+// most two capitalised label words after the booking word.
+const BOOKING_LABEL_END = /^(?:[ \t]{1,3}\p{Lu}\p{Ll}{1,15}){0,2}[ \t]{0,3}[:?][ \t]{0,3}/u;
+// In a prompt, "without" and a verb in -ing forbids ("without inventing booking URLs"); it isn't a drop-in claim.
+const WITHOUT_DOING = /^without\s+(?:inventing|adding|including|mentioning|stating|promising)(?!\p{L})/iu;
 
 /**
  * Every keyword-group word in the text, outside `skip`, that the event's data doesn't support, as "cash: needs a Prizes fact".
- * In a prompt (`prompt`), a negated or forbidden mention isn't a claim, and nor is a booking label before a drop-in value.
+ * In a prompt (`prompt`), a negated or forbidden mention isn't a claim, and nor is a booking label before a drop-in value, nor
+ * "without inventing booking …".
  */
 function claimProblems(text: string, skip: Span[], t: Support, prompt = false): string[] {
   const problems: string[] = [];
@@ -1395,7 +1438,7 @@ function claimProblems(text: string, skip: Span[], t: Support, prompt = false): 
 
   // Drop-in words need a Booking fact saying so (or the same words in Base Details); the booking setting never supports them.
   const allDropIns = dropInMatches(text);
-  const dropIns = found(allDropIns);
+  const dropIns = found(prompt ? allDropIns.filter(m => !WITHOUT_DOING.test(m[0])) : allDropIns);
   const dropInFact = booking.some(v => bookingFact(v).dropIn);
   for (const { word } of dropIns) if (!dropInFact && !sameWordIn(word, t.base_details)) problems.push(`${word}: needs a Booking fact saying so`);
 
@@ -1419,7 +1462,7 @@ function claimProblems(text: string, skip: Span[], t: Support, prompt = false): 
   const noDropIns = found([...text.matchAll(NO_DROP_IN)]);
   const dropInStarts = new Set(allDropIns.map(m => m.index!));
   const labelsDropIn = ([, end]: Span) => {
-    const gap = BOOKING_LABEL_END.exec(text.slice(end, end + 10));
+    const gap = BOOKING_LABEL_END.exec(text.slice(end, end + 50));
     return gap !== null && dropInStarts.has(end + gap[0].length);
   };
   const labels = prompt ? spansOf(BOOKING_WORDS, text).filter(labelsDropIn) : [];
@@ -1489,9 +1532,10 @@ const JOINED_NAMES = /^(?:\s*,\s*(?:(?:and|&)\s+)?|\s+(?:and|&)\s+)$/iu;
 /**
  * Capitalised words within three words of a role word in the same clause, a sentence-initial word
  * included, each with that role. Text in `skip` (the event's own name) is left out, and so are role
- * words themselves, hashtags and the never-a-name words.
+ * words themselves, hashtags and the never-a-name words. Words in `notNames` (a prompt's label words) are never names, though a
+ * role word among them still counts.
  */
-function roleNeighbours(text: string, skip: Span[], oneClause = false): { word: string; role: string; said: string }[] {
+function roleNeighbours(text: string, skip: Span[], oneClause = false, notNames: Span[] = []): { word: string; role: string; said: string }[] {
   const found: { word: string; role: string; said: string }[] = [];
   const clauses: Span[] = [];
   let start = 0;
@@ -1513,7 +1557,7 @@ function roleNeighbours(text: string, skip: Span[], oneClause = false): { word: 
       const first = inRole[0]!;
       const last = inRole[inRole.length - 1]!;
       const isName = (w: { word: string; at: number; end: number }) =>
-        /^\p{Lu}/u.test(w.word) && text[w.at - 1] !== '#' && !within(w.at, w.end, [...skip, ...roleSpans]) && !isAllowed(w.word, NOT_NAMES_BY_ROLES);
+        /^\p{Lu}/u.test(w.word) && text[w.at - 1] !== '#' && !within(w.at, w.end, [...skip, ...roleSpans, ...notNames]) && !isAllowed(w.word, NOT_NAMES_BY_ROLES);
       const near = new Set<number>();
       for (let i = Math.max(0, first - ROLE_REACH); i <= Math.min(words.length - 1, last + ROLE_REACH); i++) {
         const w = words[i]!;
@@ -1547,10 +1591,11 @@ function roleNeighbours(text: string, skip: Span[], oneClause = false): { word: 
  * Names beside a role word, checked against People & Roles. A listed name must have that role
  * there ("host" covers hosts, hosted and hosting), whatever else the event's text says. A name
  * that isn't listed passes only where `traced` holds its word|role pair from the event's own text.
+ * Words in `notNames` aren't names.
  */
-function roleProblems(text: string, skip: Span[], people: Person[], traced: Set<string> = new Set()): string[] {
+function roleProblems(text: string, skip: Span[], people: Person[], traced: Set<string> = new Set(), notNames: Span[] = []): string[] {
   const problems: string[] = [];
-  for (const n of roleNeighbours(text, skip)) {
+  for (const n of roleNeighbours(text, skip, false, notNames)) {
     const key = wordKey(n.word);
     const listed = people.filter(p => (p.name.match(WORD) ?? []).some(w => wordKey(w) === key));
     if (!listed.length) {

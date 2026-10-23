@@ -344,9 +344,9 @@ export const PENDING_CHANGE_REQUEST = `EXISTS (SELECT 1 FROM event_change_reques
 /**
  * The events that can have a prompt made now (?1 = today, London), with their next date: active,
  * Public or App Bookable, with a scheduled, visible date still to come, and no change on its way to
- * the Logic Engine. The builder's list and its answers both go by this.
+ * the Logic Engine. The builder's list and its answers both go by this, and so do the example posts (src/social/examples.ts).
  */
-const ELIGIBLE = `SELECT * FROM (
+export const ELIGIBLE = `SELECT * FROM (
   SELECT ${EVENT_FIELDS},
     (SELECT MIN(o.event_date) FROM occurrences o WHERE o.event_id = e.event_id AND o.status = 'scheduled' AND o.event_date >= ?1
        AND COALESCE(o.visibility, e.visibility) IN ('public', 'app_bookable')) AS next_date
@@ -399,7 +399,7 @@ export type ProposeResult =
 const shortText = (v: unknown, max: number): string | null => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
 
 /** A failure report's error as n8n sends it: text, or an error object (its message, or else the whole of it as JSON). */
-function errorText(v: unknown): string | null {
+export function errorText(v: unknown): string | null {
   if (v === undefined || v === null) return null;
   if (typeof v === 'object') {
     const message = (v as { message?: unknown }).message;

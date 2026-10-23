@@ -47,6 +47,7 @@ const HASH_TO_SECTION: Record<string, string> = {
   changes: 'approve',
   'market-applications': 'approve',
   attention: 'attention',
+  'social-prompts': 'social',
 };
 
 export function Organise({ section, eventId }: { section?: string; eventId?: string } = {}) {

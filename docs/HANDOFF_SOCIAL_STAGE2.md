@@ -132,3 +132,47 @@ The test reports for each task are in `docs/RTD_N8N_WORKFLOWS.md`, in the Builde
 
 1. Give the owner the "Rulings I made" list.
 2. Stop for the owner's gates, in the order of the [G5 checklist](RTD_HANDOFF.md#event-social-prompts-stage-2-the-owners-g5-checklist): the food decision, check and publish the five drafts with the switch Off, watch one of each post, G3 and G4, Shadow, review, then G6.
+
+## Left to do (end of 21 Oct 2026)
+
+G4 is done: the prompt builder is published and writes to the live Logic Engine (5 events every 15 minutes). The app switch is still **Off**, so posting doesn't use the prompts yet.
+
+**Owner, next session:**
+1. In the app (Organise → Social), click **Regenerate** on **Kids Chess** and **Home Ed Monday**. Both are false alarms that are fixed now.
+2. Look through Organise → Social for anything else in review. Regenerate it if it's a checker false alarm, approve it if the prompt is right, or fix the facts in the sheet.
+3. Check Instagram for the 21 Oct 20:15 Blood on the Clocktower post. Buffer said "error", but the Post Log says Success.
+4. Optional: "prefered" → "preferred" in Cleeples' Approved Facts.
+5. When most events have approved prompts, give the go-ahead for **Shadow** (step 5).
+
+**Claude, next session:**
+- Check the first Event Guard run on `6f83b30c` (01:15 BST, 22 Oct) and the 09:30 UTC food slot. A check is scheduled.
+- Check the builder's scheduled runs overnight: errors, and how many prompts went to review and why. Fix any remaining checker false alarms test-first.
+- Look into the Instagram Priority "Buffer error, logged Success" (also on 19 Oct).
+- Then step 5 Shadow, step 6 review of a Shadow week, and step 7 Enforce (G6). Each one needs the owner's go-ahead.
+
+**Still open from before:**
+- D&D has no Event Dates. At Enforce it would be held.
+- Move the inline Meta token and ImageKit header into n8n credentials.
+- Decide on the round-up diary duplication fix.
+- Decide whether Hidden events skip the check on Instagram.
+- Mirror the poster changes in rtd-poster-automation.
+- Delete the Drive folder "RTD poster test (delete)".
+- Fix the host-session flow that writes broken text into the prompt columns (the Christmas incident).
+
+## Example posts (23 Oct 2026)
+
+- **App:** commits up to `505c618` add:
+  - the Social posts hub card at `/organise/social`, with prompts to review and held posts;
+  - inline Approve and Regenerate;
+  - an example post with its check result;
+  - migration `0025_social_prompt_examples.sql`, which is not applied yet;
+  - `GET /internal/social-prompts/examples-due` and `POST /internal/social-prompts/:eventId/example`.
+- **n8n:** RTD Social Prompt Builder draft `f79e273f-4f96-4dc3-af69-a2286d239963` adds the examples branch. The live version is still `8be0614a`.
+  - The example message copies Master V1's "Gemini Engine: Michelle Voice", always using the Standard prompt. Gemini options match the live node.
+  - rtd_config `SOCIAL_EXAMPLE_LIMIT` is optional (1–10, default 3).
+- **Order:**
+  1. The owner merges and applies 0025.
+  2. Test the draft by hand on staging (dry run is fine; examples never touch the sheet).
+  3. Check Organise › Social posts and D1.
+  4. Publish the draft with the owner's go-ahead.
+- **Rollback:** publish `8be0614a` again.

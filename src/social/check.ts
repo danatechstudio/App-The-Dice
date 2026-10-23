@@ -121,6 +121,41 @@ function syncPending(sheetDates: Record<string, unknown>, eventId: string, appDa
 // ---- The event layer ----
 
 /**
+ * The date a post about the event is about: its next one the public can see that is still to come or
+ * still running, as the public pages pick it (src/lib/queries.ts). A date the app only projected from
+ * the event's cadence isn't one: the Logic Engine hasn't confirmed it. The example posts use it too.
+ */
+export function nextOccurrence(db: D1Database, eventId: string, now: Date) {
+  return db
+    .prepare(
+      `SELECT o.occurrence_id, o.event_date, o.start_time, o.end_time FROM occurrences o JOIN events e ON e.event_id = o.event_id
+       WHERE o.event_id = ?1 AND o.projected = 0 AND ${VISIBLE} AND ${upcoming('?2', '?3')}
+       ORDER BY o.event_date, COALESCE(o.start_time, '00:00') LIMIT 1`,
+    )
+    .bind(eventId, now.toISOString(), londonDate(now))
+    .first<{ occurrence_id: string; event_date: string; start_time: string | null; end_time: string | null }>();
+}
+
+/**
+ * The block n8n puts before today's caption prompt, as RTD Social Context (sub) builds it from a layer
+ * ("Build Layers", docs/RTD_N8N_WORKFLOWS.md): the prompt, then a blank line and an "Approved facts:" and a
+ * "People & roles:" line, each only when it isn't empty; everything trimmed. '' when there is no prompt.
+ * n8n builds the live one itself; the example posts (src/social/examples.ts) build the same text here.
+ */
+export function layerBlock(prompt: string, approvedFacts: string, peopleRoles: string): string {
+  const text = prompt.trim();
+  if (!text) return '';
+  const lines = [
+    approvedFacts.trim() ? `Approved facts: ${approvedFacts.trim()}` : '',
+    peopleRoles.trim() ? `People & roles: ${peopleRoles.trim()}` : '',
+  ].filter(Boolean);
+  return lines.length ? `${text}\n\n${lines.join('\n')}` : text;
+}
+
+/** The date block n8n puts after today's caption prompt: "Date: Friday 23 October, 6:30pm", or '' with no date. */
+export const dateBlock = (label: string | null | undefined): string => (label ? `Date: ${label}` : '');
+
+/**
  * Each event's layer for the caption nodes. Body: { event_ids, sheet_dates? }. An event ID the app
  * doesn't know is left out. At off, no layers: the posts go out exactly as before.
  */
@@ -143,17 +178,7 @@ export async function socialContext(db: D1Database, body: unknown, now: Date): P
     const fields = sourceFields(row);
     const prompt = await currentPrompt(db, id);
     const usable = prompt?.current ? prompt : null;
-    // The date the post is about: its next one the public can see that is still to come or still running, as
-    // the public pages pick it (src/lib/queries.ts). A date the app only projected from the event's cadence isn't
-    // one: the Logic Engine hasn't confirmed it.
-    const occ = await db
-      .prepare(
-        `SELECT o.occurrence_id, o.event_date, o.start_time, o.end_time FROM occurrences o JOIN events e ON e.event_id = o.event_id
-         WHERE o.event_id = ?1 AND o.projected = 0 AND ${VISIBLE} AND ${upcoming('?2', '?3')}
-         ORDER BY o.event_date, COALESCE(o.start_time, '00:00') LIMIT 1`,
-      )
-      .bind(id, now.toISOString(), today)
-      .first<{ occurrence_id: string; event_date: string; start_time: string | null; end_time: string | null }>();
+    const occ = await nextOccurrence(db, id, now);
     events.push({
       event_id: id,
       prompt: usable?.master_prompt ?? '',
@@ -240,6 +265,7 @@ async function resolveTarget(
   t: Target,
   sheetDates: Record<string, unknown>,
   now: Date,
+  checkPrompt = true,
 ): Promise<{ reasons: string[]; target: CheckTarget | null; names: unknown[]; current: boolean }> {
   const event = await db
     .prepare(
@@ -282,7 +308,8 @@ async function resolveTarget(
       price_display: string | null;
     }>();
   let target: CheckTarget | null = null;
-  if (!occ || occ.event_id !== t.event_id) say(`${t.occurrence_id} is not a date of this event`);
+  if (!t.occurrence_id) say('no date to come that the public can see');
+  else if (!occ || occ.event_id !== t.event_id) say(`${t.occurrence_id} is not a date of this event`);
   else {
     const date = occ.date;
     if (occ.status === 'cancelled') say(`its date ${date} was cancelled`);
@@ -310,6 +337,8 @@ async function resolveTarget(
   }
 
   // Its prompt: the approved one in use for the current facts, and the version the caption was written with.
+  // An example post (src/social/examples.ts) is about a version that may not be approved yet, so it skips this.
+  if (!checkPrompt) return { reasons, target, names: [event.event_name, event.display_name], current: false };
   const prompt = await currentPrompt(db, t.event_id);
   if (!prompt) say('prompt missing (no approved prompt yet)');
   else if (!prompt.current) say(`prompt out of date (the facts changed since version ${prompt.version} was approved)`);
@@ -317,6 +346,45 @@ async function resolveTarget(
 
   const current = !!prompt?.current && t.prompt_version === prompt.version;
   return { reasons, target, names: [event.event_name, event.display_name], current };
+}
+
+/** Every reason a post fails: each target's event, date and (unless `checkPrompt` is false) prompt, then its words. */
+async function evaluate(
+  db: D1Database,
+  req: Pick<CheckRequest, 'targets' | 'text' | 'image_text' | 'sheet_dates'>,
+  now: Date,
+  checkPrompt = true,
+): Promise<{ reasons: string[]; current: Target[] }> {
+  const reasons: string[] = [];
+  const targets: CheckTarget[] = [];
+  const names: unknown[] = [];
+  const current: Target[] = [];
+  for (const t of req.targets) {
+    const r = await resolveTarget(db, t, req.sheet_dates, now, checkPrompt);
+    reasons.push(...r.reasons);
+    names.push(...r.names);
+    if (r.current) current.push(t);
+    if (r.target) targets.push(r.target);
+  }
+  // The words are checked against the targets that exist; one that doesn't has already failed the post.
+  if (targets.length) {
+    const ctx = { now, otherEventNames: await activeEventNamesExcept(db, [...new Set(req.targets.map(t => t.event_id))], names) };
+    reasons.push(...checkPostText(req.text, targets, ctx).reasons);
+    if (req.image_text !== null) reasons.push(...checkPostText(req.image_text, targets, ctx).reasons.map(r => `Poster: ${r}`));
+  }
+  return { reasons, current };
+}
+
+/**
+ * An example post (src/social/examples.ts), checked as a live Facebook event post about the event's next
+ * date would be, whatever the switch says, but with nothing recorded and nothing marked as used. The
+ * prompt it was written with may still need review, so "no approved prompt" isn't a reason: the caller
+ * says whether that version's facts are still the event's.
+ */
+export async function checkExample(db: D1Database, eventId: string, version: number, text: string, now: Date): Promise<string[]> {
+  const occ = await nextOccurrence(db, eventId, now);
+  const targets = [{ event_id: eventId, occurrence_id: occ?.occurrence_id ?? '', prompt_version: version }];
+  return (await evaluate(db, { targets, text, image_text: null, sheet_dates: {} }, now, false)).reasons;
 }
 
 /**
@@ -330,23 +398,7 @@ export async function runCheck(db: D1Database, body: unknown, now: Date): Promis
   const req = readCheck(body);
   if ('ok' in req) return req;
 
-  const reasons: string[] = [];
-  const targets: CheckTarget[] = [];
-  const names: unknown[] = [];
-  const current: Target[] = [];
-  for (const t of req.targets) {
-    const r = await resolveTarget(db, t, req.sheet_dates, now);
-    reasons.push(...r.reasons);
-    names.push(...r.names);
-    if (r.current) current.push(t);
-    if (r.target) targets.push(r.target);
-  }
-  // The words are checked against the targets that exist; one that doesn't has already failed the post.
-  if (targets.length) {
-    const ctx = { now, otherEventNames: await activeEventNamesExcept(db, [...new Set(req.targets.map(t => t.event_id))], names) };
-    reasons.push(...checkPostText(req.text, targets, ctx).reasons);
-    if (req.image_text !== null) reasons.push(...checkPostText(req.image_text, targets, ctx).reasons.map(r => `Poster: ${r}`));
-  }
+  const { reasons, current } = await evaluate(db, req, now);
   const result = reasons.length ? 'fail' : 'pass';
   const allow = mode !== 'enforce' || result === 'pass';
 

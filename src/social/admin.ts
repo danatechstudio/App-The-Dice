@@ -1,10 +1,11 @@
 // What the admin screens show about social prompts (spec §5): the switch, the prompts waiting for
-// a person, the posts the check held (or, in Shadow, would have held), and one event's facts,
-// prompt, versions and recent checks. Reading only: every change goes through the functions in
+// a person and the approved ones, each with its example post (src/social/examples.ts), the posts the
+// check held (or, in Shadow, would have held), and one event's facts, prompt, versions and recent checks. Reading only: every change goes through the functions in
 // src/social/prompts.ts (setSocialMode, requestRegenerate, approveOverride), which check and audit it.
 
 import type { AuthUser } from '../lib/auth';
 import { bannedPhrases } from './check';
+import { isMissingExampleColumns, MAX_EXAMPLE_ATTEMPTS } from './examples';
 import { fingerprint, parseFacts, parsePeople, sourceFields, type FactKey, type Person } from './facts';
 import { approveOverride, currentPrompt, EVENT_FIELDS, requestRegenerate, setSocialMode, socialMode, type Fail, type Mode, type StoredStatus } from './prompts';
 
@@ -16,6 +17,7 @@ const TEXT_SHOWN = 500;
 const HELD_SHOWN = 50;
 const CHECKS_SHOWN = 10;
 const HISTORY_SHOWN = 30;
+const APPROVED_SHOWN = 100;
 const REASON_MAX = 500;
 
 const list = (json: string | null): string[] => {
@@ -42,7 +44,84 @@ function targetIds(json: string): string[] {
   }
 }
 
-// ---- The panel (Organise › Events & dates) ----
+// ---- Example posts ----
+
+/** A version's example post (src/social/examples.ts), as the screens show it. */
+export interface PromptExample {
+  /** waiting: none yet (n8n writes one within its next runs); ready: written and checked; failed: n8n tried three times. */
+  state: 'waiting' | 'ready' | 'failed';
+  post: string | null;
+  /** Whether it would pass the check a live post gets; null until there is one. */
+  passed: boolean | null;
+  /** Why it would be held. */
+  problems: string[];
+  model: string | null;
+  generated_at: string | null;
+  attempts: number;
+  /** What n8n said when it last couldn't write one. */
+  error: string | null;
+}
+
+interface ExampleRow {
+  event_id: string;
+  version: number;
+  example_post: string | null;
+  example_check: string | null;
+  example_model: string | null;
+  example_generated_at: string | null;
+  example_attempts: number;
+  example_error: string | null;
+}
+
+const NO_EXAMPLE: PromptExample = { state: 'waiting', post: null, passed: null, problems: [], model: null, generated_at: null, attempts: 0, error: null };
+
+function exampleOf(r: ExampleRow | undefined): PromptExample {
+  if (!r) return NO_EXAMPLE;
+  let verdict: { passed?: unknown; problems?: unknown } = {};
+  try {
+    const v: unknown = r.example_check ? JSON.parse(r.example_check) : {};
+    if (v && typeof v === 'object') verdict = v as typeof verdict;
+  } catch {
+    // A verdict that won't read: shown as held, with no reason.
+  }
+  const ready = r.example_post !== null;
+  return {
+    state: ready ? 'ready' : r.example_attempts >= MAX_EXAMPLE_ATTEMPTS ? 'failed' : 'waiting',
+    post: r.example_post,
+    passed: ready ? verdict.passed === true : null,
+    problems: ready && Array.isArray(verdict.problems) ? verdict.problems.filter((p): p is string => typeof p === 'string') : [],
+    model: r.example_model,
+    generated_at: r.example_generated_at,
+    attempts: r.example_attempts,
+    error: r.example_error,
+  };
+}
+
+/**
+ * The example of each of these versions, read on their own so the screens work before migration 0025
+ * is applied: until then, every example is on its way.
+ */
+async function examplesOf(db: D1Database, versions: { event_id: string; version: number }[]): Promise<(eventId: string, version: number) => PromptExample> {
+  const key = (eventId: string, version: number) => `${eventId}#${version}`;
+  const found = new Map<string, ExampleRow>();
+  if (versions.length) {
+    try {
+      const { results } = await db
+        .prepare(
+          `SELECT event_id, version, example_post, example_check, example_model, example_generated_at, example_attempts, example_error
+           FROM social_prompts WHERE event_id || '#' || version IN (SELECT value FROM json_each(?1))`,
+        )
+        .bind(JSON.stringify(versions.map(v => key(v.event_id, v.version))))
+        .all<ExampleRow>();
+      for (const r of results) found.set(key(r.event_id, r.version), r);
+    } catch (e) {
+      if (!isMissingExampleColumns(e)) throw e;
+    }
+  }
+  return (eventId, version) => exampleOf(found.get(key(eventId, version)));
+}
+
+// ---- The panel (Organise › Social posts) ----
 
 export interface ReviewItem {
   event_id: string;
@@ -51,6 +130,20 @@ export interface ReviewItem {
   version: number;
   /** Gemini's questions and anything the checks found, in that order. */
   questions: string[];
+  master_prompt: string | null;
+  /** Its example post; null for a blocked version, which gets none. */
+  example: PromptExample | null;
+}
+
+/** An event whose newest version is approved, for the "Approved" group. */
+export interface ApprovedItem {
+  event_id: string;
+  name: string;
+  version: number;
+  master_prompt: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  example: PromptExample;
 }
 
 export interface CheckRow {
@@ -121,15 +214,29 @@ async function checkRows(db: D1Database, rows: CheckDbRow[]): Promise<CheckRow[]
   });
 }
 
-/** Admins: the switch, the prompts waiting for a person, and the last 50 posts that failed their check. */
-export async function socialOverview(db: D1Database, admin: AuthUser): Promise<{ ok: true; mode: Mode; review: ReviewItem[]; held: CheckRow[] } | Fail> {
+/**
+ * Each running, Public or App Bookable event whose newest version (a waiting regenerate request aside)
+ * is approved: what a good prompt looks like, beside its example.
+ */
+const APPROVED_SQL = `SELECT p.event_id, p.version, p.master_prompt, p.approved_by, p.approved_at, COALESCE(e.display_name, p.event_id) AS name
+  FROM social_prompts p JOIN events e ON e.event_id = p.event_id
+  WHERE p.status = 'approved'
+    AND p.version = (SELECT MAX(q.version) FROM social_prompts q WHERE q.event_id = p.event_id AND q.status <> 'pending')
+    AND e.active = 1 AND e.visibility IN ('public', 'app_bookable')
+  ORDER BY name COLLATE NOCASE, p.event_id LIMIT ?1`;
+
+/** Admins: the switch, the prompts waiting for a person, the approved ones (each with its example), and the last 50 posts that failed their check. */
+export async function socialOverview(
+  db: D1Database,
+  admin: AuthUser,
+): Promise<{ ok: true; mode: Mode; review: ReviewItem[]; approved: ApprovedItem[]; held: CheckRow[] } | Fail> {
   const no = denied(admin);
   if (no) return no;
-  const [mode, review, held] = await Promise.all([
+  const [mode, review, approved, held] = await Promise.all([
     socialMode(db),
     db
       .prepare(
-        `SELECT r.event_id, r.version, r.status, r.ambiguities, r.validation_errors, COALESCE(e.display_name, r.event_id) AS name
+        `SELECT r.event_id, r.version, r.status, r.master_prompt, r.ambiguities, r.validation_errors, COALESCE(e.display_name, r.event_id) AS name
          FROM (${REVIEW_SQL}) r LEFT JOIN events e ON e.event_id = r.event_id
          ORDER BY r.created_at DESC, r.event_id`,
       )
@@ -137,12 +244,15 @@ export async function socialOverview(db: D1Database, admin: AuthUser): Promise<{
         event_id: string;
         version: number;
         status: 'review_required' | 'blocked';
+        master_prompt: string | null;
         ambiguities: string | null;
         validation_errors: string | null;
         name: string;
       }>(),
+    db.prepare(APPROVED_SQL).bind(APPROVED_SHOWN).all<Omit<ApprovedItem, 'example'>>(),
     db.prepare("SELECT * FROM social_checks WHERE result = 'fail' ORDER BY created_at DESC, check_id DESC LIMIT ?1").bind(HELD_SHOWN).all<CheckDbRow>(),
   ]);
+  const example = await examplesOf(db, [...review.results, ...approved.results]);
   return {
     ok: true,
     mode,
@@ -152,7 +262,10 @@ export async function socialOverview(db: D1Database, admin: AuthUser): Promise<{
       status: r.status,
       version: r.version,
       questions: [...list(r.ambiguities), ...list(r.validation_errors)],
+      master_prompt: r.master_prompt,
+      example: r.status === 'blocked' ? null : example(r.event_id, r.version),
     })),
+    approved: approved.results.map(a => ({ ...a, example: example(a.event_id, a.version) })),
     held: await checkRows(db, held.results),
   };
 }
@@ -182,8 +295,8 @@ export interface EventSocial {
   banned: string[];
   /** Lines of Approved Facts or People & Roles that can't be read. */
   parse_errors: string[];
-  /** The event's newest version (a waiting regenerate request aside). */
-  prompt: (PromptVersion & { questions: string[]; errors: string[] }) | null;
+  /** The event's newest version (a waiting regenerate request aside), with its example (null unless approved or waiting for review). */
+  prompt: (PromptVersion & { questions: string[]; errors: string[]; example: PromptExample | null }) | null;
   /** The approved version posts use now, if any: null when there is none, or its facts are out of date. */
   in_use: number | null;
   /** An admin asked for a new prompt and the builder hasn't answered yet. */
@@ -252,6 +365,8 @@ export async function eventSocial(db: D1Database, admin: AuthUser, eventId: stri
     current_facts: v.source_fingerprint === currentFp,
   });
   const newest = versions.results.find(v => v.status !== 'pending') ?? null;
+  const hasExample = newest?.status === 'approved' || newest?.status === 'review_required';
+  const example = hasExample ? (await examplesOf(db, [{ event_id: eventId, version: newest.version }]))(eventId, newest.version) : null;
   const waiting = versions.results.find(v => v.status === 'pending' && v.source_fingerprint === currentFp);
 
   return {
@@ -261,7 +376,7 @@ export async function eventSocial(db: D1Database, admin: AuthUser, eventId: stri
     people: parsedPeople.people,
     banned: bannedPhrases(banned),
     parse_errors: [...parsedFacts.errors.map(e => `Approved Facts: ${e}`), ...parsedPeople.errors.map(e => `People & Roles: ${e}`)],
-    prompt: newest ? { ...version(newest), questions: list(newest.ambiguities), errors: list(newest.validation_errors) } : null,
+    prompt: newest ? { ...version(newest), questions: list(newest.ambiguities), errors: list(newest.validation_errors), example } : null,
     in_use: inUse?.current ? inUse.version : null,
     regenerating: !!waiting && (!newest || waiting.version > newest.version),
     history: versions.results.filter(v => v.status !== 'pending').map(version),
