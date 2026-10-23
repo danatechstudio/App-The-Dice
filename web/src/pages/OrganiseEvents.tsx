@@ -6,7 +6,10 @@ import { ChevronRight } from 'lucide-preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { DiceLoader } from '../components/States';
 import { shortDate } from '../lib/dates';
+import { editorHref } from '../lib/eventTrail';
+import { saveTrail } from '../lib/eventTrailStore';
 import { hostApi, type AdminEventRow, type EventKind, type EventVisibility } from '../lib/hostApi';
+import { read, write } from '../lib/storage';
 
 export const KIND_LABEL: Record<EventKind, string> = {
   event_index: 'Café · Event Index',
@@ -26,11 +29,16 @@ const FILTERS = {
 } as const;
 type Filter = keyof typeof FILTERS;
 
+// The search and filter survive a trip to the editor and back.
+const VIEW_KEY = 'rtd:all-events-view';
+
 export function AllEventsPanel() {
   const [events, setEvents] = useState<AdminEventRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [q, setQ] = useState('');
-  const [filter, setFilter] = useState<Filter>('all');
+  const [view] = useState(() => read<{ q?: string; filter?: string }>(VIEW_KEY, {}, 'session'));
+  const [q, setQ] = useState(view.q ?? '');
+  const [filter, setFilter] = useState<Filter>(view.filter && view.filter in FILTERS ? (view.filter as Filter) : 'all');
+  useEffect(() => write(VIEW_KEY, { q, filter }, 'session'), [q, filter]);
   useEffect(() => {
     void hostApi<{ events: AdminEventRow[] }>('/api/staff/events').then(res => (res.ok ? setEvents(res.data.events) : setError(res.error)));
   }, []);
@@ -73,7 +81,11 @@ export function AllEventsPanel() {
       <ul class="all-events__list">
         {shown.map(e => (
           <li key={e.event_id}>
-            <a class="all-events__row" href={`/organise/events/${e.event_id}`}>
+            <a
+              class="all-events__row"
+              href={editorHref(e.event_id, 'events')}
+              onClick={() => saveTrail({ from: 'events', ids: shown.map(x => x.event_id) })}
+            >
               <span class="all-events__main">
                 <strong>{e.name}</strong>
                 <span class="meta">
