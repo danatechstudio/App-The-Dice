@@ -158,3 +158,21 @@ G4 is done: the prompt builder is published and writes to the live Logic Engine 
 - Mirror the poster changes in rtd-poster-automation.
 - Delete the Drive folder "RTD poster test (delete)".
 - Fix the host-session flow that writes broken text into the prompt columns (the Christmas incident).
+
+## Example posts (23 Oct 2026)
+
+- **App:** commits up to `505c618` add:
+  - the Social posts hub card at `/organise/social`, with prompts to review and held posts;
+  - inline Approve and Regenerate;
+  - an example post with its check result;
+  - migration `0025_social_prompt_examples.sql`, which is not applied yet;
+  - `GET /internal/social-prompts/examples-due` and `POST /internal/social-prompts/:eventId/example`.
+- **n8n:** RTD Social Prompt Builder draft `f79e273f-4f96-4dc3-af69-a2286d239963` adds the examples branch. The live version is still `8be0614a`.
+  - The example message copies Master V1's "Gemini Engine: Michelle Voice", always using the Standard prompt. Gemini options match the live node.
+  - rtd_config `SOCIAL_EXAMPLE_LIMIT` is optional (1–10, default 3).
+- **Order:**
+  1. The owner merges and applies 0025.
+  2. Test the draft by hand on staging (dry run is fine; examples never touch the sheet).
+  3. Check Organise › Social posts and D1.
+  4. Publish the draft with the owner's go-ahead.
+- **Rollback:** publish `8be0614a` again.
