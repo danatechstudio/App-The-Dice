@@ -25,6 +25,7 @@ import { markFailed, markSent, unsent } from '../notify/outbox';
 import { decidedApplicationsForApplicants, markApplicationNotified, newApplicationsForApprovers } from '../team/applications';
 import { applySync, parsePayload } from '../sync/apply';
 import { runCheck, socialContext } from '../social/check';
+import { examplesDue, isMissingExampleColumns, storeExample } from '../social/examples';
 import { duePrompts, markPromptWritten, promptsToWrite, proposePrompt } from '../social/prompts';
 import { checkEdit, claimEdits, markEditFailed, markEditWritten, parseWriterBody } from '../sync/edits';
 
@@ -337,6 +338,50 @@ internalRoutes.get('/social-prompts/due', async c => {
   const asked = Number(c.req.query('limit') ?? 5);
   const limit = Number.isInteger(asked) ? Math.min(Math.max(asked, 1), 20) : 5;
   return c.json({ events: await duePrompts(c.env.DB, new Date(), limit) });
+});
+
+// Example posts (src/social/examples.ts): their columns come with migration 0025. Until it is applied, these
+// two answer 503 saying so, and nothing else in the app reads them.
+const NO_EXAMPLES = 'The app database has no example columns yet: migration 0025_social_prompt_examples.sql is not applied';
+
+/**
+ * Prompt versions that want an example post, soonest date first: { examples: [{ event_id, version,
+ * occurrence_id, layer, date_block, fallback_prompt }] }. Gemini gets layer + "\n\n" + Michelle's Standard
+ * Prompt (fallback_prompt when the row has none) + "\n\n" + date_block, as a live post. ?limit= 1–10, default 3.
+ */
+internalRoutes.get('/social-prompts/examples-due', async c => {
+  const asked = Number(c.req.query('limit') ?? 3);
+  const limit = Number.isInteger(asked) ? Math.min(Math.max(asked, 1), 10) : 3;
+  try {
+    return c.json({ examples: await examplesDue(c.env.DB, new Date(), limit) });
+  } catch (e) {
+    if (isMissingExampleColumns(e)) return c.json({ error: NO_EXAMPLES }, 503);
+    throw e;
+  }
+});
+
+/**
+ * The example for a version. Body: { version, job_id?, model?, text } (up to 5,000 characters), or
+ * { version, job_id?, error }. A text is checked as a live Facebook event post (nothing is recorded in
+ * the check log) and answers { ok, passed, problems }; an error answers { ok }. 409: a newer version
+ * came since, drop it. Never posts, never changes the prompt's status, never goes to the sheet.
+ */
+internalRoutes.post('/social-prompts/:eventId/example', async c => {
+  const text = await c.req.text();
+  if (text.length > MAX_BODY_BYTES) return c.json({ error: 'Body too large' }, 413);
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return c.json({ error: 'Body must be JSON' }, 400);
+  }
+  try {
+    const res = await storeExample(c.env.DB, c.req.param('eventId'), body, new Date());
+    return 'status' in res ? c.json({ error: res.error }, res.status) : c.json(res);
+  } catch (e) {
+    if (isMissingExampleColumns(e)) return c.json({ error: NO_EXAMPLES }, 503);
+    throw e;
+  }
 });
 
 /** Versions whose cells aren't in the sheet yet: { prompts: [{ event_id, version, cells }] }. */
