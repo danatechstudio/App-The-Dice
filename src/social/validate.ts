@@ -537,8 +537,10 @@ export function findTimes(text: string): TimeMention[] {
 
 // Capitalised words that are never anyone's name: the venue and its platforms, labels, months and
 // days, and the words a prompt capitalises for emphasis or in headings.
-const BRAND_NAMES = ['Roll The Dice', 'Cleethorpes', 'Meridian Point', 'Facebook', 'Instagram', 'TikTok'];
+const BRAND_NAMES = ['Roll The Dice', 'RTD', 'Cleethorpes', 'Meridian Point', 'Facebook', 'Instagram', 'TikTok'];
 const COMMON_WORDS = [
+  // Michelle writes as herself ("I'm hosting"); "Host" is a role word, not a name; "FREE" is the price, in capitals.
+  ...["i'm", "i've", "i'll", "i'd", 'host', 'hosts', 'free'],
   ...['i', 'a', 'an', 'the', 'and', 'or', 'but', 'nor', 'not', 'no', 'yes', 'only', 'never', 'always', 'must', 'should', 'do', "don't", 'does', 'is', 'are'],
   ...['be', 'all', 'any', 'none', 'every', 'each', 'of', 'to', 'in', 'on', 'at', 'for', 'with', 'by', 'from', 'as', 'it', 'its', 'this', 'that', 'use'],
   ...['avoid', 'include', 'mention', 'important', 'note', 'ok', 'uk', 'event', 'events', 'name', 'description', 'details', 'base', 'approved', 'facts'],

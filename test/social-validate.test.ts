@@ -884,6 +884,19 @@ describe('prompt validation, controller ruling after the final review', () => {
 });
 
 // Task 3: the deterministic check of a post against its target occurrence(s) (§4B).
+// The first example posts (23 Oct): Michelle's "I'm", the café's initials, a capitalised role word and "FREE" aren't names in a post.
+describe('post names, first example posts', () => {
+  it("doesn't take I'm, RTD, Host or FREE for a name", () => {
+    const quiz = "Ready to test your trivia skills and win some cash? \n\nI'm hosting our Quiz night on Friday 23 October at 6:30pm, and it's completely family-friendly for all ages!";
+    expect(findNames(quiz, ['Quiz', 'Michelle'])).toEqual([]);
+    const writing = 'On Saturday 24 October 2026 at 10:00am, we will host our RTD Writing Club. Our Host, Ezzie, will guide a relaxed space. This event will be FREE with a capacity of 10.';
+    expect(findNames(writing, ['Writing Club', 'Ezzie'])).toEqual([]);
+    expect(findNames("It is completely FREE and no booking required. I've got the kettle on, I'll see you there and I'd love a chat.", [])).toEqual([]);
+    // Still a name: an unknown person mid-sentence, and one beside "Host".
+    expect(findNames('Our Host, Trixie, will guide a relaxed space with Bob.', [])).toEqual(['Trixie', 'Bob']);
+  });
+});
+
 // The first live trial (21 Oct): real Gemini prompts, verbatim, sent to review by false alarms.
 describe('prompt validation, first live trial', () => {
   const quiz: SourceFields = {
