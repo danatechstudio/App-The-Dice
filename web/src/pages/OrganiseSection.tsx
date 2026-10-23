@@ -63,9 +63,15 @@ export const SECTIONS: SectionDef[] = [
     adminOnly: false,
     partLabels: {
       sheet_edit_problems: ['Logic Engine change stuck', 'Logic Engine changes stuck'],
-      social_prompts: ['social prompt to review', 'social prompts to review'],
       social_held: ['post held this week', 'posts held this week'],
     },
+  },
+  {
+    key: 'social',
+    title: 'Social posts',
+    blurb: 'Event prompts to approve, with an example post for each, and held posts',
+    adminOnly: true,
+    partLabels: { social_prompts: ['prompt to review', 'prompts to review'] },
   },
   { key: 'bookings', title: 'Bookings', blurb: 'Booked dates coming up', adminOnly: false, partLabels: {} },
   { key: 'people', title: 'People', blurb: 'Hosts and approvers', adminOnly: false, partLabels: {} },
@@ -156,9 +162,10 @@ function SectionPanels({ section, me, isAdmin, onDecided }: { section: SectionKe
           <DatesPanel />
           <EventPlacesPanel refresh={refresh} />
           {isAdmin && <SheetSyncPanel />}
-          {isAdmin && <SocialPanel />}
         </>
       );
+    case 'social':
+      return <SocialPanel />;
     case 'bookings':
       return <HostedDatesPanel refresh={refresh} />;
     case 'people':

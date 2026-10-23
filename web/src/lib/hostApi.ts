@@ -1,6 +1,8 @@
 // Calls to the Access-protected organiser API. A sign-in that has run out
 // shows up as a redirect to Cloudflare Access, which we turn into "sign in again".
 
+import type { SocialExample } from './socialExample';
+
 export type HostRole = 'host' | 'staff' | 'admin';
 
 export interface HostUser {
@@ -257,6 +259,7 @@ export interface AdminEventForm extends AdminEventRow {
 }
 
 /** Social prompts (src/social/admin.ts): admins only. */
+export type { SocialExample };
 export type SocialMode = 'off' | 'shadow' | 'enforce';
 export type SocialPromptStatus = 'pending' | 'validated' | 'review_required' | 'approved' | 'superseded' | 'blocked';
 
@@ -266,6 +269,19 @@ export interface SocialReviewItem {
   status: 'review_required' | 'blocked';
   version: number;
   questions: string[];
+  master_prompt: string | null;
+  /** None for a blocked version. */
+  example: SocialExample | null;
+}
+
+export interface SocialApprovedItem {
+  event_id: string;
+  name: string;
+  version: number;
+  master_prompt: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  example: SocialExample;
 }
 
 /** A check made before a post. Failed ones were held (enforce) or would have been (shadow). */
@@ -287,6 +303,7 @@ export interface SocialCheck {
 export interface SocialOverview {
   mode: SocialMode;
   review: SocialReviewItem[];
+  approved: SocialApprovedItem[];
   held: SocialCheck[];
 }
 
@@ -309,7 +326,7 @@ export interface EventSocial {
   people: { name: string; role: string }[];
   banned: string[];
   parse_errors: string[];
-  prompt: (SocialPromptVersion & { questions: string[]; errors: string[] }) | null;
+  prompt: (SocialPromptVersion & { questions: string[]; errors: string[]; example: SocialExample | null }) | null;
   in_use: number | null;
   regenerating: boolean;
   history: SocialPromptVersion[];
