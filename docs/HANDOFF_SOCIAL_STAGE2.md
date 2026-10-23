@@ -176,3 +176,15 @@ G4 is done: the prompt builder is published and writes to the live Logic Engine 
   3. Check Organise › Social posts and D1.
   4. Publish the draft with the owner's go-ahead.
 - **Rollback:** publish `8be0614a` again.
+
+## App-driven events: n8n published (23 Oct 2026, ~10:40 UTC)
+
+- **RTD Sheet Writer** (`TAa4F7wKzzeIDKm8`) was published for the first time at 10:22 UTC as `308a5e79`, after two hand runs (`85371`, `85382`) wrote the owner's approved queued edits to the live sheet. Only those cells changed.
+  - Cleeples was a conflict (the price had been set in the sheet). The owner said "write mine", so the name only was re-queued (audit row) and written at 10:30.
+  - Now `4e8d697d`, which adds the 12 Event Index and 3 Standard Diary columns to Cells To Write.
+  - Rollback: publish `308a5e79`, or unpublish.
+- **RTD Event Sync** (`fOYrFBOElFkWx7R3`) is now `e01728ec`. It sends Post Frequency (Days), Target Post Time, both of Michelle's prompts, TikTok Video Blueprint and Organiser Email, and runs **every 5 minutes**.
+  - Hand run `85425`: 35 events, 1 changed (Cleeples' rename, expected), with the new columns stored in `sheet_values`.
+  - Rollback: publish `cb8c73dc`.
+- Headers were checked against the live Event Index header row.
+- **Still to check:** Master V1's "Is Event Due Right Now?" with numbers and times written as text by the writer (e.g. Post Frequency "3", Target Post Time "18:00").

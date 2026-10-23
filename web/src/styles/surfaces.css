@@ -1243,3 +1243,36 @@
 .organiser-section__back {
   min-height: 44px;
 }
+
+/* The event editor's Back and Previous / Next: one compact row, wrapping on a narrow phone. */
+.event-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--rtd-space-2);
+  width: 100%;
+}
+
+.event-nav__back {
+  min-height: 44px;
+}
+
+.event-nav__steps {
+  display: flex;
+  align-items: center;
+  gap: var(--rtd-space-2);
+  margin-inline-start: auto;
+}
+
+.event-nav__steps .btn {
+  min-height: 44px;
+}
+
+.event-nav__count {
+  white-space: nowrap;
+}
+
+.event-nav--bottom {
+  margin-top: var(--rtd-space-4);
+}

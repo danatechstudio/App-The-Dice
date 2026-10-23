@@ -21,6 +21,8 @@ import {
   type SocialPromptStatus,
   type SocialReviewItem,
 } from '../lib/hostApi';
+import { editorHref, socialOrder } from '../lib/eventTrail';
+import { saveTrail } from '../lib/eventTrailStore';
 import { exampleView } from '../lib/socialExample';
 import { toast } from '../lib/toast';
 
@@ -58,6 +60,10 @@ export function SocialPanel() {
   }, []);
   useEffect(() => void load(), [load]);
   const waiting = data ? data.review.length : 0;
+  const reviewIds = data ? data.review.map(r => r.event_id) : [];
+  const approvedIds = data ? data.approved.map(a => a.event_id) : [];
+  // Opening an event remembers this list's order, so the editor can step through it.
+  const remember = (fromApproved: boolean) => () => saveTrail({ from: 'social', ids: socialOrder(reviewIds, approvedIds, fromApproved) });
 
   return (
     <section class="section" aria-labelledby="social-prompts">
@@ -79,7 +85,7 @@ export function SocialPanel() {
             )}
             <div class="list">
               {data.review.map(r => (
-                <ReviewCard key={`${r.event_id}-${r.version}`} r={r} onDone={load} />
+                <ReviewCard key={`${r.event_id}-${r.version}`} r={r} onDone={load} onOpen={remember(false)} />
               ))}
             </div>
           </div>
@@ -89,7 +95,7 @@ export function SocialPanel() {
               <p class="meta">What a good prompt looks like, with its example post.</p>
               <div class="list">
                 {data.approved.map(a => (
-                  <ApprovedCard key={`${a.event_id}-${a.version}`} a={a} />
+                  <ApprovedCard key={`${a.event_id}-${a.version}`} a={a} onOpen={remember(true)} />
                 ))}
               </div>
             </details>
@@ -151,10 +157,10 @@ function ExampleBlock({ example }: { example: SocialExample }) {
   );
 }
 
-const editorLink = (eventId: string) => `/organise/events/${eventId}#social-prompt`;
+const editorLink = (eventId: string) => editorHref(eventId, 'social');
 
 /** One prompt waiting for a person: why, the prompt, its example, and Approve (with a note) or Regenerate, right here. */
-function ReviewCard({ r, onDone }: { r: SocialReviewItem; onDone: () => void }) {
+function ReviewCard({ r, onDone, onOpen }: { r: SocialReviewItem; onDone: () => void; onOpen: () => void }) {
   const [note, setNote] = useState('Checked prompt and example');
   const [busy, setBusy] = useState<null | 'approve' | 'regenerate'>(null);
   const [asked, setAsked] = useState(false);
@@ -240,7 +246,7 @@ function ReviewCard({ r, onDone }: { r: SocialReviewItem; onDone: () => void }) 
         <button type="button" class="btn btn--secondary btn--sm" disabled={!!busy || asked} onClick={regenerate}>
           <RefreshCw size={16} aria-hidden="true" /> {asked ? 'New prompt on its way' : busy === 'regenerate' ? 'Asking...' : 'Regenerate'}
         </button>
-        <a class="btn btn--text btn--sm" href={editorLink(r.event_id)} aria-label={`Open the event editor for ${r.name}`}>
+        <a class="btn btn--text btn--sm" href={editorLink(r.event_id)} onClick={onOpen} aria-label={`Open the event editor for ${r.name}`}>
           <ExternalLink size={16} aria-hidden="true" /> Open the event
         </a>
       </div>
@@ -249,7 +255,7 @@ function ReviewCard({ r, onDone }: { r: SocialReviewItem; onDone: () => void }) 
 }
 
 /** An approved prompt in use, with its example. */
-function ApprovedCard({ a }: { a: SocialApprovedItem }) {
+function ApprovedCard({ a, onOpen }: { a: SocialApprovedItem; onOpen: () => void }) {
   return (
     <article class="card card--pad stack" style={{ '--gap': '10px' }}>
       <div class="cluster" style={{ '--gap': '8px' }}>
@@ -266,7 +272,7 @@ function ApprovedCard({ a }: { a: SocialApprovedItem }) {
       <PromptText text={a.master_prompt} version={a.version} />
       <ExampleBlock example={a.example} />
       <p>
-        <a class="btn btn--text btn--sm" href={editorLink(a.event_id)} aria-label={`Open the event editor for ${a.name}`}>
+        <a class="btn btn--text btn--sm" href={editorLink(a.event_id)} onClick={onOpen} aria-label={`Open the event editor for ${a.name}`}>
           <ExternalLink size={16} aria-hidden="true" /> Open the event
         </a>
       </p>

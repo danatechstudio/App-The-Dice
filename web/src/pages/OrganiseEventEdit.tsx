@@ -6,12 +6,15 @@
 // Every Logic Engine column a person fills in by hand is here too, in sections (Posting,
 // Michelle's voice, Social facts, Contact): each goes through the same queue as the details.
 
-import { ArrowLeft, Ban, ExternalLink, EyeOff, Plus, Trash2 } from 'lucide-preact';
+import { ArrowLeft, Ban, ChevronLeft, ChevronRight, ExternalLink, EyeOff, Plus, Trash2 } from 'lucide-preact';
 import type { JSX } from 'preact';
-import { useCallback, useEffect, useState } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { DiceLoader } from '../components/States';
 import { longDate, shortDate, todayLondon } from '../lib/dates';
+import { editorHref, neighbours, ORIGIN, originOf, trailFor } from '../lib/eventTrail';
+import { loadTrail } from '../lib/eventTrailStore';
 import { hostApi, MAX_PLACES, type AdminEventDetails, type AdminEventForm, type BookingMode, type EventVisibility } from '../lib/hostApi';
+import { navigate } from '../lib/router';
 import { toast } from '../lib/toast';
 import { useTitle } from '../lib/title';
 import { KIND_LABEL } from './OrganiseEvents';
@@ -108,13 +111,14 @@ export function EventEditor({ eventId }: { eventId: string }) {
   }, [eventId]);
   useEffect(() => void load(), [load]);
   useTitle(event ? `Edit ${event.name}` : 'Edit event');
+  // Unsaved changes in the details form, so leaving for another screen can ask first.
+  const dirty = useRef(false);
+  const onDirty = useCallback((d: boolean) => void (dirty.current = d), []);
 
   return (
     <div class="container organiser" data-surface="staff">
       <header class="page-head organiser-section__head">
-        <a class="btn btn--text btn--sm organiser-section__back" href="/organise/events">
-          <ArrowLeft size={16} aria-hidden="true" /> Events & dates
-        </a>
+        <EditorNav eventId={eventId} dirty={dirty} />
         <h1>{event?.name ?? 'Edit event'}</h1>
         {event && (
           <p class="meta">
@@ -150,19 +154,75 @@ export function EventEditor({ eventId }: { eventId: string }) {
             </>
           ) : (
             <>
-              <DetailsForm key={JSON.stringify(event)} event={event} onSaved={load} />
+              <DetailsForm key={JSON.stringify(event)} event={event} onSaved={load} onDirty={onDirty} />
               <DatesList event={event} onChanged={load} />
               <EventSocialSection eventId={event.event_id} factsInEditor={'Approved Facts' in event.sheet} />
               <StopEvent event={event} onStopped={load} />
             </>
           )}
+          <EditorNav eventId={eventId} dirty={dirty} bottom />
         </div>
       )}
     </div>
   );
 }
 
-function DetailsForm({ event, onSaved }: { event: AdminEventForm; onSaved: () => void }) {
+/**
+ * Back to the list the editor was opened from (Events or Social posts), and Previous / Next
+ * through that list's order. Stepping replaces this entry, so Back is still one step away.
+ */
+function EditorNav({ eventId, dirty, bottom = false }: { eventId: string; dirty: { current: boolean }; bottom?: boolean }) {
+  const from = originOf(location.search);
+  const ids = trailFor(loadTrail(), from, eventId);
+  const { prev, next } = neighbours(ids ?? [], eventId);
+  const origin = ORIGIN[from];
+  const leave = () => !dirty.current || window.confirm('You have changes that aren’t saved. Leave without saving?');
+  // Bottom: only the steps, and only when there are any.
+  if (bottom && !prev && !next) return null;
+
+  const goBack = (e: MouseEvent) => {
+    e.preventDefault();
+    if (!leave()) return;
+    // Straight back to the list keeps its place; a direct link has no list behind it.
+    if (ids && history.state?.inApp) history.back();
+    else navigate(origin.path);
+  };
+  const step = (to: string) => (e: MouseEvent) => {
+    e.preventDefault();
+    if (leave()) navigate(editorHref(to, from), { replace: true });
+  };
+
+  return (
+    <nav class={`event-nav${bottom ? ' event-nav--bottom' : ''}`} aria-label={bottom ? 'Other events' : 'Event navigation'}>
+      {!bottom && (
+        <a class="btn btn--text btn--sm event-nav__back" href={origin.path} onClick={goBack}>
+          <ArrowLeft size={16} aria-hidden="true" /> {origin.label}
+        </a>
+      )}
+      {(prev || next) && (
+        <span class="event-nav__steps">
+          {prev && (
+            <a class="btn btn--secondary btn--sm" href={editorHref(prev, from)} onClick={step(prev)} aria-label="Previous event">
+              <ChevronLeft size={16} aria-hidden="true" /> Previous
+            </a>
+          )}
+          {ids && (
+            <span class="meta event-nav__count">
+              {ids.indexOf(eventId) + 1} of {ids.length}
+            </span>
+          )}
+          {next && (
+            <a class="btn btn--secondary btn--sm" href={editorHref(next, from)} onClick={step(next)} aria-label="Next event">
+              Next <ChevronRight size={16} aria-hidden="true" />
+            </a>
+          )}
+        </span>
+      )}
+    </nav>
+  );
+}
+
+function DetailsForm({ event, onSaved, onDirty }: { event: AdminEventForm; onSaved: () => void; onDirty: (dirty: boolean) => void }) {
   const [d, setD] = useState<AdminEventDetails>(event.details);
   const [sheet, setSheet] = useState<Record<string, string>>(
     () => Object.fromEntries(Object.entries(event.sheet).filter((e): e is [string, string] => e[1] !== null)),
@@ -190,6 +250,8 @@ function DetailsForm({ event, onSaved }: { event: AdminEventForm; onSaved: () =>
     return b;
   };
   const changed = Object.keys(body()).length > 0;
+  useEffect(() => onDirty(changed), [changed, onDirty]);
+  useEffect(() => () => onDirty(false), [onDirty]);
 
   const save = async (confirm: boolean) => {
     setBusy(true);
