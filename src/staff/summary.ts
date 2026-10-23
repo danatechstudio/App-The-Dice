@@ -70,9 +70,9 @@ export async function staffSummary(db: D1Database, user: AuthUser, now: Date): P
     approve: section({ join_requests: n.join_requests, sessions: n.sessions, changes: n.changes, market_applications: n.market_applications }),
     attention: section({ open_items: attention ? n.open_items : 0, failed_deliveries: n.failed_emails + n.failed_pushes }),
     // Held posts count only while the switch isn't Off; at Off the part isn't there.
-    events: admin ? section({ sheet_edit_problems: n.sheet_edit_problems, ...(n.social_on ? { social_held: n.social_held } : {}) }) : { count: 0 },
+    events: admin ? section({ sheet_edit_problems: n.sheet_edit_problems }) : { count: 0 },
     // Prompts to review count at every setting, Off included: they can be approved before posts are checked.
-    ...(admin ? { social: section({ social_prompts: n.social_prompts }) } : {}),
+    ...(admin ? { social: section({ social_prompts: n.social_prompts, ...(n.social_on ? { social_held: n.social_held } : {}) }) } : {}),
     bookings: { count: 0, info: { booked_dates_7_days: n.booked_dates_7_days } },
     people: { count: 0 },
   };

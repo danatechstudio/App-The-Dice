@@ -184,12 +184,13 @@ describe('the organiser summary', () => {
     let dan = await summary(DAN);
     expect(dan.sections.social).toEqual({ count: 2, parts: { social_prompts: 2 } });
     expect(dan.sections.events).toEqual({ count: 0, parts: { sheet_edit_problems: 0 } });
+    // Shadow and Enforce: held posts are counted under Social posts too, where their list is.
     await run("UPDATE settings SET value = 'shadow' WHERE key = 'social_prompts'");
     dan = await summary(DAN);
-    expect(dan.sections.social).toEqual({ count: 2, parts: { social_prompts: 2 } });
-    expect(dan.sections.events).toEqual({ count: 1, parts: { sheet_edit_problems: 0, social_held: 1 } });
+    expect(dan.sections.social).toEqual({ count: 3, parts: { social_prompts: 2, social_held: 1 } });
+    expect(dan.sections.events).toEqual({ count: 0, parts: { sheet_edit_problems: 0 } });
     await run("UPDATE settings SET value = 'enforce' WHERE key = 'social_prompts'");
-    expect((await summary(DAN)).sections.events!.parts).toEqual({ sheet_edit_problems: 0, social_held: 1 });
+    expect((await summary(DAN)).sections.social!.parts).toEqual({ social_prompts: 2, social_held: 1 });
     const michelle = await summary(MICHELLE);
     expect(michelle.sections.events).toEqual({ count: 0 });
     expect(michelle.sections).not.toHaveProperty('social');
