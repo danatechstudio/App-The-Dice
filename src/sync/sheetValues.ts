@@ -8,20 +8,57 @@ import { ukDate, weekdayOf } from '../lib/format';
 import { parseClock, parseSheetDate } from '../lib/time';
 import { CATEGORIES, visibilityOf, type Source, type SheetRow } from './normalise';
 
-/** Editable columns, by tab. Frequency, App Capacity, Photo Folder ID and App Host Session never are. */
+/**
+ * The columns RTD Event Sync may not send yet (App-driven events, 23 Oct 2026). A row that hasn't
+ * got one leaves it out of sheet_values, so the editor shows "not synced yet" and an edit can't
+ * take a missing value for a blank one and write over real text in the sheet.
+ */
+export const EXTRA = {
+  event_index: [
+    'Frequency',
+    'Post Frequency (Days)',
+    'Target Post Time',
+    'Photo Folder ID',
+    "Michelle's Standard Prompt",
+    'Michelles KPI Hook Prompt',
+    'TikTok Video Blueprint',
+    'Banned Phrases',
+    'Organiser Email',
+    'App Capacity',
+    'Approved Facts',
+    'People & Roles',
+  ],
+  standard_diary: ['Frequency', 'Approved Facts', 'People & Roles'],
+} as const satisfies Record<Source, readonly string[]>;
+
+/**
+ * Editable columns, by tab. Never editable: Day (the writer sets it with a date), Last Post and
+ * Next Post (the posting automation's), Event ID, App Host Session, Social Prompt and Social Prompt Status.
+ */
 export const EDITABLE = {
-  event_index: ['Event Name', 'Base Details', 'Event Date', 'Event Time', 'End Time', 'Status', 'App Visibility', 'App Category', 'App Price'],
-  standard_diary: ['Group', 'Notes', 'Date', 'App Visibility', 'App Category'],
+  event_index: ['Event Name', 'Base Details', 'Event Date', 'Event Time', 'End Time', 'Status', 'App Visibility', 'App Category', 'App Price', ...EXTRA.event_index],
+  standard_diary: ['Group', 'Notes', 'Date', 'App Visibility', 'App Category', ...EXTRA.standard_diary],
 } as const satisfies Record<Source, readonly string[]>;
 export type Column = (typeof EDITABLE)[Source][number];
 
 export const TAB: Record<Source, string> = { event_index: 'Event Index', standard_diary: 'Standard Diary' };
 
-type Kind = 'text' | 'date' | 'time' | 'status' | 'visibility' | 'category';
+/** Frequency as each tab spells it. Master V1 rolls Two-Weekly on Event Index and Bi-Weekly on the Standard Diary. */
+export const FREQUENCIES: Record<Source, readonly string[]> = {
+  event_index: ['Weekly', 'Two-Weekly', 'Monthly', 'One-off'],
+  standard_diary: ['Weekly', 'Bi-Weekly', 'Monthly'],
+};
+const FREQUENCY_SPELLING = ['Weekly', 'Two-Weekly', 'Bi-Weekly', 'Monthly', 'One-off'];
+
+type Kind = 'text' | 'long' | 'date' | 'time' | 'status' | 'visibility' | 'category' | 'frequency' | 'whole';
 const KIND: Record<Column, Kind> = {
   'Event Name': 'text', Group: 'text', 'Base Details': 'text', Notes: 'text', 'App Price': 'text',
   'Event Date': 'date', Date: 'date', 'Event Time': 'time', 'End Time': 'time',
   Status: 'status', 'App Visibility': 'visibility', 'App Category': 'category',
+  Frequency: 'frequency', 'Post Frequency (Days)': 'whole', 'App Capacity': 'whole', 'Target Post Time': 'time',
+  'Photo Folder ID': 'text', 'Organiser Email': 'text', 'Banned Phrases': 'long',
+  "Michelle's Standard Prompt": 'long', 'Michelles KPI Hook Prompt': 'long', 'TikTok Video Blueprint': 'long',
+  'Approved Facts': 'long', 'People & Roles': 'long',
 };
 
 const VISIBILITY_CELL: Record<string, string> = { public: 'Public', app_bookable: 'App Bookable', private: 'Private', hidden: 'Hidden' };
@@ -48,14 +85,20 @@ export function canon(column: Column, raw: unknown): string {
       return visibilityOf(raw) ?? t;
     case 'category':
       return CATEGORIES.find(c => c.toLowerCase() === t.toLowerCase()) ?? t;
+    case 'frequency':
+      return FREQUENCY_SPELLING.find(f => f.toLowerCase() === t.toLowerCase()) ?? t;
+    case 'whole':
+      return /^\d{1,6}(?:\.0+)?$/.test(t) ? String(Number(t)) : t;
     default:
       return t;
   }
 }
 
-/** The editable columns of one sheet row, canonical. */
+const isExtra = (source: Source, c: Column) => (EXTRA[source] as readonly string[]).includes(c);
+
+/** The editable columns of one sheet row, canonical. A column in EXTRA that the row hasn't got is left out, never ''. */
 export function sheetValuesOf(source: Source, row: SheetRow): Record<string, string> {
-  return Object.fromEntries(EDITABLE[source].map(c => [c, canon(c, row[c])]));
+  return Object.fromEntries(EDITABLE[source].filter(c => !isExtra(source, c) || c in row).map(c => [c, canon(c, row[c])]));
 }
 
 /** A canonical value as the sheet stores it (dates DD/MM/YYYY, visibility "App Bookable"...). */

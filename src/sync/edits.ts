@@ -22,8 +22,10 @@ import { esc, longDate, timeLabel } from '../lib/format';
 import { addDays, londonDate, parseSheetDate } from '../lib/time';
 import { queue } from '../notify/outbox';
 import type { Email } from '../notify/emails';
+import { FACT_KEYS, parseFacts, parsePeople } from '../social/facts';
+import { ROLE_WORD_LIST, hasRoleWord } from '../social/validate';
 import { CATEGORIES, type Source } from './normalise';
-import { EDITABLE, TAB, canon, cellsFor, checkRows, isColumn, verifyRows, type Column, type Fields } from './sheetValues';
+import { EDITABLE, FREQUENCIES, TAB, canon, cellsFor, checkRows, isColumn, verifyRows, type Column, type Fields } from './sheetValues';
 
 export const MODES = ['off', 'staging', 'shadow', 'live'] as const;
 export type Mode = (typeof MODES)[number];
@@ -38,6 +40,18 @@ const CLAIM_BATCH = 5;
 const NAME_MAX = 100;
 const DETAILS_MAX = 3000;
 const PRICE_MAX = 40;
+/** Approved Facts, People & Roles, Banned Phrases. */
+export const LONG_MAX = 5000;
+/** Michelle's prompts and the TikTok blueprint: hand-written and long, so more room than other long text. */
+export const PROMPT_MAX = 20000;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const FOLDER_ID = /^[A-Za-z0-9_-]{10,200}$/;
+
+/** A Google Drive folder ID, or a pasted folder link reduced to its ID. */
+export function folderIdOf(v: string): string {
+  const m = /drive\.google\.com\/.*?(?:\/folders\/|[?&]id=)([A-Za-z0-9_-]+)/.exec(v);
+  return m ? m[1]! : v;
+}
 
 type Fail = { ok: false; status: 400 | 403 | 404 | 409; error: string; errors?: Record<string, string> };
 const fail = (status: Fail['status'], error: string, errors?: Record<string, string>): Fail => ({ ok: false, status, error, errors });
@@ -131,9 +145,9 @@ const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const VISIBILITIES = ['public', 'app_bookable', 'private', 'hidden'];
 
 /** Checks one value as typed in the editor; returns it canonical, or an error message. */
-function validate(c: Column, raw: unknown, today: string): { value: string } | { error: string } {
+function validate(source: Source, c: Column, raw: unknown, today: string): { value: string } | { error: string } {
   if (typeof raw !== 'string') return { error: 'This must be text.' };
-  const v = canon(c, raw);
+  const v = canon(c, c === 'Photo Folder ID' ? folderIdOf(raw.trim()) : raw);
   switch (c) {
     case 'Event Name':
     case 'Group':
@@ -164,6 +178,37 @@ function validate(c: Column, raw: unknown, today: string): { value: string } | {
     case 'App Price':
       if (v.length > PRICE_MAX) return { error: `Keep it to ${PRICE_MAX} characters, like £5 or Free.` };
       return v.includes('\n') ? { error: 'Keep the price on one line.' } : { value: v };
+    case 'Frequency':
+      return FREQUENCIES[source].includes(v) ? { value: v } : { error: `Choose ${FREQUENCIES[source].join(', ')}.` };
+    case 'Post Frequency (Days)':
+      return /^\d+$/.test(v) && Number(v) <= 60 ? { value: v } : { error: 'Use a whole number of days from 0 to 60.' };
+    case 'App Capacity':
+      return v === '' || (/^\d+$/.test(v) && Number(v) >= 1 && Number(v) <= 1000) ? { value: v } : { error: 'Use a whole number from 1 to 1000, or leave it empty.' };
+    case 'Target Post Time':
+      return v === '' || TIME.test(v) ? { value: v } : { error: 'Use a time like 18:00, or leave it empty.' };
+    case 'Photo Folder ID':
+      return v === '' || FOLDER_ID.test(v) ? { value: v } : { error: 'Paste the Google Drive folder’s link or its ID, or leave it empty.' };
+    case 'Organiser Email':
+      return v === '' || (EMAIL.test(v) && v.length <= 254) ? { value: v } : { error: 'Use an email address like name@example.com, or leave it empty.' };
+    case "Michelle's Standard Prompt":
+    case 'Michelles KPI Hook Prompt':
+    case 'TikTok Video Blueprint':
+      return v.length > PROMPT_MAX ? { error: `Keep it to ${PROMPT_MAX.toLocaleString('en-GB')} characters.` } : { value: v };
+    case 'Banned Phrases':
+      return v.length > LONG_MAX ? { error: `Keep it to ${LONG_MAX.toLocaleString('en-GB')} characters.` } : { value: v };
+    case 'Approved Facts': {
+      if (v.length > LONG_MAX) return { error: `Keep it to ${LONG_MAX.toLocaleString('en-GB')} characters.` };
+      const { errors } = parseFacts(v);
+      return errors.length ? { error: `${errors[0]}. One fact per line, like "Booking: essential" (keys: ${FACT_KEYS.join(', ')}).` } : { value: v };
+    }
+    case 'People & Roles': {
+      if (v.length > LONG_MAX) return { error: `Keep it to ${LONG_MAX.toLocaleString('en-GB')} characters.` };
+      const { people, errors } = parsePeople(v);
+      if (errors.length) return { error: `${errors[0]}. One person per line, like "Trixie - host".` };
+      const unread = people.find(p => !hasRoleWord(p.role));
+      if (unread) return { error: `"${unread.role}" (${unread.name}) has no role word the post checks know: use ${ROLE_WORD_LIST.join(', ')}.` };
+      return { value: v };
+    }
   }
 }
 
@@ -257,9 +302,14 @@ export async function requestEdit(
       errors[c] = `${c} can't be changed from the app.`;
       continue;
     }
-    const from = current[c] ?? '';
+    // A column the last sync didn't carry has no known value: never take it for blank.
+    if (!(c in current)) {
+      errors[c] = `${c} is not synced yet: RTD Event Sync doesn't send it. Change it in the Logic Engine for now.`;
+      continue;
+    }
+    const from = current[c]!;
     if (typeof raw === 'string' && canon(c, raw) === from) continue; // unchanged, even if the sheet's value wouldn't pass the checks
-    const r = validate(c, raw, today);
+    const r = validate(ev.source, c, raw, today);
     if ('error' in r) errors[c] = r.error;
     else if (r.value !== from) fields[c] = { from, to: r.value };
   }
@@ -637,12 +687,15 @@ async function recordFailure(db: D1Database, e: Claimed, message: string, now: D
 
 const WHERE: Record<Target, string> = { staging: 'the test copy of the Logic Engine', shadow: 'the Logic Engine (trial run: nothing is written)', live: 'the Logic Engine' };
 
+/** A value for the email: a long prompt is cut short, the organiser shows it whole. */
+const brief = (v: string | undefined) => esc(!v ? 'nothing' : v.length > 200 ? `${v.slice(0, 200)}…` : v);
+
 function problemEmail(e: SheetEdit, origin: string, iso: string): Email {
   const name = e.name ?? e.event_id;
   const list = Object.entries(e.fields)
     .map(([c, f]) => {
-      const sheet = e.status === 'conflict' && e.found && e.found[c] !== f!.from && e.found[c] !== f!.to ? `; the sheet now has <strong>${esc(e.found[c] || 'nothing')}</strong>` : '';
-      return `<li><strong>${esc(c)}:</strong> ${esc(f!.from || 'nothing')} → ${esc(f!.to || 'nothing')}${sheet}</li>`;
+      const sheet = e.status === 'conflict' && e.found && e.found[c] !== f!.from && e.found[c] !== f!.to ? `; the sheet now has <strong>${brief(e.found[c])}</strong>` : '';
+      return `<li><strong>${esc(c)}:</strong> ${brief(f!.from)} → ${brief(f!.to)}${sheet}</li>`;
     })
     .join('');
   const why =

@@ -1503,6 +1503,10 @@ const ROLES = ['host', 'DM', 'GM', 'organiser', 'runs', 'sets up', 'leads', 'qui
 const roleOf = (m: RegExpMatchArray): string => ROLES[m.slice(1).findIndex(g => g !== undefined)]!;
 /** The roles a People & Roles entry gives, read with the same role words: "Dungeon Master" is DM, "sets up" is sets up. */
 const rolesIn = (text: string): Set<string> => new Set([...text.matchAll(ROLE_WORDS)].map(roleOf));
+/** The role words People & Roles can use, for the editor's hint. */
+export const ROLE_WORD_LIST = ['host', 'DM', 'GM', 'organiser', 'leads', 'runs', 'sets up', 'caller', 'quizmaster', 'MC', 'presenter'];
+/** A People & Roles role the post checks can read: it holds at least one role word. */
+export const hasRoleWord = (role: string): boolean => rolesIn(role).size > 0;
 
 // Words that start a sentence beside a role word without being anyone's name: "Meet our host", "We're hosting".
 const NOT_A_NAME = [
