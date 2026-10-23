@@ -87,7 +87,8 @@ function show(column: string, v: string | undefined): string {
   if (!v) return 'nothing';
   if (column === 'App Visibility') return VISIBILITY[v] ?? v;
   if ((column === 'Event Date' || column === 'Date') && isIso(v)) return shortDate(v);
-  return v;
+  // A prompt can run to pages: the start is enough to tell changes apart here.
+  return v.length > 120 ? `${v.slice(0, 120)}…` : v;
 }
 
 export function SheetSyncPanel() {

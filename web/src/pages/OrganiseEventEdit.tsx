@@ -3,8 +3,10 @@
 // Logic Engine (in the app after the next sync), a host's session through the approved-change path
 // (the host is emailed), places and booking straight away. Dates can be cancelled (everyone booked
 // is emailed), hidden or given their own places, and the whole event can be stopped.
+// Every Logic Engine column a person fills in by hand is here too, in sections (Posting,
+// Michelle's voice, Social facts, Contact): each goes through the same queue as the details.
 
-import { ArrowLeft, Ban, EyeOff } from 'lucide-preact';
+import { ArrowLeft, Ban, ExternalLink, EyeOff, Plus, Trash2 } from 'lucide-preact';
 import type { JSX } from 'preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { DiceLoader } from '../components/States';
@@ -39,7 +41,62 @@ const LABELS: Record<keyof AdminEventDetails, string> = {
   category: 'Category',
 };
 
-type Body = { details?: Partial<AdminEventDetails>; visibility?: EventVisibility; places?: number | null; booking_mode?: BookingMode | 'default' };
+type Body = {
+  details?: Partial<AdminEventDetails>;
+  sheet?: Record<string, string>;
+  visibility?: EventVisibility;
+  places?: number | null;
+  booking_mode?: BookingMode | 'default';
+};
+
+// The Logic Engine's own headers (src/sync/sheetValues.ts EXTRA): RTD Sheet Writer matches them exactly.
+const STANDARD_PROMPT = "Michelle's Standard Prompt";
+const KPI_PROMPT = 'Michelles KPI Hook Prompt';
+const TIKTOK = 'TikTok Video Blueprint';
+const PROMPT_MAX = 20000;
+const LONG_MAX = 5000;
+const FACT_KEYS = ['Booking', 'Level', 'Age', 'Prizes', 'Format', 'Price', 'Bring', 'Food', 'Other'];
+const ROLE_WORDS = 'host, DM, organiser, leads, runs, caller, quizmaster, MC, presenter';
+// The same role words the post checks read (src/social/validate.ts), loosely: the server has the last word.
+const HAS_ROLE = /(?<![\p{L}\p{N}])(host\w*|dm|gm|dungeon\s+masters?|game\s+masters?|organi[sz]\w*|run|runs|running|ran|(set|sets|setting)\s+(\p{L}{1,10}\s+)?up|lead|leads|leading|led|quiz\s*masters?|mc|emcee|compere|callers?|presenters?)(?![\p{L}\p{N}])/iu;
+
+/** The sheet column behind each detail, by tab (src/events/admin.ts COLUMNS). */
+const DETAIL_COLUMN: Record<'event_index' | 'standard_diary', Partial<Record<keyof AdminEventDetails, string>>> = {
+  event_index: { name: 'Event Name', description: 'Base Details', event_date: 'Event Date', start_time: 'Event Time', end_time: 'End Time', price: 'App Price', category: 'App Category' },
+  standard_diary: { name: 'Group', description: 'Notes', event_date: 'Date', category: 'App Category' },
+};
+
+type FactRow = { key: string; value: string };
+type PersonRow = { name: string; role: string };
+const linesOf = (text: string) => text.split('\n').map(l => l.trim()).filter(Boolean);
+
+/** Approved Facts as rows, or why they can't be (src/social/facts.ts parseFacts). */
+function factRows(text: string): { rows: FactRow[] } | { why: string } {
+  const rows: FactRow[] = [];
+  for (const line of linesOf(text)) {
+    const colon = line.indexOf(':');
+    const key = colon > 0 ? FACT_KEYS.find(k => k.toLowerCase() === line.slice(0, colon).trim().toLowerCase()) : undefined;
+    const value = colon > 0 ? line.slice(colon + 1).trim() : '';
+    if (!key || !value) return { why: `“${line}” isn’t a “Key: value” fact with one of the keys below.` };
+    rows.push({ key, value });
+  }
+  return { rows };
+}
+
+/** People & Roles as rows, or why they can't be (src/social/facts.ts parsePeople). */
+function personRows(text: string): { rows: PersonRow[] } | { why: string } {
+  const rows: PersonRow[] = [];
+  for (const line of linesOf(text)) {
+    const m = /^(.+?)(?:\s*[—–]\s*|\s+-\s+)(.+)$/.exec(line);
+    if (!m) return { why: `“${line}” isn’t “Name - role”.` };
+    rows.push({ name: m[1]!.trim(), role: m[2]!.trim() });
+  }
+  return { rows };
+}
+
+/** A Drive folder ID, or the ID in a pasted folder link. */
+const folderId = (v: string) => /drive\.google\.com\/.*?(?:\/folders\/|[?&]id=)([A-Za-z0-9_-]+)/.exec(v)?.[1] ?? v.trim();
+const short = (v: string) => (!v ? 'empty' : v.length > 80 ? `${v.slice(0, 80)}…` : v);
 
 export function EventEditor({ eventId }: { eventId: string }) {
   const [event, setEvent] = useState<AdminEventForm | null>(null);
@@ -95,7 +152,7 @@ export function EventEditor({ eventId }: { eventId: string }) {
             <>
               <DetailsForm key={JSON.stringify(event)} event={event} onSaved={load} />
               <DatesList event={event} onChanged={load} />
-              <EventSocialSection eventId={event.event_id} />
+              <EventSocialSection eventId={event.event_id} factsInEditor={'Approved Facts' in event.sheet} />
               <StopEvent event={event} onStopped={load} />
             </>
           )}
@@ -107,6 +164,9 @@ export function EventEditor({ eventId }: { eventId: string }) {
 
 function DetailsForm({ event, onSaved }: { event: AdminEventForm; onSaved: () => void }) {
   const [d, setD] = useState<AdminEventDetails>(event.details);
+  const [sheet, setSheet] = useState<Record<string, string>>(
+    () => Object.fromEntries(Object.entries(event.sheet).filter((e): e is [string, string] => e[1] !== null)),
+  );
   const [visibility, setVisibility] = useState<EventVisibility>(event.visibility);
   const [places, setPlaces] = useState<string>(event.places === null ? '' : String(event.places));
   const [mode, setMode] = useState<BookingMode | 'default'>(event.booking_mode_set ?? 'default');
@@ -115,11 +175,14 @@ function DetailsForm({ event, onSaved }: { event: AdminEventForm; onSaved: () =>
   const [busy, setBusy] = useState(false);
   const hosted = event.kind === 'host_session';
   const set = (k: keyof AdminEventDetails, v: string) => (setD({ ...d, [k]: v }), setWarning(null));
+  const setCol = (c: string, v: string) => (setSheet(s => ({ ...s, [c]: v })), setWarning(null));
 
   const body = (): Body => {
     const b: Body = {};
     const details = Object.fromEntries(Object.entries(d).filter(([k, v]) => v !== event.details[k as keyof AdminEventDetails]));
     if (Object.keys(details).length) b.details = details;
+    const cols = Object.fromEntries(Object.entries(sheet).filter(([c, v]) => v !== event.sheet[c]));
+    if (Object.keys(cols).length) b.sheet = cols;
     if (visibility !== event.visibility) b.visibility = visibility;
     const p = places.trim() === '' ? null : Number(places);
     if (p !== event.places) b.places = p;
@@ -162,6 +225,7 @@ function DetailsForm({ event, onSaved }: { event: AdminEventForm; onSaved: () =>
     const id = `ev-${k}`;
     const why = event.unavailable[k];
     const err = errors[k];
+    const waiting = event.kind === 'event_index' || event.kind === 'standard_diary' ? event.pending_fields[DETAIL_COLUMN[event.kind][k] ?? ''] : undefined;
     return (
       <div class={`field${err ? ' field--error' : ''}`}>
         <label for={why ? undefined : id}>{LABELS[k]}</label>
@@ -172,6 +236,7 @@ function DetailsForm({ event, onSaved }: { event: AdminEventForm; onSaved: () =>
         ) : (
           input(id, err ? `${id}-error` : undefined)
         )}
+        {waiting && <Waiting to={waiting.to} />}
         {err && (
           <p id={`${id}-error`} class="field__error">
             {err}
@@ -240,6 +305,26 @@ function DetailsForm({ event, onSaved }: { event: AdminEventForm; onSaved: () =>
           </select>
         ))}
       </div>
+      {'Frequency' in event.sheet && (
+        <SheetField event={event} column="Frequency" label="How often" errors={errors}>
+          {id => (
+            <>
+              <select id={id} class="input" value={sheet.Frequency} onChange={e => setCol('Frequency', e.currentTarget.value)}>
+                {[...event.frequency_options, ...(event.frequency_options.includes(event.sheet.Frequency ?? '') ? [] : [event.sheet.Frequency ?? ''])].map(f => (
+                  <option key={f} value={f}>
+                    {f || 'Not set'}
+                    {event.frequency_options.includes(f) ? '' : ' (as in the sheet)'}
+                  </option>
+                ))}
+              </select>
+              <p class={sheet.Frequency !== event.sheet.Frequency ? 'field__error' : 'field__hint'}>
+                This changes how the Logic Engine’s automation moves the date on: weekly and two-weekly dates roll forward by themselves, monthly and
+                one-off dates are re-dated by hand.
+              </p>
+            </>
+          )}
+        </SheetField>
+      )}
 
       <fieldset class={`field stack${errors.visibility ? ' field--error' : ''}`} style={{ '--gap': '8px' }}>
         <legend class="label">Who can see it</legend>
@@ -258,13 +343,14 @@ function DetailsForm({ event, onSaved }: { event: AdminEventForm; onSaved: () =>
             </span>
           </label>
         ))}
+        {event.pending_fields['App Visibility'] && <Waiting to={VISIBILITY.find(v => v.value === event.pending_fields['App Visibility']!.to)?.label ?? ''} />}
         {errors.visibility && <p class="field__error">{errors.visibility}</p>}
       </fieldset>
 
       <h2>Booking</h2>
       <div class="field-row">
         <div class={`field${errors.places ? ' field--error' : ''}`}>
-          <label for="ev-places">Places on every date</label>
+          <label for="ev-places">{hosted ? 'Places on every date' : 'Places for this event (app)'}</label>
           <input
             id="ev-places"
             class="input"
@@ -279,7 +365,7 @@ function DetailsForm({ event, onSaved }: { event: AdminEventForm; onSaved: () =>
           />
           <p id="ev-places-hint" class="field__hint">
             {event.most_booked > 0 ? `${event.most_booked} booked on the busiest date, so no fewer than that. ` : ''}
-            {hosted ? '' : 'Empty: the sheet’s App Capacity, or no limit.'}
+            {hosted ? '' : 'Set here, straight away. Empty: Default places (sheet), or no limit.'}
           </p>
           {errors.places && <p class="field__error">{errors.places}</p>}
         </div>
@@ -294,6 +380,8 @@ function DetailsForm({ event, onSaved }: { event: AdminEventForm; onSaved: () =>
           </select>
         </div>
       </div>
+
+      <SheetSections event={event} sheet={sheet} setCol={setCol} errors={errors} />
 
       {errors.form && (
         <p class="field__error" role="alert">
@@ -329,6 +417,236 @@ function DetailsForm({ event, onSaved }: { event: AdminEventForm; onSaved: () =>
         </div>
       )}
     </section>
+  );
+}
+
+/** A note under a field whose change is on its way to the Logic Engine. */
+function Waiting({ to }: { to: string }) {
+  return <p class="field__hint event-editor__waiting">Waiting to reach the sheet: {short(to)}</p>;
+}
+
+/**
+ * One Logic Engine column: its input, or "not synced yet" while RTD Event Sync doesn't send it
+ * (a value never known can't be changed, or a blank could overwrite real text in the sheet).
+ */
+function SheetField({
+  event,
+  column,
+  label,
+  hint,
+  errors,
+  children,
+}: {
+  event: AdminEventForm;
+  column: string;
+  label: string;
+  hint?: string;
+  errors: Record<string, string>;
+  children: (id: string) => JSX.Element;
+}) {
+  if (!(column in event.sheet)) return null;
+  const id = `ev-col-${column.replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()}`;
+  const err = errors[column];
+  const waiting = event.pending_fields[column];
+  const synced = event.sheet[column] !== null;
+  return (
+    <div class={`field${err ? ' field--error' : ''}`}>
+      <label for={synced ? id : undefined}>{label}</label>
+      {synced ? (
+        children(id)
+      ) : (
+        <p class="field__hint">
+          <em>Not synced yet.</em> The app doesn’t receive the Logic Engine’s “{column}” column yet, so change it in the sheet for now.
+        </p>
+      )}
+      {synced && hint && <p class="field__hint">{hint}</p>}
+      {waiting && <Waiting to={waiting.to} />}
+      {err && (
+        <p id={`${id}-error`} class="field__error">
+          {err}
+        </p>
+      )}
+    </div>
+  );
+}
+
+type SectionProps = { event: AdminEventForm; sheet: Record<string, string>; setCol: (c: string, v: string) => void; errors: Record<string, string> };
+
+/** Posting, Michelle's voice, Social facts and Contact: only the columns this tab has. */
+function SheetSections({ event, sheet, setCol, errors }: SectionProps) {
+  const has = (...cols: string[]) => cols.some(c => c in event.sheet);
+  const text = (c: string) => (e: { currentTarget: { value: string } }) => setCol(c, e.currentTarget.value);
+  const folder = folderId(sheet['Photo Folder ID'] ?? '');
+  return (
+    <>
+      {has('Post Frequency (Days)', 'Target Post Time', 'Photo Folder ID', 'App Capacity') && (
+        <>
+          <h2 id="ev-posting">Posting</h2>
+          <div class="field-row field-row--even">
+            <SheetField event={event} column="Post Frequency (Days)" label="Post every (days)" hint="0 to 60." errors={errors}>
+              {id => (
+                <input id={id} class="input" type="number" inputMode="numeric" min={0} max={60} step={1} value={sheet['Post Frequency (Days)']} onInput={text('Post Frequency (Days)')} />
+              )}
+            </SheetField>
+            <SheetField event={event} column="Target Post Time" label="Post at" errors={errors}>
+              {id => <input id={id} class="input" type="time" value={sheet['Target Post Time']} onInput={text('Target Post Time')} />}
+            </SheetField>
+          </div>
+          <SheetField event={event} column="Photo Folder ID" label="Photo folder" hint="The Google Drive folder’s ID, or paste its link." errors={errors}>
+            {id => (
+              <div class="stack" style={{ '--gap': '6px' }}>
+                <input id={id} class="input" value={sheet['Photo Folder ID']} spellcheck={false} onInput={text('Photo Folder ID')} />
+                {/^[A-Za-z0-9_-]{10,}$/.test(folder) && (
+                  <a class="btn btn--text btn--sm" href={`https://drive.google.com/drive/folders/${folder}`} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink size={16} aria-hidden="true" /> Open the folder
+                  </a>
+                )}
+              </div>
+            )}
+          </SheetField>
+          <SheetField
+            event={event}
+            column="App Capacity"
+            label="Default places (sheet)"
+            hint="The Logic Engine’s App Capacity. When the change reaches the app it replaces Places for this event (app)."
+            errors={errors}
+          >
+            {id => <input id={id} class="input" type="number" inputMode="numeric" min={1} max={1000} step={1} placeholder="None" value={sheet['App Capacity']} onInput={text('App Capacity')} />}
+          </SheetField>
+        </>
+      )}
+
+      {has(STANDARD_PROMPT, KPI_PROMPT, TIKTOK) && (
+        <>
+          <h2 id="ev-voice">Michelle’s voice</h2>
+          {[
+            [STANDARD_PROMPT, 'Standard prompt'],
+            [KPI_PROMPT, 'KPI hook prompt', 'Used when the event’s Facebook views are low.'],
+            [TIKTOK, 'TikTok video blueprint'],
+          ].map(([c, label, hint]) => (
+            <SheetField key={c} event={event} column={c!} label={label!} hint={hint} errors={errors}>
+              {id => <textarea id={id} class="input event-editor__prompt" rows={10} maxLength={PROMPT_MAX} value={sheet[c!]} onInput={text(c!)} />}
+            </SheetField>
+          ))}
+        </>
+      )}
+
+      {has('Approved Facts', 'People & Roles', 'Banned Phrases') && (
+        <>
+          <h2 id="social-facts">Social facts</h2>
+          <SheetField event={event} column="Approved Facts" label="Approved facts" errors={errors}>
+            {id => <FactsEditor id={id} value={sheet['Approved Facts'] ?? ''} onChange={v => setCol('Approved Facts', v)} />}
+          </SheetField>
+          <SheetField event={event} column="People & Roles" label="People & roles" errors={errors}>
+            {id => <PeopleEditor id={id} value={sheet['People & Roles'] ?? ''} onChange={v => setCol('People & Roles', v)} />}
+          </SheetField>
+          <SheetField event={event} column="Banned Phrases" label="Banned phrases" hint="Separated by commas. Posts never use them." errors={errors}>
+            {id => <textarea id={id} class="input" rows={2} maxLength={LONG_MAX} value={sheet['Banned Phrases']} onInput={text('Banned Phrases')} />}
+          </SheetField>
+        </>
+      )}
+
+      {has('Organiser Email') && (
+        <>
+          <h2 id="ev-contact">Contact</h2>
+          <SheetField event={event} column="Organiser Email" label="Organiser email" errors={errors}>
+            {id => <input id={id} class="input" type="email" autoComplete="off" value={sheet['Organiser Email']} onInput={text('Organiser Email')} />}
+          </SheetField>
+        </>
+      )}
+    </>
+  );
+}
+
+/** Approved Facts as Key + value rows, saved as `Key: value` lines. Text that won't make rows stays a textarea. */
+function FactsEditor({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+  const [parsed] = useState(() => factRows(value));
+  const [rows, setRows] = useState<FactRow[]>(() => ('rows' in parsed ? parsed.rows : []));
+  if ('why' in parsed)
+    return (
+      <>
+        <textarea id={id} class="input" rows={6} maxLength={LONG_MAX} value={value} onInput={e => onChange(e.currentTarget.value)} />
+        <p class="field__hint">
+          Shown as written, because {parsed.why} One fact per line, like “Booking: essential”, with a key from: {FACT_KEYS.join(', ')}.
+        </p>
+      </>
+    );
+  const update = (next: FactRow[]) => {
+    setRows(next);
+    onChange(next.filter(r => r.value.trim()).map(r => `${r.key}: ${r.value.trim()}`).join('\n'));
+  };
+  return (
+    <div class="stack event-editor__rows" style={{ '--gap': '8px' }} id={id} role="group">
+      {!rows.length && <p class="meta">None yet.</p>}
+      {rows.map((r, i) => (
+        <div class="event-editor__row" key={i}>
+          <select class="input" aria-label={`Fact ${i + 1} key`} value={r.key} onChange={e => update(rows.map((x, j) => (j === i ? { ...x, key: e.currentTarget.value } : x)))}>
+            {FACT_KEYS.map(k => (
+              <option key={k} value={k}>
+                {k}
+              </option>
+            ))}
+          </select>
+          <input
+            class="input"
+            aria-label={`Fact ${i + 1}`}
+            value={r.value}
+            onInput={e => update(rows.map((x, j) => (j === i ? { ...x, value: e.currentTarget.value } : x)))}
+          />
+          <button type="button" class="btn btn--text btn--sm" aria-label={`Remove fact ${i + 1}`} onClick={() => update(rows.filter((_, j) => j !== i))}>
+            <Trash2 size={16} aria-hidden="true" />
+          </button>
+        </div>
+      ))}
+      <div>
+        <button type="button" class="btn btn--secondary btn--sm" onClick={() => setRows([...rows, { key: 'Booking', value: '' }])}>
+          <Plus size={16} aria-hidden="true" /> Add a fact
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** People & Roles as Name + Role rows, saved as `Name - role` lines. Text that won't make rows stays a textarea. */
+function PeopleEditor({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+  const [parsed] = useState(() => personRows(value));
+  const [rows, setRows] = useState<PersonRow[]>(() => ('rows' in parsed ? parsed.rows : []));
+  const hint = `Use a role word the post checks know: ${ROLE_WORDS}.`;
+  if ('why' in parsed)
+    return (
+      <>
+        <textarea id={id} class="input" rows={4} maxLength={LONG_MAX} value={value} onInput={e => onChange(e.currentTarget.value)} />
+        <p class="field__hint">
+          Shown as written, because {parsed.why} One person per line, like “Trixie - host”. {hint}
+        </p>
+      </>
+    );
+  const update = (next: PersonRow[]) => {
+    setRows(next);
+    onChange(next.filter(r => r.name.trim() || r.role.trim()).map(r => `${r.name.trim()} - ${r.role.trim()}`).join('\n'));
+  };
+  return (
+    <div class="stack event-editor__rows" style={{ '--gap': '8px' }} id={id} role="group">
+      {!rows.length && <p class="meta">None yet.</p>}
+      {rows.map((r, i) => (
+        <div key={i} class="stack" style={{ '--gap': '4px' }}>
+          <div class="event-editor__row">
+            <input class="input" aria-label={`Person ${i + 1} name`} placeholder="Name" value={r.name} onInput={e => update(rows.map((x, j) => (j === i ? { ...x, name: e.currentTarget.value } : x)))} />
+            <input class="input" aria-label={`Person ${i + 1} role`} placeholder="Role, e.g. host" value={r.role} onInput={e => update(rows.map((x, j) => (j === i ? { ...x, role: e.currentTarget.value } : x)))} />
+            <button type="button" class="btn btn--text btn--sm" aria-label={`Remove person ${i + 1}`} onClick={() => update(rows.filter((_, j) => j !== i))}>
+              <Trash2 size={16} aria-hidden="true" />
+            </button>
+          </div>
+          {r.role.trim() !== '' && !HAS_ROLE.test(r.role) && <p class="field__hint">“{r.role}” has no role word the post checks know.</p>}
+        </div>
+      ))}
+      <div>
+        <button type="button" class="btn btn--secondary btn--sm" onClick={() => setRows([...rows, { name: '', role: '' }])}>
+          <Plus size={16} aria-hidden="true" /> Add a person
+        </button>
+      </div>
+      <p class="field__hint">{hint}</p>
+    </div>
   );
 }
 

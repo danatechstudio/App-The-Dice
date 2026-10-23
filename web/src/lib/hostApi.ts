@@ -240,7 +240,12 @@ export interface AdminEventForm extends AdminEventRow {
   session_id: string | null;
   market_id: string | null;
   details: AdminEventDetails;
-  unavailable: Partial<Record<keyof AdminEventDetails | 'active', string>>;
+  unavailable: Partial<Record<keyof AdminEventDetails | 'active' | 'sheet', string>>;
+  /** The tab's other Logic Engine columns by exact header; null: not synced yet. Empty for host sessions and markets. */
+  sheet: Record<string, string | null>;
+  frequency_options: string[];
+  /** The Logic Engine change on its way, column by column. */
+  pending_fields: Record<string, { from: string; to: string }>;
   places: number | null;
   most_booked: number;
   booking_mode: BookingMode;
