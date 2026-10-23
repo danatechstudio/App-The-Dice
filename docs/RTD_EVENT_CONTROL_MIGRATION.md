@@ -121,6 +121,44 @@ Nothing existing changes. Emails already in the outbox read as queued or sent, e
 - **First runs on the new code:** RTD Outbox at 15:40 and 15:45 succeeded; collect answered `{ messages: [] }` as before (nothing was waiting). The 15:45 sync: `ok`, 32 events, nothing changed, still 289 audit rows and 8 open items.
 - **The RTD Outbox change** waited for its own go-ahead, then was published at 17:23 UTC (version `e50af06e…`; rollback `a1b77acb…`). The 17:25 and 17:30 runs on it succeeded ([RTD_N8N_WORKFLOWS.md](RTD_N8N_WORKFLOWS.md)).
 
+## App-driven events (2026-10-23, no migration)
+
+The owner, 23 Oct: "I don't want to be flicking between the sheet, I want everything to be app driven." Option A: **the Logic Engine stays the master** that posting reads, and the admin event editor gets an input for every column a person fills in by hand. Each change goes through the same queue as the details (Stage 6, below): RTD Sheet Writer writes it, conflict-checked, and the next sync brings it back.
+
+**The columns an admin can change from the editor** (`src/sync/sheetValues.ts` `EDITABLE`), by exact header:
+
+| Tab | Column | Editor section | Checked as |
+|---|---|---|---|
+| Event Index | A `Event Name`, L `Base Details`, D `Event Date`, E `Event Time`, F `End Time`, V `App Price`, U `App Category`, T `App Visibility`, P `Status` | Details (as before) | as before |
+| Event Index | B `Frequency` | Details | Weekly, Two-Weekly, Monthly or One-off. The editor warns that it changes how the automation moves the date on |
+| Event Index | G `Post Frequency (Days)` | Posting | a whole number, 0 to 60 |
+| Event Index | J `Target Post Time` | Posting | a time (`18:00`, as Event Time), or blank |
+| Event Index | K `Photo Folder ID` | Posting | a Drive folder ID; a pasted folder link is cut down to its ID. The editor links to the folder |
+| Event Index | W `App Capacity` | Posting, as **Default places (sheet)** | a whole number 1 to 1000, or blank. **Places for this event (app)** (`capacity_override`) is unchanged and still set straight away; a new App Capacity replaces it when it arrives, as before |
+| Event Index | M `Michelle's Standard Prompt`, N `Michelles KPI Hook Prompt`, O `TikTok Video Blueprint` | Michelle's voice | up to 20,000 characters each |
+| Event Index | Y `Approved Facts` | Social facts, as Key + value rows | one `Key: value` per line, keys as `src/social/facts.ts`; up to 5,000 characters |
+| Event Index | Z `People & Roles` | Social facts, as Name + Role rows | one `Name - role` per line, each role with a role word the post checks know (host, DM, organiser, leads, runs, caller, quizmaster, MC, presenter, sets up); up to 5,000 characters |
+| Event Index | Q `Banned Phrases` | Social facts | up to 5,000 characters |
+| Event Index | R `Organiser Email` | Contact | an email address, or blank |
+| Standard Diary | A `Group`, D `Notes`, C `Date`, H `App Category`, G `App Visibility` | Details (as before) | as before |
+| Standard Diary | E `Frequency` | Details | Weekly, Bi-Weekly or Monthly (the Standard Diary's own word for two-weekly) |
+| Standard Diary | I `Approved Facts`, J `People & Roles` | Social facts | as on Event Index |
+
+- **Never editable:** `Day` (the writer sets it with a date), `Last Post` and `Next Post` (the posting automation's), `Event ID`, `App Host Session`, `Social Prompt` and `Social Prompt Status`.
+- **Host sessions and markets** keep their own rules: none of these columns can be changed for them here.
+- **Every value:** carriage returns are taken out, line breaks are kept, and the ends are trimmed. Existing text the editor can't show as rows (a fact without a known key, say) is shown as written in a plain box, with the reason, so nothing is lost.
+- The column letters are as the docs record the tabs: check them against the header row before changing RTD Sheet Writer.
+
+**Where the values come from:** `events.sheet_values`, filled on every sync, as for the details. It's the one source for the editor and for each edit's "from". `social_values` still holds Approved Facts, People & Roles and Banned Phrases for the social prompts; both are filled from the same row in the same sync.
+
+**Change hash:** these columns are only in `sheet_values`, which is left out of `source_hash`, so the first sync that carries them changes no event (tested).
+
+**Before RTD Event Sync sends them:** six Event Index columns aren't in its snapshot yet (Post Frequency (Days), Target Post Time, the three prompt columns and Organiser Email). A column a row hasn't got is left out of `sheet_values`, never stored as blank. The editor shows it as **Not synced yet**, with no input, and an edit to it is refused, so a value the app never saw can't be written over.
+
+**The n8n changes needed:** [RTD Event Sync's snapshot](RTD_N8N_WORKFLOWS.md#change-needed-for-app-driven-events-23-oct-2026-not-made-yet) and [RTD Sheet Writer's allowed columns](RTD_N8N_WORKFLOWS.md#rtd-sheet-writer-taa4f7wkzzeidkm8), each a checklist. Until the Sheet Writer's list has the new columns, a change to one of them is refused at its guard and ends up given up on under Sheet sync; nothing is written.
+
+**Rollback:** `npx wrangler rollback`. Queued changes to the new columns can be withdrawn under Sheet sync.
+
 ## 0023_enquiries.sql (private games: messages asking to join)
 
 One new table, `enquiries`, for the message form on a private game's page (spec `docs/superpowers/specs/2026-10-18-private-events-design.md`). Additive; nothing else changes.

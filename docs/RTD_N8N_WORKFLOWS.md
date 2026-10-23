@@ -350,7 +350,7 @@ Still to do: point the Guard's date-change recipient at this instead of its hard
   2. Read Event Index and Standard Diary.
   3. **Build Snapshot.** A row with no `Event ID`, or carrying a copy of another row's ID (a copied row), gets the next free `RTD-EVT` number. The first row holding an ID keeps it. New rows default to `App Visibility` = Public, and `App Category` = Other (Event Index) or Club (Standard Diary).
   4. Write any new IDs back to the sheet.
-  5. `POST /internal/sync/logic-engine` with only the fields the app uses (no prompt columns). `run_id` = `n8n-<execution id>`.
+  5. `POST /internal/sync/logic-engine` with only the fields the app uses (no prompt columns yet: see [the change needed](#change-needed-for-app-driven-events-23-oct-2026-not-made-yet)). `run_id` = `n8n-<execution id>`.
 - **Errors:** retried 3 times, then passed to `Studio: Error Handler`. A `409` means the app refused a suspicious snapshot (for example an empty sheet read), and the data in the app is left untouched.
 - **Credential `rtd-app` (Header Auth):** header name `Authorization`, value `Bearer <INTERNAL_SYNC_TOKEN>`.
 
@@ -369,6 +369,21 @@ Payload shape:
 }
 ```
 
+### Change needed for app-driven events (23 Oct 2026, not made yet)
+
+The owner wants every event set up from the app ("I want everything to be app driven", option A). The app can now change every Logic Engine column a person fills in by hand, but the editor offers a column only once this snapshot carries it. Until then it shows **Not synced yet** for that column, and an edit to it is refused. Nothing breaks in the meantime. Full list: [RTD_EVENT_CONTROL_MIGRATION.md](RTD_EVENT_CONTROL_MIGRATION.md#app-driven-events-2026-10-23-no-migration).
+
+**Checklist for Build Snapshot** (each with the owner's go-ahead):
+- [ ] **Event Index:** add `Post Frequency (Days)`, `Target Post Time`, `Michelle's Standard Prompt` (straight apostrophe), `Michelles KPI Hook Prompt` (no apostrophe), `TikTok Video Blueprint` and `Organiser Email`.
+- [ ] **Event Index:** check these are still sent: `Frequency`, `Photo Folder ID`, `App Capacity`, `Banned Phrases`, `Approved Facts`, `People & Roles`.
+- [ ] **Standard Diary:** check `Frequency`, `Approved Facts` and `People & Roles` are still sent. It needs nothing new.
+- [ ] **Send every one of these keys on every row, even when the cell is blank** (`""`). The app reads a missing key as "not synced yet" and a blank one as blank. That's what stops an edit taking a value it never saw for a blank.
+- [ ] Still **never send** `Social Prompt` or `Social Prompt Status`. `Last Post`, `Next Post` and `Day` aren't needed either.
+- [ ] **Size:** the app refuses a snapshot over 1 MB (413). With the prompts in, check the body size of one hand run (the prompts are the bulk of it).
+- [ ] **Expected result:** a hand run shows `events_changed: 0`. These columns are kept out of each event's change hash (`source_hash`), as `sheet_values` always has been. Then each event's editor shows the new columns' values.
+
+**Rollback:** take the six columns out of Build Snapshot again. The editor goes back to "Not synced yet" for them after the next sync. Nothing else changes.
+
 ## RTD Sheet Writer (`TAa4F7wKzzeIDKm8`)
 
 **Not published yet.** Writes the changes admins make under **Logic Engine changes** in the organiser to the Logic Engine ([RTD_EVENT_CONTROL_AUDIT.md §4.4](RTD_EVENT_CONTROL_AUDIT.md#44-as-built-stage-6-sheet-first-editing)). The app decides everything; the workflow only reads, writes what it's told and reports back.
@@ -379,6 +394,21 @@ Payload shape:
 4. **Loop Over Edits**, one at a time: **Read Tab** (the whole tab, by name) → **Rows For This Event** (the rows with its Event ID) → **Check With App** (`POST /internal/sheet-edits/:id/check` with `{ claim, rows }`).
 5. **Write It?** only when the app answers `write` **and** the target isn't shadow. **Cells To Write** refuses cells for another Event ID or any column outside the mapped list. **Update Row (by Event ID):** Google Sheets update, matched on **Event ID**, columns mapped from the cells, RAW, an unknown column is an error. **Read Tab Again** → **Rows After Writing** → **Mark Written In App** (`POST /:id/written`).
 6. **Report Failure To App** (`POST /:id/failed` with `{ claim, error }`) takes every error output (reading, the guard, writing, reading back). The app retries at 5 m, 15 m, 1 h, 4 h and 12 h, then gives up visibly.
+
+**The columns it may write** (its mapped list, matched by exact header). The letters are as the docs record the tabs (the 5 Oct App columns S–X and the 19 Oct social columns Y–AB); check them against the header row before changing the node.
+
+| Tab | Written today | Added for app-driven events (23 Oct 2026, **not in the workflow yet**) |
+|---|---|---|
+| Event Index | A `Event Name`, C `Day` (with a date), D `Event Date`, E `Event Time`, F `End Time`, L `Base Details`, P `Status`, T `App Visibility`, U `App Category`, V `App Price`; S `Event ID` to match on | B `Frequency`, G `Post Frequency (Days)`, J `Target Post Time`, K `Photo Folder ID`, M `Michelle's Standard Prompt`, N `Michelles KPI Hook Prompt`, O `TikTok Video Blueprint`, Q `Banned Phrases`, R `Organiser Email`, W `App Capacity`, Y `Approved Facts`, Z `People & Roles` |
+| Standard Diary | A `Group`, B `Day` (with a date), C `Date`, D `Notes`, G `App Visibility`, H `App Category`; F `Event ID` to match on | E `Frequency`, I `Approved Facts`, J `People & Roles` |
+
+Never written: `Last Post`, `Next Post` (H, I), `App Host Session` (X), `Social Prompt`, `Social Prompt Status` (AA, AB; K, L on Standard Diary).
+
+**Checklist for the Sheet Writer** (each with the owner's go-ahead):
+- [ ] Add the new columns above to **Cells To Write**'s allowed list. Until then a change to one of them fails at that guard, is retried and then given up on where admins can see it (Sheet sync). Nothing is written.
+- [ ] **Update Row** stays RAW. Long text keeps its line breaks (the app sends `\n`, never `\r`).
+- [ ] The app sends every cell as text: `Target Post Time` as `18:00`, `Post Frequency (Days)` and `App Capacity` as `"3"`. RAW stores those as text. Check that RTD Master V1's **Is Event Due Right Now?** reads a text `Post Frequency (Days)` and an `HH:MM` `Target Post Time`. If not, write those two as numbers or change the reader first.
+- [ ] Test on the staging copy: one prompt (with line breaks and an apostrophe), one Frequency and one People & Roles change. Check only those cells changed, and the edit is marked synced after the next Event Sync.
 
 **Credentials:** `rtd-app` (header auth), `ATECHGoogleSheets`. **Settings:** error workflow `Studio: Error Handler` (`IClMUs9ByRmVBYJf`), Europe/London, executions saved, 300 s timeout.
 **Version:** `308a5e79-d71b-4fa6-8153-7282beb2b0f1` (the run settings didn't change the version ID). Rolling back = unpublishing it.
