@@ -53,7 +53,7 @@ The app side of event-specific social master prompts ([changelog](../RTD_CHANGEL
 **The owner's to-dos:**
 1. Fill in **Approved Facts** and **People & Roles** in the Logic Engine, with Michelle (G3, once the columns exist).
 2. Give the go-ahead for **0023**, then **0024**.
-3. Publish **RTD Sheet Writer** (test copy first). For now the two columns are edited in the sheet, and the edit page says so. Editing them from the app also needs a small app change later: adding both to the list of columns the app may change.
+3. Publish **RTD Sheet Writer** (test copy first). Both columns can now be changed from the edit page (Social facts); the change reaches the sheet once RTD Sheet Writer is published and allows them ([app-driven events](RTD_EVENT_CONTROL_MIGRATION.md#app-driven-events-2026-10-23-no-migration)).
 4. Say when to start **Stage 2**.
 
 **Gates (spec §6), each with the owner's go-ahead:**

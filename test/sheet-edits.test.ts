@@ -276,7 +276,7 @@ describe('changing an event from the organiser', () => {
     expect(await bad({ 'App Visibility': 'everyone', Status: 'Paused', 'App Category': 'Bingo' })).toEqual({
       'App Visibility': 'Choose who can see it.', Status: 'Choose Active or Inactive.', 'App Category': 'Choose a category.',
     });
-    expect(await bad({ Frequency: 'Weekly' })).toEqual({ Frequency: "Frequency can't be changed from the app." });
+    expect(await bad({ 'App Host Session': 'RTD-HS-00009' })).toEqual({ 'App Host Session': "App Host Session can't be changed from the app." });
     expect((await edit(QUIZ, { 'Event Time': '19:30' })).status).toBe(400); // nothing changed
     expect((await edit('RTD-EVT-00006', { 'End Time': '22:30' })).status).toBe(409); // a host's session
     expect((await edit('RTD-EVT-99999', { 'End Time': '22:30' })).status).toBe(404);

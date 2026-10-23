@@ -344,7 +344,8 @@ function CheckCard({ c }: { c: SocialCheck }) {
 
 // ---- One event (the Edit event page) ----
 
-export function EventSocialSection({ eventId }: { eventId: string }) {
+/** factsInEditor: the Edit event page has a Social facts section to change them in. */
+export function EventSocialSection({ eventId, factsInEditor = false }: { eventId: string; factsInEditor?: boolean }) {
   const [data, setData] = useState<EventSocial | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -368,7 +369,7 @@ export function EventSocialSection({ eventId }: { eventId: string }) {
       {data && (
         <>
           {data.mode === 'off' && <p class="meta">Checking posts is Off for now, so posts go out as they always have. The prompt is kept ready here.</p>}
-          <Facts data={data} />
+          <Facts data={data} inEditor={factsInEditor} />
           <Prompt data={data} eventId={eventId} onChanged={load} />
           <History data={data} />
           <div>
@@ -386,7 +387,7 @@ export function EventSocialSection({ eventId }: { eventId: string }) {
   );
 }
 
-function Facts({ data }: { data: EventSocial }) {
+function Facts({ data, inEditor }: { data: EventSocial; inEditor: boolean }) {
   return (
     <div class="stack" style={{ '--gap': '12px' }}>
       <div class="social__facts">
@@ -435,13 +436,28 @@ function Facts({ data }: { data: EventSocial }) {
           )}
         </div>
       </div>
-      <p class="field__hint">Edit these in the Logic Engine, in the event’s row. Changes show here after the next sync, and the prompt is made again.</p>
+      {inEditor ? (
+        <p class="field__hint">
+          <a
+            href="#social-facts"
+            onClick={e => {
+              e.preventDefault();
+              document.getElementById('social-facts')?.scrollIntoView({ block: 'start' });
+            }}
+          >
+            Change these under Social facts
+          </a>
+          , above. They reach the Logic Engine first, show here after the next sync, and the prompt is made again.
+        </p>
+      ) : (
+        <p class="field__hint">Edit these in the Logic Engine, in the event’s row. Changes show here after the next sync, and the prompt is made again.</p>
+      )}
       {data.parse_errors.length > 0 && (
         <div class="notice notice--warning">
           <AlertTriangle size={20} aria-hidden="true" />
           <div>
             <strong>Some lines can’t be read</strong>
-            <p>They aren’t used until they’re fixed in the Logic Engine:</p>
+            <p>They aren’t used until they’re fixed{inEditor ? ' under Social facts' : ' in the Logic Engine'}:</p>
             <ul class="social__reasons">
               {data.parse_errors.map((e, i) => (
                 <li key={i}>{e}</li>

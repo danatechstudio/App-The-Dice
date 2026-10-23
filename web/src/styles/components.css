@@ -1731,3 +1731,33 @@ textarea.input {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* Edit event: the Logic Engine's other columns (Posting, Michelle's voice, Social facts). */
+.event-editor .field-row--even > :first-child {
+  grid-column: auto;
+}
+
+.event-editor__prompt {
+  min-height: 12rem;
+}
+
+.event-editor__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.event-editor__waiting {
+  font-style: italic;
+}
+
+@media (max-width: 599px) {
+  .event-editor__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .event-editor__row > :nth-child(2) {
+    grid-column: 1 / 2;
+    grid-row: 2;
+  }
+}

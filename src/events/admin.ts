@@ -12,6 +12,7 @@ import type { AuthUser } from '../lib/auth';
 import { BOOKING_MODE, CAPACITY, type BookingMode } from '../lib/queries';
 import { londonDate } from '../lib/time';
 import { IN_LAST_SYNC, OPEN, requestEdit, sheetEditRefusal, type SheetEdit } from '../sync/edits';
+import { EXTRA, FREQUENCIES } from '../sync/sheetValues';
 
 export type EventKind = 'event_index' | 'standard_diary' | 'host_session' | 'market';
 export type Visibility = 'public' | 'app_bookable' | 'private' | 'hidden';
@@ -46,7 +47,17 @@ export interface AdminEventForm extends AdminEventRow {
   market_id: string | null;
   details: Details;
   /** What this kind of event can't change here, and why. */
-  unavailable: Partial<Record<DetailField | 'active', string>>;
+  unavailable: Partial<Record<DetailField | 'active' | 'sheet', string>>;
+  /**
+   * The tab's other hand-filled Logic Engine columns (src/sync/sheetValues.ts EXTRA), canonical, as
+   * the last sync read them. null: not synced yet (RTD Event Sync doesn't send it), so it can't be
+   * changed here. Empty for host sessions and markets.
+   */
+  sheet: Record<string, string | null>;
+  /** Frequency as this tab spells it. */
+  frequency_options: string[];
+  /** The Logic Engine change still on its way, column by column: {from, to}. */
+  pending_fields: Record<string, { from: string; to: string }>;
   places: number | null;
   /** The most booked on any date to come: the lowest places can go. */
   most_booked: number;
@@ -88,14 +99,17 @@ const FIELDS: DetailField[] = ['name', 'description', 'event_date', 'start_time'
 const NO_DIARY_COLUMN = 'The Standard Diary has no column for this: put it in the description.';
 const UNAVAILABLE: Record<EventKind, AdminEventForm['unavailable']> = {
   event_index: {},
-  host_session: { category: "Set in the Logic Engine's App Category column." },
+  host_session: {
+    category: "Set in the Logic Engine's App Category column.",
+    sheet: "A host's session: the host asks for changes, and its posting columns are set in the Logic Engine.",
+  },
   standard_diary: {
     start_time: NO_DIARY_COLUMN,
     end_time: NO_DIARY_COLUMN,
     price: NO_DIARY_COLUMN,
     active: 'The Standard Diary has no Status column: Stop running hides the group instead.',
   },
-  market: Object.fromEntries([...FIELDS, 'active'].map(f => [f, 'Change markets under Markets.'])),
+  market: Object.fromEntries([...FIELDS, 'active', 'sheet'].map(f => [f, 'Change markets under Markets.'])),
 };
 
 const BOOKED = `(SELECT COALESCE(SUM(b.party_size), 0) FROM bookings b WHERE b.occurrence_id = o.occurrence_id AND b.status = 'confirmed')`;
@@ -146,7 +160,8 @@ export async function eventForm(db: D1Database, eventId: string, now: Date): Pro
       `SELECT ${ROW_FIELDS}, e.source, e.host_session_id, e.market_id, e.sheet_values, e.event_name, e.description, e.price_display, e.category,
          COALESCE(e.capacity_override, e.default_capacity) AS places, ${BOOKING_MODE} AS booking_mode, e.booking_mode AS booking_mode_set,
          (SELECT o.start_time FROM occurrences o WHERE o.event_id = e.event_id AND o.status = 'scheduled' AND o.event_date >= ?1 ORDER BY o.event_date LIMIT 1) AS next_start,
-         (SELECT o.end_time FROM occurrences o WHERE o.event_id = e.event_id AND o.status = 'scheduled' AND o.event_date >= ?1 ORDER BY o.event_date LIMIT 1) AS next_end
+         (SELECT o.end_time FROM occurrences o WHERE o.event_id = e.event_id AND o.status = 'scheduled' AND o.event_date >= ?1 ORDER BY o.event_date LIMIT 1) AS next_end,
+         (SELECT s.fields FROM sheet_edits s WHERE s.event_id = e.event_id AND ${OPEN} ORDER BY s.created_at DESC LIMIT 1) AS open_fields
        FROM events e WHERE e.event_id = ?2`,
     )
     .bind(today, eventId)
@@ -184,6 +199,9 @@ export async function eventForm(db: D1Database, eventId: string, now: Date): Pro
     market_id: (r.market_id as string | null) ?? null,
     details,
     unavailable: UNAVAILABLE[row.kind],
+    sheet: row.kind === source ? Object.fromEntries(EXTRA[source].map(c => [c, sheet && c in sheet ? sheet[c]! : null])) : {},
+    frequency_options: [...FREQUENCIES[source]],
+    pending_fields: r.open_fields ? (JSON.parse(r.open_fields as string) as AdminEventForm['pending_fields']) : {},
     places: (r.places as number | null) ?? null,
     most_booked: Math.max(0, ...shaped.filter(d => d.status === 'scheduled').map(d => Number(d.booked))),
     booking_mode: r.booking_mode as BookingMode,
@@ -196,6 +214,8 @@ export async function eventForm(db: D1Database, eventId: string, now: Date): Pro
 
 export interface SaveBody {
   details?: Partial<Details>;
+  /** The tab's other Logic Engine columns, by exact header (AdminEventForm.sheet). */
+  sheet?: Record<string, string>;
   visibility?: Visibility;
   /** true starts a stopped event again. Stopping is Stop running's (stopEvent), never a plain save. */
   active?: boolean;
@@ -217,10 +237,12 @@ const parseBody = (body: unknown): SaveBody | Fail => {
     if (!(FIELDS as string[]).includes(k)) errors[k] = `${k} isn't a detail the editor changes.`;
     else if (typeof v !== 'string') errors[k] = 'This must be text.';
   }
+  const sheet = (b.sheet && typeof b.sheet === 'object' ? b.sheet : {}) as Record<string, unknown>;
+  for (const [k, v] of Object.entries(sheet)) if (typeof v !== 'string') errors[k] = 'This must be text.';
   if (b.visibility !== undefined && !VISIBILITIES.includes(b.visibility as Visibility)) errors.visibility = 'Choose Public, App Bookable, Private or Hidden.';
   if (b.active !== undefined && b.active !== true) errors.active = 'Use Stop running this event to stop it: it cancels the dates people have booked first.';
   if (Object.keys(errors).length) return { ok: false, status: 400, error: 'Please check the form', errors };
-  return { ...(b as SaveBody), details: details as Partial<Details> };
+  return { ...(b as SaveBody), details: details as Partial<Details>, sheet: sheet as Record<string, string> };
 };
 const failed = (v: SaveBody | Fail): v is Fail => 'ok' in v && v.ok === false;
 
@@ -237,10 +259,17 @@ export async function saveEvent(db: D1Database, admin: AuthUser, eventId: string
   if (failed(b)) return b;
   // Only what differs from the form counts as a change: the rest is as it was.
   b.details = Object.fromEntries(Object.entries(b.details ?? {}).filter(([f, v]) => v !== form.details[f as DetailField]));
+  b.sheet = Object.fromEntries(Object.entries(b.sheet ?? {}).filter(([c, v]) => v !== form.sheet[c]));
   if (b.visibility === form.visibility) delete b.visibility;
   if (b.active === true && form.active) delete b.active;
   if (form.kind === 'market') return { ok: false, status: 409, error: 'Change markets under Markets.' };
   const blocked = [...Object.keys(b.details), ...(b.active !== undefined ? ['active'] : [])].filter(f => f in form.unavailable);
+  if (Object.keys(b.sheet).length) {
+    if (form.unavailable.sheet) return { ok: false, status: 400, error: 'Please check the form', errors: { sheet: form.unavailable.sheet } };
+    const unknown = Object.keys(b.sheet).filter(c => !(c in form.sheet));
+    if (unknown.length)
+      return { ok: false, status: 400, error: 'Please check the form', errors: Object.fromEntries(unknown.map(c => [c, `${c} can't be changed from the app.`])) };
+  }
   if (blocked.length)
     return {
       ok: false,
@@ -251,7 +280,7 @@ export async function saveEvent(db: D1Database, admin: AuthUser, eventId: string
 
   const iso = ctx.now.toISOString();
   const out: Extract<SaveResult, { ok: true }> = { ok: true };
-  const hasDetails = Object.keys(b.details).length > 0 || b.visibility !== undefined || b.active !== undefined;
+  const hasDetails = Object.keys(b.details).length > 0 || Object.keys(b.sheet).length > 0 || b.visibility !== undefined || b.active !== undefined;
   if (!hasDetails && b.places === undefined && b.booking_mode === undefined) {
     return { ok: false, status: 400, error: 'Nothing has changed.', errors: { form: 'Nothing has changed: change something, or close the form.' } };
   }
@@ -310,6 +339,7 @@ async function queueSheetEdit(db: D1Database, admin: AuthUser, form: AdminEventF
   const cols = COLUMNS[form.kind as 'event_index' | 'standard_diary'];
   const values: Record<string, string> = {};
   for (const [f, v] of Object.entries(b.details ?? {})) if (cols[f as DetailField]) values[cols[f as DetailField]!] = v as string;
+  Object.assign(values, b.sheet ?? {});
   if (b.visibility !== undefined) values['App Visibility'] = b.visibility;
   if (b.active === false) {
     if (form.kind === 'event_index') values.Status = 'Inactive';

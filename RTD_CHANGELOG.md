@@ -1,5 +1,23 @@
 # RTD App Changelog
 
+## 2026-10-23 (App-driven events: every Logic Engine column from the edit page)
+- **What it's for:** the owner doesn't want to flick between the sheet and the app. Every Logic Engine column a person fills in by hand can now be changed from an event's edit page. **The sheet is still the master** that posting reads: each change goes to the sheet through the same queue as the details, and shows in the app after the next sync.
+- **Built, not deployed.** No migration.
+- **The edit page now has sections:**
+  - **Details:** as before, plus how often it runs (Frequency), with a warning that it changes how the automation moves the date on.
+  - **Posting:** post every so many days, the time to post, the photo folder (paste its Drive link; there's a button to open it) and **Default places (sheet)**. The old Places field is now **Places for this event (app)**, and still changes straight away.
+  - **Michelle's voice:** the Standard prompt, the KPI hook prompt and the TikTok video blueprint, in big boxes.
+  - **Social facts:** Approved Facts as rows (a key from the list, then the fact), People & Roles as rows (name, then role, with the role words the post checks know), and Banned Phrases. Text that can't be shown as rows is kept as written, in a plain box, and the page says why.
+  - **Contact:** the organiser's email.
+  - A Standard Diary group gets only the columns its tab has: how often, Approved Facts and People & Roles. Host sessions and markets are unchanged.
+  - A change on its way shows under its field: "Waiting to reach the sheet".
+- **The Social prompt section** now links to Social facts, instead of saying to edit the sheet.
+- **Checks:** whole numbers are whole numbers, emails look like emails, prompts up to 20,000 characters and other long text up to 5,000. Line breaks are kept.
+- **Two n8n changes are needed, each with the owner's go-ahead** ([checklists](docs/RTD_N8N_WORKFLOWS.md#change-needed-for-app-driven-events-23-oct-2026-not-made-yet)):
+  - **RTD Event Sync** must send six more columns. Until it does, those show as "Not synced yet" and can't be changed, so a value the app has never seen can't be written over. Adding them changes no event.
+  - **RTD Sheet Writer** must be allowed to write the new columns. It's still unpublished.
+- **Columns, letters and rollback:** [RTD_EVENT_CONTROL_MIGRATION.md](docs/RTD_EVENT_CONTROL_MIGRATION.md#app-driven-events-2026-10-23-no-migration).
+
 ## 2026-10-23 (Social prompts: example posts, and a Social posts section)
 - **Built, not deployed.** It needs migration `0025_social_prompt_examples.sql` first, with the owner's go-ahead. Until then the screens work as before, with every example "on its way".
 - **A new Social posts section in the organiser** (admins only). Its card counts the prompts waiting for review at every setting, Off included, so they show the way other things to approve do. The Social prompts panel moved there from Events & dates. Held posts still count on Events & dates while checking is on.
