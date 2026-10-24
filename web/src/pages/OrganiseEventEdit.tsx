@@ -19,6 +19,7 @@ import { toast } from '../lib/toast';
 import { useTitle } from '../lib/title';
 import { KIND_LABEL } from './OrganiseEvents';
 import { DatePlaces } from './OrganisePlaces';
+import { ageRange, BOOKING_VIA, FACT_PRESETS, hasPresets, presetChoice, PRICE_FREE, ROLE_PRESETS, rolePreset } from '../../../src/social/presets';
 import { EventSocialSection } from './OrganiseSocial';
 
 const CATEGORIES = ['Gaming', 'Quiz', 'Social', 'Club', 'Tournament', 'Market', 'Workshop', 'Other'];
@@ -59,7 +60,7 @@ const TIKTOK = 'TikTok Video Blueprint';
 const PROMPT_MAX = 20000;
 const LONG_MAX = 5000;
 const FACT_KEYS = ['Booking', 'Level', 'Age', 'Prizes', 'Format', 'Price', 'Bring', 'Food', 'Other'];
-const ROLE_WORDS = 'host, DM, organiser, leads, runs, caller, quizmaster, MC, presenter';
+const ROLE_WORDS = 'host, DM, GM, organiser, leads, runs, sets up, caller, quizmaster, MC, presenter';
 // The same role words the post checks read (src/social/validate.ts), loosely: the server has the last word.
 const HAS_ROLE = /(?<![\p{L}\p{N}])(host\w*|dm|gm|dungeon\s+masters?|game\s+masters?|organi[sz]\w*|run|runs|running|ran|(set|sets|setting)\s+(\p{L}{1,10}\s+)?up|lead|leads|leading|led|quiz\s*masters?|mc|emcee|compere|callers?|presenters?)(?![\p{L}\p{N}])/iu;
 
@@ -69,8 +70,8 @@ const DETAIL_COLUMN: Record<'event_index' | 'standard_diary', Partial<Record<key
   standard_diary: { name: 'Group', description: 'Notes', event_date: 'Date', category: 'App Category' },
 };
 
-type FactRow = { key: string; value: string };
-type PersonRow = { name: string; role: string };
+type FactRow = { key: string; value: string; choice?: string; url?: string; from?: string; to?: string };
+type PersonRow = { name: string; role: string; other?: boolean };
 const linesOf = (text: string) => text.split('\n').map(l => l.trim()).filter(Boolean);
 
 /** Approved Facts as rows, or why they can't be (src/social/facts.ts parseFacts). */
@@ -443,7 +444,7 @@ function DetailsForm({ event, onSaved, onDirty }: { event: AdminEventForm; onSav
         </div>
       </div>
 
-      <SheetSections event={event} sheet={sheet} setCol={setCol} errors={errors} />
+      <SheetSections event={event} sheet={sheet} setCol={setCol} errors={errors} eventPrice={event.unavailable.price ? '' : d.price} />
 
       {errors.form && (
         <p class="field__error" role="alert">
@@ -532,10 +533,17 @@ function SheetField({
   );
 }
 
-type SectionProps = { event: AdminEventForm; sheet: Record<string, string>; setCol: (c: string, v: string) => void; errors: Record<string, string> };
+type SectionProps = {
+  event: AdminEventForm;
+  sheet: Record<string, string>;
+  setCol: (c: string, v: string) => void;
+  errors: Record<string, string>;
+  /** The App Price as the form has it, for Price: “Same as the event price”; '' when there is none. */
+  eventPrice: string;
+};
 
 /** Posting, Michelle's voice, Social facts and Contact: only the columns this tab has. */
-function SheetSections({ event, sheet, setCol, errors }: SectionProps) {
+function SheetSections({ event, sheet, setCol, errors, eventPrice }: SectionProps) {
   const has = (...cols: string[]) => cols.some(c => c in event.sheet);
   const text = (c: string) => (e: { currentTarget: { value: string } }) => setCol(c, e.currentTarget.value);
   const folder = folderId(sheet['Photo Folder ID'] ?? '');
@@ -597,7 +605,7 @@ function SheetSections({ event, sheet, setCol, errors }: SectionProps) {
         <>
           <h2 id="social-facts">Social facts</h2>
           <SheetField event={event} column="Approved Facts" label="Approved facts" errors={errors}>
-            {id => <FactsEditor id={id} value={sheet['Approved Facts'] ?? ''} onChange={v => setCol('Approved Facts', v)} />}
+            {id => <FactsEditor id={id} value={sheet['Approved Facts'] ?? ''} eventPrice={eventPrice} onChange={v => setCol('Approved Facts', v)} />}
           </SheetField>
           <SheetField event={event} column="People & Roles" label="People & roles" errors={errors}>
             {id => <PeopleEditor id={id} value={sheet['People & Roles'] ?? ''} onChange={v => setCol('People & Roles', v)} />}
@@ -621,9 +629,9 @@ function SheetSections({ event, sheet, setCol, errors }: SectionProps) {
 }
 
 /** Approved Facts as Key + value rows, saved as `Key: value` lines. Text that won't make rows stays a textarea. */
-function FactsEditor({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+function FactsEditor({ id, value, onChange, eventPrice }: { id: string; value: string; onChange: (v: string) => void; eventPrice: string }) {
   const [parsed] = useState(() => factRows(value));
-  const [rows, setRows] = useState<FactRow[]>(() => ('rows' in parsed ? parsed.rows : []));
+  const [rows, setRows] = useState<FactRow[]>(() => ('rows' in parsed ? parsed.rows.map(r => factRow(r.key, r.value, eventPrice)) : []));
   if ('why' in parsed)
     return (
       <>
@@ -637,31 +645,34 @@ function FactsEditor({ id, value, onChange }: { id: string; value: string; onCha
     setRows(next);
     onChange(next.filter(r => r.value.trim()).map(r => `${r.key}: ${r.value.trim()}`).join('\n'));
   };
+  const change = (i: number, patch: Partial<FactRow>) => update(rows.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  // “Same as the event price” follows the App Price when the admin changes it here; nothing is rewritten before that.
+  const shownPrice = useRef(eventPrice);
+  useEffect(() => {
+    if (shownPrice.current === eventPrice) return;
+    shownPrice.current = eventPrice;
+    if (eventPrice.trim() && rows.some(r => r.choice === EVENT_PRICE)) update(rows.map(r => (r.choice === EVENT_PRICE ? { ...r, value: eventPrice.trim() } : r)));
+  }, [eventPrice]);
   return (
     <div class="stack event-editor__rows" style={{ '--gap': '8px' }} id={id} role="group">
       {!rows.length && <p class="meta">None yet.</p>}
       {rows.map((r, i) => (
         <div class="event-editor__row" key={i}>
-          <select class="input" aria-label={`Fact ${i + 1} key`} value={r.key} onChange={e => update(rows.map((x, j) => (j === i ? { ...x, key: e.currentTarget.value } : x)))}>
+          <select class="input" aria-label={`Fact ${i + 1} key`} value={r.key} onChange={e => change(i, factRow(e.currentTarget.value, r.value, eventPrice))}>
             {FACT_KEYS.map(k => (
               <option key={k} value={k}>
                 {k}
               </option>
             ))}
           </select>
-          <input
-            class="input"
-            aria-label={`Fact ${i + 1}`}
-            value={r.value}
-            onInput={e => update(rows.map((x, j) => (j === i ? { ...x, value: e.currentTarget.value } : x)))}
-          />
+          <FactValue row={r} n={i + 1} eventPrice={eventPrice} onChange={patch => change(i, patch)} />
           <button type="button" class="btn btn--text btn--sm" aria-label={`Remove fact ${i + 1}`} onClick={() => update(rows.filter((_, j) => j !== i))}>
             <Trash2 size={16} aria-hidden="true" />
           </button>
         </div>
       ))}
       <div>
-        <button type="button" class="btn btn--secondary btn--sm" onClick={() => setRows([...rows, { key: 'Booking', value: '' }])}>
+        <button type="button" class="btn btn--secondary btn--sm" onClick={() => setRows([...rows, factRow('Booking', '', eventPrice)])}>
           <Plus size={16} aria-hidden="true" /> Add a fact
         </button>
       </div>
@@ -669,17 +680,96 @@ function FactsEditor({ id, value, onChange }: { id: string; value: string; onCha
   );
 }
 
+const LINK = '__link';
+const RANGE = '__range';
+const EVENT_PRICE = '__event_price';
+const OTHER = '__other';
+
+/** A fact row as the editor holds it: the saved value as written, and which choice shows it. */
+function factRow(key: string, value: string, eventPrice: string): FactRow {
+  const c = presetChoice(key, value, eventPrice);
+  if (c.kind === 'preset') return { key, value, choice: value.trim() ? c.value : '' };
+  if (c.kind === 'link') return { key, value, choice: LINK, url: c.url };
+  if (c.kind === 'range') return { key, value, choice: RANGE, from: c.from, to: c.to };
+  if (c.kind === 'event_price') return { key, value, choice: EVENT_PRICE };
+  // A new row of a key with presets starts unchosen; anything written is Other, as written.
+  return { key, value, choice: hasPresets(key) && !value.trim() ? '' : OTHER };
+}
+
+/** The value of a fact: the key's presets with Other (free text) last, or free text for the keys without presets. */
+function FactValue({ row, n, eventPrice, onChange }: { row: FactRow; n: number; eventPrice: string; onChange: (patch: Partial<FactRow>) => void }) {
+  const label = `Fact ${n}`;
+  const other = (
+    <input class="input" aria-label={label} placeholder={hasPresets(row.key) ? 'Type your own' : ''} value={row.value} onInput={e => onChange({ value: e.currentTarget.value })} />
+  );
+  if (!hasPresets(row.key)) return other;
+  const choose = (choice: string) => {
+    if (choice === OTHER) return onChange({ choice });
+    if (choice === LINK) return onChange({ choice, value: row.url?.trim() ? `${BOOKING_VIA}${row.url.trim()}` : '' });
+    if (choice === RANGE) return onChange({ choice, value: row.from && row.to ? ageRange(row.from, row.to) : '' });
+    if (choice === EVENT_PRICE) return onChange({ choice, value: eventPrice.trim() });
+    onChange({ choice, value: choice });
+  };
+  const range = (from: string, to: string) => onChange({ from, to, value: from.trim() && to.trim() ? ageRange(from, to) : '' });
+  return (
+    <div class="stack" style={{ '--gap': '6px' }}>
+      <select class="input" aria-label={label} value={row.choice} onChange={e => choose(e.currentTarget.value)}>
+        {row.choice === '' && (
+          <option value="" disabled>
+            Choose…
+          </option>
+        )}
+        {(row.key === 'Price' ? [] : FACT_PRESETS[row.key]).map(p => (
+          <option key={p} value={p}>
+            {p}
+          </option>
+        ))}
+        {row.key === 'Booking' && <option value={LINK}>Essential – book via link</option>}
+        {row.key === 'Age' && <option value={RANGE}>Ages … to … years</option>}
+        {row.key === 'Price' && (eventPrice.trim() || row.choice === EVENT_PRICE) && <option value={EVENT_PRICE}>Same as the event price ({eventPrice.trim() || row.value})</option>}
+        {row.key === 'Price' && <option value={PRICE_FREE}>{PRICE_FREE}</option>}
+        <option value={OTHER}>Other – type your own</option>
+      </select>
+      {row.choice === OTHER && other}
+      {row.choice === LINK && (
+        <input
+          class="input"
+          type="url"
+          inputMode="url"
+          aria-label={`${label} booking link`}
+          placeholder="https://…"
+          spellcheck={false}
+          value={row.url ?? ''}
+          onInput={e => {
+            const url = e.currentTarget.value;
+            onChange({ url, value: url.trim() ? `${BOOKING_VIA}${url.trim()}` : '' });
+          }}
+        />
+      )}
+      {row.choice === RANGE && (
+        <div class="cluster" style={{ '--gap': '6px', flexWrap: 'nowrap' }}>
+          <span>Ages</span>
+          <input class="input" type="number" inputMode="numeric" min={0} max={99} aria-label={`${label} youngest age`} value={row.from ?? ''} onInput={e => range(e.currentTarget.value, row.to ?? '')} />
+          <span>–</span>
+          <input class="input" type="number" inputMode="numeric" min={0} max={99} aria-label={`${label} oldest age`} value={row.to ?? ''} onInput={e => range(row.from ?? '', e.currentTarget.value)} />
+          <span>years</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** People & Roles as Name + Role rows, saved as `Name - role` lines. Text that won't make rows stays a textarea. */
 function PeopleEditor({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
   const [parsed] = useState(() => personRows(value));
-  const [rows, setRows] = useState<PersonRow[]>(() => ('rows' in parsed ? parsed.rows : []));
-  const hint = `Use a role word the post checks know: ${ROLE_WORDS}.`;
+  const [rows, setRows] = useState<PersonRow[]>(() => ('rows' in parsed ? parsed.rows.map(r => ({ ...r, other: !rolePreset(r.role) })) : []));
+  const hint = `Pick a role, or type your own with a role word the post checks know: ${ROLE_WORDS}.`;
   if ('why' in parsed)
     return (
       <>
         <textarea id={id} class="input" rows={4} maxLength={LONG_MAX} value={value} onInput={e => onChange(e.currentTarget.value)} />
         <p class="field__hint">
-          Shown as written, because {parsed.why} One person per line, like “Trixie - host”. {hint}
+          Shown as written, because {parsed.why} One person per line, like “Trixie - host”. Use a role word the post checks know: {ROLE_WORDS}.
         </p>
       </>
     );
@@ -687,23 +777,53 @@ function PeopleEditor({ id, value, onChange }: { id: string; value: string; onCh
     setRows(next);
     onChange(next.filter(r => r.name.trim() || r.role.trim()).map(r => `${r.name.trim()} - ${r.role.trim()}`).join('\n'));
   };
+  const change = (i: number, patch: Partial<PersonRow>) => update(rows.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   return (
     <div class="stack event-editor__rows" style={{ '--gap': '8px' }} id={id} role="group">
       {!rows.length && <p class="meta">None yet.</p>}
       {rows.map((r, i) => (
         <div key={i} class="stack" style={{ '--gap': '4px' }}>
           <div class="event-editor__row">
-            <input class="input" aria-label={`Person ${i + 1} name`} placeholder="Name" value={r.name} onInput={e => update(rows.map((x, j) => (j === i ? { ...x, name: e.currentTarget.value } : x)))} />
-            <input class="input" aria-label={`Person ${i + 1} role`} placeholder="Role, e.g. host" value={r.role} onInput={e => update(rows.map((x, j) => (j === i ? { ...x, role: e.currentTarget.value } : x)))} />
+            <input class="input" aria-label={`Person ${i + 1} name`} placeholder="Name" value={r.name} onInput={e => change(i, { name: e.currentTarget.value })} />
+            <div class="stack" style={{ '--gap': '6px' }}>
+              <select
+                class="input"
+                aria-label={`Person ${i + 1} role`}
+                value={r.other ? OTHER : (rolePreset(r.role) ?? '')}
+                onChange={e => {
+                  const v = e.currentTarget.value;
+                  change(i, v === OTHER ? { other: true } : { other: false, role: v });
+                }}
+              >
+                {!r.other && !rolePreset(r.role) && (
+                  <option value="" disabled>
+                    Choose a role…
+                  </option>
+                )}
+                {ROLE_PRESETS.map(p => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+                <option value={OTHER}>Other – type your own</option>
+              </select>
+              {r.other && (
+                <input class="input" aria-label={`Person ${i + 1} role, your own`} placeholder="Role, e.g. sets up" value={r.role} onInput={e => change(i, { role: e.currentTarget.value })} />
+              )}
+            </div>
             <button type="button" class="btn btn--text btn--sm" aria-label={`Remove person ${i + 1}`} onClick={() => update(rows.filter((_, j) => j !== i))}>
               <Trash2 size={16} aria-hidden="true" />
             </button>
           </div>
-          {r.role.trim() !== '' && !HAS_ROLE.test(r.role) && <p class="field__hint">“{r.role}” has no role word the post checks know.</p>}
+          {r.other && r.role.trim() !== '' && !HAS_ROLE.test(r.role) && (
+            <p class="field__hint field__hint--warning" role="status">
+              “{r.role}” has no role word the post checks know, so it can’t be saved. Use one of: {ROLE_WORDS}.
+            </p>
+          )}
         </div>
       ))}
       <div>
-        <button type="button" class="btn btn--secondary btn--sm" onClick={() => setRows([...rows, { name: '', role: '' }])}>
+        <button type="button" class="btn btn--secondary btn--sm" onClick={() => setRows([...rows, { name: '', role: '', other: false }])}>
           <Plus size={16} aria-hidden="true" /> Add a person
         </button>
       </div>

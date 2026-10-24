@@ -1286,6 +1286,11 @@ textarea.input {
   font-size: var(--rtd-size-meta);
 }
 
+.field__hint--warning {
+  color: var(--rtd-warning);
+  font-weight: 600;
+}
+
 .field--error .input {
   border-color: var(--rtd-danger);
 }
@@ -1746,6 +1751,11 @@ textarea.input {
   grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
   gap: 8px;
   align-items: center;
+}
+
+.event-editor__row .cluster .input {
+  min-width: 0;
+  width: 4.5rem;
 }
 
 .event-editor__waiting {
