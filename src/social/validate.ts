@@ -1343,6 +1343,17 @@ const BASE_PRIZE_WORD = /(?<!\p{L})(?:prizes?|troph(?:y|ies))(?!\p{L})/iu;
 const AGE_WORDS =
   /(?<![\p{L}\p{N}])(?:kids?|child(?:ren)?|famil(?:y|ies)|all\s+ages|ages?\s+\d{1,2}(?:\s*\+|\s+and\s+(?:up|over|above))?|\d{1,2}\s+and\s+(?:over|up|above)|\d{1,2}\s?\+|(?:over|under)[- ]?\d{1,2}s?|adults?(?:\s+only)?|teen(?:s|agers?)?|grown[- ]ups?)(?![\p{L}\p{N}])/giu;
 
+// A Prizes fact saying there are none ("No prizes", "none") supports no prize word. A Level fact for experienced players only
+// ("Experienced players") supports no level word: they all say beginners are welcome.
+const NO_PRIZES = /^(?:no|none|nil|n\/a)(?!\p{L})/iu;
+const EXPERIENCED_ONLY = /(?<!\p{L})(?:experienced|advanced|veterans?|seasoned|expert)(?!\p{L})/iu;
+/** Whether a Level, Prizes or Age fact supports that key's keyword group. */
+function supportsWords(key: FactKey, value: string): boolean {
+  if (key === 'Prizes') return !NO_PRIZES.test(value.trim());
+  if (key === 'Level') return !EXPERIENCED_ONLY.test(value) || new RegExp(LEVEL_WORDS.source, 'iu').test(value);
+  return true;
+}
+
 /** Whether Base Details say the same word: "prizes" there allows "prize" and "prizes", but not "cash". */
 function sameWordIn(word: string, text: string): boolean {
   const stem = word.length > 3 && /[^s]s$/.test(word) ? word.slice(0, -1) : word;
@@ -1441,8 +1452,12 @@ function claimProblems(text: string, skip: Span[], t: Support, prompt = false): 
   // Drop-in words need a Booking fact saying so (or the same words in Base Details); the booking setting never supports them.
   const allDropIns = dropInMatches(text);
   const dropIns = found(prompt ? allDropIns.filter(m => !WITHOUT_DOING.test(m[0])) : allDropIns);
+  // A Format fact with the same words ("Format: Open play") supports them too.
   const dropInFact = booking.some(v => bookingFact(v).dropIn);
-  for (const { word } of dropIns) if (!dropInFact && !sameWordIn(word, t.base_details)) problems.push(`${word}: needs a Booking fact saying so`);
+  const formats = t.facts.Format ?? [];
+  for (const { word } of dropIns) {
+    if (!dropInFact && !sameWordIn(word, t.base_details) && !formats.some(v => sameWordIn(word, v))) problems.push(`${word}: needs a Booking fact saying so`);
+  }
 
   // Booking said to be optional needs a Booking fact saying so, or booking set to Optional with no Booking fact saying it is essential.
   // Where it overlaps a drop-in phrase ("booking isn't required"), it is read as drop in, above.
@@ -1485,7 +1500,7 @@ function claimProblems(text: string, skip: Span[], t: Support, prompt = false): 
     [PRIZE_WORDS, 'Prizes'],
     [AGE_WORDS, 'Age'],
   ] as [RegExp, FactKey][]) {
-    if (t.facts[key]?.length) continue;
+    if ((t.facts[key] ?? []).some(v => supportsWords(key, v))) continue;
     for (const { word } of found([...text.matchAll(re)])) {
       if (sameWordIn(word, t.base_details) || (key === 'Prizes' && /^win/.test(word) && BASE_PRIZE_WORD.test(t.base_details))) continue;
       problems.push(`${word}: needs a${key === 'Age' ? 'n' : ''} ${key} fact`);
