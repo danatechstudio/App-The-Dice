@@ -16,6 +16,7 @@ import {
 } from '../host/sessions';
 import { MAX_IMAGE_BYTES, imagePlan, parseImageSync, storeImage, syncImages } from '../images/store';
 import { checkBearer } from '../lib/auth';
+import { noteRun, triggerN8n, waiter } from '../n8n/trigger';
 import { londonDate } from '../lib/time';
 import { MARKET_ID, markMarketPublished, markSheetSynced, marketsToPublish, sheetRows } from '../markets/markets';
 import { storeMenuFromSheet } from '../menu/menu';
@@ -65,6 +66,10 @@ internalRoutes.post('/sync/logic-engine', async c => {
   const payload = parsePayload(body);
   if (typeof payload === 'string') return c.json({ error: payload }, 400);
   const result = await applySync(c.env.DB, payload);
+  // A snapshot arrived: Event Sync isn't asked to run again for 60 s (src/n8n/trigger.ts).
+  await noteRun(c.env, 'event-sync');
+  // Events changed: RTD Social Prompt Builder runs now for any that want a new prompt.
+  if (result.status === 'ok' && result.events_changed > 0) await triggerN8n(c.env, waiter(c), 'prompt-builder', { reason: 'events_changed' });
   // 409 lets n8n's error branch see a rejected snapshot without treating it as a crash.
   return c.json(result, result.status === 'rejected' ? 409 : 200);
 });
@@ -265,7 +270,10 @@ async function writerBody(c: { req: { text(): Promise<string> } }) {
 }
 
 /** Edits due: { mode, edits: [{ edit_id, claim, event_id, target, tab }] }. target picks the spreadsheet. */
-internalRoutes.post('/sheet-edits/claim', async c => c.json(await claimEdits(c.env.DB, new Date())));
+internalRoutes.post('/sheet-edits/claim', async c => {
+  await noteRun(c.env, 'sheet-writer'); // a run has started: the next queued change asks for another
+  return c.json(await claimEdits(c.env.DB, new Date()));
+});
 
 /** Body: { claim, rows } (the rows read from the tab). Answers { action: 'write', tab, cells } or { action: 'skip', status }. */
 internalRoutes.post('/sheet-edits/:id/check', async c => {
@@ -281,6 +289,11 @@ internalRoutes.post('/sheet-edits/:id/written', async c => {
   if (typeof body === 'string') return c.json({ error: body }, 400);
   const res = await markEditWritten(c.env.DB, c.req.param('id'), body.claim, body.rows, new Date(), new URL(c.req.url).origin);
   if (res === 'not_found') return c.json({ error: 'No change with that number' }, 404);
+  if (res === 'ok') {
+    // In the live sheet now: RTD Event Sync runs now, so the app shows it in seconds.
+    const e = await c.env.DB.prepare('SELECT event_id, target FROM sheet_edits WHERE edit_id = ?1').bind(c.req.param('id')).first<{ event_id: string; target: string }>();
+    if (e?.target === 'live') await triggerN8n(c.env, waiter(c), 'event-sync', { reason: 'edit_written', event_id: e.event_id });
+  }
   return c.json({ ok: res !== 'mismatch', result: res });
 });
 
@@ -335,6 +348,7 @@ internalRoutes.post('/social-posts/:id/failed', async c => {
 
 /** Events that need a prompt: { events: [{ event_id, fingerprint, request: { system, user }, instruction_version }] }. ?limit= 1–20, default 5. */
 internalRoutes.get('/social-prompts/due', async c => {
+  await noteRun(c.env, 'prompt-builder'); // a run has started: the next change asks for another
   const asked = Number(c.req.query('limit') ?? 5);
   const limit = Number.isInteger(asked) ? Math.min(Math.max(asked, 1), 20) : 5;
   return c.json({ events: await duePrompts(c.env.DB, new Date(), limit) });

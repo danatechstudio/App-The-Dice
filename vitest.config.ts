@@ -12,6 +12,8 @@ export default defineConfig(async () => {
             TEST_MIGRATIONS: migrations,
             INTERNAL_SYNC_TOKEN: 'test-sync-token',
             ENVIRONMENT: 'test',
+            // Never call the real n8n from tests: a test that wants the triggers sets this itself.
+            N8N_WEBHOOK_BASE: '',
           },
         },
       }),

@@ -13,6 +13,8 @@ declare namespace Cloudflare {
     ACCESS_TEAM_DOMAIN: string;
     ACCESS_AUD: string;
     INTERNAL_SYNC_TOKEN: string;
+    /** n8n's webhook address (https://…/webhook), for "run now" calls (src/n8n/trigger.ts). Unset or blank: no calls, the schedules do it. */
+    N8N_WEBHOOK_BASE?: string;
     /** Local development only (ENVIRONMENT=development): treat every request as this signed-in email. */
     DEV_AUTH_EMAIL?: string;
     /** Test only: migrations read by vitest.config.ts. */

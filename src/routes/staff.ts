@@ -1,18 +1,19 @@
 // Staff Control API (Phase 1: identity, sync health and audit history).
 
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { attentionOverview, resolveItem, setAttention } from '../attention/attention';
 import { emailOverview, sendTest, setEmailSettings } from '../attention/reminders';
 import { upcomingBookedDates } from '../bookings/bookings';
 import { cafeEventPlaces, setBookingMode, setEventPlaces } from '../bookings/places';
 import { adminOnly, eventForm, listAllEvents, saveEvent, stopEvent } from '../events/admin';
 import { editDate, listDates } from '../events/dates';
-import { requestEdit, resolveEdit, setSheetMode, sheetEvents, sheetSyncOverview } from '../sync/edits';
+import { requestEdit, resolveEdit, setSheetMode, sheetEvents, sheetSyncOverview, type SheetEdit } from '../sync/edits';
 import { decideChange, listChanges } from '../host/changes';
 import { deliveryOverview } from '../notify/delivery';
 import { retryNow } from '../notify/outbox';
 import { decideSession, listHosts, listSessions, type SessionStatus } from '../host/sessions';
 import { afterResponse } from '../lib/background';
+import { triggerN8n, waiter } from '../n8n/trigger';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
 import { staffSummary } from '../staff/summary';
 import { approve as approvePrompt, eventSocial, regenerate as regeneratePrompt, setMode as setSocialMode, socialOverview } from '../social/admin';
@@ -27,6 +28,12 @@ import { applicationsForStaff, createMarket, decideApplication as decideVendor, 
 import { decideApplication, listApplications, listApprovers, removeAccess, setApprover, type ApplicationStatus } from '../team/applications';
 
 export const staffRoutes = new Hono<{ Bindings: Env; Variables: { user: AuthUser } }>();
+
+/** A change waiting for the sheet: ask RTD Sheet Writer to run now (the 5-minute schedule stays). */
+function wakeSheetWriter(c: Context<{ Bindings: Env; Variables: { user: AuthUser } }>, edit: SheetEdit | null | undefined) {
+  if (edit?.status !== 'queued') return Promise.resolve();
+  return triggerN8n(c.env, waiter(c), 'sheet-writer', { reason: 'edit_queued', event_id: edit.event_id });
+}
 
 // no-store first so refusals (401/403) are never cached either.
 staffRoutes.use('*', async (c, next) => {
@@ -113,7 +120,10 @@ staffRoutes.get('/sheet-events', async c => {
 /** Body: { values: {column: value}, note?, confirm? }. Queued for RTD Sheet Writer; 409 { warning } asks first. */
 staffRoutes.post('/events/:id/sheet-edit', async c => {
   const res = await requestEdit(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), new Date());
-  if (res.ok) return c.json({ edit: res.edit });
+  if (res.ok) {
+    await wakeSheetWriter(c, res.edit);
+    return c.json({ edit: res.edit });
+  }
   if ('warning' in res) return c.json({ warning: res.warning }, 409);
   return c.json({ error: res.error, errors: res.errors }, res.status);
 });
@@ -121,7 +131,9 @@ staffRoutes.post('/events/:id/sheet-edit', async c => {
 /** Body: { action: 'withdraw' | 'keep_sheet' | 'write_mine' | 'retry' } */
 staffRoutes.post('/sheet-edits/:id/resolve', async c => {
   const res = await resolveEdit(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), new Date());
-  return res.ok ? c.json({ edit: res.edit }) : c.json({ error: res.error }, res.status);
+  if (!res.ok) return c.json({ error: res.error }, res.status);
+  await wakeSheetWriter(c, res.edit);
+  return c.json({ edit: res.edit });
 });
 
 staffRoutes.get('/sync-runs', async c => {
@@ -230,14 +242,20 @@ staffRoutes.get('/events/:id', async c => {
  */
 staffRoutes.post('/events/:id', async c => {
   const res = await saveEvent(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), { now: new Date(), origin: new URL(c.req.url).origin });
-  if (res.ok) return c.json(res);
+  if (res.ok) {
+    await wakeSheetWriter(c, res.sheet_edit);
+    return c.json(res);
+  }
   return 'warning' in res ? c.json({ warning: res.warning }, 409) : c.json({ error: res.error, errors: res.errors }, res.status);
 });
 
 /** Admins: stop running an event. Body: { message?, confirm? }. 409 { warning } with the dates and people booked. */
 staffRoutes.post('/events/:id/stop', async c => {
   const res = await stopEvent(c.env.DB, c.get('user'), c.req.param('id'), await c.req.json().catch(() => null), { now: new Date(), origin: new URL(c.req.url).origin });
-  if (res.ok) return c.json(res);
+  if (res.ok) {
+    await wakeSheetWriter(c, res.sheet_edit);
+    return c.json(res);
+  }
   return 'warning' in res ? c.json({ warning: res.warning }, 409) : c.json({ error: res.error, errors: res.errors }, res.status);
 });
 
@@ -288,7 +306,10 @@ staffRoutes.get('/events/:id/social', async c => {
 /** Make the event due again on the builder's next run. */
 staffRoutes.post('/events/:id/social/regenerate', async c => {
   const res = await regeneratePrompt(c.env.DB, c.get('user'), c.req.param('id'), new Date());
-  return res.ok ? c.json({ ok: true }) : c.json({ error: res.error }, res.status);
+  if (!res.ok) return c.json({ error: res.error }, res.status);
+  // RTD Social Prompt Builder runs now rather than at its next timed run.
+  await triggerN8n(c.env, waiter(c), 'prompt-builder', { reason: 'regenerate', event_id: c.req.param('id') });
+  return c.json({ ok: true });
 });
 
 /** Approve with a note. Body: { text?, reason }. 400 { error, errors } when the text fails the checks a generated prompt gets. */
