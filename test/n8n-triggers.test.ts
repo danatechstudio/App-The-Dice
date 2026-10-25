@@ -179,13 +179,22 @@ describe('Event Sync', () => {
 });
 
 describe('the Prompt Builder', () => {
-  it('is called after a sync that changed events, never after one that changed none', async () => {
+  it('is called after a sync when an event needs a prompt, even when only its facts changed', async () => {
     const res = await snapshot([quiz({ 'Base Details': 'Teams of four.' })]);
     expect(await res.json()).toMatchObject({ status: 'ok', events_changed: 1 });
-    expect(calls).toEqual([{ url: `${BASE}/rtd-prompt-builder-run`, auth: 'Bearer test-sync-token', body: { reason: 'events_changed' } }]);
+    expect(calls).toEqual([{ url: `${BASE}/rtd-prompt-builder-run`, auth: 'Bearer test-sync-token', body: { reason: 'prompts_due' } }]);
+    // People & Roles changes no event (it isn't in the hash), but the event wants a new prompt.
+    await request('/internal/social-prompts/due', { headers: AUTH }, ON);
     later(20_000);
-    expect(await (await snapshot([quiz({ 'Base Details': 'Teams of four.' })])).json()).toMatchObject({ status: 'ok', events_changed: 0 });
-    expect(paths()).toEqual(['/rtd-prompt-builder-run']);
+    expect(await (await snapshot([quiz({ 'Base Details': 'Teams of four.', 'People & Roles': 'Bob - host' })])).json()).toMatchObject({ status: 'ok', events_changed: 0 });
+    expect(paths()).toEqual(['/rtd-prompt-builder-run', '/rtd-prompt-builder-run']);
+  });
+
+  it('is not called when no event needs a prompt, even when events changed', async () => {
+    // A date in the past: the event changed, but it can't have a prompt made.
+    const res = await snapshot([quiz({ 'Event Date': '01/10/2026', Day: 'Thursday', 'Base Details': 'Teams of four.' })]);
+    expect(await res.json()).toMatchObject({ status: 'ok', events_changed: 1 });
+    expect(paths()).toEqual([]);
   });
 
   it('answers the sync the same when the call fails', async () => {

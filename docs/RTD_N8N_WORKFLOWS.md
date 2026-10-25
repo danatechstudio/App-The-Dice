@@ -345,14 +345,14 @@ Still to do: point the Guard's date-change recipient at this instead of its hard
 **The chain:**
 1. An admin saves a change (the event editor, Logic Engine changes, Stop, or Retry / Write mine on a conflict) and it is queued → the app calls **RTD Sheet Writer**.
 2. The Sheet Writer writes it to the live sheet and calls `POST /internal/sheet-edits/:id/written` → the app calls **RTD Event Sync**. Not for a change written to the test copy.
-3. Event Sync posts its snapshot (`POST /internal/sync/logic-engine`). If it changed any event (`events_changed > 0`) → the app calls **RTD Social Prompt Builder**.
+3. Event Sync posts its snapshot (`POST /internal/sync/logic-engine`). If any event then wants a new prompt (changed details or facts, or a new event: the same rule as `/due`) → the app calls **RTD Social Prompt Builder**.
 4. An admin presses **Regenerate** on a social prompt → the app calls the **Prompt Builder**.
 
 **Contract:**
 - **Address:** Worker var `N8N_WEBHOOK_BASE` = `https://n8n.arkham-survey.com/webhook` (in `wrangler.jsonc`; public, not a secret). Blank or unset switches the calls off; the app then relies on the schedules.
 - **Paths, all `POST`:** `/rtd-sheet-writer-run`, `/rtd-event-sync-run`, `/rtd-prompt-builder-run`.
 - **Auth:** header `Authorization: Bearer <INTERNAL_SYNC_TOKEN>`, the token the app already checks on `/internal`. Each Webhook node uses **Header Auth** with the existing `rtd-app` credential (`PveFQOiLEm52Hy2G`).
-- **Body:** `{ "reason": "edit_queued" | "edit_written" | "events_changed" | "regenerate", "event_id"?: "RTD-EVT-…" }`. n8n only logs it.
+- **Body:** `{ "reason": "edit_queued" | "edit_written" | "prompts_due" | "regenerate", "event_id"?: "RTD-EVT-…" }`. n8n only logs it.
 - **n8n answers at once:** Respond Immediately, 200. The app never waits for the run.
 
 **How the app calls** (`src/n8n/trigger.ts`):
