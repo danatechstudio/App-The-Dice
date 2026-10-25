@@ -1,5 +1,15 @@
 # RTD App Changelog
 
+## 2026-10-25 (Social prompts: fewer false alarms in the checks)
+- **What it's for:** three events (Christmas Workshop, Mid-Week Coffee Break, D&D with Olivia) kept going to review, or their example posts were "held", for things that weren't wrong. The checks now read their real prompts and example post the way a person would. Built, not deployed; no migration.
+- **"Free" is a price only when it's about paying:** "free entry", "free to attend", "it's free", "Price: FREE" still count. "Free structure", "free play", "free table time" and "feel free" don't.
+- **In a prompt, money in a "Do not …" sentence isn't a claim:** "Do not assume entry is free" is fine. Money after a dash or in a new sentence still counts.
+- **Part of the event's own name isn't another event:** "Christmas Workshop" is fine in posts and prompts for "Christmas Workshop (hosted)". Other events' names are still caught.
+- **Emoji at the start of a line:** the word after it starts a sentence ("🎄 Join us", "✨ Explore"), so it isn't taken for an unknown name. A real unknown name later in the line is still caught.
+- **Heading words in prompts** like "Guidelines", "Constraints", "Factuality" and "Play" aren't taken for names. "- Trixie Smith: helper" is still caught.
+- **Booking claims in other words:** "No booking is required to attend." now matches "Booking: No need to book". A claim that booking is essential still fails against a drop-in fact.
+- **Two roles for one person:** People & Roles can say "Olivia - Dungeon Master, leads the adventurers"; both roles are then allowed. **To clear D&D with Olivia, change its People & Roles to that.** For the Christmas Workshop, "Lauren - host, leads the workshop" lets its prompt say "Host".
+
 ## 2026-10-23 (App-driven events: every Logic Engine column from the edit page)
 - **What it's for:** the owner doesn't want to flick between the sheet and the app. Every Logic Engine column a person fills in by hand can now be changed from an event's edit page. **The sheet is still the master** that posting reads: each change goes to the sheet through the same queue as the details, and shows in the app after the next sync.
 - **Built, not deployed.** No migration.

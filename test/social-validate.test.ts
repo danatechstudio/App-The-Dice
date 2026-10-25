@@ -2,9 +2,9 @@
 // Task 2: the deterministic check of a Gemini-written master prompt (§4A), and the request Gemini is sent.
 // Task 3: the deterministic check of a post against its target occurrence(s) (§4B), and the same claim and role rules over prompts.
 import { describe, expect, it } from 'vitest';
-import type { SourceFields } from '../src/social/facts';
+import { parsePeople, type SourceFields } from '../src/social/facts';
 import { buildRequest, INSTRUCTION, INSTRUCTION_VERSION, SCHEDULE_RULE } from '../src/social/instruction';
-import { checkPostText, findDates, findMoney, findNames, findTimes, ownPrices, phraseRegex, promptTextErrors, validatePrompt, type CheckTarget } from '../src/social/validate';
+import { checkPostText, findDates, findMoney, findNames, findTimes, hasRoleWord, ownPrices, phraseRegex, promptTextErrors, validatePrompt, type CheckTarget } from '../src/social/validate';
 
 const dnd: SourceFields = {
   event_id: 'RTD-EVT-00007',
@@ -2291,5 +2291,259 @@ describe('post check, review round 5', () => {
       check(text, booked);
       expect(performance.now() - started, text.slice(0, 20)).toBeLessThan(1000);
     }
+  });
+});
+
+// The owner's three events (25 Oct): real Gemini prompts and an example post from social_prompts, verbatim, held by false alarms.
+describe('prompt validation and post check, the owner\'s three events', () => {
+  const xmas: SourceFields = {
+    event_id: 'RTD-EVT-00035',
+    name: 'Christmas Workshop (hosted)',
+    source: 'event_index',
+    frequency: 'one-off',
+    base_details: 'A festive workshop for younger children.',
+    approved_facts: 'Booking: Essential\nAge: 5-7 years.',
+    people_roles: 'Lauren - leads the workshop',
+    category: 'Workshop',
+    visibility: 'public',
+    price: '£12',
+    capacity: '10',
+  };
+  const coffee: SourceFields = {
+    event_id: 'RTD-EVT-00013',
+    name: 'Mid-Week Coffee Break!',
+    source: 'event_index',
+    frequency: 'weekly',
+    base_details: "We're currently open Wednesdays, where our very own Luke will host a nice lazy day, coffee and a break - just for you enjoy!",
+    approved_facts: 'Booking: No need to book',
+    people_roles: 'Luke - Host',
+    category: 'Social',
+    visibility: 'public',
+    price: '£2 per hour to play, nornal menu applies',
+    capacity: '',
+  };
+  const olivia: SourceFields = {
+    event_id: 'RTD-EVT-00028',
+    name: 'Dungeons & Dragons with Olivia',
+    source: 'standard_diary',
+    frequency: 'fortnightly',
+    base_details: 'Olivia is one mean Dungeon Master, leading her band of adventurers through perils to treasures bountiful for imaginations.',
+    approved_facts: 'Level: Beginners and experienced alike\nBooking: Essential\nPrice: £5',
+    people_roles: 'Olivia - Dungeon Master',
+    category: 'Club',
+    visibility: 'public',
+    price: '',
+    capacity: '',
+  };
+  const others = ['Christmas Workshop', 'Bingo', 'Quiz'];
+  const errorsOf = (prompt: string, f: SourceFields) => promptTextErrors(prompt, f, others);
+
+  const xmasPrompt = `You are creating social media instructions for promoting the 'Christmas Workshop (hosted)'. Maintain strict adherence to the provided facts and guidelines below.
+
+APPROVED EVENT DETAILS:
+- Event Name: Christmas Workshop (hosted)
+- Category: Workshop
+- Description: A festive workshop for younger children.
+- Host/Role: Lauren leads the workshop.
+- Target Age: 5-7 years.
+- Booking Requirement: Essential.
+- Price: £12.
+- Capacity: 10.
+
+EDITORIAL GUIDANCE & RULES:
+- Mandatory Schedule Rule: Downstream posts must use ONLY the current verified schedule for the target event/occurrence, supplied separately at publishing time.
+- Permitted Facts Only: Rely exclusively on the facts listed above. Do not infer dates, times, specific venue locations, booking links, or extra activities.
+- Tone Boundaries: Maintain a warm, clear, and festive tone suitable for family/children's activities.
+- Prohibited Assumptions: Do not assume open play or free structure; preserve the defined workshop identity. Never mention other events or add unverified policies.
+- Safe Call to Action: Remind audiences that booking is essential and spaces are limited to 10, directing them to reserve ahead.`;
+
+  const coffeePrompt = `You are generating social media content for the 'Mid-Week Coffee Break!' event.
+
+Approved Event Details:
+- Name: Mid-Week Coffee Break!
+- Category: Social
+- Host: Luke
+- Overview: A host-led lazy day, coffee, and a break to enjoy.
+- Price: £2 per hour to play, normal menu applies.
+- Booking: No need to book.
+
+Mandatory Guidelines & Constraints:
+1. Schedule Rule: Downstream posts must use ONLY the current verified schedule for the target event/occurrence, supplied separately at publishing time. Do not assume or add specific dates, start/end times, or venue locations not explicitly provided.
+2. Strict Factuality: Use ONLY the approved details listed above. Do not invent additional participants, organisers, target audiences, specific board games/activities, or booking conditions.
+3. Framing & Play: Do not reinterpret organised play as open play or vice versa.
+4. Call to Action: Inform readers that no booking is required. Do not add payment links, registration forms, or external URLs.
+5. Tone Boundaries: Keep the tone relaxed, welcoming, and casual, matching a peaceful coffee break.`;
+
+  const coffeeClaims = [
+    { claim: 'The event name is Mid-Week Coffee Break!.', source_field: 'name' },
+    { claim: 'The event category is Social.', source_field: 'category' },
+    { claim: 'Luke is the event host.', source_field: 'people_roles' },
+    { claim: 'The event features Luke hosting a lazy day with coffee and a break to enjoy.', source_field: 'base_details' },
+    { claim: 'No booking is required to attend.', source_field: 'approved_facts.Booking' },
+    { claim: 'The pricing is £2 per hour to play, and the normal menu applies.', source_field: 'price' },
+  ];
+
+  const oliviaPrompt = `You are creating social media copy for the event 'Dungeons & Dragons with Olivia'. Use ONLY the approved facts and rules below.
+
+CRITICAL SCHEDULE RULE:
+- Downstream posts must use ONLY the current verified schedule for the target event/occurrence, supplied separately at publishing time. Never infer or guess dates, start/end times, or venue locations.
+
+EVENT IDENTITY & STATED FACTS:
+- Event Name: Dungeons & Dragons with Olivia
+- Category: Club
+- Role: Olivia (Dungeon Master)
+- Details: Olivia leads her band of adventurers through perils to treasures bountiful for imaginations.
+- Skill Level: Beginners and experienced alike
+- Booking: Essential
+- Price: £5
+
+EDITORIAL DIRECTION & TONE:
+- Tone: Welcoming, imaginative, and clear.
+- Emphasize that all skill levels (beginners and experienced players) are welcome.
+- Never reinterpret this organised play session as open play.
+
+PERMITTED CALLS TO ACTION:
+- Direct audience to book in advance, stating clearly that booking is essential.
+- State the £5 price where appropriate.
+
+PROHIBITED ASSUMPTIONS:
+- Do not add unverified venue details, dates, times, age limits, or booking platform links not provided in verified schedule data.
+- Do not mention any other events, hosts, or groups.`;
+
+  const xmasExample = `🎄 Join us for a festive Christmas Workshop at Roll The Dice Café!
+🌟 Lauren leads this lovely session for ages 5–7 years.
+📅 Sunday 6th December, 12:00pm – 1:30pm.
+💰 ONLY £12 per child.
+🎨 Decorate their very own cardboard Christmas tree.
+🦌 Make an adorable reindeer handprint keepsake.
+✨ Explore magical Christmas sensory play.
+💃 Wiggle, giggle and dance at our mini Christmas disco.
+🎁 Take home their beautiful festive creations.
+🧑‍🧑‍🧒 Grown-ups stay and join in the festive fun.
+🎟️ Booking is essential as capacity is limited to 10 spaces.
+
+#RollTheDice #Cleethorpes #ChristmasWorkshop #FestiveFun #KidsActivities`;
+
+  const xmasTarget: CheckTarget = {
+    event_id: 'RTD-EVT-00035',
+    name: 'Christmas Workshop (hosted)',
+    date: '2026-12-06',
+    start_time: '12:00',
+    end_time: '13:30',
+    price: '£12',
+    facts: { Booking: ['Essential'], Age: ['5-7 years.'] },
+    base_details: 'A festive workshop for younger children.',
+    people: [{ name: 'Lauren', role: 'leads the workshop' }],
+    banned: [],
+    booking_mode: 'required',
+  };
+  const now = new Date('2026-11-25T12:00:00Z');
+  const checkPost = (text: string, targets: CheckTarget[] = [xmasTarget]) => checkPostText(text, targets, { now, otherEventNames: others });
+
+  describe('"free" is a price only where it is about entry or cost', () => {
+    it('reads "free" as money only about entry or cost', () => {
+      for (const text of ['free structure', 'Do not assume free play.', 'Format: free table time', 'Feel free to ask.', 'a free spirit and free rein'])
+        expect(findMoney(text), text).toEqual([]);
+      for (const text of ['free entry', 'Free admission.', 'It is free to attend.', "It's free!", 'FREE', 'Price: FREE', 'free of charge', 'Entry is free.', 'This event will be FREE with a capacity of 10.', 'Come and play for free'])
+        expect(findMoney(text).map(m => m.pence), text).toEqual([0]);
+    });
+
+    it('passes the real Christmas Workshop prompt but for its Host label, which People & Roles does not give', () => {
+      expect(errorsOf(xmasPrompt, xmas)).toEqual(['In the prompt, Lauren: People & Roles gives the role "leads the workshop", not "Host"']);
+    });
+
+    it('takes no money in a negated clause of a prompt for a claim, but still catches one after it', () => {
+      for (const line of ['Do not assume entry is free.', 'Never suggest a £5 price.', 'Do not assume a £5 fee or a £3 deposit.'])
+        expect(errorsOf(`Write about the Christmas Workshop (hosted).\n- ${line}`, xmas), line).toEqual([]);
+      for (const line of ['Do not add extras — it costs £5.', 'Do not assume open play, it is £5.', 'Never mention booking. Entry is free.'])
+        expect(errorsOf(`Write about the Christmas Workshop (hosted).\n- ${line}`, xmas).some(e => e.includes("isn't the event's own price")), line).toBe(true);
+      // A quoted example is still what it says.
+      expect(errorsOf('Write about the Christmas Workshop (hosted).\n- Example caption: "Never pay more than £5."', xmas)).not.toEqual([]);
+    });
+  });
+
+  describe("another event's name inside this event's own name", () => {
+    it('is not another event in the prompt or the post, but a name outside our own still is', () => {
+      expect(errorsOf('Write about the Christmas Workshop for younger children. #ChristmasWorkshop', xmas)).toEqual([]);
+      expect(checkPost('Join our Christmas Workshop on Sunday 6 December! #ChristmasWorkshop').reasons).toEqual([]);
+      expect(errorsOf('Write about the Christmas Workshop (hosted). Never confuse it with Bingo.', xmas)).toContain('The prompt names another event, "Bingo"');
+      expect(checkPost('Join our Christmas Workshop, then Bingo!').reasons).toContain('Names another event, "Bingo"');
+      // Not contained in "Quiz Night": still another event.
+      expect(promptTextErrors('Write about the Quiz Night. Not the Christmas Workshop.', { ...xmas, name: 'Quiz Night' }, others)).toContain('The prompt names another event, "Christmas Workshop"');
+    });
+  });
+
+  describe('emoji line starts in a post', () => {
+    it('passes the real Christmas Workshop example post', () => {
+      expect(checkPost(xmasExample).reasons).toEqual([]);
+    });
+
+    it('takes the word after a line-leading emoji or symbol as a sentence start, but still finds a name mid-sentence', () => {
+      expect(findNames('🎄 Hi everyone, Michelle here', ['Michelle'])).toEqual([]);
+      expect(findNames('✨ Explore\n🧑‍🧑‍🧒 Grown-ups stay\n🎟️ Booking\n★ Take home', [])).toEqual([]);
+      expect(findNames('🎄 Join Trixie for the workshop.', [])).toEqual(['Trixie']);
+      expect(findNames('🎄 Join us 🎁 Trixie hosts.', [])).toEqual(['Trixie']);
+      expect(checkPost('🎄 Join Trixie for our Christmas Workshop (hosted)!').reasons).toContain('Trixie: not in People & Roles');
+    });
+  });
+
+  describe('heading words in a prompt', () => {
+    it('reads common heading words as label words, but still catches a name as a label', () => {
+      const names = (text: string) => findNames(text, ['Luke'], { prompt: true });
+      expect(names('Mandatory Guidelines & Constraints:\n2. Strict Factuality: Use only these.\n3. Framing & Play: Do not.')).toEqual([]);
+      expect(names('- Critical Publishing Requirements: none\n- Event Identity & Integrity: kept\n- Editorial Direction: clear')).toEqual([]);
+      expect(names('- Trixie Smith: helper\nWrite about Bob: he helps')).toEqual(['Smith', 'Bob']);
+    });
+  });
+
+  describe('a reworded Booking claim', () => {
+    const coffeeVerdict = (claims = coffeeClaims, f = coffee) => validatePrompt({ status: 'ok', master_prompt: coffeePrompt, claims, ambiguities: [], questions: [] }, f, { otherEventNames: others });
+
+    it('approves the real Mid-Week Coffee Break prompt and claims', () => {
+      const verdict = coffeeVerdict();
+      expect(verdict.errors).toEqual([]);
+      expect(verdict.status).toBe('approved');
+    });
+
+    it('takes a claim with the same booking state as the fact, and refuses one with another', () => {
+      // Only the claim's own trace: the real prompt says no booking is needed, which other facts don't support.
+      const withClaim = (claim: string, f = coffee) =>
+        coffeeVerdict([...coffeeClaims.slice(0, 4), { claim, source_field: 'approved_facts.Booking' }], f).errors.filter(e => e.startsWith('Claim'));
+      for (const claim of ['No booking is required to attend.', 'Just drop in.', 'Tickets are not needed.']) expect(withClaim(claim), claim).toEqual([]);
+      expect(withClaim('Booking is essential.')).toEqual(['Claim "Booking is essential." not found in approved_facts.Booking']);
+      const booked = { ...coffee, approved_facts: 'Booking: Essential' };
+      expect(withClaim('You must book ahead.', booked)).toEqual([]);
+      expect(withClaim('No booking is required to attend.', booked)).toEqual(['Claim "No booking is required to attend." not found in approved_facts.Booking']);
+      const optional = { ...coffee, approved_facts: 'Booking: recommended, drop ins welcome' };
+      expect(withClaim('Booking is optional.', optional)).toEqual([]);
+    });
+  });
+
+  it('checks the new wording quickly', () => {
+    for (const text of ['is free '.repeat(400), 'Do not assume ' + 'it is £5 or '.repeat(250), '🎄 '.repeat(800) + 'Join', '🎄 Join\n'.repeat(400)]) {
+      const started = performance.now();
+      promptTextErrors(text, xmas, others);
+      checkPost(text);
+      expect(performance.now() - started, text.slice(0, 20)).toBeLessThan(1500);
+    }
+  });
+
+  describe('a person with two roles', () => {
+    it('reads both roles from one People & Roles entry', () => {
+      expect(parsePeople('Olivia - Dungeon Master, leads the adventurers').people).toEqual([{ name: 'Olivia', role: 'Dungeon Master, leads the adventurers' }]);
+      expect(hasRoleWord('Dungeon Master, leads the adventurers')).toBe(true);
+    });
+
+    it('allows both roles in the real D&D prompt once the facts give both', () => {
+      expect(errorsOf(oliviaPrompt, olivia)).toEqual(['In the prompt, Olivia: People & Roles gives the role "Dungeon Master", not "leads"']);
+      expect(errorsOf(oliviaPrompt, { ...olivia, people_roles: 'Olivia - Dungeon Master, leads the adventurers' })).toEqual([]);
+      const two = { ...olivia, people_roles: 'Olivia - Dungeon Master, leads the adventurers' };
+      expect(errorsOf('Write about Dungeons & Dragons with Olivia.\n- Role: Olivia (Dungeon Master)\n- Olivia leads her band.', two)).toEqual([]);
+      expect(errorsOf('Write about Dungeons & Dragons with Olivia. Olivia hosts.', two)).toEqual(['In the prompt, Olivia: People & Roles gives the role "Dungeon Master, leads the adventurers", not "hosts"']);
+    });
+
+    it('allows "Host/Role: Lauren leads the workshop" once the facts make Lauren a host who leads it', () => {
+      expect(errorsOf(xmasPrompt, { ...xmas, people_roles: 'Lauren - host, leads the workshop' })).toEqual([]);
+    });
   });
 });
