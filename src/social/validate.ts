@@ -793,7 +793,7 @@ export function findNames(text: string, allowed: Iterable<string>, opts: { promp
 
 // Wording the prompt forbids ('never say "tonight"', "do not imply free entry") is a banned word, not a claim.
 const PROHIBITION_VERB =
-  '(?:say(?:s|ing)?|us(?:e|es|ing)|writ(?:e|es|ing)|mention(?:s|ing)?|describ(?:e|es|ing)|call(?:s|ing)?|stat(?:e|es|ing)|claim(?:s|ing)?|impl(?:y|ies|ying)|promis(?:e|es|ing)|suggest(?:s|ing)?|advertis(?:e|es|ing)|refer(?:s|ring)?\\s+to|includ(?:e|es|ing))';
+  '(?:assign(?:s|ing)?|attribut(?:e|es|ing)|giv(?:e|es|ing)|label(?:s|ling)?|say(?:s|ing)?|us(?:e|es|ing)|writ(?:e|es|ing)|mention(?:s|ing)?|describ(?:e|es|ing)|call(?:s|ing)?|stat(?:e|es|ing)|claim(?:s|ing)?|impl(?:y|ies|ying)|promis(?:e|es|ing)|suggest(?:s|ing)?|advertis(?:e|es|ing)|refer(?:s|ring)?\\s+to|includ(?:e|es|ing))';
 const NEGATIVE =
   "(?<!\\p{L})(?:never|do not|don['’]t|must not|mustn['’]t|(?<!(?:never|not|n['’]t)\\s+)avoid|should not|shouldn['’]t)(?:\\s+(?:ever|again|explicitly|directly|actually|specifically|literally|otherwise|even|falsely|wrongly|incorrectly)){0,2}\\s+";
 /** "never say", "do not ever use", "avoid mentioning": a negative, at most two adverbs, then a verb of saying. Bare "no" isn't one. */
@@ -801,7 +801,7 @@ const PROHIBITION = new RegExp(`${NEGATIVE}${PROHIBITION_VERB}(?!\\p{L})`, 'giu'
 // What a prohibition forbids: a few words ("it", "these words", "relative dates"), two such joined
 // by "or" or "and" ("dates or times").
 const OBJECT_WORD =
-  '(?:it|its|the|a|an|any|these|those|this|that|such|words?|phrases?|terms?|expressions?|wording|dates?|times?|days?|prices?|claims?|labels?|language|relative|specific|exact|other|particular)(?!\\p{L})';
+  '(?:it|its|the|a|an|any|these|those|this|that|such|words?|phrases?|terms?|expressions?|wording|dates?|times?|days?|prices?|claims?|labels?|titles?|names?|roles?|unverified|invented|language|relative|specific|exact|other|particular)(?!\\p{L})';
 const OBJECT = `(?:\\s+${OBJECT_WORD}){1,3}(?:\\s+(?:or|and)(?:\\s+${OBJECT_WORD}){1,3})?`;
 // Between a prohibition and the first quoted item it forbids: an object, then "such as", "like",
 // "as", "e.g." or ":", or nothing. A bare comma ends it: 'never mention prices, "£10" is the price'.
@@ -1094,7 +1094,10 @@ export function promptTextErrors(prompt: string, f: SourceFields, otherEventName
   ];
   // Gemini capitalises a fact's own word as a label's value ("Booking: Essential").
   const valueWords = [f.base_details, f.approved_facts].flatMap(t => t.match(WORD) ?? []);
-  for (const n of findNames(prompt, allowed, { prompt: true, valueWords })) {
+  // Words a line forbids in quotes ("do not assign titles like 'Organiser'") aren't names it uses.
+  // Only their letters go: a full stop inside the quotes ('"this weekend."') still ends the sentence.
+  const unquoted = forbidden.quoted.reduce((t, [at, end]) => t.slice(0, at) + t.slice(at, end).replace(/\p{L}/gu, ' ') + t.slice(end), prompt);
+  for (const n of findNames(unquoted, allowed, { prompt: true, valueWords })) {
     errors.push(`The prompt names "${n}", which isn't in People & Roles or the event's own fields`);
   }
   // Format claims and role words, as in a post, except where the prompt forbids them ('never say "drop in"').
@@ -1431,6 +1434,8 @@ function sameWordIn(word: string, text: string): boolean {
 const NEGATED_CLAUSE_END = new RegExp(`[.!?…]+(?=\\s|$)|[;:]|${LINE_BREAK}`, 'gu');
 const CLAUSE_OPENING = /[\s\-*•#>"“‘'(\[_]*(?:\d{1,3}[.)][ \t]*)?[*_"“‘']*/uy;
 const CLAUSE_NEGATION = new RegExp(
+  // "You must never …", "Posts should not …": a subject and modal before the negation.
+  `(?:(?:you|we|posts?|captions?|copy|it)${HSPACE}+(?:(?:must|should|will|can)${HSPACE}+)?)?` +
   `(?:never|do${HSPACE}+not|don['’]t|must${HSPACE}+not|mustn['’]t|should${HSPACE}+not|shouldn['’]t|avoid|no|without)(?!\\p{L})` +
     `(?!${HSPACE}+(?:forget|miss|hesitate|wait|delay|leave|worries|worry|problems?|bother|stress)(?!\\p{L}))`,
   'iuy',
@@ -1456,6 +1461,7 @@ function negatedClauses(text: string): Span[] {
     const at = start + (CLAUSE_OPENING.exec(text)?.[0].length ?? 0);
     CLAUSE_NEGATION.lastIndex = at;
     if (at < end && CLAUSE_NEGATION.test(text)) {
+      const negEnd = CLAUSE_NEGATION.lastIndex - at;
       CLAUSE_VERB.lastIndex = CLAUSE_NEGATION.lastIndex;
       const verbEnd = CLAUSE_VERB.test(text) ? CLAUSE_VERB.lastIndex - at : -1;
       // The negation reaches each part until one has a verb or a pronoun of its own, or opens with "but".
@@ -1467,7 +1473,9 @@ function negatedClauses(text: string): Span[] {
       for (const [i, b] of breaks.entries()) {
         const part = clause.slice(b, breaks[i + 1] ?? stop);
         const before = clause.slice(i === 0 ? verbEnd : breaks[i - 1]!, b);
-        const shared = verbEnd !== -1 && verbEnd <= b && SHARED_VERB_PART.test(part) && !OWN_VERB.test(before);
+        // "never describe or reinterpret it as open play": two verbs joined straight after the negation share it.
+        const coordinated = i === 0 && /^\s*\p{L}+\s*$/u.test(clause.slice(negEnd, b)) && /^\s*(?:or|nor|and)\s+\p{Ll}/u.test(part);
+        const shared = coordinated || (verbEnd !== -1 && verbEnd <= b && SHARED_VERB_PART.test(part) && !OWN_VERB.test(before));
         if (NEGATION_ENDS.test(part.replace(/^,/, '')) || (OWN_VERB.test(part) && !shared)) {
           stop = b;
           break;

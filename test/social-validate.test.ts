@@ -918,6 +918,34 @@ describe('post names, first example posts', () => {
   });
 });
 
+// After "Regenerate" with the new instruction (25 Oct): Olivia's prompt, verbatim lines.
+describe('prompt negations, "You must NEVER" and "Do not assign titles like"', () => {
+  const olivia: SourceFields = {
+    event_id: 'RTD-EVT-00028',
+    name: 'Dungeons & Dragons with Olivia',
+    source: 'standard_diary',
+    frequency: 'fortnightly',
+    base_details: 'Olivia is one mean Dungeon Master, leading her band of adventurers through perils to treasures bountiful for imaginations.',
+    approved_facts: 'Level: Beginners and experienced alike\nBooking: Essential\nPrice: £5\nFormat: Organised play',
+    people_roles: 'Olivia - Dungeon Master leads the group',
+    category: 'Club',
+    visibility: 'public',
+    price: '',
+    capacity: '',
+  };
+  it('passes the real lines', () => {
+    const lines = [
+      '2. Format Integrity: This event is Organised play. You must NEVER describe or reinterpret it as open play.',
+      "3. Roles & People: Refer to Olivia only as Dungeon Master leading the group. Do not assign unverified titles like 'Host' or 'Organiser'.",
+    ].join('\n');
+    expect(promptTextErrors(lines, olivia, [])).toEqual([]);
+  });
+  it('still catches a positive claim and a real name', () => {
+    expect(promptTextErrors('You must say it is open play.', olivia, [])).toContain('In the prompt, open play: needs a Booking fact saying so');
+    expect(promptTextErrors('Do not assign titles. Trixie runs the door.', olivia, []).some(e => e.includes('Trixie'))).toBe(true);
+  });
+});
+
 // The first live trial (21 Oct): real Gemini prompts, verbatim, sent to review by false alarms.
 describe('prompt validation, first live trial', () => {
   const quiz: SourceFields = {
