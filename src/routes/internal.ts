@@ -66,7 +66,7 @@ internalRoutes.post('/sync/logic-engine', async c => {
   const payload = parsePayload(body);
   if (typeof payload === 'string') return c.json({ error: payload }, 400);
   const result = await applySync(c.env.DB, payload);
-  // A snapshot arrived: Event Sync isn't asked to run again for 60 s (src/n8n/trigger.ts).
+  // A snapshot arrived: that run has finished, so Event Sync may be asked to run again (src/n8n/trigger.ts).
   await noteRun(c.env, 'event-sync');
   // Events changed: RTD Social Prompt Builder runs now for any that want a new prompt.
   if (result.status === 'ok' && result.events_changed > 0) await triggerN8n(c.env, waiter(c), 'prompt-builder', { reason: 'events_changed' });

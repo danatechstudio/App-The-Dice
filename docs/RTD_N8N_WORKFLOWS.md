@@ -358,7 +358,7 @@ Still to do: point the Guard's date-change recipient at this instead of its hard
 **How the app calls** (`src/n8n/trigger.ts`):
 - After the response (`waitUntil`), with a 5 s timeout. A failure, including a **404** (the workflow isn't published yet), is a `console.warn` only. It never changes the admin's answer or what an `/internal` route answers n8n.
 - **Sheet Writer and Prompt Builder:** a call is skipped if the last one was under 15 s ago **and** that run hasn't started yet (no `/sheet-edits/claim` or `/social-prompts/due` since). That run will read the queue and take this change too. Once a run has started, the next change calls again, so a burst of edits still ends with a run after the last one. A call that failed doesn't count, so the next change tries again.
-- **Event Sync:** skipped if a call went in the last 60 s **or** a snapshot arrived in the last 60 s. Two syncs at once could give the same new Event ID to two different rows (rows added in between), so the app never risks that. Whatever this leaves is picked up by the schedule.
+- **Event Sync:** skipped only while the last call's run may still be going (a call under 30 s ago with no snapshot since). A snapshot that has arrived is a finished run, so the next call goes at once. Two syncs at once could give the same new Event ID to two different rows (rows added in between). A scheduled run starting at the same moment as a call is the one overlap left, and is rare. Whatever is skipped is picked up by the schedule.
 - The times are kept in the `settings` table (`trigger_last_<target>`, `trigger_seen_<target>`).
 
 **Owner checks before relying on it:**

@@ -4,7 +4,7 @@
 - **What it's for:** an admin's change should be in the Logic Engine in about 20 seconds, and the event's new social prompt and example within a couple of minutes, instead of waiting up to 25 minutes for the timers. Built, not deployed; no migration.
 - **The app now asks n8n to run straight away:** a saved change wakes RTD Sheet Writer; once it's written to the live sheet, RTD Event Sync; a sync that changed events, or pressing Regenerate, wakes RTD Social Prompt Builder.
 - **The timers all stay.** If a call is skipped or n8n doesn't answer, the next timed run does it, as today. A failed call never changes what the admin sees.
-- **No flood of runs:** the Sheet Writer and Prompt Builder are asked at most once per 15 seconds unless a run has already started. Event Sync is never asked within 60 seconds of the last ask or the last sync, so two syncs never run at once.
+- **No flood of runs:** the Sheet Writer and Prompt Builder are asked at most once per 15 seconds unless a run has already started. Event Sync is asked again as soon as the last sync has finished, never while one the app asked for is still running.
 - **Switch:** the Worker var `N8N_WEBHOOK_BASE`. Blank turns the calls off. No new secret: n8n checks the same token as `/internal`.
 - **Needs on the n8n side** (owner's go-ahead): a Webhook trigger on each of the three workflows, and a check that n8n's public `/webhook/*` address is reachable. Until then the calls are logged and ignored. Details: [RTD_N8N_WORKFLOWS.md](docs/RTD_N8N_WORKFLOWS.md#instant-triggers).
 

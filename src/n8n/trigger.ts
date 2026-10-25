@@ -10,9 +10,10 @@
 //   started since (no /sheet-edits/claim or /social-prompts/due). That run hasn't read the queue
 //   yet, so it will take this change too. Once a run has started, the next change calls again,
 //   so a burst of edits still ends with a run after the last one.
-// - event-sync: skipped when a call went in the last 60 s OR a snapshot arrived in the last 60 s,
-//   so two syncs never run at once (two runs could give the same new Event ID to different rows).
-//   The 5-minute schedule picks up whatever that leaves.
+// - event-sync: skipped while the last call's run may still be going: a call under 30 s ago with no
+//   snapshot since. A snapshot that has arrived is a run that has finished, so the next call starts
+//   at once (two runs at once could give the same new Event ID to different rows). A run that never
+//   reports back blocks for 30 s at most; the 5-minute schedule picks up anything skipped.
 
 import type { Context } from 'hono';
 
@@ -26,7 +27,7 @@ const PATHS: Record<Target, string> = {
   'prompt-builder': '/rtd-prompt-builder-run',
 };
 const DEBOUNCE_MS = 15_000;
-const SYNC_QUIET_MS = 60_000;
+const SYNC_RUNNING_MS = 30_000;
 const TIMEOUT_MS = 5_000;
 
 /** The request's execution context, or null where there is none (tests): the work then runs before the response. */
@@ -60,7 +61,7 @@ const stamp = (db: D1Database, key: string, iso: string) =>
     .run();
 
 function skip(t: Target, now: number, s: { last: number; seen: number }): boolean {
-  if (t === 'event-sync') return now - s.last < SYNC_QUIET_MS || now - s.seen < SYNC_QUIET_MS;
+  if (t === 'event-sync') return now - s.last < SYNC_RUNNING_MS && !(s.seen >= s.last);
   return now - s.last < DEBOUNCE_MS && !(s.seen >= s.last);
 }
 
