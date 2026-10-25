@@ -138,19 +138,28 @@ describe('Event Sync', () => {
     expect(calls).toEqual([{ url: `${BASE}/rtd-event-sync-run`, auth: 'Bearer test-sync-token', body: { reason: 'edit_written', event_id: QUIZ } }]);
   });
 
-  it('is not called when a snapshot arrived in the last 60 s, or a call went in the last 60 s', async () => {
+  it('is called straight after a finished sync, but not while its own call may still be running', async () => {
+    // A snapshot that has arrived is a sync that has finished: starting another is safe.
     await snapshot([quiz()]);
-    later(30_000);
+    later(5_000);
     await writtenEdit();
-    expect(paths()).toEqual([]); // a sync may still be running: wait for the schedule
+    expect(paths()).toEqual(['/rtd-event-sync-run']);
+    // That call's run hasn't sent its snapshot yet, so a second call would overlap it.
+    later(10_000);
+    await env.DB.prepare("UPDATE sheet_edits SET status = 'synced'").run();
+    await writtenEdit();
+    expect(paths()).toEqual([]);
+    // Once its snapshot arrives, the next written edit calls again.
+    await snapshot([quiz()]);
+    later(1_000);
+    await env.DB.prepare("UPDATE sheet_edits SET status = 'synced'").run();
+    await writtenEdit();
+    expect(paths()).toEqual(['/rtd-event-sync-run']);
+    // A call whose run never reported back doesn't block for more than 30 s.
     later(31_000);
     await env.DB.prepare("UPDATE sheet_edits SET status = 'synced'").run();
     await writtenEdit();
     expect(paths()).toEqual(['/rtd-event-sync-run']);
-    later(40_000);
-    await env.DB.prepare("UPDATE sheet_edits SET status = 'synced'").run();
-    await writtenEdit();
-    expect(paths()).toEqual([]); // the call 40 s ago may still be running
   });
 
   it('answers n8n the same when the call fails', async () => {
