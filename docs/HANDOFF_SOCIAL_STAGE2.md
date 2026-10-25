@@ -188,3 +188,13 @@ G4 is done: the prompt builder is published and writes to the live Logic Engine 
   - Rollback: publish `cb8c73dc`.
 - Headers were checked against the live Event Index header row.
 - **Still to check:** Master V1's "Is Event Due Right Now?" with numbers and times written as text by the writer (e.g. Post Frequency "3", Target Post Time "18:00").
+
+## Instant triggers (25 Oct 2026)
+
+- **App:** commit `1bf094c` adds `src/n8n/trigger.ts`; the contract is in docs/RTD_N8N_WORKFLOWS.md#instant-triggers.
+- **n8n:** "Run Now (App)" Webhook triggers are published, with header auth `rtd-app`:
+  - Sheet Writer `c6c98457`. Previous: `4e8d697d`.
+  - Event Sync `8637dc22`. Previous: `e01728ec`.
+  - Prompt Builder `06d34355`. Previous: `f79e273f`.
+- **Rollback:** publish the previous versions; the schedules are unchanged in both.
+- **Not verified yet:** this session can't reach n8n.arkham-survey.com. Verify after the owner's merge, using the first app edit: the n8n executions with mode `webhook` for the Sheet Writer, then Event Sync, then the Builder.
