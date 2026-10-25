@@ -641,9 +641,14 @@ Posts each admin's event reminder on the café's Facebook page ([RTD_ALERTS.md](
 Every 15 minutes, created **unpublished**, with `Studio: Error Handler`.
 
 **1. `GET /internal/social-prompts/due?limit=5`**
-- Answers `{ "events": [{ "event_id", "fingerprint", "request": { "system", "user" }, "instruction_version": 1 }] }`, soonest first.
+- Answers `{ "events": [{ "event_id", "fingerprint", "request": { "system", "user" }, "instruction_version": 2 }] }`, soonest first.
 - `limit` is 1 to 20; anything else means 5.
-- `request.system` is the instruction (the brief's §7 wording) plus the JSON shape Gemini must return. `request.user` is the event's whitelisted fields as quoted JSON data. Send both to Gemini exactly as given, asking for JSON.
+- `request.system` is the instruction (the brief's §7 wording, plus the tone guidance rules below) and the JSON shape Gemini must return. `request.user` is the event's whitelisted fields as quoted JSON data. Send both to Gemini exactly as given, asking for JSON.
+- **Tone guidance (from 25 Oct 2026, instruction version 2):**
+  - `request.user` also holds `tone_guidance`: the event's **Michelle's Standard Prompt** from the sheet, as the app last synced it. It's left out when there is none (Standard Diary groups never have one).
+  - The instruction tells Gemini to use it only for tone, voice and style. Every fact (names, dates, times, prices, activities, claims) must come from the approved fields, each person is described only with the role words in People & Roles, and field labels are written in plain words.
+  - **No n8n change is needed:** the builder already passes `request.system` and `request.user` to Gemini unchanged (see **Write Prompt (Gemini)** below).
+  - **Existing prompts aren't regenerated.** Tone guidance isn't part of the fingerprint or the stored snapshot, and the instruction version is only recorded on each version; neither decides whether an event is due. So an approved prompt stays in use. The change applies only to prompts made from now on: a new event, changed facts, or **Regenerate**. Changing Michelle's Standard Prompt alone doesn't make an event due.
 - **An event is due when:**
   - it is running, Public or App Bookable, and has a scheduled, public date still to come;
   - nothing is on its way to the Logic Engine for it (an organiser's change, a host's request waiting for a decision, or an approved one not yet in the sheet);

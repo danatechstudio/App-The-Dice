@@ -319,7 +319,8 @@ export function findDates(text: string): DateMention[] {
 }
 
 /**
- * A money amount, in pence, at `index`. "free", "no charge" and "no cost" are 0; a negated "free" ("not free") isn't a price.
+ * A money amount, in pence, at `index`. "free", "no charge" and "no cost" are 0; a negated "free" ("not free") isn't a price, and
+ * nor is a "free" that isn't about entry or cost ("free play", "free structure", "free table time").
  * NaN when part of it can't be read ("two pounds and a half"), so it matches no price.
  */
 export interface MoneyMention {
@@ -377,6 +378,14 @@ const penceAfter = (m: RegExpMatchArray): number => {
   return p < 100 ? p : NaN;
 };
 
+// "free" is a price only about entry or cost: before entry, admission, tickets, an event, "of charge" or "to attend" and the like ("free
+// entry", "free to join"); ending its clause, as a price value ("Entry is free.", "Price: FREE", "It's free!"); or after "is", "be", "it's",
+// "for" or a price word ("This event will be FREE with …", "play for free"), unless a noun like play or table follows.
+const FREE_ABOUT_COST = `(?=${HSPACE}{1,3}(?:entry|admission|entrance|tickets?|events?|of${HSPACE}{1,3}charge|to${HSPACE}{1,3}(?:enter|attend|join|play|come|take${HSPACE}{1,3}part|get${HSPACE}{1,3}in))(?!\\p{L}))`;
+const FREE_ENDS = `(?=${HSPACE}{0,3}(?:[.!?,;:)\\]…]|$|${LINE_BREAK}))`;
+const FREE_PREDICATE = "(?<=(?<!\\p{L})(?:is|are|be|been|was|it['’]s|entry|admission|prices?|costs?|for)\\s{1,3}(?:(?:completely|totally|entirely|absolutely|always)\\s{1,3})?)";
+const NOT_A_FREE_NOUN = `(?!${HSPACE}{1,3}(?:play|table|time|structure|format|form|flow|roam|style|spirit|rein|choice|parking|wi-?fi)(?!\\p{L}))`;
+
 const MONEY_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => { pence: number } }[] = [
   // £4, £4.00, £ 10, £1,000
   {
@@ -414,8 +423,8 @@ const MONEY_PATTERNS: { re: RegExp; read: (m: RegExpMatchArray) => { pence: numb
     re: new RegExp(`(?<![\\p{L}-])${NOT_NEGATED}free-(?:to-(?:enter|play|join|attend)|entry|admission|of-charge)(?![\\p{L}-])`, 'giu'),
     read: () => ({ pence: 0 }),
   },
-  // free (not "feel free" or "gluten-free")
-  { re: new RegExp(`(?<![\\p{L}-])(?<!feel\\s+)${NOT_NEGATED}free(?![\\p{L}-])`, 'giu'), read: () => ({ pence: 0 }) },
+  // free, only about entry or cost (not "feel free", "gluten-free", "free play" or "free structure")
+  { re: new RegExp(`(?<![\\p{L}-])(?<!feel\\s+)${NOT_NEGATED}(?:${FREE_PREDICATE}free${NOT_A_FREE_NOUN}|free(?:${FREE_ABOUT_COST}|${FREE_ENDS}))(?![\\p{L}-])`, 'giu'), read: () => ({ pence: 0 }) },
 ];
 
 /** Every money amount in the text, so "£4" and "£4.00" compare equal, and "free" is £0. */
@@ -646,6 +655,19 @@ function endsSectionLabel(text: string, colon: number): boolean {
   return SECTION_LABELS.has(label);
 }
 
+// What may come before a word at the start of a line and still leave it starting a sentence: one to three emoji or symbols ("🎄 Join
+// us", "🧑‍🧑‍🧒 Grown-ups"), with their joiners and variation selectors, and spaces, bullets, opening quotes and brackets.
+const LINE_LEADING_SYMBOLS = /^[\s"“‘'(\[*_•>#-]{0,6}(?:[\p{Extended_Pictographic}\p{S}][\p{M}\u200d\p{Extended_Pictographic}\p{S}]{0,12}[\s"“‘'(\[*_]{0,4}){1,3}$/u;
+/** Whether the text before `end` on its line (looking back at most 32 characters) is only emoji or symbols, with spaces and bullets. */
+function lineLeadingSymbols(text: string, end: number): boolean {
+  const from = Math.max(0, end - 32);
+  const before = text.slice(from, end);
+  const breaks = [...before.matchAll(LINE_BREAKS)];
+  const last = breaks[breaks.length - 1];
+  if (!last && from > 0) return false;
+  return LINE_LEADING_SYMBOLS.test(last ? before.slice(last.index! + last[0].length) : before);
+}
+
 /** Whether the word at index i starts a sentence, a line, a list item or a section ("Tone: Warm"). */
 function startsSentence(text: string, i: number): boolean {
   let j = i - 1;
@@ -658,6 +680,7 @@ function startsSentence(text: string, i: number): boolean {
     while (k >= 0 && /[-*•#> \t]/.test(text[k]!)) k--;
     if (k < 0 || LINE_BREAK_CHAR.test(text[k]!)) return true;
   }
+  if (lineLeadingSymbols(text, j + 1)) return true;
   if (text[j] === ':') return endsSectionLabel(text, j);
   while (j >= 0 && /["”’')\]*_]/.test(text[j]!)) j--;
   return j >= 0 && /[.!?…]/.test(text[j]!) && !NOT_A_SENTENCE_END.test(text.slice(Math.max(0, j - 5), j + 1));
@@ -673,6 +696,11 @@ const LABEL_WORDS = new Set(
   [...SECTION_LABELS].flatMap(l => l.split(' ')).concat(
     ['target', 'requirement', 'requirements', 'details', 'detail', 'name', 'price', 'ticket', 'capacity', 'category', 'info', 'information', 'cost'],
     ['leader', 'leaders'],
+    // Prompt heading vocabulary: "Mandatory Guidelines & Constraints:", "2. Strict Factuality:", "3. Framing & Play:".
+    ['guideline', 'guidelines', 'constraint', 'constraints', 'factuality', 'framing', 'play', 'mandatory', 'strict', 'overview', 'summary', 'identity'],
+    ['direction', 'directions', 'critical', 'publishing', 'occurrence', 'integrity', 'restriction', 'restrictions', 'context', 'assumption', 'boundary'],
+    ['editorial', 'permitted', 'prohibited', 'rule', 'instructions', 'instruction', 'policy', 'policies', 'principles', 'standards', 'limits', 'scope'],
+    ['content', 'messaging', 'language', 'wording', 'accuracy', 'compliance', 'general', 'core', 'key', 'additional', 'final', 'important', 'safety'],
   ),
 );
 const LABEL_LINE = /^[ \t]*(?:[-*•#>]+[ \t]*|\d{1,3}[.)][ \t]*)?[*_]*([^:]{1,80}?)[*_]*[ \t]*:/u;
@@ -936,7 +964,17 @@ function prohibitions(text: string): { quoted: Span[]; forbidsMoneyAt: (index: n
   };
 }
 
+/** An event's own name as a prompt or post may write it: whole, and without a closing bracketed note ("Christmas Workshop (hosted)" is also "Christmas Workshop"). */
+function ownNameForms(name: string): string[] {
+  const short = name.replace(/\s*\([^()]{1,40}\)\s*$/u, '').trim();
+  return short && short !== name.trim() ? [name, short] : [name];
+}
+/** Where an event's own name is written in a text, in either form. */
+const ownNameSpans = (name: string, text: string): Span[] => ownNameForms(name).flatMap(n => spansOf(phraseRegex(n), text));
+
 const squash = (s: string): string => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+/** Whether another event's name is written inside one of these names: "Christmas Workshop" in "Christmas Workshop (hosted)". */
+const inOwnName = (other: string, ownNames: string[]): boolean => ownNames.some(n => phraseRegex(other)?.test(n) ?? false);
 /** A name with its separators taken out, with "&" read as "and" and as nothing: "Board & Brew" → boardandbrew, boardbrew. */
 function squashed(name: string): string[] {
   const base = name.replace(/&/g, ' and ');
@@ -1007,6 +1045,11 @@ function untraced(c: Claim, ref: FieldRef, f: SourceFields, facts: Partial<Recor
   const value = 'fact' in ref ? facts[ref.fact]!.join('\n') : String(f[ref.field] ?? '');
   const problem = traceProblem(c.claim, value);
   if (problem === null) return null;
+  // A Booking claim in other words is traced by what it means: "No booking is required to attend." for "Booking: No need to book".
+  if ('fact' in ref && ref.fact === 'Booking' && problem === '') {
+    const said = claimBooking(c.claim);
+    if (said && facts.Booking!.some(v => factBooking(v).has(said))) return null;
+  }
   return `Claim "${c.claim}" not found in ${field}${problem ? `: ${problem}` : ''}`;
 }
 
@@ -1014,7 +1057,7 @@ function untraced(c: Claim, ref: FieldRef, f: SourceFields, facts: Partial<Recor
 export function promptTextErrors(prompt: string, f: SourceFields, otherEventNames: string[]): string[] {
   const errors: string[] = [];
   // The event's own name is its identity, not a claim: "Friday Night Magic" isn't a weekday.
-  const own = spansOf(phraseRegex(f.name), prompt);
+  const own = ownNameSpans(f.name, prompt);
   const forbidden = prohibitions(prompt);
   const counts = (m: { index: number; text: string }, skip: Span[]) => !within(m.index, m.index + m.text.length, skip);
 
@@ -1026,15 +1069,17 @@ export function promptTextErrors(prompt: string, f: SourceFields, otherEventName
     if (counts(t, [...own, ...forbidden.quoted])) errors.push(`The prompt states a time, "${t.text}"; the time comes only from the schedule at posting time`);
   }
   const allowedPence = ownPrices(f);
+  const negatedMoney = negatedMoneyIn(prompt);
   for (const m of findMoney(prompt)) {
-    if (counts(m, [...own, ...forbidden.quoted]) && !forbidden.forbidsMoneyAt(m.index) && !allowedPence.includes(m.pence)) {
+    if (counts(m, [...own, ...forbidden.quoted]) && !forbidden.forbidsMoneyAt(m.index) && !negatedMoney(m.index) && !allowedPence.includes(m.pence)) {
       errors.push(`The prompt states "${m.text}", which isn't the event's own price${f.price ? ` (${f.price})` : ''}`);
     }
   }
-  // Another event counts wherever it appears, hashtags included, except as part of this event's own name.
+  // Another event counts wherever it appears, hashtags included, except as part of this event's own name. A name that is part of
+  // this event's own name ("Christmas Workshop" in "Christmas Workshop (hosted)") is never another event here.
   for (const other of otherEventNames) {
     const name = other.trim();
-    if (name.length < 4) continue;
+    if (name.length < 4 || inOwnName(name, [f.name])) continue;
     const named = spansOf(phraseRegex(name), prompt).some(([at, end]) => !within(at, end, own)) || inHashtag(prompt, name, [f.name]);
     if (named) errors.push(`The prompt names another event, "${name}"`);
   }
@@ -1189,6 +1234,25 @@ function bookingFact(value: string): { booked: boolean; dropIn: boolean } {
   const dropIn = dropInIn(value) !== null || DROP_IN_VALUE.test(value);
   const rest = withoutDropIns(value).replace(DROP_IN_VALUE, ' ');
   return { booked: BOOKED_VALUE.test(rest), dropIn };
+}
+
+type BookingState = 'drop_in' | 'optional' | 'booked';
+/** What a claim says about booking, read as a post's wording is: drop in, optional or needed. Null when it says none of them. */
+function claimBooking(text: string): BookingState | null {
+  if (dropInMatches(text).length) return 'drop_in';
+  if (new RegExp(BOOKING_OPTIONAL.source, 'iu').test(text)) return 'optional';
+  if (bookedIn(text) !== null || bookingNeededSpans(text).length) return 'booked';
+  return null;
+}
+/** What one Booking fact supports, as the claim checks read it: "recommended, drop ins welcome" supports optional and drop in. */
+function factBooking(value: string): Set<BookingState> {
+  const { booked, dropIn } = bookingFact(value);
+  const optional = OPTIONAL_VALUE.test(value);
+  const states = new Set<BookingState>();
+  if (dropIn) states.add('drop_in');
+  if (optional) states.add('optional');
+  if (booked && !optional) states.add('booked');
+  return states;
 }
 
 /** Booking facts and the other text contradicting each other on format, as questions for an admin. */
@@ -1427,6 +1491,22 @@ function negatedIn(text: string): (m: RegExpMatchArray) => boolean {
     if (clauses.some(([s, e]) => at > s && end <= e)) return true;
     return GOVERNED.test(text.slice(Math.max(0, at - 80), at));
   };
+}
+
+// A spaced dash ends what a negation reaches, for money ('Never say "free" — it is £10 on the door'), and so does a sentence ending inside
+// quote marks ('Never describe it as "busy." It is £10').
+const NEGATED_MONEY_BREAK = /\s[—–-]\s|[.!?…]["”’')\]]+\s/u;
+
+/**
+ * For a prompt: whether money at an index sits in a clause a negation opens ("Do not assume entry is free"), before any spaced dash.
+ * Never inside a quote, nor in a clause whose negation is quoted, and never when the quote marks don't pair up.
+ */
+function negatedMoneyIn(text: string): (index: number) => boolean {
+  const quotes = quotedStretches(text);
+  if (!quotes) return () => false;
+  const clauses = negatedClauses(text);
+  const inQuote = (i: number) => quotes.some(([s, e]) => i >= s && i < e);
+  return index => !inQuote(index) && clauses.some(([s, e]) => index > s && index < e && !inQuote(s) && !NEGATED_MONEY_BREAK.test(text.slice(s, index)));
 }
 
 // A booking label before a drop-in value is part of it: "Booking: No need to book", "Booking Requirement: No need to book", with at
@@ -1921,7 +2001,7 @@ function blockProblems(block: string, targets: { t: CheckTarget; occurrence: Occ
     ts.length === 1 ? { any: ts[0]!.name, every: ts[0]!.name } : { any: 'any event in this part of the post', every: 'every event in this part of the post' };
   // The events' own names are their identity, not claims: "Friday Night Magic" isn't a weekday. "Night" after Quiz is part of it.
   const suffixes = ts.flatMap(t => suffixSpans(t.name, block));
-  const skip = [...ts.flatMap(t => spansOf(phraseRegex(t.name), block)), ...suffixes];
+  const skip = [...ts.flatMap(t => ownNameSpans(t.name, block)), ...suffixes];
   const counts = (m: { index: number; text: string }) => !within(m.index, m.index + m.text.length, skip);
 
   for (const d of findDates(block)) {
@@ -1972,13 +2052,13 @@ export function checkPostText(text: string, targets: CheckTarget[], ctx: { now: 
   for (const r of read) reasons.push(...r.problems);
   const today = londonDate(ctx.now);
 
-  // Another event counts anywhere, hashtags included, except as part of a target's own name.
+  // Another event counts anywhere, hashtags included, except as part of a target's own name. A name inside a target's own name is never another event.
   const names = targets.map(t => t.name);
-  const own = names.flatMap(n => spansOf(phraseRegex(n), text));
+  const own = names.flatMap(n => ownNameSpans(n, text));
   const targetKeys = new Set(names.map(squash));
   for (const other of ctx.otherEventNames) {
     const name = other.trim();
-    if (name.length < 4 || targetKeys.has(squash(name))) continue;
+    if (name.length < 4 || targetKeys.has(squash(name)) || inOwnName(name, names)) continue;
     if (spansOf(phraseRegex(name), text).some(([at, end]) => !within(at, end, own)) || inHashtag(text, name, names, 4))
       reasons.push(`Names another event, "${name}"`);
   }

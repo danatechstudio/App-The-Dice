@@ -16,7 +16,7 @@
 import type { AuthUser } from '../lib/auth';
 import { londonDate } from '../lib/time';
 import { OPEN } from '../sync/edits';
-import { fingerprint, sourceFields, type SourceFields } from './facts';
+import { fingerprint, sourceFields, toneGuidanceOf, type SourceFields } from './facts';
 import { buildRequest, INSTRUCTION_VERSION, SCHEDULE_RULE } from './instruction';
 import { MAX_PROMPT_CHARS, promptTextErrors, validatePrompt, type PromptStatus } from './validate';
 
@@ -347,7 +347,7 @@ export const PENDING_CHANGE_REQUEST = `EXISTS (SELECT 1 FROM event_change_reques
  * the Logic Engine. The builder's list and its answers both go by this, and so do the example posts (src/social/examples.ts).
  */
 export const ELIGIBLE = `SELECT * FROM (
-  SELECT ${EVENT_FIELDS},
+  SELECT ${EVENT_FIELDS}, e.sheet_values,
     (SELECT MIN(o.event_date) FROM occurrences o WHERE o.event_id = e.event_id AND o.status = 'scheduled' AND o.event_date >= ?1
        AND COALESCE(o.visibility, e.visibility) IN ('public', 'app_bookable')) AS next_date
   FROM events e
@@ -386,7 +386,8 @@ export async function duePrompts(db: D1Database, now: Date, limit: number): Prom
     const latest = Math.max(0, ...rows.filter(r => r.status !== 'pending').map(r => r.version));
     const newest = rows.filter(r => r.source_fingerprint === fp).sort((a, b) => b.version - a.version)[0] ?? null;
     if (settles(newest, latest)) continue;
-    due.push({ event_id: fields.event_id, fingerprint: fp, request: buildRequest(fields), instruction_version: INSTRUCTION_VERSION });
+    // Michelle's Standard Prompt goes to Gemini for tone only. It isn't in the fields or the fingerprint, so a new wording never makes an event due.
+    due.push({ event_id: fields.event_id, fingerprint: fp, request: buildRequest(fields, toneGuidanceOf(row)), instruction_version: INSTRUCTION_VERSION });
   }
   return due;
 }

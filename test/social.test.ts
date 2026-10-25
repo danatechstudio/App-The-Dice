@@ -5,7 +5,7 @@
 // Task 6: the admin screens' endpoints: the switch, what needs review, held posts, and each event's prompt.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '../src/lib/auth';
-import { fingerprint, parseFacts, parsePeople, sourceFields, type SourceFields } from '../src/social/facts';
+import { fingerprint, parseFacts, parsePeople, sourceFields, toneGuidanceOf, type SourceFields } from '../src/social/facts';
 import { runCheck, socialContext, type EventLayer } from '../src/social/check';
 import { INSTRUCTION, SCHEDULE_RULE } from '../src/social/instruction';
 import {
@@ -154,6 +154,22 @@ describe('owner columns', () => {
       expect(await fingerprint(extra)).toBe(await fingerprint(fields()));
     });
 
+    // Michelle's Standard Prompt (tone guidance, 25 Oct) is sent to Gemini but never fingerprinted, so approved prompts stay current.
+    it('is the same as before tone guidance was sent, so no existing prompt goes stale', async () => {
+      expect(await fingerprint(fields())).toBe('8c3c9009ddcc61b215883b365b38e78c5a6fa3dfeefb909fb68b94560555b1ba');
+      const withTone = { ...fields(), tone_guidance: 'Warm, chatty, as Michelle.' } as unknown as SourceFields;
+      expect(await fingerprint(withTone)).toBe(await fingerprint(fields()));
+    });
+
+    it("reads Michelle's Standard Prompt as tone guidance, and none on Standard Diary", () => {
+      const sheet = (values: unknown) => JSON.stringify(values);
+      expect(toneGuidanceOf({ source: 'event_index', sheet_values: sheet({ "Michelle's Standard Prompt": '  Warm and chatty.  ' }) })).toBe('Warm and chatty.');
+      expect(toneGuidanceOf({ source: 'standard_diary', sheet_values: sheet({ "Michelle's Standard Prompt": 'Warm.' }) })).toBe('');
+      expect(toneGuidanceOf({ source: 'event_index', sheet_values: sheet({}) })).toBe('');
+      expect(toneGuidanceOf({ source: 'event_index', sheet_values: null })).toBe('');
+      expect(toneGuidanceOf({ source: 'event_index', sheet_values: '{not json' })).toBe('');
+    });
+
     it('does not depend on the order the fields were built in', async () => {
       const shuffled = Object.fromEntries(Object.entries(fields()).reverse()) as unknown as SourceFields;
       expect(await fingerprint(shuffled)).toBe(await fingerprint(fields()));
@@ -292,7 +308,7 @@ describe('prompt store', () => {
     const list = await due();
     expect(list.map(d => d.event_id)).toEqual([DND]);
     expect(list[0]!.fingerprint).toBe(await currentFp());
-    expect(list[0]!.instruction_version).toBe(1);
+    expect(list[0]!.instruction_version).toBe(2);
     expect(list[0]!.request.system).toContain(INSTRUCTION);
     expect(list[0]!.request.user).toContain('MoreThanABitDicey');
     // Gemini never sees the date or the time.
@@ -315,6 +331,33 @@ describe('prompt store', () => {
     expect(await dueIds()).toEqual(['RTD-EVT-00005']);
     await syncRows([dndRow({ 'Approved Facts': `${FACTS}\nLevel: all levels` }), ...others]);
     expect((await dueIds()).sort()).toEqual(['RTD-EVT-00005', DND]);
+  });
+
+  it("sends Michelle's Standard Prompt as tone guidance, and doesn't make an unchanged event due again", async () => {
+    const tone = "Hi everyone, Michelle here! Chatty and warm. Mention our £10 raffle and Trixie's cakes.";
+    await syncRows([dndRow({ "Michelle's Standard Prompt": tone })]);
+    const [first] = await due();
+    const sent = JSON.parse(first!.request.user.slice(first!.request.user.indexOf('{')));
+    expect(sent.tone_guidance).toBe(tone);
+    expect(sent.base_details).toBe('MoreThanABitDicey hosts her infamous DnD sessions!');
+    // The fingerprint and the stored snapshot are the facts alone.
+    expect(first!.fingerprint).toBe(await currentFp());
+    expect(first!.fingerprint).toBe(await fingerprint(sourceFields({ ...(await env.DB.prepare('SELECT * FROM events WHERE event_id = ?1').bind(DND).first())!, sheet_values: null })));
+
+    // An approved prompt made before tone guidance existed (instruction version 1) for these facts: still settled, so not due.
+    expect((await propose(DND, { fingerprint: first!.fingerprint, output: output() })).status).toBe(200);
+    await env.DB.prepare('UPDATE social_prompts SET instruction_version = 1').run();
+    const [stored] = await rows();
+    expect(stored!.status).toBe('approved');
+    const snapshot = await env.DB.prepare('SELECT source_snapshot FROM social_prompts WHERE event_id = ?1').bind(DND).first<{ source_snapshot: string }>();
+    expect(JSON.parse(snapshot!.source_snapshot)).not.toHaveProperty('tone_guidance');
+    expect(await dueIds()).toEqual([]);
+    // Changing only the tone guidance doesn't make it due either; changing a fact does.
+    await syncRows([dndRow({ "Michelle's Standard Prompt": 'Short and punchy.' })]);
+    expect(await dueIds()).toEqual([]);
+    expect(await currentPrompt(env.DB, DND)).toMatchObject({ version: 1, current: true });
+    await syncRows([dndRow({ "Michelle's Standard Prompt": 'Short and punchy.', 'Approved Facts': `${FACTS}\nLevel: all levels` })]);
+    expect(await dueIds()).toEqual([DND]);
   });
 
   it('refuses an answer (409) for an event that stopped being due meanwhile, and stores nothing', async () => {
