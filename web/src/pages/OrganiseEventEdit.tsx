@@ -137,7 +137,7 @@ export function EventEditor({ eventId }: { eventId: string }) {
               <div>
                 {event.pending.kind === 'host_change'
                   ? `The host has asked for a change (${event.pending.id}). Approve or decline it under To approve before changing the session here.`
-                  : `A change (${event.pending.id}) is on its way to the Logic Engine. Details can be changed again once it's in the app, within about half an hour.`}
+                  : `A change (${event.pending.id}) is on its way to the Logic Engine. Details can be changed again once it's back in the app, usually within a minute (10 minutes at most).`}
               </div>
             </div>
           )}
@@ -264,7 +264,7 @@ function DetailsForm({ event, onSaved, onDirty }: { event: AdminEventForm; onSav
       setWarning(null);
       toast(
         res.data.sheet_edit
-          ? 'Sent to the Logic Engine. It shows in the app within about 20 minutes.'
+          ? 'Sent to the Logic Engine. It shows in the app usually within a minute (10 minutes at most).'
           : res.data.change
             ? 'Changed. The host has been emailed, and it reaches the diary within about half an hour.'
             : 'Saved.',
@@ -1009,7 +1009,7 @@ function StartEvent({ event, onStarted }: { event: AdminEventForm; onStarted: ()
     const res = await hostApi<{ sheet_edit?: unknown; change?: unknown }>(`/api/staff/events/${event.event_id}`, { active: true });
     setBusy(false);
     if (!res.ok) return toast(res.error);
-    toast(res.data.change ? 'Starting it again. The host has been emailed.' : 'Sent to the Logic Engine. It’s back in the app within about 20 minutes.');
+    toast(res.data.change ? 'Starting it again. The host has been emailed.' : 'Sent to the Logic Engine. It’s back in the app usually within a minute (10 minutes at most).');
     onStarted();
   };
   return (

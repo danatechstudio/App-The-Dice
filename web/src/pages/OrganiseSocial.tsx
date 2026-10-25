@@ -187,7 +187,7 @@ function ReviewCard({ r, onDone, onOpen }: { r: SocialReviewItem; onDone: () => 
     const res = await hostApi(`/api/staff/events/${r.event_id}/social/regenerate`, {});
     setBusy(null);
     if (res.ok) setAsked(true);
-    toast(res.ok ? `${r.name}: a new prompt will be made on the next run, within about 15 minutes.` : res.error);
+    toast(res.ok ? `${r.name}: a new prompt is being made now, usually within a couple of minutes (15 at most).` : res.error);
     onDone();
   };
 
@@ -486,7 +486,7 @@ function Prompt({ data, eventId, onChanged }: { data: EventSocial; eventId: stri
     setBusy(true);
     const res = await hostApi(`/api/staff/events/${eventId}/social/regenerate`, {});
     setBusy(false);
-    toast(res.ok ? 'A new prompt will be made on the next run, within about 15 minutes.' : res.error);
+    toast(res.ok ? 'A new prompt is being made now, usually within a couple of minutes (15 at most).' : res.error);
     onChanged();
   };
 
@@ -494,7 +494,7 @@ function Prompt({ data, eventId, onChanged }: { data: EventSocial; eventId: stri
     <div class="stack" style={{ '--gap': '10px' }}>
       <h3 class="label social__subhead">The prompt</h3>
       {!p ? (
-        <p class="meta">No prompt yet. One is made automatically for events with a date to come, within about 15 minutes of the facts being filled in.</p>
+        <p class="meta">No prompt yet. One is made automatically for events with a date to come, usually within a couple of minutes of the facts being filled in (15 at most).</p>
       ) : (
         <>
           <div class="cluster" style={{ '--gap': '8px' }}>

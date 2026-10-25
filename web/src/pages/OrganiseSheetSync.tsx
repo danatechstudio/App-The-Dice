@@ -110,7 +110,7 @@ export function SheetSyncPanel() {
       </div>
       <p class="meta" style={{ marginBottom: '12px' }}>
         Change an event’s name, details, next date, times, Status or app columns here, and it’s written to its row in the Logic Engine (found by Event
-        ID). The app shows it after the next sync, within about 20 minutes. If the sheet has changed since, nothing is written and you choose which to keep.
+        ID). The writer starts as soon as you save and the app syncs straight after, so it shows usually within a minute (10 minutes at most, on the timers). If the sheet has changed since, nothing is written and you choose which to keep.
       </p>
       <ModePicker mode={data.mode} onSaved={load} />
       {data.last_sync && <LastSync sync={data.last_sync} />}
@@ -226,7 +226,7 @@ function EditCard({ e, onChanged }: { e: Edit; onChanged: () => void }) {
       {e.status === 'queued' && (
         <p class="meta">
           {e.attempts ? `Tried ${e.attempts === 1 ? 'once' : `${e.attempts} times`}${e.last_error ? `: ${e.last_error}` : ''}. ` : ''}
-          {e.next_attempt_at ? `Next try at ${clockOf(e.next_attempt_at)}.` : 'The writer runs every 5 minutes.'}
+          {e.next_attempt_at ? `Next try at ${clockOf(e.next_attempt_at)}.` : 'The writer starts when you save, and runs every 5 minutes as well.'}
         </p>
       )}
       {e.status === 'written' && e.target === 'live' && <p class="meta">Written {e.written_at ? clockOf(e.written_at) : ''}: shows in the app after the next sync.</p>}
