@@ -33,6 +33,8 @@ const catanRow = (over: Row = {}) =>
     'App Capacity': '20',
     'App Host Session': CATAN,
     'App Category': 'Gaming',
+    'Approved Facts': 'Booking: essential',
+    'People & Roles': '',
     ...over,
   });
 const rows = () => ({
@@ -312,6 +314,69 @@ describe('an admin changes a café event', () => {
 
   it('refuses approvers', async () => {
     expect((await save(QUIZ, { details: { name: 'Big Quiz' } }, MICHELLE)).status).toBe(403);
+  });
+});
+
+describe("an admin sets a host session's posting, Michelle's voice and social facts", () => {
+  beforeEach(setLive);
+
+  it('offers those columns and the category in the form, and nothing the host owns', async () => {
+    const e = await form(CATAN_EVT);
+    expect(Object.keys(e.sheet as object).sort()).toEqual(
+      [
+        'Approved Facts',
+        'Banned Phrases',
+        "Michelle's Standard Prompt",
+        'Michelles KPI Hook Prompt',
+        'People & Roles',
+        'Photo Folder ID',
+        'Post Frequency (Days)',
+        'Target Post Time',
+        'TikTok Video Blueprint',
+      ].sort(),
+    );
+    expect(e.sheet).toMatchObject({ 'Approved Facts': 'Booking: essential', 'People & Roles': '', 'Photo Folder ID': '' });
+    expect(e.unavailable).toEqual({});
+  });
+
+  it('queues the social columns and the category for the Logic Engine', async () => {
+    const res = await save(CATAN_EVT, { sheet: { 'Approved Facts': 'Booking: essential\nLevel: all', 'People & Roles': 'Sam - host' }, details: { category: 'Social' } });
+    expect(res.status).toBe(200);
+    const out = await res.json<{ sheet_edit: { fields: unknown }; change?: unknown }>();
+    expect(out.sheet_edit.fields).toEqual({
+      'App Category': { from: 'Gaming', to: 'Social' },
+      'Approved Facts': { from: 'Booking: essential', to: 'Booking: essential\nLevel: all' },
+      'People & Roles': { from: '', to: 'Sam - host' },
+    });
+    expect(out.change).toBeUndefined();
+    expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM event_change_requests').first('n')).toBe(0);
+    expect((await form(CATAN_EVT)).pending_fields).toMatchObject({ 'People & Roles': { from: '', to: 'Sam - host' } });
+  });
+
+  it("sends the host's details as a change and the social columns to the Logic Engine in one save", async () => {
+    const res = await save(CATAN_EVT, { details: { name: 'Catan Night' }, sheet: { 'People & Roles': 'Sam - host' } });
+    expect(res.status).toBe(200);
+    const out = await res.json<{ sheet_edit: { fields: unknown }; change: Record<string, unknown> }>();
+    expect(out.sheet_edit.fields).toEqual({ 'People & Roles': { from: '', to: 'Sam - host' } });
+    expect(out.change).toMatchObject({ status: 'approved' });
+    const [row] = await toApply();
+    expect(row!.row).toEqual({ 'Event ID': CATAN_EVT, 'Event Name': 'Catan Night' });
+  });
+
+  it('refuses a column the host owns, and sends nothing', async () => {
+    const res = await save(CATAN_EVT, { sheet: { Frequency: 'Monthly', 'People & Roles': 'Sam - host' } });
+    expect(res.status).toBe(400);
+    expect((await res.json<{ errors: Record<string, string> }>()).errors.Frequency).toContain("can't be changed");
+    expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM sheet_edits').first('n')).toBe(0);
+  });
+
+  it('sends nothing when the host change is refused', async () => {
+    const live = (await (await request('/api/host/sessions', {}, SAM)).json<{ sessions: { live: Row }[] }>()).sessions[0]!.live!;
+    expect((await request(`/api/host/sessions/${CATAN}/changes`, json({ ...live, start_time: '19:30' }), SAM)).status).toBe(201);
+    expect((await save(CATAN_EVT, { details: { name: 'Catan Night' }, sheet: { 'People & Roles': 'Sam - host' } })).status).toBe(409);
+    expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM sheet_edits').first('n')).toBe(0);
+    // The social columns alone don't wait for the host's request.
+    expect((await save(CATAN_EVT, { sheet: { 'People & Roles': 'Sam - host' } })).status).toBe(200);
   });
 });
 

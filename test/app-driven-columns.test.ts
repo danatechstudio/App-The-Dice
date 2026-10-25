@@ -276,13 +276,15 @@ describe('the event editor', () => {
     expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM sheet_edits').first<{ n: number }>())!.n).toBe(0);
   });
 
-  it('keeps host sessions to their own rules', async () => {
+  it('gives host sessions only the columns the host doesn’t own', async () => {
     expect((await syncRows([quiz(NEW_INDEX), hosted])).status).toBe(200);
     const f = await form(HOSTED);
-    expect(f.sheet).toEqual({});
-    expect(f.unavailable.sheet).toBeTruthy();
-    const res = await save(HOSTED, { sheet: { 'Approved Facts': 'Prizes: none' } });
-    expect(res.status).toBe(400);
-    expect((await errorsOf(res)).errors!.sheet).toBeTruthy();
+    for (const c of ['Frequency', 'Organiser Email', 'App Capacity']) expect(f.sheet).not.toHaveProperty(c);
+    expect(f.sheet).toHaveProperty('Approved Facts');
+    expect(f.unavailable.sheet).toBeUndefined();
+    const refused = await save(HOSTED, { sheet: { 'Organiser Email': 'me@example.com' } });
+    expect(refused.status).toBe(400);
+    expect((await errorsOf(refused)).errors!['Organiser Email']).toBeTruthy();
+    expect((await save(HOSTED, { sheet: { 'Approved Facts': 'Prizes: none' } })).status).toBe(200);
   });
 });

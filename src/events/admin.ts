@@ -11,7 +11,7 @@ import { adminChange, adminChangeRefusal, liveDetails, refuseBookedMove, type Ch
 import type { AuthUser } from '../lib/auth';
 import { BOOKING_MODE, CAPACITY, type BookingMode } from '../lib/queries';
 import { londonDate } from '../lib/time';
-import { IN_LAST_SYNC, OPEN, requestEdit, sheetEditRefusal, type SheetEdit } from '../sync/edits';
+import { HOST_SESSION_COLUMNS, IN_LAST_SYNC, OPEN, requestEdit, sheetEditRefusal, type SheetEdit } from '../sync/edits';
 import { EXTRA, FREQUENCIES } from '../sync/sheetValues';
 
 export type EventKind = 'event_index' | 'standard_diary' | 'host_session' | 'market';
@@ -51,7 +51,8 @@ export interface AdminEventForm extends AdminEventRow {
   /**
    * The tab's other hand-filled Logic Engine columns (src/sync/sheetValues.ts EXTRA), canonical, as
    * the last sync read them. null: not synced yet (RTD Event Sync doesn't send it), so it can't be
-   * changed here. Empty for host sessions and markets.
+   * changed here. A host's session has only the posting, voice and social ones the host doesn't
+   * own (HOST_SESSION_COLUMNS); a market has none.
    */
   sheet: Record<string, string | null>;
   /** Frequency as this tab spells it. */
@@ -99,10 +100,9 @@ const FIELDS: DetailField[] = ['name', 'description', 'event_date', 'start_time'
 const NO_DIARY_COLUMN = 'The Standard Diary has no column for this: put it in the description.';
 const UNAVAILABLE: Record<EventKind, AdminEventForm['unavailable']> = {
   event_index: {},
-  host_session: {
-    category: "Set in the Logic Engine's App Category column.",
-    sheet: "A host's session: the host asks for changes, and its posting columns are set in the Logic Engine.",
-  },
+  // The host's own details go through the approved-change path; App Category and the posting,
+  // voice and social columns (HOST_SESSION_COLUMNS) go to the Logic Engine like a café event's.
+  host_session: {},
   standard_diary: {
     start_time: NO_DIARY_COLUMN,
     end_time: NO_DIARY_COLUMN,
@@ -111,6 +111,14 @@ const UNAVAILABLE: Record<EventKind, AdminEventForm['unavailable']> = {
   },
   market: Object.fromEntries([...FIELDS, 'active', 'sheet'].map(f => [f, 'Change markets under Markets.'])),
 };
+
+/** The tab's other Logic Engine columns the editor offers for this kind of event. */
+const sheetColumns = (kind: EventKind): readonly string[] =>
+  kind === 'market'
+    ? []
+    : kind === 'host_session'
+      ? EXTRA.event_index.filter(c => (HOST_SESSION_COLUMNS as readonly string[]).includes(c))
+      : EXTRA[kind];
 
 const BOOKED = `(SELECT COALESCE(SUM(b.party_size), 0) FROM bookings b WHERE b.occurrence_id = o.occurrence_id AND b.status = 'confirmed')`;
 const KIND = `CASE WHEN e.market_id IS NOT NULL THEN 'market' WHEN e.host_session_id IS NOT NULL THEN 'host_session' ELSE e.source END`;
@@ -199,7 +207,7 @@ export async function eventForm(db: D1Database, eventId: string, now: Date): Pro
     market_id: (r.market_id as string | null) ?? null,
     details,
     unavailable: UNAVAILABLE[row.kind],
-    sheet: row.kind === source ? Object.fromEntries(EXTRA[source].map(c => [c, sheet && c in sheet ? sheet[c]! : null])) : {},
+    sheet: Object.fromEntries(sheetColumns(row.kind).map(c => [c, sheet && c in sheet ? sheet[c]! : null])),
     frequency_options: [...FREQUENCIES[source]],
     pending_fields: r.open_fields ? (JSON.parse(r.open_fields as string) as AdminEventForm['pending_fields']) : {},
     places: (r.places as number | null) ?? null,
@@ -288,16 +296,34 @@ export async function saveEvent(db: D1Database, admin: AuthUser, eventId: string
   // booking and places, which change at once and can safely be sent again; then the details, last,
   // so a refused or warned save never sends them (or their emails) twice.
   const today = londonDate(ctx.now);
-  const sendDetails = (dryRun: boolean) =>
-    form.kind === 'host_session'
-      ? adminChange(
-          db,
-          admin,
-          form.session_id!,
-          { details: b.details, visibility: b.visibility, active: b.active, note: b.note },
-          { now: iso, origin: ctx.origin, dryRun },
-        )
-      : queueSheetEdit(db, admin, form, b, ctx.now, dryRun);
+  // A host's session splits: what the host owns goes through the approved-change path (the host is
+  // emailed), App Category and the posting, voice and social columns to the Logic Engine.
+  const hosted = form.kind === 'host_session';
+  const { category, ...hostDetails } = b.details;
+  const toHost = hosted && (Object.keys(hostDetails).length > 0 || b.visibility !== undefined || b.active !== undefined);
+  const sheetPart: SaveBody = hosted ? { details: category !== undefined ? { category } : {}, sheet: b.sheet, note: b.note, confirm: b.confirm } : b;
+  const toSheet = hosted ? category !== undefined || Object.keys(b.sheet).length > 0 : hasDetails;
+  const sendDetails = async (dryRun: boolean): Promise<{ ok: true; request: ChangeRequest | null; edit: SheetEdit | null } | Fail | Warning> => {
+    let edit: SheetEdit | null = null;
+    let request: ChangeRequest | null = null;
+    if (toSheet) {
+      const res = await queueSheetEdit(db, admin, form, sheetPart, ctx.now, dryRun);
+      if (!res.ok) return res;
+      edit = res.edit;
+    }
+    if (toHost) {
+      const res = await adminChange(
+        db,
+        admin,
+        form.session_id!,
+        { details: hostDetails, visibility: b.visibility, active: b.active, note: b.note },
+        { now: iso, origin: ctx.origin, dryRun },
+      );
+      if (!res.ok) return res;
+      request = res.request;
+    }
+    return { ok: true, request, edit };
+  };
   if (hasDetails) {
     const res = await sendDetails(true);
     if (!res.ok) return res;
@@ -323,8 +349,8 @@ export async function saveEvent(db: D1Database, admin: AuthUser, eventId: string
   if (hasDetails) {
     const res = await sendDetails(false);
     if (!res.ok) return res;
-    if ('request' in res && res.request) out.change = res.request;
-    if ('edit' in res && res.edit) out.sheet_edit = res.edit;
+    if (res.request) out.change = res.request;
+    if (res.edit) out.sheet_edit = res.edit;
   }
   return out;
 }
@@ -332,11 +358,11 @@ export async function saveEvent(db: D1Database, admin: AuthUser, eventId: string
 /**
  * A café event's details, as the Logic Engine columns of its tab, to the Sheet Writer queue
  * (requestEdit keeps its checks: the last sync, one change on its way at a time, the sheet's own
- * conflict check when it's written). A new date while people are booked on the current one is
- * refused first.
+ * conflict check when it's written, and only HOST_SESSION_COLUMNS on a host's session). A new
+ * date while people are booked on the current one is refused first.
  */
 async function queueSheetEdit(db: D1Database, admin: AuthUser, form: AdminEventForm, b: SaveBody, now: Date, dryRun = false) {
-  const cols = COLUMNS[form.kind as 'event_index' | 'standard_diary'];
+  const cols = COLUMNS[form.kind === 'standard_diary' ? 'standard_diary' : 'event_index'];
   const values: Record<string, string> = {};
   for (const [f, v] of Object.entries(b.details ?? {})) if (cols[f as DetailField]) values[cols[f as DetailField]!] = v as string;
   Object.assign(values, b.sheet ?? {});

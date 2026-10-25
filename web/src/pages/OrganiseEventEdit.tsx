@@ -5,6 +5,8 @@
 // is emailed), hidden or given their own places, and the whole event can be stopped.
 // Every Logic Engine column a person fills in by hand is here too, in sections (Posting,
 // Michelle's voice, Social facts, Contact): each goes through the same queue as the details.
+// A host's session has Category, Posting, Michelle's voice and Social facts too (the server sends
+// only those columns in event.sheet); its other details stay the host's, through a change.
 
 import { ArrowLeft, Ban, ChevronLeft, ChevronRight, ExternalLink, EyeOff, Plus, Trash2 } from 'lucide-preact';
 import type { JSX } from 'preact';
@@ -136,8 +138,8 @@ export function EventEditor({ eventId }: { eventId: string }) {
             <div class="notice notice--info" role="status">
               <div>
                 {event.pending.kind === 'host_change'
-                  ? `The host has asked for a change (${event.pending.id}). Approve or decline it under To approve before changing the session here.`
-                  : `A change (${event.pending.id}) is on its way to the Logic Engine. Details can be changed again once it's back in the app, usually within a minute (10 minutes at most).`}
+                  ? `The host has asked for a change (${event.pending.id}). Approve or decline it under To approve before changing the session's details here.`
+                  : `A change (${event.pending.id}) is on its way to the Logic Engine. ${event.kind === 'host_session' && event.pending.kind === 'sheet_edit' ? 'Category, posting and social columns' : 'Details'} can be changed again once it's back in the app, usually within a minute (10 minutes at most).`}
               </div>
             </div>
           )}
@@ -263,11 +265,13 @@ function DetailsForm({ event, onSaved, onDirty }: { event: AdminEventForm; onSav
     if (res.ok) {
       setWarning(null);
       toast(
-        res.data.sheet_edit
-          ? 'Sent to the Logic Engine. It shows in the app usually within a minute (10 minutes at most).'
-          : res.data.change
-            ? 'Changed. The host has been emailed, and it reaches the diary within about half an hour.'
-            : 'Saved.',
+        res.data.sheet_edit && res.data.change
+          ? 'Changed. The host has been emailed about the details; the posting and social columns went to the Logic Engine.'
+          : res.data.sheet_edit
+            ? 'Sent to the Logic Engine. It shows in the app usually within a minute (10 minutes at most).'
+            : res.data.change
+              ? 'Changed. The host has been emailed, and it reaches the diary within about half an hour.'
+              : 'Saved.',
       );
       return onSaved();
     }
@@ -288,7 +292,8 @@ function DetailsForm({ event, onSaved, onDirty }: { event: AdminEventForm; onSav
     const id = `ev-${k}`;
     const why = event.unavailable[k];
     const err = errors[k];
-    const waiting = event.kind === 'event_index' || event.kind === 'standard_diary' ? event.pending_fields[DETAIL_COLUMN[event.kind][k] ?? ''] : undefined;
+    // A host's session only ever has App Category on its way to the Logic Engine among the details.
+    const waiting = event.kind === 'market' ? undefined : event.pending_fields[DETAIL_COLUMN[event.kind === 'standard_diary' ? 'standard_diary' : 'event_index'][k] ?? ''];
     return (
       <div class={`field${err ? ' field--error' : ''}`}>
         <label for={why ? undefined : id}>{LABELS[k]}</label>
@@ -472,7 +477,7 @@ function DetailsForm({ event, onSaved, onDirty }: { event: AdminEventForm; onSav
           </button>
           <span class="meta">
             {hosted
-              ? 'The host is emailed what you change.'
+              ? 'The host is emailed changes to the details. Category, posting, Michelle’s voice and social facts go to the Logic Engine.'
               : event.kind === 'standard_diary'
                 ? 'Details go to the Standard Diary tab.'
                 : 'Details go to the Logic Engine first.'}

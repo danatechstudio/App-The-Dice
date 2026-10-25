@@ -1,5 +1,13 @@
 # RTD App Changelog
 
+## 2026-10-25 (Host sessions: admins set facts, people, Michelle's prompts and posting)
+- **What it's for:** the owner added "Magic The Gathering: Learn 2 Play" (RTD-EVT-00036) as a host's session, and couldn't give it Approved Facts, People & Roles or any posting columns from the edit page. Built, not deployed; no migration and no n8n change.
+- **On a host's session, admins can now change:** Approved Facts, People & Roles, Banned Phrases, Michelle's Standard Prompt, Michelles KPI Hook Prompt, TikTok Video Blueprint, Photo Folder ID, Post Frequency (Days), Target Post Time and App Category. They're in the edit page's Category field and its Posting, Michelle's voice and Social facts sections, with the same inputs and dropdowns as café events. "Change these under Social facts" on the social prompt now works for host sessions too.
+- **They go to the Logic Engine the same way as a café event's:** conflict-checked, shown as waiting until the next sync, and the instant triggers fire.
+- **The host still owns the rest.** Name, description, date, times, price and who can see it still go through a change that emails the host. Status, Frequency, App Capacity, Organiser Email and App Host Session can't be changed from here. A change that includes any of those is refused whole.
+- **Why it's safe:** the host's change path only ever writes the name, description, date, times, price and visibility, never these columns.
+- Markets are unchanged: still changed under Markets.
+
 ## 2026-10-25 (Instant triggers: changes reach the sheet in seconds)
 - **What it's for:** an admin's change should be in the Logic Engine in about 20 seconds, and the event's new social prompt and example within a couple of minutes, instead of waiting up to 25 minutes for the timers. Built, not deployed; no migration.
 - **The app now asks n8n to run straight away:** a saved change wakes RTD Sheet Writer; once it's written to the live sheet, RTD Event Sync; a sync that changed events, or pressing Regenerate, wakes RTD Social Prompt Builder.

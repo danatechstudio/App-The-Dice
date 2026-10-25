@@ -104,7 +104,27 @@ export interface SheetEvent {
   open_edit: string | null;
 }
 
-export const IN_LAST_SYNC = `e.last_synced_at >= (SELECT MAX(received_at) FROM sync_runs WHERE status = 'ok')`;
+/**
+ * The Event Index columns an admin may change on a host's session. The host owns the rest (name,
+ * description, dates, times, price, visibility, Status, Frequency, places...) through change
+ * requests, and n8n "RTD Host Sessions To Diary" never writes any of these, so the two paths
+ * can't overwrite each other.
+ */
+export const HOST_SESSION_COLUMNS = [
+  'Approved Facts',
+  'People & Roles',
+  'Banned Phrases',
+  "Michelle's Standard Prompt",
+  'Michelles KPI Hook Prompt',
+  'TikTok Video Blueprint',
+  'Photo Folder ID',
+  'Post Frequency (Days)',
+  'Target Post Time',
+  'App Category',
+] as const satisfies readonly Column[];
+const HOST_MESSAGE = "This is a host's session: the host asks for changes and an approver decides (Change requests).";
+
+export const IN_LAST_SYNC =`e.last_synced_at >= (SELECT MAX(received_at) FROM sync_runs WHERE status = 'ok')`;
 export const OPEN = `(s.status IN ('queued', 'conflict') OR (s.status = 'written' AND s.target = 'live'))`;
 const CAFE = 'e.host_session_id IS NULL AND e.market_id IS NULL';
 
@@ -278,7 +298,9 @@ export async function requestEdit(
 ): Promise<{ ok: true; edit: SheetEdit | null } | Fail | { ok: false; status: 409; warning: string }> {
   const denied = adminOnly(admin);
   if (denied) return denied;
-  const refused = await sheetEditRefusal(db, eventId);
+  const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+  const values = (b.values && typeof b.values === 'object' ? b.values : {}) as Record<string, unknown>;
+  const refused = await sheetEditRefusal(db, eventId, values);
   if (refused) return refused;
   const mode = (await sheetMode(db)) as Target;
   const ev = await db
@@ -291,8 +313,6 @@ export async function requestEdit(
     .first<{ event_id: string; source: Source; event_name: string; host_session_id: string | null; market_id: string | null; sheet_values: string | null; in_sheet: number; open_edit: string | null }>();
   if (!ev || !ev.sheet_values) return fail(404, 'No event with that ID.');
 
-  const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
-  const values = (b.values && typeof b.values === 'object' ? b.values : {}) as Record<string, unknown>;
   const current = json<Record<string, string>>(ev.sheet_values);
   const today = londonDate(now);
   const errors: Record<string, string> = {};
@@ -360,8 +380,10 @@ export async function requestEdit(
 /**
  * Why this event's Logic Engine columns can't be changed from the app right now, or null. Also
  * asked before Stop running cancels anything, so it never cancels dates and then can't stop.
+ * `values`: the columns about to be sent. A host's session takes only HOST_SESSION_COLUMNS, and
+ * only when every column that changes is one of them; without values it is refused.
  */
-export async function sheetEditRefusal(db: D1Database, eventId: string): Promise<Fail | null> {
+export async function sheetEditRefusal(db: D1Database, eventId: string, values?: Record<string, unknown>): Promise<Fail | null> {
   if ((await sheetMode(db)) === 'off') return fail(409, 'Changing events from the app is switched off (Sheet sync, at the top of this page).');
   if (!EVENT_ID.test(eventId)) return fail(404, 'No event with that ID.');
   const ev = await db
@@ -373,11 +395,24 @@ export async function sheetEditRefusal(db: D1Database, eventId: string): Promise
     .bind(eventId)
     .first<{ host_session_id: string | null; market_id: string | null; sheet_values: string | null; in_sheet: number; open_edit: string | null }>();
   if (!ev) return fail(404, 'No event with that ID.');
-  if (ev.host_session_id) return fail(409, "This is a host's session: the host asks for changes and an approver decides (Change requests).");
   if (ev.market_id) return fail(409, 'This is a market: change it under Markets.');
+  if (ev.host_session_id && !hostMayTake(ev.sheet_values, values)) return fail(409, HOST_MESSAGE);
   if (!ev.sheet_values || !ev.in_sheet) return fail(409, "This event wasn't in the last sync from the Logic Engine, so it can't be changed from here.");
   if (ev.open_edit) return fail(409, `A change to this event (${ev.open_edit}) is still on its way to the Logic Engine. Wait for it, or withdraw it under Sheet sync.`);
   return null;
+}
+
+/**
+ * Whether every column these values change on a host's session is one admins may set. A value
+ * sent as it already is doesn't count as a change; an unknown column always does.
+ */
+function hostMayTake(sheetValues: string | null, values: Record<string, unknown> | undefined): boolean {
+  if (!values) return false;
+  const current = json<Record<string, string> | null>(sheetValues) ?? {};
+  const changes = Object.entries(values).filter(
+    ([c, raw]) => !isColumn('event_index', c) || !(c in current) || typeof raw !== 'string' || canon(c, raw) !== current[c],
+  );
+  return changes.every(([c]) => (HOST_SESSION_COLUMNS as readonly string[]).includes(c));
 }
 
 /** Bookings an edit would touch, said plainly, or null. */
