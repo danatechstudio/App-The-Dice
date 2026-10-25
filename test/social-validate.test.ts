@@ -913,6 +913,8 @@ describe('post names, first example posts', () => {
     const writing = 'On Saturday 24 October 2026 at 10:00am, we will host our RTD Writing Club. Our Host, Ezzie, will guide a relaxed space. This event will be FREE with a capacity of 10.';
     expect(findNames(writing, ['Writing Club', 'Ezzie'])).toEqual([]);
     expect(findNames("It is completely FREE and no booking required. I've got the kettle on, I'll see you there and I'd love a chat.", [])).toEqual([]);
+    // "1:00 PM": a time's AM/PM isn't a name.
+    expect(findNames('Join us at 1:00 PM for a game, or from 10 AM.', [])).toEqual([]);
     // Still a name: an unknown person mid-sentence, and one beside "Host".
     expect(findNames('Our Host, Trixie, will guide a relaxed space with Bob.', [])).toEqual(['Trixie', 'Bob']);
   });
