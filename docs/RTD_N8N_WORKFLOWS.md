@@ -338,6 +338,33 @@ How it was verified: two dry runs of the Guard (executions 18094/18095 and 18115
 
 Still to do: point the Guard's date-change recipient at this instead of its hard-coded copy. That change goes in `rtd-poster-automation`.
 
+## Instant triggers
+
+**App side built 25 Oct 2026, not deployed. The n8n side (three Webhook triggers) isn't built yet.** The owner wants an admin's edit in the Logic Engine in about 20 s, and the event's new social prompt and example in 1 to 2 minutes, instead of waiting up to 25 minutes for timers. So the app asks n8n to run a workflow straight away. **Every schedule stays** as the safety net: a call that is skipped, refused or lost is picked up by the next timed run.
+
+**The chain:**
+1. An admin saves a change (the event editor, Logic Engine changes, Stop, or Retry / Write mine on a conflict) and it is queued → the app calls **RTD Sheet Writer**.
+2. The Sheet Writer writes it to the live sheet and calls `POST /internal/sheet-edits/:id/written` → the app calls **RTD Event Sync**. Not for a change written to the test copy.
+3. Event Sync posts its snapshot (`POST /internal/sync/logic-engine`). If it changed any event (`events_changed > 0`) → the app calls **RTD Social Prompt Builder**.
+4. An admin presses **Regenerate** on a social prompt → the app calls the **Prompt Builder**.
+
+**Contract:**
+- **Address:** Worker var `N8N_WEBHOOK_BASE` = `https://n8n.arkham-survey.com/webhook` (in `wrangler.jsonc`; public, not a secret). Blank or unset switches the calls off; the app then relies on the schedules.
+- **Paths, all `POST`:** `/rtd-sheet-writer-run`, `/rtd-event-sync-run`, `/rtd-prompt-builder-run`.
+- **Auth:** header `Authorization: Bearer <INTERNAL_SYNC_TOKEN>`, the token the app already checks on `/internal`. Each Webhook node uses **Header Auth** with the existing `rtd-app` credential (`PveFQOiLEm52Hy2G`).
+- **Body:** `{ "reason": "edit_queued" | "edit_written" | "events_changed" | "regenerate", "event_id"?: "RTD-EVT-…" }`. n8n only logs it.
+- **n8n answers at once:** Respond Immediately, 200. The app never waits for the run.
+
+**How the app calls** (`src/n8n/trigger.ts`):
+- After the response (`waitUntil`), with a 5 s timeout. A failure, including a **404** (the workflow isn't published yet), is a `console.warn` only. It never changes the admin's answer or what an `/internal` route answers n8n.
+- **Sheet Writer and Prompt Builder:** a call is skipped if the last one was under 15 s ago **and** that run hasn't started yet (no `/sheet-edits/claim` or `/social-prompts/due` since). That run will read the queue and take this change too. Once a run has started, the next change calls again, so a burst of edits still ends with a run after the last one. A call that failed doesn't count, so the next change tries again.
+- **Event Sync:** skipped if a call went in the last 60 s **or** a snapshot arrived in the last 60 s. Two syncs at once could give the same new Event ID to two different rows (rows added in between), so the app never risks that. Whatever this leaves is picked up by the schedule.
+- The times are kept in the `settings` table (`trigger_last_<target>`, `trigger_seen_<target>`).
+
+**Owner checks before relying on it:**
+- [ ] n8n's public `https://n8n.arkham-survey.com/webhook/*` is reachable from the internet (Cloudflare Workers call it), not only on the Pi's network. A quick check: `curl -X POST https://n8n.arkham-survey.com/webhook/rtd-event-sync-run` from outside answers 401/403 (no token), not a timeout.
+- [ ] Each of the three workflows has its Webhook trigger added beside its schedule, and is published. Until then the app's calls get 404, logged as a warning, and nothing else changes.
+
 ## RTD Event Sync (`fOYrFBOElFkWx7R3`)
 
 **Live since 2026-10-05 13:40.**
