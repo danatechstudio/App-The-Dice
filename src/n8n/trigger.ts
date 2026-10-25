@@ -18,7 +18,7 @@
 import type { Context } from 'hono';
 
 export type Target = 'sheet-writer' | 'event-sync' | 'prompt-builder';
-export type TriggerBody = { reason: 'edit_queued' | 'edit_written' | 'events_changed' | 'regenerate'; event_id?: string };
+export type TriggerBody = { reason: 'edit_queued' | 'edit_written' | 'prompts_due' | 'regenerate'; event_id?: string };
 type Waiter = { waitUntil(p: Promise<unknown>): void } | null;
 
 const PATHS: Record<Target, string> = {

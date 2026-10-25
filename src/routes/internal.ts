@@ -68,8 +68,11 @@ internalRoutes.post('/sync/logic-engine', async c => {
   const result = await applySync(c.env.DB, payload);
   // A snapshot arrived: that run has finished, so Event Sync may be asked to run again (src/n8n/trigger.ts).
   await noteRun(c.env, 'event-sync');
-  // Events changed: RTD Social Prompt Builder runs now for any that want a new prompt.
-  if (result.status === 'ok' && result.events_changed > 0) await triggerN8n(c.env, waiter(c), 'prompt-builder', { reason: 'events_changed' });
+  // An event wants a new prompt (changed details or facts, or a new event): RTD Social Prompt Builder runs now.
+  // Facts aren't in an event's hash, so events_changed alone would miss an edit to People & Roles.
+  if (result.status === 'ok' && (await duePrompts(c.env.DB, new Date(), 1)).length > 0) {
+    await triggerN8n(c.env, waiter(c), 'prompt-builder', { reason: 'prompts_due' });
+  }
   // 409 lets n8n's error branch see a rejected snapshot without treating it as a crash.
   return c.json(result, result.status === 'rejected' ? 409 : 200);
 });
