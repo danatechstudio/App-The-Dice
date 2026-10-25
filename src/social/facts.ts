@@ -120,6 +120,22 @@ export function sourceFields(row: Record<string, unknown>): SourceFields {
   };
 }
 
+/**
+ * Michelle's Standard Prompt from the event's sheet row (events.sheet_values), trimmed: the tone guidance Gemini is given beside the
+ * fields, for tone, voice and style only. '' for a Standard Diary group (its tab has no such column), a row that hasn't got it, or
+ * one that won't read. Never part of SourceFields, so it is never fingerprinted: a new wording never makes a prompt stale.
+ */
+export function toneGuidanceOf(row: Record<string, unknown>): string {
+  if (row.source === 'standard_diary' || typeof row.sheet_values !== 'string') return '';
+  try {
+    const values: unknown = JSON.parse(row.sheet_values);
+    const tone = values && typeof values === 'object' ? (values as Record<string, unknown>)["Michelle's Standard Prompt"] : undefined;
+    return typeof tone === 'string' ? tone.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
 // The ten whitelisted fields the fingerprint covers (every one but event_id), named one by one
 // and in sorted order, so nothing else on the object (a date, an email) can ever change it.
 const FINGERPRINTED = [

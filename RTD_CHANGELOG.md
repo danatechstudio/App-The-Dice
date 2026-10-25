@@ -1,5 +1,12 @@
 # RTD App Changelog
 
+## 2026-10-25 (Social prompts: Michelle's voice for tone, the facts for everything else)
+- **What it's for:** new prompts should sound like Michelle but say only what the café wrote down. Built, not deployed; no migration and no n8n change.
+- **Gemini now also gets the event's Michelle's Standard Prompt** when it writes a master prompt, as tone guidance. Standard Diary groups have none, so nothing extra is sent for them.
+- **It's told to use it only for tone, voice and style.** Facts, names, dates, times, prices, activities and claims must come from the approved fields (Base Details, Approved Facts, People & Roles, price, capacity). Each person is described only with the role words in People & Roles, so no "Host" unless People & Roles says host. Field labels are written in plain words.
+- **No prompt is redone because of this.** Approved prompts stay in use. Only new events, changed facts or a Regenerate get a prompt written the new way. Changing only Michelle's Standard Prompt doesn't make a new prompt either; press Regenerate for that.
+- n8n already passes the request to Gemini unchanged. The request is described in [RTD_N8N_WORKFLOWS.md](docs/RTD_N8N_WORKFLOWS.md#the-builder-rtd-social-prompt-builder-stage-2).
+
 ## 2026-10-25 (Social prompts: fewer false alarms in the checks)
 - **What it's for:** three events (Christmas Workshop, Mid-Week Coffee Break, D&D with Olivia) kept going to review, or their example posts were "held", for things that weren't wrong. The checks now read their real prompts and example post the way a person would. Built, not deployed; no migration.
 - **"Free" is a price only when it's about paying:** "free entry", "free to attend", "it's free", "Price: FREE" still count. "Free structure", "free play", "free table time" and "feel free" don't.
