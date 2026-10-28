@@ -16,7 +16,7 @@ import { afterResponse } from '../lib/background';
 import { triggerN8n, waiter } from '../n8n/trigger';
 import { requireRole, sameOriginJson, type AuthUser } from '../lib/auth';
 import { staffSummary } from '../staff/summary';
-import { approve as approvePrompt, eventSocial, regenerate as regeneratePrompt, setMode as setSocialMode, socialOverview } from '../social/admin';
+import { approve as approvePrompt, eventSocial, fix as fixPrompt, fixAll as fixAllPrompts, regenerate as regeneratePrompt, setMode as setSocialMode, socialOverview } from '../social/admin';
 import { drain, overview, parseReminder, sendReminder } from '../notify/alerts';
 import { PERIODS, statsOverview, type Period } from '../stats/stats';
 import { adminLibrary, applyImport, attachCover, confirmReview, confirmReviews, createGame, rejectReview, removeCover, reviewList, setCoverStatus, setLive, setRetired, updateGame } from '../games/admin';
@@ -310,6 +310,22 @@ staffRoutes.post('/events/:id/social/regenerate', async c => {
   // RTD Social Prompt Builder runs now rather than at its next timed run.
   await triggerN8n(c.env, waiter(c), 'prompt-builder', { reason: 'regenerate', event_id: c.req.param('id') });
   return c.json({ ok: true });
+});
+
+/** Fix: a fresh repair cycle for the event's current facts, from its latest version's text and problems. Facts never change. */
+staffRoutes.post('/events/:id/social/fix', async c => {
+  const res = await fixPrompt(c.env.DB, c.get('user'), c.req.param('id'), new Date());
+  if (!res.ok) return c.json({ error: res.error }, res.status);
+  await triggerN8n(c.env, waiter(c), 'prompt-builder', { reason: 'regenerate', event_id: c.req.param('id') });
+  return c.json({ ok: true });
+});
+
+/** Fix all: Fix for every event in the review list, and the builder woken once. Answers { count }. */
+staffRoutes.post('/social/fix-all', async c => {
+  const res = await fixAllPrompts(c.env.DB, c.get('user'), new Date());
+  if (!res.ok) return c.json({ error: res.error }, res.status);
+  if (res.count) await triggerN8n(c.env, waiter(c), 'prompt-builder', { reason: 'regenerate' });
+  return c.json({ count: res.count });
 });
 
 /** Approve with a note. Body: { text?, reason }. 400 { error, errors } when the text fails the checks a generated prompt gets. */

@@ -1,11 +1,11 @@
 // Social prompts, admins only (docs/superpowers/specs/2026-10-18-social-master-prompt-design.md §5).
 // Each event gets its own master prompt, written from the facts the café put in the Logic Engine,
 // and every post is checked against that event's facts before it goes out. The panel (Organise ›
-// Social posts) has the prompts waiting for a person, each with its example post and inline Approve
-// and Regenerate, the approved prompts with theirs, the switch and the posts the check held; the event
+// Social posts) has the prompts waiting for a person, each with its example post, inline Approve,
+// Regenerate and Fix (Fix all for the lot) and one-tap fact suggestions, the approved prompts with theirs, the switch and the posts the check held; the event
 // editor has one event's facts, its prompt and example, Regenerate, Approve with a note, versions and checks.
 
-import { AlertTriangle, Check, ExternalLink, RefreshCw } from 'lucide-preact';
+import { AlertTriangle, Check, ExternalLink, RefreshCw, Wand2 } from 'lucide-preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { Chip, type ChipKind } from '../components/Chips';
 import { DiceLoader } from '../components/States';
@@ -20,6 +20,7 @@ import {
   type SocialOverview,
   type SocialPromptStatus,
   type SocialReviewItem,
+  type SocialSuggestion,
 } from '../lib/hostApi';
 import { editorHref, socialOrder } from '../lib/eventTrail';
 import { saveTrail } from '../lib/eventTrailStore';
@@ -46,6 +47,8 @@ const when = (iso: string) => `${shortDate(todayLondon(new Date(iso)))}, ${clock
 
 /** The problems a refused approval lists (the server sends them as a list). */
 const listOf = (errors: unknown): string[] => (Array.isArray(errors) ? errors : errors && typeof errors === 'object' ? Object.values(errors) : []).map(String);
+
+const prompts = (n: number) => `${n} prompt${n === 1 ? '' : 's'}`;
 
 // ---- The panel (Organise › Social posts) ----
 
@@ -79,7 +82,16 @@ export function SocialPanel() {
       {data && (
         <div class="stack social" style={{ '--gap': '20px' }}>
           <div>
-            <h3 class="label social__subhead">Prompts to review</h3>
+            <div class="cluster social__review-head">
+              <h3 class="label social__subhead">Prompts to review</h3>
+              {data.review.length > 0 && <FixAll count={data.review.length} onDone={load} />}
+            </div>
+            {data.review.length > 0 && (
+              <p class="meta social__subhead">
+                Fix sends a prompt back to be rewritten without the problems listed. It never changes the event’s facts: a suggested change waits for you to tap
+                Apply.
+              </p>
+            )}
             {!data.review.length && (
               <p class="meta">Nothing to review. Prompts that need a person show up here, for events still running and Public or App Bookable.</p>
             )}
@@ -117,6 +129,69 @@ export function SocialPanel() {
         </div>
       )}
     </section>
+  );
+}
+
+/** Fix all: every prompt in the review list goes back to be rewritten, and the builder runs once. */
+function FixAll({ count, onDone }: { count: number; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const fixAll = async () => {
+    setBusy(true);
+    const res = await hostApi<{ count: number }>('/api/staff/social/fix-all', {});
+    setBusy(false);
+    if (!res.ok) return toast(res.error);
+    toast(res.data.count ? `Fixing ${prompts(res.data.count)}: they’ll be back within a couple of minutes.` : 'Nothing to fix just now.');
+    onDone();
+  };
+  return (
+    <button type="button" class="btn btn--secondary btn--sm" disabled={busy} onClick={fixAll}>
+      <Wand2 size={16} aria-hidden="true" /> {busy ? 'Fixing...' : `Fix all (${count})`}
+    </button>
+  );
+}
+
+/** A change to the event's facts that would answer the checks: one tap sends it through Sheet sync, or a link to the field to reword. */
+function SuggestionRow({ eventId, s }: { eventId: string; s: SocialSuggestion }) {
+  const [state, setState] = useState<'idle' | 'busy' | 'applied'>('idle');
+  const [error, setError] = useState<string | null>(null);
+  if (s.kind === 'booking_missing' || s.kind === 'description_day') {
+    const href = `/organise/events/${encodeURIComponent(eventId)}?from=social#${s.link}`;
+    return (
+      <li class="social__suggestion">
+        <a href={href}>{s.text}</a>
+      </li>
+    );
+  }
+  const apply = async () => {
+    setState('busy');
+    setError(null);
+    const res = await hostApi(`/api/staff/events/${eventId}/sheet-edit`, { values: { [s.column]: s.to }, note: 'Suggested from the social prompt checks' });
+    if (res.ok) {
+      setState('applied');
+      return toast('Applied: on its way to the sheet. The prompt is remade once the change is back.');
+    }
+    setState('idle');
+    const detail = res.kind === 'invalid' ? listOf(res.errors)[0] : undefined;
+    setError(detail ? `${res.error}: ${detail}` : res.error);
+  };
+  return (
+    <li class="social__suggestion">
+      <p>{s.text}</p>
+      {state === 'applied' ? (
+        <p class="meta" role="status">
+          <Check size={16} aria-hidden="true" /> Applied: on its way to the sheet
+        </p>
+      ) : (
+        <button type="button" class="btn btn--secondary btn--sm" disabled={state === 'busy'} onClick={apply}>
+          {state === 'busy' ? 'Applying...' : 'Apply'}
+        </button>
+      )}
+      {error && (
+        <p class="field__error" role="alert">
+          {error}
+        </p>
+      )}
+    </li>
   );
 }
 
@@ -162,8 +237,8 @@ const editorLink = (eventId: string) => editorHref(eventId, 'social');
 /** One prompt waiting for a person: why, the prompt, its example, and Approve (with a note) or Regenerate, right here. */
 function ReviewCard({ r, onDone, onOpen }: { r: SocialReviewItem; onDone: () => void; onOpen: () => void }) {
   const [note, setNote] = useState('Checked prompt and example');
-  const [busy, setBusy] = useState<null | 'approve' | 'regenerate'>(null);
-  const [asked, setAsked] = useState(false);
+  const [busy, setBusy] = useState<null | 'approve' | 'regenerate' | 'fix'>(null);
+  const [asked, setAsked] = useState(r.fixing);
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const noteId = `social-note-${r.event_id}`;
@@ -190,6 +265,14 @@ function ReviewCard({ r, onDone, onOpen }: { r: SocialReviewItem; onDone: () => 
     toast(res.ok ? `${r.name}: a new prompt is being made now, usually within a couple of minutes (15 at most).` : res.error);
     onDone();
   };
+  const fix = async () => {
+    setBusy('fix');
+    const res = await hostApi(`/api/staff/events/${r.event_id}/social/fix`, {});
+    setBusy(null);
+    if (res.ok) setAsked(true);
+    toast(res.ok ? `Fixing ${r.name}: it’ll be back within a couple of minutes.` : res.error);
+    onDone();
+  };
 
   return (
     <article class="card card--pad stack social__review" style={{ '--gap': '10px' }} aria-labelledby={`review-${r.event_id}`}>
@@ -204,6 +287,16 @@ function ReviewCard({ r, onDone, onOpen }: { r: SocialReviewItem; onDone: () => 
             <li key={i}>{q}</li>
           ))}
         </ul>
+      )}
+      {r.suggestions.length > 0 && (
+        <div class="stack social__suggestions" style={{ '--gap': '6px' }}>
+          <h4 class="label">Suggested changes to the facts</h4>
+          <ul class="stack" style={{ '--gap': '8px' }}>
+            {r.suggestions.map((s, i) => (
+              <SuggestionRow key={i} eventId={r.event_id} s={s} />
+            ))}
+          </ul>
+        </div>
       )}
       <PromptText text={r.master_prompt} version={r.version} />
       {r.example && <ExampleBlock example={r.example} />}
@@ -241,6 +334,11 @@ function ReviewCard({ r, onDone, onOpen }: { r: SocialReviewItem; onDone: () => 
         {canApprove && (
           <button type="button" class="btn btn--primary btn--sm" disabled={!!busy || !note.trim()} onClick={approve}>
             <Check size={16} aria-hidden="true" /> {busy === 'approve' ? 'Approving...' : 'Approve'}
+          </button>
+        )}
+        {!asked && (
+          <button type="button" class="btn btn--secondary btn--sm" disabled={!!busy} onClick={fix}>
+            <Wand2 size={16} aria-hidden="true" /> {busy === 'fix' ? 'Fixing...' : 'Fix'}
           </button>
         )}
         <button type="button" class="btn btn--secondary btn--sm" disabled={!!busy || asked} onClick={regenerate}>

@@ -145,7 +145,12 @@ The owner, 23 Oct: "I don't want to be flicking between the sheet, I want everyt
 | Standard Diary | I `Approved Facts`, J `People & Roles` | Social facts | as on Event Index |
 
 - **Never editable:** `Day` (the writer sets it with a date), `Last Post` and `Next Post` (the posting automation's), `Event ID`, `App Host Session`, `Social Prompt` and `Social Prompt Status`.
-- **Host sessions and markets** keep their own rules: none of these columns can be changed for them here.
+- **Markets** keep their own rules: none of these columns can be changed for them here (Markets has its own editor).
+- **Host sessions** (added 25 Oct 2026, no migration): an admin can change these ten Event Index columns on a host's session, through the same queue as a café event's: `Approved Facts`, `People & Roles`, `Banned Phrases`, `Michelle's Standard Prompt`, `Michelles KPI Hook Prompt`, `TikTok Video Blueprint`, `Photo Folder ID`, `Post Frequency (Days)`, `Target Post Time` and `App Category`. The editor shows them in the Category field and the Posting, Michelle's voice and Social facts sections, with the same inputs and dropdowns as a café event.
+  - **Everything else stays the host's:** name, description, date, times, price and who can see it still go through a change (the host is emailed), and Status, Frequency, App Capacity, Organiser Email and App Host Session can't be changed here. A change that touches any of those columns is refused whole, with "This is a host's session…".
+  - **Why it's safe:** the host's change path (n8n RTD Host Sessions To Diary, branch D) only ever writes Event Name, Base Details, Event Date and Day, Event Time, End Time, App Price and App Visibility. It never writes these ten, so the two paths can't overwrite each other. The Sheet Writer's own conflict check still applies.
+  - One save can do both: the host's details go as a change, the other columns to the Logic Engine. If either is refused, nothing is sent.
+  - A host's change waiting for a decision doesn't stop these columns being changed; a Logic Engine change still on its way does, as for a café event.
 - **Every value:** carriage returns are taken out, line breaks are kept, and the ends are trimmed. Existing text the editor can't show as rows (a fact without a known key, say) is shown as written in a plain box, with the reason, so nothing is lost.
 - The column letters are as the docs record the tabs: check them against the header row before changing RTD Sheet Writer.
 

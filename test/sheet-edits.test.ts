@@ -323,3 +323,55 @@ describe('a new time reaches people booked', () => {
     expect((await timeMail()).length).toBe(1);
   });
 });
+
+// A host's session: the host owns its name, details, dates, times, price and visibility (change
+// requests, written by n8n "RTD Host Sessions To Diary"), which never writes the social or posting
+// columns. Admins set those through the same queue as a café event's.
+describe("a host's session: admins set its facts, people, prompts and posting", () => {
+  const HOSTED = 'RTD-EVT-00006';
+  const MARKET = 'RTD-EVT-00007';
+  const hosted = (over: Row = {}) =>
+    indexRow(6, {
+      'Event Name': 'Magic Learn 2 Play',
+      'Event Date': '16/10/2026',
+      'App Price': 'Free',
+      'App Host Session': 'RTD-HS-00005',
+      'Approved Facts': 'Booking: essential',
+      'People & Roles': '',
+      ...over,
+    });
+  const market = indexRow(7, { 'Event Name': 'Winter Market', 'Event Date': '17/10/2026', 'App Host Session': 'RTD-MKT-00001', 'Approved Facts': '' });
+  const count = () => env.DB.prepare('SELECT COUNT(*) AS n FROM sheet_edits').first('n');
+
+  beforeEach(async () => {
+    await setMode('live');
+    expect((await syncRows([chess(), quiz(), hosted(), market])).status).toBe(200);
+  });
+
+  it('queues an Approved Facts and People & Roles change with what it changes from', async () => {
+    const res = await edit(HOSTED, { 'Approved Facts': 'Booking: essential\nLevel: beginners welcome', 'People & Roles': 'Sam - host' });
+    expect(res.status).toBe(200);
+    const { edit: e } = await res.json<{ edit: { fields: unknown; status: string; event_id: string } }>();
+    expect(e).toMatchObject({ status: 'queued', event_id: HOSTED });
+    expect(e.fields).toEqual({
+      'Approved Facts': { from: 'Booking: essential', to: 'Booking: essential\nLevel: beginners welcome' },
+      'People & Roles': { from: '', to: 'Sam - host' },
+    });
+  });
+
+  it("refuses the host's own columns with the host message, alone or beside an allowed one", async () => {
+    for (const values of <Record<string, string>[]>[{ 'Event Name': 'Magic Night' }, { 'Event Name': 'Magic Night', 'Approved Facts': 'Level: all' }, { 'App Visibility': 'hidden' }, { Frequency: 'Weekly' }]) {
+      const res = await edit(HOSTED, values);
+      expect(res.status).toBe(409);
+      expect((await res.json<{ error: string }>()).error).toContain("This is a host's session");
+    }
+    expect(await count()).toBe(0);
+  });
+
+  it('still refuses a market', async () => {
+    const res = await edit(MARKET, { 'Approved Facts': 'Booking: not needed' });
+    expect(res.status).toBe(409);
+    expect((await res.json<{ error: string }>()).error).toContain('market');
+    expect(await count()).toBe(0);
+  });
+});

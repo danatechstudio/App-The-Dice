@@ -668,7 +668,7 @@ Posts each admin's event reminder on the café's Facebook page ([RTD_ALERTS.md](
 Every 15 minutes, created **unpublished**, with `Studio: Error Handler`.
 
 **1. `GET /internal/social-prompts/due?limit=5`**
-- Answers `{ "events": [{ "event_id", "fingerprint", "request": { "system", "user" }, "instruction_version": 2 }] }`, soonest first.
+- Answers `{ "events": [{ "event_id", "fingerprint", "request": { "system", "user" }, "instruction_version": 3 }] }`, soonest first.
 - `limit` is 1 to 20; anything else means 5.
 - `request.system` is the instruction (the brief's §7 wording, plus the tone guidance rules below) and the JSON shape Gemini must return. `request.user` is the event's whitelisted fields as quoted JSON data. Send both to Gemini exactly as given, asking for JSON.
 - **Tone guidance (from 25 Oct 2026, instruction version 2):**
@@ -676,10 +676,18 @@ Every 15 minutes, created **unpublished**, with `Studio: Error Handler`.
   - The instruction tells Gemini to use it only for tone, voice and style. Every fact (names, dates, times, prices, activities, claims) must come from the approved fields, each person is described only with the role words in People & Roles, and field labels are written in plain words.
   - **No n8n change is needed:** the builder already passes `request.system` and `request.user` to Gemini unchanged (see **Write Prompt (Gemini)** below).
   - **Existing prompts aren't regenerated.** Tone guidance isn't part of the fingerprint or the stored snapshot, and the instruction version is only recorded on each version; neither decides whether an event is due. So an approved prompt stays in use. The change applies only to prompts made from now on: a new event, changed facts, or **Regenerate**. Changing Michelle's Standard Prompt alone doesn't make an event due.
+- **Repairs (from 28 Oct 2026, instruction version 3):**
+  - When the checks fail a prompt Gemini wrote (problems the app found, not only Gemini's own questions), the event stays due and is sent again with its last draft. `request.user` then also holds `previous_attempt: { "prompt": <that draft>, "problems": [<what the checks found>] }`.
+  - The instruction gained a short paragraph: rewrite that draft so every listed problem is gone, change only what's needed, keep to the approved fields, and never invent facts to get past a check. `previous_attempt` is not an approved field and is never a source.
+  - **Three attempts** for the same facts, then the version waits for an admin and the event isn't due any more. A pass ends it straight away. A version where Gemini only asked a question isn't repaired.
+  - An admin's **Fix** (or **Fix all**, for the whole review list) starts a fresh count of three: the request carries `previous_attempt` from the latest version. **Regenerate** also starts a fresh count, without the draft.
+  - Prompts made before version 3 aren't repaired by themselves (an admin can press Fix), and approved prompts never change.
+  - **The facts never change by themselves.** The review card may suggest a change to People & Roles; it only goes to the sheet when an admin taps Apply (through Sheet sync, like any other change).
+  - **No n8n change is needed:** the builder already passes `request.system` and `request.user` to Gemini unchanged.
 - **An event is due when:**
   - it is running, Public or App Bookable, and has a scheduled, public date still to come;
   - nothing is on its way to the Logic Engine for it (an organiser's change, a host's request waiting for a decision, or an approved one not yet in the sheet);
-  - and its current facts have no answer yet, or an admin pressed **Regenerate**.
+  - and its current facts have no answer yet, an admin pressed **Regenerate** or **Fix**, or its last answer is being repaired (above).
 - Market events and hosts' sessions are due like café events.
 - Past, cancelled, private, hidden and stopped events are never due.
 
@@ -691,7 +699,7 @@ Every 15 minutes, created **unpublished**, with `Studio: Error Handler`.
   - `{ "ok": true, "status": "failed", "failures": 1, "version": null, "cells": null }`: the generation failed and nothing was stored. **Write nothing.** The event stays due and is tried on the next run.
     - Malformed output counts as a failure too: not JSON, the wrong shape, or a prompt over 3,000 characters.
     - On the **third** failure for the same facts, the app stores a `blocked` version ("generation failed") and answers with its cells. The event then stops being due until an admin presses Regenerate.
-  - The same answer sent twice gets back the stored answer. Nothing is added.
+  - The same answer sent twice gets back the stored answer. Nothing is added. (While a prompt is being repaired, a later post is taken as the next attempt.)
 - **Refusals:**
   - **409, stale:** the event's facts changed since `/due`. Drop it and write nothing; the event is due again from its latest facts.
   - **409, no longer due:** it stopped running, lost its last date, or a change is on its way. Drop it.

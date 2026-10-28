@@ -277,7 +277,16 @@ export interface SocialReviewItem {
   master_prompt: string | null;
   /** None for a blocked version. */
   example: SocialExample | null;
+  /** Changes to the event's facts that would answer the checks (src/social/suggest.ts): applied only when an admin taps Apply. */
+  suggestions: SocialSuggestion[];
+  /** A Fix or Regenerate is waiting for the builder. */
+  fixing: boolean;
 }
+
+export type SocialSuggestion =
+  | { kind: 'people_add' | 'people_role'; name: string; column: 'People & Roles'; from: string; to: string; text: string }
+  | { kind: 'booking_missing'; link: 'social-facts'; text: string }
+  | { kind: 'description_day'; link: 'ev-description'; text: string };
 
 export interface SocialApprovedItem {
   event_id: string;

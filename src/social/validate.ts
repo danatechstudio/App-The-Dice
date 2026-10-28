@@ -549,7 +549,7 @@ export function findTimes(text: string): TimeMention[] {
 const BRAND_NAMES = ['Roll The Dice', 'RTD', 'Cleethorpes', 'Meridian Point', 'Facebook', 'Instagram', 'TikTok'];
 const COMMON_WORDS = [
   // Michelle writes as herself ("I'm hosting"); "Host" is a role word, not a name; "FREE" is the price, in capitals.
-  ...["i'm", "i've", "i'll", "i'd", 'host', 'hosts', 'free'],
+  ...["i'm", "i've", "i'll", "i'd", 'host', 'hosts', 'free', 'am', 'pm'],
   ...['i', 'a', 'an', 'the', 'and', 'or', 'but', 'nor', 'not', 'no', 'yes', 'only', 'never', 'always', 'must', 'should', 'do', "don't", 'does', 'is', 'are'],
   ...['be', 'all', 'any', 'none', 'every', 'each', 'of', 'to', 'in', 'on', 'at', 'for', 'with', 'by', 'from', 'as', 'it', 'its', 'this', 'that', 'use'],
   ...['avoid', 'include', 'mention', 'important', 'note', 'ok', 'uk', 'event', 'events', 'name', 'description', 'details', 'base', 'approved', 'facts'],
@@ -1712,6 +1712,51 @@ function roleProblems(text: string, skip: Span[], people: Person[], traced: Set<
     } else if (!listed.some(p => rolesIn(p.role).has(n.role))) problems.push(`${n.word}: People & Roles gives the role "${listed[0]!.role}", not "${n.said}"`);
   }
   return problems;
+}
+
+// The role a People & Roles line can say for each role word: the noun as written ("Dungeon Master", "host"), or for a verb its plain word.
+const ROLE_NOUN = /^(host(?:ess)?|dm|dungeon master|gm|game master|organi[sz]er|quiz ?master|mc|emcee|compere|caller|presenter)(?:e?s)?$/iu;
+const VERB_ROLE: Record<string, string> = { host: 'host', organiser: 'organiser', runs: 'runs', 'sets up': 'sets up', leads: 'leads' };
+/** The role a role word stands for (host, DM, organiser …), or null when it is none. */
+export const roleOfWord = (said: string): string | null => {
+  const m = [...said.matchAll(ROLE_WORDS)][0];
+  return m ? roleOf(m) : null;
+};
+
+/**
+ * The role word nearest a name in the same sentence of the event's own text, within `reach` words, as People & Roles
+ * would write it: "Olivia is one mean Dungeon Master" gives Olivia "Dungeon Master", "Bob hosts" gives Bob "host". Looser
+ * than the checks (they want the two within three words), since it only ever makes a suggestion an admin accepts.
+ */
+export function roleNear(text: string, name: string, reach = 6): { role: string; word: string } | null {
+  const key = wordKey(name);
+  let best: { role: string; word: string; gap: number } | null = null;
+  let start = 0;
+  const clauses: Span[] = [];
+  for (const m of text.matchAll(CLAUSE_END)) {
+    clauses.push([start, m.index!]);
+    start = m.index! + m[0].length;
+  }
+  clauses.push([start, text.length]);
+  for (const [from, to] of clauses) {
+    const clause = text.slice(from, to);
+    const words = [...clause.matchAll(WORD)].map(m => ({ word: m[0], at: m.index!, end: m.index! + m[0].length }));
+    const named = words.map((w, i) => (/^\p{Lu}/u.test(w.word) && wordKey(w.word) === key ? i : -1)).filter(i => i >= 0);
+    if (!named.length) continue;
+    for (const m of clause.matchAll(ROLE_WORDS)) {
+      const inRole = words.map((w, i) => (w.at >= m.index! && w.end <= m.index! + m[0].length ? i : -1)).filter(i => i >= 0);
+      for (const n of named) {
+        const gap = Math.min(...inRole.map(i => Math.abs(i - n)));
+        if (gap > reach || (best && best.gap <= gap)) continue;
+        const said = m[0].replace(/\s+/g, ' ');
+        const role = roleOf(m);
+        const nounForm = ROLE_NOUN.exec(said);
+        const noun = nounForm ? said.slice(0, nounForm[1]!.length) : VERB_ROLE[role];
+        if (noun) best = { role, word: noun, gap };
+      }
+    }
+  }
+  return best ? { role: best.role, word: best.word } : null;
 }
 
 /** The word|role pairs written in the event's own text, within one clause: "Trixie sets up" in Base Details pairs Trixie with sets up, and nothing else. */
