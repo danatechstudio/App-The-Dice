@@ -12,12 +12,17 @@
 //   version; it is audited, and the event stays due. The third failure for the same facts stores a
 //   blocked version ("generation failed"), and the event stops being due until an admin regenerates.
 // - The last approved version stays in use only while its facts match the event's current ones.
+// - A generated version the checks failed (validation_errors, not only Gemini's questions) is
+//   repaired: the event stays due, and the request carries previous_attempt, the version's text and
+//   problems. Three generated attempts per cycle for the same facts; a cycle starts with the first
+//   version for the facts, or an admin's Regenerate or Fix (a pending row, override_reason 'fix'). The
+//   count is worked out from the versions themselves. Facts are never changed here: an admin does that.
 
 import type { AuthUser } from '../lib/auth';
 import { londonDate } from '../lib/time';
 import { OPEN } from '../sync/edits';
 import { fingerprint, sourceFields, toneGuidanceOf, type SourceFields } from './facts';
-import { buildRequest, INSTRUCTION_VERSION, SCHEDULE_RULE } from './instruction';
+import { buildRequest, INSTRUCTION_VERSION, SCHEDULE_RULE, type PreviousAttempt } from './instruction';
 import { MAX_PROMPT_CHARS, promptTextErrors, validatePrompt, type PromptStatus } from './validate';
 
 export const MODES = ['off', 'shadow', 'enforce'] as const;
@@ -35,6 +40,10 @@ export type Cells = { 'Social Prompt': string; 'Social Prompt Status': string };
 
 /** Failures for the same facts before the event is blocked. */
 const MAX_FAILURES = 3;
+/** Generated attempts per repair cycle before a version the checks failed waits for an admin. */
+export const MAX_REPAIR_ATTEMPTS = 3;
+/** The first instruction version that tells Gemini how to repair: versions made before it wait for an admin's Fix, as they did. */
+const REPAIRS_FROM = 3;
 const REASON_MAX = 500;
 const ID_MAX = 100;
 /** How long a reason can be in the one-line Social Prompt Status cell. */
@@ -86,6 +95,9 @@ interface PromptRow {
   master_prompt: string | null;
   ambiguities: string | null;
   validation_errors: string | null;
+  override_reason: string | null;
+  generated_at: string | null;
+  instruction_version: number;
   created_at: string;
 }
 
@@ -160,6 +172,65 @@ async function latestVersion(db: D1Database, eventId: string): Promise<number> {
  */
 const settles = (row: PromptRow | null, latest: number): row is PromptRow =>
   !!row && row.status !== 'pending' && (row.status === 'approved' || row.version === latest);
+
+/** An admin's request that starts a new cycle of attempts: Regenerate, or Fix. */
+const CYCLE_START = new Set(['regenerate', 'fix']);
+
+/**
+ * The generated attempts the checks failed in the current cycle for these facts: counted back from
+ * the event's newest version while the versions are for these facts, up to and including the one an
+ * admin asked for (Regenerate or Fix). `rows`: all the event's versions.
+ */
+function attemptsInCycle(rows: PromptRow[], fp: string): number {
+  let n = 0;
+  for (const r of [...rows].sort((a, b) => b.version - a.version)) {
+    if (r.source_fingerprint !== fp) break;
+    if (r.status === 'review_required' && r.generated_at) n++;
+    if (r.override_reason && CYCLE_START.has(r.override_reason)) break;
+  }
+  return n;
+}
+
+/** A version's text and checker problems, to send back; null when there is no text to rewrite. */
+function attemptOf(row: PromptRow | undefined): PreviousAttempt | null {
+  if (!row?.master_prompt?.trim()) return null;
+  const errors = list(row.validation_errors);
+  return { prompt: row.master_prompt, problems: errors.length ? errors : list(row.ambiguities) };
+}
+
+/**
+ * The version to repair for these facts, when there is one: the event's newest version, generated
+ * for these facts with the repair instruction, held for review by checker errors (not just Gemini's
+ * questions), with attempts left in its cycle. `rows`: all the event's versions.
+ */
+function repairOf(rows: PromptRow[], fp: string): PromptRow | null {
+  const done = rows.filter(r => r.status !== 'pending');
+  if (!done.length) return null;
+  const newest = done.reduce((a, b) => (b.version > a.version ? b : a));
+  if (newest.version !== Math.max(...rows.map(r => r.version))) return null; // a request is waiting
+  if (newest.source_fingerprint !== fp || newest.status !== 'review_required' || !newest.generated_at) return null;
+  if ((newest.instruction_version ?? 0) < REPAIRS_FROM || !list(newest.validation_errors).length || !newest.master_prompt?.trim()) return null;
+  return attemptsInCycle(rows, fp) < MAX_REPAIR_ATTEMPTS ? newest : null;
+}
+
+/**
+ * What the builder is sent back for these facts: the version being repaired, or for a waiting Fix,
+ * the event's latest version before it (whatever its facts), so the cycle starts from that text.
+ */
+function previousAttempt(rows: PromptRow[], fp: string): PreviousAttempt | null {
+  const repair = repairOf(rows, fp);
+  if (repair) return attemptOf(repair);
+  const waiting = rows.filter(r => r.source_fingerprint === fp).sort((a, b) => b.version - a.version)[0];
+  if (waiting?.status !== 'pending' || waiting.override_reason !== 'fix') return null;
+  const before = rows
+    .filter(r => r.version < waiting.version && (r.status === 'review_required' || r.status === 'blocked'))
+    .sort((a, b) => b.version - a.version)[0];
+  return attemptOf(before);
+}
+
+/** All of an event's versions. */
+const eventRows = async (db: D1Database, eventId: string): Promise<PromptRow[]> =>
+  (await db.prepare('SELECT * FROM social_prompts WHERE event_id = ?1').bind(eventId).all<PromptRow>()).results;
 
 /** The approved prompt in use: the newest approved version, if its facts are still the event's. */
 async function inUse(db: D1Database, eventId: string, fp: string): Promise<string> {
@@ -385,9 +456,14 @@ export async function duePrompts(db: D1Database, now: Date, limit: number): Prom
     const rows = byEvent.get(fields.event_id) ?? [];
     const latest = Math.max(0, ...rows.filter(r => r.status !== 'pending').map(r => r.version));
     const newest = rows.filter(r => r.source_fingerprint === fp).sort((a, b) => b.version - a.version)[0] ?? null;
-    if (settles(newest, latest)) continue;
+    if (settles(newest, latest) && !repairOf(rows, fp)) continue;
     // Michelle's Standard Prompt goes to Gemini for tone only. It isn't in the fields or the fingerprint, so a new wording never makes an event due.
-    due.push({ event_id: fields.event_id, fingerprint: fp, request: buildRequest(fields, toneGuidanceOf(row)), instruction_version: INSTRUCTION_VERSION });
+    due.push({
+      event_id: fields.event_id,
+      fingerprint: fp,
+      request: buildRequest(fields, toneGuidanceOf(row), previousAttempt(rows, fp)),
+      instruction_version: INSTRUCTION_VERSION,
+    });
   }
   return due;
 }
@@ -439,9 +515,9 @@ export async function proposePrompt(db: D1Database, eventId: string, body: unkno
   if (!(await eligible(db, eventId, now))) return fail(409, 'The event is no longer due (not running, no date to come, or a change on its way). Drop it.');
 
   const iso = now.toISOString();
-  const [existing, latest] = await Promise.all([slotRow(db, eventId, event.fp), latestVersion(db, eventId)]);
-  // These facts already have their answer (a duplicate post): hand back what is stored.
-  if (settles(existing, latest)) return answer(existing, await inUse(db, eventId, event.fp)) ?? RACE;
+  const [existing, latest, all] = await Promise.all([slotRow(db, eventId, event.fp), latestVersion(db, eventId), eventRows(db, eventId)]);
+  // These facts already have their answer (a duplicate post), and it isn't being repaired: hand back what is stored.
+  if (settles(existing, latest) && !repairOf(all, event.fp)) return answer(existing, await inUse(db, eventId, event.fp)) ?? RACE;
 
   const meta = { model: shortText(b.model, ID_MAX), job_id: shortText(b.job_id, ID_MAX) };
   const base = { event_id: eventId, fingerprint: event.fp, snapshot: JSON.stringify(event.fields), now: iso, ...meta, generated: true };
@@ -575,6 +651,37 @@ export async function requestRegenerate(db: D1Database, admin: AuthUser, eventId
     );
   }
   steps.push(audit(db, eventId, { type: 'staff', id: admin.email }, 'social_prompt.regenerate_requested', { fingerprint: event.fp }, iso));
+  await db.batch(steps);
+  return { ok: true };
+}
+
+/**
+ * Admins: start a fresh repair cycle for the event's current facts. Like Regenerate, a waiting
+ * version (status pending) that the next proposal fills, but marked override_reason "fix": the
+ * builder is sent the latest version's text and problems as previous_attempt, and the attempts are
+ * counted afresh from it. A Regenerate already waiting becomes a Fix. Facts are never changed.
+ */
+export async function requestFix(db: D1Database, admin: AuthUser, eventId: string, now: Date): Promise<{ ok: true } | Fail> {
+  const denied = adminOnly(admin);
+  if (denied) return denied;
+  const event = await loadEvent(db, eventId);
+  if (!event) return fail(404, 'No event with that ID.');
+  const iso = now.toISOString();
+  const existing = await slotRow(db, eventId, event.fp);
+  const steps: D1PreparedStatement[] = [
+    existing?.status === 'pending'
+      ? db.prepare("UPDATE social_prompts SET override_reason = 'fix' WHERE prompt_id = ?1 AND status = 'pending'").bind(existing.prompt_id)
+      : insertPrompt(db, {
+          event_id: eventId,
+          status: 'pending',
+          fingerprint: event.fp,
+          snapshot: JSON.stringify(event.fields),
+          now: iso,
+          override_reason: 'fix',
+          replaces: existing?.prompt_id ?? null,
+        }),
+    audit(db, eventId, { type: 'staff', id: admin.email }, 'social_prompt.fix_requested', { fingerprint: event.fp }, iso),
+  ];
   await db.batch(steps);
   return { ok: true };
 }

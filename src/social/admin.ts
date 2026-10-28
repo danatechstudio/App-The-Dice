@@ -1,13 +1,14 @@
 // What the admin screens show about social prompts (spec §5): the switch, the prompts waiting for
 // a person and the approved ones, each with its example post (src/social/examples.ts), the posts the
 // check held (or, in Shadow, would have held), and one event's facts, prompt, versions and recent checks. Reading only: every change goes through the functions in
-// src/social/prompts.ts (setSocialMode, requestRegenerate, approveOverride), which check and audit it.
+// src/social/prompts.ts (setSocialMode, requestRegenerate, requestFix, approveOverride), which check and audit it.
 
 import type { AuthUser } from '../lib/auth';
 import { bannedPhrases } from './check';
 import { isMissingExampleColumns, MAX_EXAMPLE_ATTEMPTS } from './examples';
 import { fingerprint, parseFacts, parsePeople, sourceFields, type FactKey, type Person } from './facts';
-import { approveOverride, currentPrompt, EVENT_FIELDS, requestRegenerate, setSocialMode, socialMode, type Fail, type Mode, type StoredStatus } from './prompts';
+import { approveOverride, currentPrompt, EVENT_FIELDS, requestFix, requestRegenerate, setSocialMode, socialMode, type Fail, type Mode, type StoredStatus } from './prompts';
+import { suggestFixes, type Suggestion } from './suggest';
 
 const DENIED: Fail = { ok: false, status: 403, error: 'Only admins can manage social prompts.' };
 const denied = (u: AuthUser): Fail | null => (u.role === 'admin' ? null : DENIED);
@@ -133,6 +134,10 @@ export interface ReviewItem {
   master_prompt: string | null;
   /** Its example post; null for a blocked version, which gets none. */
   example: PromptExample | null;
+  /** Changes to the event's facts that would answer the checks' problems, for an admin to apply or not (src/social/suggest.ts). */
+  suggestions: Suggestion[];
+  /** An admin's Fix or Regenerate is waiting for the builder. */
+  fixing: boolean;
 }
 
 /** An event whose newest version is approved, for the "Approved" group. */
@@ -236,7 +241,8 @@ export async function socialOverview(
     socialMode(db),
     db
       .prepare(
-        `SELECT r.event_id, r.version, r.status, r.master_prompt, r.ambiguities, r.validation_errors, COALESCE(e.display_name, r.event_id) AS name
+        `SELECT r.event_id, r.version, r.status, r.master_prompt, r.ambiguities, r.validation_errors, COALESCE(e.display_name, r.event_id) AS name,
+           EXISTS (SELECT 1 FROM social_prompts w WHERE w.event_id = r.event_id AND w.status = 'pending' AND w.version > r.version) AS fixing
          FROM (${REVIEW_SQL}) r LEFT JOIN events e ON e.event_id = r.event_id
          ORDER BY r.created_at DESC, r.event_id`,
       )
@@ -248,11 +254,21 @@ export async function socialOverview(
         ambiguities: string | null;
         validation_errors: string | null;
         name: string;
+        fixing: number;
       }>(),
     db.prepare(APPROVED_SQL).bind(APPROVED_SHOWN).all<Omit<ApprovedItem, 'example'>>(),
     db.prepare("SELECT * FROM social_checks WHERE result = 'fail' ORDER BY created_at DESC, check_id DESC LIMIT ?1").bind(HELD_SHOWN).all<CheckDbRow>(),
   ]);
   const example = await examplesOf(db, [...review.results, ...approved.results]);
+  // The events' facts as they are now, which the suggestions start from.
+  const facts = new Map<string, ReturnType<typeof sourceFields>>();
+  if (review.results.length) {
+    const { results } = await db
+      .prepare(`SELECT ${EVENT_FIELDS} FROM events e WHERE e.event_id IN (SELECT value FROM json_each(?1))`)
+      .bind(JSON.stringify(review.results.map(r => r.event_id)))
+      .all<Record<string, unknown>>();
+    for (const row of results) facts.set(String(row.event_id), sourceFields(row));
+  }
   return {
     ok: true,
     mode,
@@ -264,6 +280,8 @@ export async function socialOverview(
       questions: [...list(r.ambiguities), ...list(r.validation_errors)],
       master_prompt: r.master_prompt,
       example: r.status === 'blocked' ? null : example(r.event_id, r.version),
+      suggestions: facts.has(r.event_id) ? suggestFixes(facts.get(r.event_id)!, list(r.validation_errors)) : [],
+      fixing: r.fixing === 1,
     })),
     approved: approved.results.map(a => ({ ...a, example: example(a.event_id, a.version) })),
     held: await checkRows(db, held.results),
@@ -359,8 +377,8 @@ export async function eventSocial(db: D1Database, admin: AuthUser, eventId: stri
     generated_at: v.generated_at,
     validated_at: v.validated_at,
     approved_at: v.approved_at,
-    // "regenerate" marks a version an admin asked for (prompts.ts); it isn't a note anyone wrote.
-    override_reason: v.override_reason === 'regenerate' ? null : v.override_reason,
+    // "regenerate" and "fix" mark a version an admin asked for (prompts.ts); they aren't notes anyone wrote.
+    override_reason: v.override_reason === 'regenerate' || v.override_reason === 'fix' ? null : v.override_reason,
     created_at: v.created_at,
     current_facts: v.source_fingerprint === currentFp,
   });
@@ -392,6 +410,19 @@ export const setMode = (db: D1Database, admin: AuthUser, body: unknown, now: Dat
 
 /** Admins: the event is due again on the builder's next run. */
 export const regenerate = (db: D1Database, admin: AuthUser, eventId: string, now: Date) => requestRegenerate(db, admin, eventId, now);
+
+/** Admins: a fresh repair cycle for the event, from its latest version's text and problems. */
+export const fix = (db: D1Database, admin: AuthUser, eventId: string, now: Date) => requestFix(db, admin, eventId, now);
+
+/** Admins: Fix for every event in the review list. Returns how many. */
+export async function fixAll(db: D1Database, admin: AuthUser, now: Date): Promise<{ ok: true; count: number } | Fail> {
+  const no = denied(admin);
+  if (no) return no;
+  const { results } = await db.prepare(`SELECT r.event_id FROM (${REVIEW_SQL}) r ORDER BY r.created_at DESC, r.event_id`).all<{ event_id: string }>();
+  let count = 0;
+  for (const r of results) if ((await requestFix(db, admin, r.event_id, now)).ok) count++;
+  return { ok: true, count };
+}
 
 /**
  * Admins: approve their own text (or the version waiting for review, when no text is sent) with a

@@ -321,6 +321,8 @@ describe('admin screens', () => {
         questions: expect.arrayContaining(['Is it for beginners?']),
         master_prompt: DND_PROMPT,
         example: WAITING,
+        suggestions: [],
+        fixing: false,
       },
     ]);
     expect(overview.approved.map(a => [a.event_id, a.name, a.version])).toEqual([

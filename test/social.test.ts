@@ -308,7 +308,7 @@ describe('prompt store', () => {
     const list = await due();
     expect(list.map(d => d.event_id)).toEqual([DND]);
     expect(list[0]!.fingerprint).toBe(await currentFp());
-    expect(list[0]!.instruction_version).toBe(2);
+    expect(list[0]!.instruction_version).toBe(3);
     expect(list[0]!.request.system).toContain(INSTRUCTION);
     expect(list[0]!.request.user).toContain('MoreThanABitDicey');
     // Gemini never sees the date or the time.
@@ -1128,6 +1128,8 @@ describe('admin screens', () => {
         questions: expect.arrayContaining(['Is it for beginners?']),
         master_prompt: goodPrompt,
         example: expect.objectContaining({ state: 'waiting' }),
+        suggestions: [],
+        fixing: false,
       },
     ]);
     expect(overview.held).toEqual([]);
