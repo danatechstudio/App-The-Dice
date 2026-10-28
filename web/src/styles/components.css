@@ -1725,6 +1725,46 @@ textarea.input {
   min-height: 44px;
 }
 
+.social__review-head {
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.social__review-head .btn,
+.social__suggestion .btn {
+  min-height: 44px;
+}
+
+/* A suggested change to the facts: nothing changes until the admin taps Apply. */
+.social__suggestions ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.social__suggestion {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--rtd-border);
+  overflow-wrap: anywhere;
+}
+
+.social__suggestion p {
+  margin: 0;
+}
+
+.social__suggestion a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.social__suggestion .btn {
+  justify-self: start;
+}
+
 .social__history ol {
   margin: 12px 0 0;
   padding: 0;
