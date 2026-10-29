@@ -2704,3 +2704,65 @@ describe('a fact set to none', () => {
     expect(verdict.errors.join(' | ')).toContain('Food is set to none');
   });
 });
+
+// Held example posts (live cases, 29 Oct): words People & Roles itself writes with a capital aren't unknown names.
+describe('People & Roles words in posts and prompts', () => {
+  const now = new Date('2026-10-29T12:00:00Z');
+  const bingo: CheckTarget = {
+    event_id: 'RTD-EVT-00040',
+    name: 'Bingo',
+    date: '2026-11-06',
+    start_time: '19:00',
+    end_time: '21:00',
+    price: '£5',
+    facts: { Booking: ['Essential'] },
+    base_details: 'Eyes down for a night of bingo.',
+    people: [{ name: 'Alex', role: 'the best bingo caller this side of the Humber' }],
+    banned: [],
+    booking_mode: 'required',
+  };
+  const bingoFields: SourceFields = {
+    event_id: 'RTD-EVT-00040',
+    name: 'Bingo',
+    source: 'event_index',
+    frequency: 'weekly',
+    base_details: 'Eyes down for a night of bingo.',
+    approved_facts: 'Booking: Essential',
+    people_roles: 'Alex - the best bingo caller this side of the Humber',
+    category: 'Social',
+    visibility: 'public',
+    price: '£5',
+    capacity: '',
+  };
+  const post = (text: string, t: CheckTarget = bingo) => checkPostText(text, [t], { now, otherEventNames: ['Quiz'] }).reasons;
+
+  it('allows a capitalised word from a People & Roles line in a post', () => {
+    expect(post('Eyes down for Bingo with Alex, the best bingo caller this side of the Humber! Booking is essential.')).toEqual([]);
+  });
+
+  it('allows it in a prompt too', () => {
+    expect(promptTextErrors('Write about Bingo with Alex, the best bingo caller this side of the Humber.', bingoFields, ['Quiz'])).toEqual([]);
+  });
+
+  it('still catches a name People & Roles does not write', () => {
+    expect(post('Eyes down for Bingo with Alex and Trixie, this side of the Humber!')).toContain('Trixie: not in People & Roles');
+    expect(promptTextErrors('Write about Bingo with Alex and Trixie.', bingoFields, ['Quiz'])).toContain(
+      `The prompt names "Trixie", which isn't in People & Roles or the event's own fields`,
+    );
+  });
+
+  it('passes "Led by Lauren" at the start of an emoji line', () => {
+    const xmas: CheckTarget = {
+      ...bingo,
+      name: 'Christmas Workshop (hosted)',
+      date: '2026-12-06',
+      start_time: '12:00',
+      end_time: '13:30',
+      price: '£12',
+      facts: { Booking: ['Essential'], Age: ['5-7 years.'] },
+      base_details: 'A festive workshop for younger children.',
+      people: [{ name: 'Lauren', role: 'leads the workshop' }],
+    };
+    expect(post('🎄 Join our Christmas Workshop!\n🎅 Led by Lauren on Sunday 6 December, 12pm.\n🎟️ Booking is essential.', xmas)).toEqual([]);
+  });
+});

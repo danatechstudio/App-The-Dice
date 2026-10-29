@@ -2095,7 +2095,8 @@ function blockProblems(block: string, targets: { t: CheckTarget; occurrence: Occ
     for (const p of claimProblems(block, skip, support)) problems.push(roundUp ? `${p} (${t.name})` : p);
   }
   const people = ts.flatMap(t => t.people);
-  const allowed = ts.flatMap(t => [t.name, ...t.people.map(p => p.name), ...[t.base_details, ...factTexts(t)].flatMap(capitalisedWords)]);
+  // People & Roles allow what they write with a capital, as in the prompt ("the best bingo caller this side of the Humber").
+  const allowed = ts.flatMap(t => [t.name, ...t.people.map(p => p.name), ...[t.base_details, ...factTexts(t), ...t.people.map(p => p.role)].flatMap(capitalisedWords)]);
   // Dates ("Halloween", "Christmas Eve") are checked as dates, not names.
   const dateSpans = findDates(block).map(d => [d.index, d.index + d.text.length] as Span);
   for (const n of findNames(blank(block, [...suffixes, ...dateSpans]), allowed)) problems.push(`${n}: not in People & Roles`);
