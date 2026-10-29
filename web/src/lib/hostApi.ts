@@ -281,6 +281,13 @@ export interface SocialReviewItem {
   suggestions: SocialSuggestion[];
   /** A Fix or Regenerate is waiting for the builder. */
   fixing: boolean;
+  /** Which of the eight fact keys (src/social/checklist.ts) the event's Approved Facts decide. */
+  facts_decided: SocialFactsDecided;
+}
+
+export interface SocialFactsDecided {
+  decided: string[];
+  undecided: string[];
 }
 
 export type SocialSuggestion =
@@ -296,6 +303,7 @@ export interface SocialApprovedItem {
   approved_by: string | null;
   approved_at: string | null;
   example: SocialExample;
+  facts_decided: SocialFactsDecided;
 }
 
 /** A check made before a post. Failed ones were held (enforce) or would have been (shadow). */

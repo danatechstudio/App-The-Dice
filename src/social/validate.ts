@@ -10,6 +10,7 @@
 import type { BookingMode } from '../lib/queries';
 import { addDays, londonDate } from '../lib/time';
 import { CATEGORIES } from '../sync/normalise';
+import { isNoneValue } from './checklist';
 import { FACT_KEYS, parseFacts, parsePeople, type FactKey, type Person, type SourceFields } from './facts';
 import { SCHEDULE_RULE } from './instruction';
 
@@ -1042,6 +1043,7 @@ function traceProblem(claim: string, value: string): string | null {
 function untraced(c: Claim, ref: FieldRef, f: SourceFields, facts: Partial<Record<FactKey, string[]>>): string | null {
   const field = 'fact' in ref ? `approved_facts.${ref.fact}` : ref.field;
   if ('fact' in ref && !facts[ref.fact]?.length) return `Claim "${c.claim}" not found in ${field}: there is no ${ref.fact} fact`;
+  if ('fact' in ref && facts[ref.fact]!.every(isNoneValue)) return `Claim "${c.claim}" not found in ${field}: ${ref.fact} is set to none, so it can't be claimed`;
   const value = 'fact' in ref ? facts[ref.fact]!.join('\n') : String(f[ref.field] ?? '');
   const problem = traceProblem(c.claim, value);
   if (problem === null) return null;
@@ -1409,6 +1411,13 @@ const PRIZE_WORDS = /(?<![\p{L}\p{N}])(?:prizes?|win(?:s|ning|ners?)?|cash|troph
 const BASE_PRIZE_WORD = /(?<!\p{L})(?:prizes?|troph(?:y|ies))(?!\p{L})/iu;
 const AGE_WORDS =
   /(?<![\p{L}\p{N}])(?:kids?|child(?:ren)?|famil(?:y|ies)|all\s+ages|ages?\s+\d{1,2}(?:\s*\+|\s+and\s+(?:up|over|above))?|\d{1,2}\s+and\s+(?:over|up|above)|\d{1,2}\s?\+|(?:over|under)[- ]?\d{1,2}s?|adults?(?:\s+only)?|teen(?:s|agers?)?|grown[- ]ups?)(?![\p{L}\p{N}])/giu;
+// Food, Format and Bring words are claims only against a fact set to none ("Food: none"): with no such fact they are as before.
+const FOOD_WORDS =
+  /(?<![\p{L}\p{N}])(?:food|snacks?|nibbles|pizzas?|refreshments|buffet|cakes?|sweets|meals?|lunch|dinner|supper|sandwich(?:es)?|hot\s+dogs?|burgers?|crisps|popcorn|biscuits|cookies|brownies|bite\s+to\s+eat)(?![\p{L}\p{N}])/giu;
+const FORMAT_WORDS =
+  /(?<![\p{L}\p{N}])(?:organi[sz]ed\s+play|open\s+play|table\s+time|tournaments?|workshops?|drop[- ]in\s+sessions?|casual\s+(?:club|play|games?|sessions?)|leagues?|competitions?|swiss\s+rounds?)(?![\p{L}\p{N}])/giu;
+const BRING_WORDS =
+  /(?<![\p{L}\p{N}])(?:bring\s+your\s+own|byo[bgd]?|bring\s+(?:along\s+)?(?:your|a|some)\s+(?:own\s+)?(?:decks?|dice|cards|games?|arm(?:y|ies)|miniatures|minis|models|character(?:\s+sheets?)?|laptops?|consoles?|controllers?|kit|pens?|pencils?|food|snacks|drinks|lunch))(?![\p{L}\p{N}])/giu;
 
 // A Prizes fact saying there are none ("No prizes", "none") supports no prize word. A Level fact for experienced players only
 // ("Experienced players") supports no level word: they all say beginners are welcome.
@@ -1583,12 +1592,22 @@ function claimProblems(text: string, skip: Span[], t: Support, prompt = false): 
     }
   }
 
-  for (const [re, key] of [
-    [LEVEL_WORDS, 'Level'],
-    [PRIZE_WORDS, 'Prizes'],
-    [AGE_WORDS, 'Age'],
-  ] as [RegExp, FactKey][]) {
-    if ((t.facts[key] ?? []).some(v => supportsWords(key, v))) continue;
+  // A fact set to none ("Level: none") means it doesn't apply: no word of its group may be claimed, whatever Base Details say.
+  for (const [re, key, needed] of [
+    [LEVEL_WORDS, 'Level', true],
+    [PRIZE_WORDS, 'Prizes', true],
+    [AGE_WORDS, 'Age', true],
+    [FOOD_WORDS, 'Food', false],
+    [FORMAT_WORDS, 'Format', false],
+    [BRING_WORDS, 'Bring', false],
+  ] as [RegExp, FactKey, boolean][]) {
+    const values = t.facts[key] ?? [];
+    if (values.some(v => !isNoneValue(v) && supportsWords(key, v))) continue;
+    if (values.some(isNoneValue)) {
+      for (const { word } of found([...text.matchAll(re)])) problems.push(`${word}: needs a${key === 'Age' ? 'n' : ''} ${key} fact, but ${key} is set to none, so it can't be claimed`);
+      continue;
+    }
+    if (!needed) continue;
     for (const { word } of found([...text.matchAll(re)])) {
       if (sameWordIn(word, t.base_details) || (key === 'Prizes' && /^win/.test(word) && BASE_PRIZE_WORD.test(t.base_details))) continue;
       problems.push(`${word}: needs a${key === 'Age' ? 'n' : ''} ${key} fact`);
