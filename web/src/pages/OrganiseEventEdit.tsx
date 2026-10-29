@@ -23,6 +23,16 @@ import { KIND_LABEL } from './OrganiseEvents';
 import { DatePlaces } from './OrganisePlaces';
 import { ageRange, BOOKING_VIA, FACT_PRESETS, hasPresets, presetChoice, PRICE_FREE, ROLE_PRESETS, rolePreset } from '../../../src/social/presets';
 import { EventSocialSection } from './OrganiseSocial';
+import {
+  CHECKLIST_KEYS,
+  checklistProblems,
+  checklistText,
+  emptyChecklist,
+  readChecklist,
+  type Checklist,
+  type ChecklistKey,
+  type FactState,
+} from '../../../src/social/checklist';
 
 const CATEGORIES = ['Gaming', 'Quiz', 'Social', 'Club', 'Tournament', 'Market', 'Workshop', 'Other'];
 const VISIBILITY: { value: EventVisibility; label: string; hint: string }[] = [
@@ -76,19 +86,6 @@ type FactRow = { key: string; value: string; choice?: string; url?: string; from
 type PersonRow = { name: string; role: string; other?: boolean };
 const linesOf = (text: string) => text.split('\n').map(l => l.trim()).filter(Boolean);
 
-/** Approved Facts as rows, or why they can't be (src/social/facts.ts parseFacts). */
-function factRows(text: string): { rows: FactRow[] } | { why: string } {
-  const rows: FactRow[] = [];
-  for (const line of linesOf(text)) {
-    const colon = line.indexOf(':');
-    const key = colon > 0 ? FACT_KEYS.find(k => k.toLowerCase() === line.slice(0, colon).trim().toLowerCase()) : undefined;
-    const value = colon > 0 ? line.slice(colon + 1).trim() : '';
-    if (!key || !value) return { why: `“${line}” isn’t a “Key: value” fact with one of the keys below.` };
-    rows.push({ key, value });
-  }
-  return { rows };
-}
-
 /** People & Roles as rows, or why they can't be (src/social/facts.ts parsePeople). */
 function personRows(text: string): { rows: PersonRow[] } | { why: string } {
   const rows: PersonRow[] = [];
@@ -114,6 +111,12 @@ export function EventEditor({ eventId }: { eventId: string }) {
   }, [eventId]);
   useEffect(() => void load(), [load]);
   useTitle(event ? `Edit ${event.name}` : 'Edit event');
+  // A link to a part of the form (#social-facts from a Social posts card, #ev-description) lands there once it has loaded.
+  const loaded = event !== null;
+  useEffect(() => {
+    const id = decodeURIComponent(location.hash.slice(1));
+    if (loaded && (id === 'social-facts' || id === 'ev-description')) requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: 'start' }));
+  }, [loaded]);
   // Unsaved changes in the details form, so leaving for another screen can ask first.
   const dirty = useRef(false);
   const onDirty = useCallback((d: boolean) => void (dirty.current = d), []);
@@ -236,6 +239,8 @@ function DetailsForm({ event, onSaved, onDirty }: { event: AdminEventForm; onSav
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [warning, setWarning] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The facts checklist can’t be saved while a fact Applies with no value.
+  const [factProblems, setFactProblems] = useState<string[]>([]);
   const hosted = event.kind === 'host_session';
   const set = (k: keyof AdminEventDetails, v: string) => (setD({ ...d, [k]: v }), setWarning(null));
   const setCol = (c: string, v: string) => (setSheet(s => ({ ...s, [c]: v })), setWarning(null));
@@ -449,12 +454,41 @@ function DetailsForm({ event, onSaved, onDirty }: { event: AdminEventForm; onSav
         </div>
       </div>
 
-      <SheetSections event={event} sheet={sheet} setCol={setCol} errors={errors} eventPrice={event.unavailable.price ? '' : d.price} />
+      <SheetSections
+        event={event}
+        sheet={sheet}
+        setCol={setCol}
+        errors={errors}
+        eventPrice={event.unavailable.price ? '' : d.price}
+        onFactProblems={setFactProblems}
+      />
 
       {errors.form && (
         <p class="field__error" role="alert">
           {errors.form}
         </p>
+      )}
+      {factProblems.length > 0 && (
+        <div class="field__error" role="alert">
+          <p>
+            Can’t save yet:{' '}
+            <a
+              href="#social-facts"
+              onClick={e => {
+                e.preventDefault();
+                document.getElementById('social-facts')?.scrollIntoView({ block: 'start' });
+              }}
+            >
+              Approved facts
+            </a>{' '}
+            has a fact that applies with no value.
+          </p>
+          <ul class="social__reasons">
+            {factProblems.map(p => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </div>
       )}
       {warning ? (
         <div class="notice notice--warning" role="alert">
@@ -472,7 +506,7 @@ function DetailsForm({ event, onSaved, onDirty }: { event: AdminEventForm; onSav
         </div>
       ) : (
         <div class="cluster">
-          <button type="button" class="btn btn--primary" disabled={busy || !changed} onClick={() => save(false)}>
+          <button type="button" class="btn btn--primary" disabled={busy || !changed || factProblems.length > 0} onClick={() => save(false)}>
             {busy ? 'Saving...' : 'Save changes'}
           </button>
           <span class="meta">
@@ -545,10 +579,12 @@ type SectionProps = {
   errors: Record<string, string>;
   /** The App Price as the form has it, for Price: “Same as the event price”; '' when there is none. */
   eventPrice: string;
+  /** Why the facts checklist can’t be saved yet; [] when it can. */
+  onFactProblems: (problems: string[]) => void;
 };
 
 /** Posting, Michelle's voice, Social facts and Contact: only the columns this tab has. */
-function SheetSections({ event, sheet, setCol, errors, eventPrice }: SectionProps) {
+function SheetSections({ event, sheet, setCol, errors, eventPrice, onFactProblems }: SectionProps) {
   const has = (...cols: string[]) => cols.some(c => c in event.sheet);
   const text = (c: string) => (e: { currentTarget: { value: string } }) => setCol(c, e.currentTarget.value);
   const folder = folderId(sheet['Photo Folder ID'] ?? '');
@@ -610,7 +646,15 @@ function SheetSections({ event, sheet, setCol, errors, eventPrice }: SectionProp
         <>
           <h2 id="social-facts">Social facts</h2>
           <SheetField event={event} column="Approved Facts" label="Approved facts" errors={errors}>
-            {id => <FactsEditor id={id} value={sheet['Approved Facts'] ?? ''} eventPrice={eventPrice} onChange={v => setCol('Approved Facts', v)} />}
+            {id => (
+              <FactsEditor
+                id={id}
+                value={sheet['Approved Facts'] ?? ''}
+                eventPrice={eventPrice}
+                onChange={v => setCol('Approved Facts', v)}
+                onProblems={onFactProblems}
+              />
+            )}
           </SheetField>
           <SheetField event={event} column="People & Roles" label="People & roles" errors={errors}>
             {id => <PeopleEditor id={id} value={sheet['People & Roles'] ?? ''} onChange={v => setCol('People & Roles', v)} />}
@@ -633,56 +677,141 @@ function SheetSections({ event, sheet, setCol, errors, eventPrice }: SectionProp
   );
 }
 
-/** Approved Facts as Key + value rows, saved as `Key: value` lines. Text that won't make rows stays a textarea. */
-function FactsEditor({ id, value, onChange, eventPrice }: { id: string; value: string; onChange: (v: string) => void; eventPrice: string }) {
-  const [parsed] = useState(() => factRows(value));
-  const [rows, setRows] = useState<FactRow[]>(() => ('rows' in parsed ? parsed.rows.map(r => factRow(r.key, r.value, eventPrice)) : []));
-  if ('why' in parsed)
-    return (
-      <>
-        <textarea id={id} class="input" rows={6} maxLength={LONG_MAX} value={value} onInput={e => onChange(e.currentTarget.value)} />
-        <p class="field__hint">
-          Shown as written, because {parsed.why} One fact per line, like “Booking: essential”, with a key from: {FACT_KEYS.join(', ')}.
-        </p>
-      </>
-    );
-  const update = (next: FactRow[]) => {
-    setRows(next);
-    onChange(next.filter(r => r.value.trim()).map(r => `${r.key}: ${r.value.trim()}`).join('\n'));
-  };
-  const change = (i: number, patch: Partial<FactRow>) => update(rows.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+/**
+ * Approved Facts as a checklist (src/social/checklist.ts): one row per key, Not decided (nothing saved), Doesn’t apply
+ * (`Key: none`) or Applies (`Key: value`, from the key’s presets or your own), then any Other lines. Booking always applies.
+ * Text that won’t make a checklist stays a textarea. `onProblems` hears why it can’t be saved: an Applies row with no value.
+ */
+function FactsEditor({
+  id,
+  value,
+  onChange,
+  onProblems,
+  eventPrice,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  onProblems: (problems: string[]) => void;
+  eventPrice: string;
+}) {
+  const [parsed] = useState(() => readChecklist(value));
+  const [rows, setRows] = useState<CheckRow[]>(() =>
+    CHECKLIST_KEYS.map(key => {
+      const fact = 'checklist' in parsed ? parsed.checklist.rows[key] : { state: 'undecided' as const };
+      return { state: fact.state, row: factRow(key, fact.state === 'applies' ? fact.value : '', eventPrice) };
+    }),
+  );
+  const [other, setOther] = useState<string[]>(() => ('checklist' in parsed ? parsed.checklist.other : []));
+  // A checklist that can’t be saved must say so even before it is touched; it is cleared when the editor goes.
+  useEffect(() => {
+    onProblems(checklistProblems(checklistOf(rows, other)));
+    return () => onProblems([]);
+  }, []);
   // “Same as the event price” follows the App Price when the admin changes it here; nothing is rewritten before that.
   const shownPrice = useRef(eventPrice);
   useEffect(() => {
     if (shownPrice.current === eventPrice) return;
     shownPrice.current = eventPrice;
-    if (eventPrice.trim() && rows.some(r => r.choice === EVENT_PRICE)) update(rows.map(r => (r.choice === EVENT_PRICE ? { ...r, value: eventPrice.trim() } : r)));
+    if (eventPrice.trim() && rows.some(r => r.row.choice === EVENT_PRICE))
+      update(rows.map(r => (r.row.choice === EVENT_PRICE ? { ...r, row: { ...r.row, value: eventPrice.trim() } } : r)), other);
   }, [eventPrice]);
+  if ('why' in parsed)
+    return (
+      <>
+        <textarea id={id} class="input" rows={6} maxLength={LONG_MAX} value={value} onInput={e => onChange(e.currentTarget.value)} />
+        <p class="field__hint">
+          Shown as written, because {parsed.why} One fact per line, like “Booking: essential”, with a key from: {FACT_KEYS.join(', ')}. Write
+          “none” for a fact that doesn’t apply.
+        </p>
+      </>
+    );
+  function update(nextRows: CheckRow[], nextOther: string[]) {
+    setRows(nextRows);
+    setOther(nextOther);
+    const c = checklistOf(nextRows, nextOther);
+    onChange(checklistText(c));
+    onProblems(checklistProblems(c));
+  }
+  const change = (i: number, patch: Partial<CheckRow>) => update(rows.map((x, j) => (j === i ? { ...x, ...patch } : x)), other);
+  const decided = rows.filter(r => r.state === 'none' || (r.state === 'applies' && r.row.value.trim())).length;
   return (
-    <div class="stack event-editor__rows" style={{ '--gap': '8px' }} id={id} role="group">
-      {!rows.length && <p class="meta">None yet.</p>}
-      {rows.map((r, i) => (
-        <div class="event-editor__row" key={i}>
-          <select class="input" aria-label={`Fact ${i + 1} key`} value={r.key} onChange={e => change(i, factRow(e.currentTarget.value, r.value, eventPrice))}>
-            {FACT_KEYS.map(k => (
-              <option key={k} value={k}>
-                {k}
-              </option>
-            ))}
-          </select>
-          <FactValue row={r} n={i + 1} eventPrice={eventPrice} onChange={patch => change(i, patch)} />
-          <button type="button" class="btn btn--text btn--sm" aria-label={`Remove fact ${i + 1}`} onClick={() => update(rows.filter((_, j) => j !== i))}>
-            <Trash2 size={16} aria-hidden="true" />
+    <div class="stack facts-check" style={{ '--gap': '10px' }} id={id} role="group" aria-describedby={`${id}-progress`}>
+      <p id={`${id}-progress`} class={decided === rows.length ? 'facts-check__progress' : 'facts-check__progress facts-check__progress--todo'} role="status">
+        Facts: {decided} of {rows.length} decided
+      </p>
+      <p class="field__hint">
+        Decide every fact, so posts never guess. “Doesn’t apply” tells the posts never to mention it. Booking always applies.
+      </p>
+      {rows.map((r, i) => {
+        const key = r.row.key;
+        const label = `ev-fact-${key.toLowerCase()}`;
+        const missing = r.state === 'applies' && !r.row.value.trim();
+        const states: [CheckState, string][] = [
+          ['undecided', 'Not decided'],
+          ...(key === 'Booking' ? [] : ([['none', 'Doesn’t apply']] as [CheckState, string][])),
+          ['applies', 'Applies'],
+        ];
+        return (
+          <div key={key} class={`facts-check__row${r.state === 'undecided' || missing ? ' facts-check__row--todo' : ''}`} role="group" aria-labelledby={label}>
+            <div class="facts-check__head">
+              <strong id={label}>{key}</strong>
+              <div class="segmented facts-check__states" role="group" aria-label={`${key}: is it needed?`}>
+                {states.map(([state, text]) => (
+                  <button key={state} type="button" aria-pressed={r.state === state} onClick={() => change(i, { state })}>
+                    {text}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {r.state === 'applies' && <FactValue row={r.row} label={key} eventPrice={eventPrice} onChange={patch => change(i, { row: { ...r.row, ...patch } })} />}
+            {missing && (
+              <p class="field__hint field__hint--warning" role="status">
+                {key} applies but has no value yet, so this can’t be saved. Choose one{key === 'Booking' ? ', or set it back to Not decided.' : ', or pick Not decided or Doesn’t apply.'}
+              </p>
+            )}
+          </div>
+        );
+      })}
+      <div class="stack" style={{ '--gap': '8px' }}>
+        <strong>Other</strong>
+        {!other.length && <p class="meta">Anything else posts may say, one line each. Optional.</p>}
+        {other.map((o, i) => (
+          <div class="facts-check__other" key={i}>
+            <input
+              class="input"
+              aria-label={`Other fact ${i + 1}`}
+              value={o}
+              maxLength={500}
+              onInput={e => update(rows, other.map((x, j) => (j === i ? e.currentTarget.value : x)))}
+            />
+            <button type="button" class="btn btn--text btn--sm" aria-label={`Remove other fact ${i + 1}`} onClick={() => update(rows, other.filter((_, j) => j !== i))}>
+              <Trash2 size={16} aria-hidden="true" />
+            </button>
+          </div>
+        ))}
+        <div>
+          <button type="button" class="btn btn--secondary btn--sm" onClick={() => setOther([...other, ''])}>
+            <Plus size={16} aria-hidden="true" /> Add another fact
           </button>
         </div>
-      ))}
-      <div>
-        <button type="button" class="btn btn--secondary btn--sm" onClick={() => setRows([...rows, factRow('Booking', '', eventPrice)])}>
-          <Plus size={16} aria-hidden="true" /> Add a fact
-        </button>
       </div>
     </div>
   );
+}
+
+type CheckState = FactState['state'];
+type CheckRow = { state: CheckState; row: FactRow };
+
+/** The checklist the rows stand for: an Applies row keeps its value as written. */
+function checklistOf(rows: CheckRow[], other: string[]): Checklist {
+  const c = emptyChecklist();
+  for (const r of rows) {
+    const key = r.row.key as ChecklistKey;
+    c.rows[key] = r.state === 'applies' ? { state: 'applies', value: r.row.value } : { state: r.state };
+  }
+  c.other = other;
+  return c;
 }
 
 const LINK = '__link';
@@ -702,8 +831,7 @@ function factRow(key: string, value: string, eventPrice: string): FactRow {
 }
 
 /** The value of a fact: the key's presets with Other (free text) last, or free text for the keys without presets. */
-function FactValue({ row, n, eventPrice, onChange }: { row: FactRow; n: number; eventPrice: string; onChange: (patch: Partial<FactRow>) => void }) {
-  const label = `Fact ${n}`;
+function FactValue({ row, label, eventPrice, onChange }: { row: FactRow; label: string; eventPrice: string; onChange: (patch: Partial<FactRow>) => void }) {
   const other = (
     <input class="input" aria-label={label} placeholder={hasPresets(row.key) ? 'Type your own' : ''} value={row.value} onInput={e => onChange({ value: e.currentTarget.value })} />
   );

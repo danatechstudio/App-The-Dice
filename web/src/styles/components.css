@@ -1798,6 +1798,57 @@ textarea.input {
   width: 4.5rem;
 }
 
+/* Edit event: the Approved Facts checklist. One row per fact, stacked on a phone; the three states beside the key from 600px. */
+.facts-check__progress {
+  font-weight: 700;
+  color: var(--rtd-success);
+}
+
+.facts-check__progress--todo {
+  color: var(--rtd-warning);
+}
+
+.facts-check__row {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--rtd-border);
+  border-radius: var(--rtd-radius-sm);
+  background: var(--rtd-surface);
+}
+
+.facts-check__row--todo {
+  border-color: var(--rtd-warning);
+  background: var(--rtd-warning-light);
+}
+
+.facts-check__head {
+  display: grid;
+  gap: 6px;
+}
+
+.facts-check__states button {
+  min-height: var(--rtd-touch-target, 44px);
+  padding: 4px 6px;
+  letter-spacing: normal;
+  text-transform: none;
+  line-height: 1.2;
+}
+
+.facts-check__other {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+@media (min-width: 600px) {
+  .facts-check__head {
+    grid-template-columns: 6rem minmax(0, 1fr);
+    align-items: center;
+  }
+}
+
 .event-editor__waiting {
   font-style: italic;
 }
