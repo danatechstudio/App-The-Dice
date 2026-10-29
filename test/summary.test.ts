@@ -184,15 +184,15 @@ describe('the organiser summary', () => {
 
     // Off (the default): the prompts to review are counted under Social posts; held posts aren't counted, and their part isn't there.
     let dan = await summary(DAN);
-    expect(dan.sections.social).toEqual({ count: 2, parts: { social_prompts: 2, facts_undecided: 0 } });
+    expect(dan.sections.social).toEqual({ count: 2, parts: { social_prompts: 2, facts_undecided: 0, examples_held: 0 } });
     expect(dan.sections.events).toEqual({ count: 0, parts: { sheet_edit_problems: 0 } });
     // Shadow and Enforce: held posts are counted under Social posts too, where their list is.
     await run("UPDATE settings SET value = 'shadow' WHERE key = 'social_prompts'");
     dan = await summary(DAN);
-    expect(dan.sections.social).toEqual({ count: 3, parts: { social_prompts: 2, facts_undecided: 0, social_held: 1 } });
+    expect(dan.sections.social).toEqual({ count: 3, parts: { social_prompts: 2, facts_undecided: 0, examples_held: 0, social_held: 1 } });
     expect(dan.sections.events).toEqual({ count: 0, parts: { sheet_edit_problems: 0 } });
     await run("UPDATE settings SET value = 'enforce' WHERE key = 'social_prompts'");
-    expect((await summary(DAN)).sections.social!.parts).toEqual({ social_prompts: 2, facts_undecided: 0, social_held: 1 });
+    expect((await summary(DAN)).sections.social!.parts).toEqual({ social_prompts: 2, facts_undecided: 0, examples_held: 0, social_held: 1 });
     const michelle = await summary(MICHELLE);
     expect(michelle.sections.events).toEqual({ count: 0 });
     expect(michelle.sections).not.toHaveProperty('social');
@@ -212,7 +212,7 @@ describe('the organiser summary', () => {
     await run("UPDATE events SET visibility = 'private' WHERE event_id = 'RTD-EVT-00002'");
     expect((await summary(DAN)).sections.social!.parts!.social_prompts).toBe(1);
     await run("UPDATE events SET visibility = 'hidden' WHERE event_id = 'RTD-EVT-00003'");
-    expect((await summary(DAN)).sections.social).toEqual({ count: 0, parts: { social_prompts: 0, facts_undecided: 0 } });
+    expect((await summary(DAN)).sections.social).toEqual({ count: 0, parts: { social_prompts: 0, facts_undecided: 0, examples_held: 0 } });
   });
 
   it('counts running Public and App Bookable events with a date to come and a fact still to decide, for admins only', async () => {

@@ -73,6 +73,7 @@ export const SECTIONS: SectionDef[] = [
     partLabels: {
       social_prompts: ['prompt to review', 'prompts to review'],
       facts_undecided: ['event with facts to decide', 'events with facts to decide'],
+      examples_held: ['post that would be held', 'posts that would be held'],
       social_held: ['post held this week', 'posts held this week'],
     },
   },

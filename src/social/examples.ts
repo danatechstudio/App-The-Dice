@@ -29,6 +29,14 @@ const NEWEST = "p.version = (SELECT MAX(q.version) FROM social_prompts q WHERE q
 const WANTS_EXAMPLE = `p.status IN ('approved', 'review_required') AND ${NEWEST}
   AND TRIM(COALESCE(p.master_prompt, '')) <> '' AND p.example_post IS NULL AND p.example_attempts < ${MAX_EXAMPLE_ATTEMPTS}`;
 
+// Updates only while the version is still the event's newest, approved or waiting for review (?1 event, ?2 version).
+const STILL = `event_id = ?1 AND version = ?2 AND status IN ('approved', 'review_required')
+  AND version = (SELECT MAX(version) FROM social_prompts WHERE event_id = ?1 AND status <> 'pending')`;
+
+/** A version (`p`) whose example would be held: there is one, and its verdict isn't a pass (one that won't read is held, as the screens show it). */
+export const EXAMPLE_HELD = (p = 'p') =>
+  `${p}.example_post IS NOT NULL AND NOT (COALESCE(json_valid(${p}.example_check), 0) AND json_extract(${p}.example_check, '$.passed') = 1)`;
+
 /** Whether an error is D1 saying the example columns aren't there: migration 0025 isn't applied yet. */
 export const isMissingExampleColumns = (e: unknown): boolean => /no such column:?\s*\S*example_/i.test(e instanceof Error ? e.message : String(e));
 
@@ -122,29 +130,84 @@ export async function storeExample(db: D1Database, eventId: string, body: unknow
   if (row.newest !== 1 || !['approved', 'review_required'].includes(row.status)) return STALE;
 
   // Stored only while the version is still the event's newest, so an answer racing a new version stores nothing.
-  const still = `event_id = ?1 AND version = ?2 AND status IN ('approved', 'review_required')
-    AND version = (SELECT MAX(version) FROM social_prompts WHERE event_id = ?1 AND status <> 'pending')`;
   if (error !== null) {
     const res = await db
-      .prepare(`UPDATE social_prompts SET example_attempts = example_attempts + 1, example_error = ?3, example_job_id = COALESCE(?4, example_job_id) WHERE ${still}`)
+      .prepare(`UPDATE social_prompts SET example_attempts = example_attempts + 1, example_error = ?3, example_job_id = COALESCE(?4, example_job_id) WHERE ${STILL}`)
       .bind(eventId, version, error, jobId)
       .run();
     return res.meta.changes > 0 ? { ok: true } : STALE;
   }
 
-  const fields = sourceFields(event);
-  const problems = await checkExample(db, eventId, version, text!, now);
-  // The check above doesn't look at the prompt (it may still need review), only whether it was made from the facts as they are now.
-  if (row.source_fingerprint !== (await fingerprint(fields)))
-    problems.unshift(`${fields.name || eventId}: prompt out of date (the facts changed since version ${version} was made)`);
+  const problems = await exampleProblems(db, event, version, row.source_fingerprint, text!, now);
   const passed = problems.length === 0;
   const res = await db
     .prepare(
       `UPDATE social_prompts SET example_post = ?3, example_check = ?4, example_model = ?5, example_job_id = ?6, example_generated_at = ?7,
          example_attempts = example_attempts + 1, example_error = NULL
-       WHERE ${still}`,
+       WHERE ${STILL}`,
     )
     .bind(eventId, version, text, JSON.stringify({ passed, problems }), shortText(b.model), jobId, now.toISOString())
     .run();
   return res.meta.changes > 0 ? { ok: true, passed, problems } : STALE;
+}
+
+/**
+ * The problems a live Facebook post about the event's next date would get for this example: the post check (checkExample), and
+ * whether the version was made from the event's facts as they are now. The check doesn't look at the prompt (it may still need
+ * review). storeExample and recheckExample both use it, so a re-check is the same check as the first one.
+ */
+async function exampleProblems(db: D1Database, event: Record<string, unknown>, version: number, sourceFingerprint: string, text: string, now: Date): Promise<string[]> {
+  const fields = sourceFields(event);
+  const problems = await checkExample(db, fields.event_id, version, text, now);
+  if (sourceFingerprint !== (await fingerprint(fields)))
+    problems.unshift(`${fields.name || fields.event_id}: prompt out of date (the facts changed since version ${version} was made)`);
+  return problems;
+}
+
+/**
+ * Runs the current post check on a version's stored example, without Gemini, and keeps the new verdict: the same check as
+ * storeExample (the event's next date, its facts now), with no social_checks row and nothing else about the example changed.
+ * 404 when there is no such version or it has no example; 409 when it isn't the event's newest any more.
+ */
+export async function recheckExample(db: D1Database, eventId: string, version: number, now: Date): Promise<{ ok: true; passed: boolean; problems: string[] } | Fail> {
+  const event = await db.prepare(`SELECT ${EVENT_FIELDS} FROM events e WHERE e.event_id = ?1`).bind(eventId).first<Record<string, unknown>>();
+  if (!event) return fail(404, 'No event with that ID');
+  const row = await db
+    .prepare(
+      `SELECT p.status, p.source_fingerprint, p.example_post, CASE WHEN ${NEWEST} THEN 1 ELSE 0 END AS newest
+       FROM social_prompts p WHERE p.event_id = ?1 AND p.version = ?2 AND p.status <> 'pending'`,
+    )
+    .bind(eventId, version)
+    .first<{ status: string; source_fingerprint: string; example_post: string | null; newest: number }>();
+  if (!row) return fail(404, 'No version with that number for that event');
+  if (row.newest !== 1 || !['approved', 'review_required'].includes(row.status)) return fail(409, "That version isn't the event's newest prompt any more.");
+  if (row.example_post === null) return fail(404, 'That version has no example post to re-check');
+  const problems = await exampleProblems(db, event, version, row.source_fingerprint, row.example_post, now);
+  const passed = problems.length === 0;
+  // Only over the same example: one written meanwhile keeps its own verdict.
+  await db
+    .prepare(`UPDATE social_prompts SET example_check = ?3 WHERE ${STILL} AND example_post = ?4`)
+    .bind(eventId, version, JSON.stringify({ passed, problems }), row.example_post)
+    .run();
+  return { ok: true, passed, problems };
+}
+
+/**
+ * Fix for a version whose example would be held: re-check it first ('passes' when it does now); when it still fails, clear
+ * the example (no post or verdict, no answers yet) so /examples-due lists the version again ('rewriting'). The caller wakes
+ * the prompt builder. The prompt itself is never changed.
+ */
+export async function fixExample(db: D1Database, eventId: string, version: number, now: Date): Promise<{ ok: true; example: 'passes' | 'rewriting' } | Fail> {
+  const re = await recheckExample(db, eventId, version, now);
+  if (!re.ok) return re;
+  if (re.passed) return { ok: true, example: 'passes' };
+  await db
+    .prepare(
+      `UPDATE social_prompts SET example_post = NULL, example_check = NULL, example_model = NULL, example_job_id = NULL, example_generated_at = NULL,
+         example_attempts = 0, example_error = NULL
+       WHERE ${STILL}`,
+    )
+    .bind(eventId, version)
+    .run();
+  return { ok: true, example: 'rewriting' };
 }

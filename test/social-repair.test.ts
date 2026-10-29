@@ -194,7 +194,7 @@ describe('Fix and Fix all', () => {
     expect((await post('/api/staff/social/fix-all', {}, MICHELLE)).status).toBe(403);
     const res = await post('/api/staff/social/fix-all');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ count: 2 });
+    expect(await res.json()).toEqual({ count: 2, prompts: 2, examples: 0, rechecked: 0, rewriting: 0 });
     expect(calls).toEqual([{ url: `${BASE}/rtd-prompt-builder-run`, body: { reason: 'regenerate' } }]);
     expect((await rows(DND)).at(-1)).toMatchObject({ status: 'pending', override_reason: 'fix' });
     expect((await rows(QUIZ)).at(-1)).toMatchObject({ status: 'pending', override_reason: 'fix' });
@@ -205,7 +205,7 @@ describe('Fix and Fix all', () => {
     await env.DB.prepare("UPDATE social_prompts SET status = 'approved' WHERE status <> 'pending'").run();
     await env.DB.prepare("DELETE FROM social_prompts WHERE status = 'pending'").run();
     calls = [];
-    expect(await (await post('/api/staff/social/fix-all')).json()).toEqual({ count: 0 });
+    expect(await (await post('/api/staff/social/fix-all')).json()).toMatchObject({ count: 0 });
     expect(calls).toEqual([]);
   });
 });
