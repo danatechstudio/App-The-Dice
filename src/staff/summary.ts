@@ -6,6 +6,8 @@ import { enabled as attentionOn } from '../attention/attention';
 import type { AuthUser } from '../lib/auth';
 import { addDays, londonDate } from '../lib/time';
 import { REVIEW_SQL } from '../social/admin';
+import { factsDecided } from '../social/checklist';
+import { sourceFields } from '../social/facts';
 
 export type SectionKey = 'approve' | 'attention' | 'events' | 'social' | 'bookings' | 'people' | 'content' | 'stats';
 
@@ -53,26 +55,40 @@ const BINDS: Partial<Record<keyof typeof COUNTS, (t: { weekAgo: string; today: s
   social_held: t => [t.weekAgo],
 };
 
+// Events a post could be about (running, Public or App Bookable, with a date to come): their facts, for the ones still to decide.
+const FACTS_SQL = `SELECT e.social_values FROM events e
+  WHERE e.active = 1 AND e.visibility IN ('public', 'app_bookable')
+    AND EXISTS (SELECT 1 FROM occurrences o WHERE o.event_id = e.event_id AND o.status = 'scheduled' AND o.event_date >= ?1)`;
+
+/** How many of those events have a fact key (src/social/checklist.ts) not yet decided. Only counted, never blocking. */
+async function factsUndecided(db: D1Database, today: string): Promise<number> {
+  const { results } = await db.prepare(FACTS_SQL).bind(today).all<Record<string, unknown>>();
+  return results.filter(r => factsDecided(sourceFields(r).approved_facts).undecided.length > 0).length;
+}
+
 const section = (parts: Record<string, number>): SectionSummary => ({ count: Object.values(parts).reduce((a, b) => a + b, 0), parts });
 
 export async function staffSummary(db: D1Database, user: AuthUser, now: Date): Promise<StaffSummary> {
   const today = londonDate(now);
   const weekAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
   const keys = Object.keys(COUNTS) as (keyof typeof COUNTS)[];
-  const [results, attention] = await Promise.all([
+  const admin = user.role === 'admin';
+  const [results, attention, undecided] = await Promise.all([
     db.batch(keys.map(k => db.prepare(COUNTS[k]).bind(...(BINDS[k]?.({ weekAgo, today }) ?? [])))),
     attentionOn(db),
+    admin ? factsUndecided(db, today) : 0,
   ]);
   const n = Object.fromEntries(keys.map((k, i) => [k, Number((results[i]!.results[0] as { n?: number } | undefined)?.n ?? 0)])) as Record<keyof typeof COUNTS, number>;
-  const admin = user.role === 'admin';
 
   const sections: StaffSummary['sections'] = {
     approve: section({ join_requests: n.join_requests, sessions: n.sessions, changes: n.changes, market_applications: n.market_applications }),
     attention: section({ open_items: attention ? n.open_items : 0, failed_deliveries: n.failed_emails + n.failed_pushes }),
     // Held posts count only while the switch isn't Off; at Off the part isn't there.
     events: admin ? section({ sheet_edit_problems: n.sheet_edit_problems }) : { count: 0 },
-    // Prompts to review count at every setting, Off included: they can be approved before posts are checked.
-    ...(admin ? { social: section({ social_prompts: n.social_prompts, ...(n.social_on ? { social_held: n.social_held } : {}) }) } : {}),
+    // Prompts to review count at every setting, Off included: they can be approved before posts are checked. So do events with facts to decide.
+    ...(admin
+      ? { social: section({ social_prompts: n.social_prompts, facts_undecided: undecided, ...(n.social_on ? { social_held: n.social_held } : {}) }) }
+      : {}),
     bookings: { count: 0, info: { booked_dates_7_days: n.booked_dates_7_days } },
     people: { count: 0 },
   };

@@ -70,7 +70,11 @@ export const SECTIONS: SectionDef[] = [
     title: 'Social posts',
     blurb: 'Event prompts to approve, with an example post for each, and held posts',
     adminOnly: true,
-    partLabels: { social_prompts: ['prompt to review', 'prompts to review'], social_held: ['post held this week', 'posts held this week'] },
+    partLabels: {
+      social_prompts: ['prompt to review', 'prompts to review'],
+      facts_undecided: ['event with facts to decide', 'events with facts to decide'],
+      social_held: ['post held this week', 'posts held this week'],
+    },
   },
   { key: 'bookings', title: 'Bookings', blurb: 'Booked dates coming up', adminOnly: false, partLabels: {} },
   { key: 'people', title: 'People', blurb: 'Hosts and approvers', adminOnly: false, partLabels: {} },

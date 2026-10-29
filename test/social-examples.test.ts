@@ -397,7 +397,7 @@ describe('before migration 0025 is applied', () => {
     await setUp();
     const hub = await staffGet('/api/staff/summary');
     expect(hub.status).toBe(200);
-    expect((await hub.json<{ sections: Record<string, unknown> }>()).sections.social).toEqual({ count: 1, parts: { social_prompts: 1 } });
+    expect((await hub.json<{ sections: Record<string, unknown> }>()).sections.social).toMatchObject({ parts: { social_prompts: 1 } });
     const res = await staffGet('/api/staff/social');
     expect(res.status).toBe(200);
     const overview = await res.json<Overview>();

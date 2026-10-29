@@ -11,6 +11,8 @@ const summary = async (who: Partial<Env>) => (await request('/api/staff/summary'
 
 const NOW = '2026-10-05T10:00:00Z';
 const run = (sql: string, ...binds: unknown[]) => env.DB.prepare(sql).bind(...binds).run();
+// Every fact key decided, so the seeded events have no facts to decide.
+const DECIDED = { 'Approved Facts': 'Booking: Essential\nLevel: none\nAge: none\nFormat: none\nPrizes: none\nPrice: none\nBring: none\nFood: none' };
 const daysAgo = (n: number) => new Date(Date.parse(NOW) - n * 86_400_000).toISOString();
 
 beforeEach(async () => {
@@ -26,7 +28,7 @@ beforeEach(async () => {
   await sync({
     run_id: 'seed',
     sources: {
-      event_index: [indexRow(1, { 'Event Date': '08/10/2026' }), indexRow(2, { 'Event Date': '15/10/2026' }), indexRow(3)],
+      event_index: [indexRow(1, { 'Event Date': '08/10/2026', ...DECIDED }), indexRow(2, { 'Event Date': '15/10/2026', ...DECIDED }), indexRow(3, DECIDED)],
       standard_diary: [],
     },
   });
@@ -182,15 +184,15 @@ describe('the organiser summary', () => {
 
     // Off (the default): the prompts to review are counted under Social posts; held posts aren't counted, and their part isn't there.
     let dan = await summary(DAN);
-    expect(dan.sections.social).toEqual({ count: 2, parts: { social_prompts: 2 } });
+    expect(dan.sections.social).toEqual({ count: 2, parts: { social_prompts: 2, facts_undecided: 0 } });
     expect(dan.sections.events).toEqual({ count: 0, parts: { sheet_edit_problems: 0 } });
     // Shadow and Enforce: held posts are counted under Social posts too, where their list is.
     await run("UPDATE settings SET value = 'shadow' WHERE key = 'social_prompts'");
     dan = await summary(DAN);
-    expect(dan.sections.social).toEqual({ count: 3, parts: { social_prompts: 2, social_held: 1 } });
+    expect(dan.sections.social).toEqual({ count: 3, parts: { social_prompts: 2, facts_undecided: 0, social_held: 1 } });
     expect(dan.sections.events).toEqual({ count: 0, parts: { sheet_edit_problems: 0 } });
     await run("UPDATE settings SET value = 'enforce' WHERE key = 'social_prompts'");
-    expect((await summary(DAN)).sections.social!.parts).toEqual({ social_prompts: 2, social_held: 1 });
+    expect((await summary(DAN)).sections.social!.parts).toEqual({ social_prompts: 2, facts_undecided: 0, social_held: 1 });
     const michelle = await summary(MICHELLE);
     expect(michelle.sections.events).toEqual({ count: 0 });
     expect(michelle.sections).not.toHaveProperty('social');
@@ -210,7 +212,35 @@ describe('the organiser summary', () => {
     await run("UPDATE events SET visibility = 'private' WHERE event_id = 'RTD-EVT-00002'");
     expect((await summary(DAN)).sections.social!.parts!.social_prompts).toBe(1);
     await run("UPDATE events SET visibility = 'hidden' WHERE event_id = 'RTD-EVT-00003'");
-    expect((await summary(DAN)).sections.social).toEqual({ count: 0, parts: { social_prompts: 0 } });
+    expect((await summary(DAN)).sections.social).toEqual({ count: 0, parts: { social_prompts: 0, facts_undecided: 0 } });
+  });
+
+  it('counts running Public and App Bookable events with a date to come and a fact still to decide, for admins only', async () => {
+    const facts = (n: number, text: string, over: Record<string, unknown> = {}) => indexRow(n, { 'Event Date': '20/10/2026', 'Approved Facts': text, ...over });
+    await sync({
+      run_id: 'facts',
+      sources: {
+        event_index: [
+          indexRow(1, { 'Event Date': '08/10/2026', ...DECIDED }),
+          facts(2, 'Booking: Essential'), // seven to decide
+          facts(3, DECIDED['Approved Facts'].replace('\nFood: none', '')), // Food to decide
+          facts(4, ''), // all eight
+          facts(5, '', { 'App Visibility': 'Private' }),
+          facts(6, '', { 'App Visibility': 'Hidden' }),
+          facts(7, '', { 'Event Date': '01/10/2026' }), // its only date has gone
+          facts(8, '', { 'App Visibility': 'App Bookable' }),
+        ],
+        standard_diary: [],
+      },
+    });
+    let dan = await summary(DAN);
+    expect(dan.sections.social!.parts!.facts_undecided).toBe(4);
+    expect(dan.sections.social!.count).toBe(4);
+    await run("UPDATE events SET active = 0 WHERE event_id = 'RTD-EVT-00008'");
+    await run("UPDATE occurrences SET status = 'cancelled' WHERE event_id = 'RTD-EVT-00004'");
+    dan = await summary(DAN);
+    expect(dan.sections.social!.parts!.facts_undecided).toBe(2);
+    expect(await summary(MICHELLE)).not.toHaveProperty('sections.social');
   });
 
   it('shows booked dates this week as information, not as waiting', async () => {
