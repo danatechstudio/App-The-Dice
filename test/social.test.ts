@@ -308,7 +308,7 @@ describe('prompt store', () => {
     const list = await due();
     expect(list.map(d => d.event_id)).toEqual([DND]);
     expect(list[0]!.fingerprint).toBe(await currentFp());
-    expect(list[0]!.instruction_version).toBe(3);
+    expect(list[0]!.instruction_version).toBe(4);
     expect(list[0]!.request.system).toContain(INSTRUCTION);
     expect(list[0]!.request.user).toContain('MoreThanABitDicey');
     // Gemini never sees the date or the time.
@@ -351,6 +351,9 @@ describe('prompt store', () => {
     expect(stored!.status).toBe('approved');
     const snapshot = await env.DB.prepare('SELECT source_snapshot FROM social_prompts WHERE event_id = ?1').bind(DND).first<{ source_snapshot: string }>();
     expect(JSON.parse(snapshot!.source_snapshot)).not.toHaveProperty('tone_guidance');
+    expect(await dueIds()).toEqual([]);
+    // Nor one made before the "none" rule (version 3).
+    await env.DB.prepare('UPDATE social_prompts SET instruction_version = 3').run();
     expect(await dueIds()).toEqual([]);
     // Changing only the tone guidance doesn't make it due either; changing a fact does.
     await syncRows([dndRow({ "Michelle's Standard Prompt": 'Short and punchy.' })]);

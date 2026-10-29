@@ -94,7 +94,7 @@ describe('self-repair', () => {
     const first = (await dueOf())!;
     expect(sent(first)).not.toHaveProperty('previous_attempt');
     expect(first.request.system).toContain(REPAIR_INSTRUCTION);
-    expect(first.instruction_version).toBe(3);
+    expect(first.instruction_version).toBe(4);
 
     expect(await propose({ output: output(badPrompt) })).toMatchObject({ status: 'review_required', version: 1 });
     const again = (await dueOf())!;
