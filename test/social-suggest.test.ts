@@ -3,7 +3,7 @@
 // an admin taps Apply, which goes through the sheet-edit path like any other change.
 import { describe, expect, it } from 'vitest';
 import type { SourceFields } from '../src/social/facts';
-import { suggestFixes } from '../src/social/suggest';
+import { suggestExampleFixes, suggestFixes } from '../src/social/suggest';
 import { promptTextErrors } from '../src/social/validate';
 
 const olivia: SourceFields = {
@@ -96,5 +96,59 @@ describe('suggestFixes', () => {
   it('suggests nothing for anything else, and once per person', () => {
     expect(suggestFixes(olivia, ['The prompt names another event, "Quiz Night"', 'Claim 2 has no text'])).toEqual([]);
     expect(suggestFixes(olivia, ['In the prompt, Olivia: not in People & Roles', 'In the prompt, Olivia: not in People & Roles'])).toHaveLength(1);
+  });
+});
+
+// Example posts that would be held (Organise › Social posts, "Posts that would be held"): what an admin could change.
+describe('suggestExampleFixes', () => {
+  const cleeples: SourceFields = {
+    ...olivia,
+    event_id: 'RTD-EVT-00021',
+    name: 'Cleeples',
+    base_details: 'A friendly board game meet-up.',
+    people_roles: 'Millie - host',
+  };
+  const tone = 'Write like Michelle: warm and chatty. MillieMoo runs the show, so give her a shout-out.';
+
+  it('links a missing fact to its checklist row', () => {
+    const sazlou = { ...olivia, name: 'SazLou', approved_facts: 'Booking: essential' };
+    expect(suggestExampleFixes(sazlou, '', ['family: needs an Age fact', 'all ages: needs an Age fact', 'cash: needs a Prizes fact'])).toEqual([
+      { kind: 'fact_missing', key: 'Age', link: 'ev-fact-age', text: 'Set Age in the facts checklist' },
+      { kind: 'fact_missing', key: 'Prizes', link: 'ev-fact-prizes', text: 'Set Prizes in the facts checklist' },
+    ]);
+    // A fact set to none that the post claims anyway: the same row.
+    expect(suggestExampleFixes(sazlou, '', ["kids: needs an Age fact, but Age is set to none, so it can't be claimed"])).toMatchObject([
+      { kind: 'fact_missing', key: 'Age' },
+    ]);
+  });
+
+  it("says when Michelle's prompt and People & Roles use different names for someone, with no one-tap", () => {
+    expect(suggestExampleFixes(cleeples, tone, ['MillieMoo: not in People & Roles'])).toEqual([
+      {
+        kind: 'name_mismatch',
+        prompt_name: 'MillieMoo',
+        people_name: 'Millie',
+        links: [
+          { link: 'ev-col-people-roles', text: 'People & Roles' },
+          { link: 'ev-voice', text: 'Michelle’s voice' },
+        ],
+        text: "Michelle's prompt calls them 'MillieMoo' but People & Roles says 'Millie'. Use one name in both",
+      },
+    ]);
+    // A close spelling counts too.
+    expect(suggestExampleFixes({ ...cleeples, people_roles: 'Milly - host' }, 'Millie hosts it.', ['Millie: not in People & Roles'])).toMatchObject([
+      { kind: 'name_mismatch', prompt_name: 'Millie', people_name: 'Milly' },
+    ]);
+  });
+
+  it("suggests nothing for a name Michelle's prompt doesn't use, or no one in People & Roles is near", () => {
+    expect(suggestExampleFixes(cleeples, '', ['MillieMoo: not in People & Roles'])).toEqual([]);
+    expect(suggestExampleFixes(cleeples, 'Trixie runs it.', ['Trixie: not in People & Roles'])).toEqual([]);
+  });
+
+  it('offers the one-tap People & Roles line when Base Details gives the name a role', () => {
+    expect(suggestExampleFixes(olivia, '', ['Olivia: not in People & Roles'])).toMatchObject([
+      { kind: 'people_add', name: 'Olivia', to: 'Trixie - host\nOlivia - Dungeon Master' },
+    ]);
   });
 });
