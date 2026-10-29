@@ -14,6 +14,7 @@ import {
   hostApi,
   type EventSocial,
   type SocialApprovedItem,
+  type SocialFactsDecided,
   type SocialCheck,
   type SocialExample,
   type SocialMode,
@@ -233,6 +234,24 @@ function ExampleBlock({ example }: { example: SocialExample }) {
 }
 
 const editorLink = (eventId: string) => editorHref(eventId, 'social');
+const checklistLink = (eventId: string) => `/organise/events/${encodeURIComponent(eventId)}?from=social#social-facts`;
+
+/** "Facts: 6 of 8 decided", the keys still to decide, and a link to the checklist. */
+function FactsDecided({ eventId, name, f, onOpen }: { eventId: string; name: string; f: SocialFactsDecided; onOpen: () => void }) {
+  const total = f.decided.length + f.undecided.length;
+  return (
+    <p class={f.undecided.length ? 'social__facts-decided social__facts-decided--todo' : 'social__facts-decided meta'}>
+      <strong>
+        Facts: {f.decided.length} of {total} decided
+      </strong>
+      {f.undecided.length > 0 && <> · To decide: {f.undecided.join(', ')}</>}
+      {' · '}
+      <a href={checklistLink(eventId)} onClick={onOpen} aria-label={`Open the facts checklist for ${name}`}>
+        {f.undecided.length ? 'Decide them' : 'See the facts'}
+      </a>
+    </p>
+  );
+}
 
 /** One prompt waiting for a person: why, the prompt, its example, and Approve (with a note) or Regenerate, right here. */
 function ReviewCard({ r, onDone, onOpen }: { r: SocialReviewItem; onDone: () => void; onOpen: () => void }) {
@@ -281,6 +300,7 @@ function ReviewCard({ r, onDone, onOpen }: { r: SocialReviewItem; onDone: () => 
         <Chip kind={STATUS[r.status].kind}>{STATUS[r.status].label}</Chip>
         <span class="meta">v{r.version}</span>
       </div>
+      <FactsDecided eventId={r.event_id} name={r.name} f={r.facts_decided} onOpen={onOpen} />
       {r.questions.length > 0 && (
         <ul class="social__reasons">
           {r.questions.map((q, i) => (
@@ -361,6 +381,7 @@ function ApprovedCard({ a, onOpen }: { a: SocialApprovedItem; onOpen: () => void
         <Chip kind={STATUS.approved.kind}>{STATUS.approved.label}</Chip>
         <span class="meta">v{a.version}</span>
       </div>
+      <FactsDecided eventId={a.event_id} name={a.name} f={a.facts_decided} onOpen={onOpen} />
       {a.approved_by && (
         <p class="meta">
           Approved by {a.approved_by === 'system' ? 'the checks' : a.approved_by}

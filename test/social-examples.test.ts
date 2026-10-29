@@ -286,7 +286,7 @@ type Ex = { state: string; post: string | null; passed: boolean | null; problems
 type Overview = {
   mode: string;
   review: { event_id: string; name: string; status: string; version: number; questions: string[]; master_prompt: string | null; example: Ex | null }[];
-  approved: { event_id: string; name: string; version: number; master_prompt: string | null; approved_by: string | null; approved_at: string | null; example: Ex }[];
+  approved: { event_id: string; name: string; version: number; master_prompt: string | null; approved_by: string | null; approved_at: string | null; example: Ex; facts_decided: { decided: string[]; undecided: string[] } }[];
   held: unknown[];
 };
 const DAN = { ENVIRONMENT: 'development', DEV_AUTH_EMAIL: 'dan@example.com' };
@@ -323,12 +323,16 @@ describe('admin screens', () => {
         example: WAITING,
         suggestions: [],
         fixing: false,
+        facts_decided: { decided: ['Booking'], undecided: ['Level', 'Age', 'Format', 'Prizes', 'Price', 'Bring', 'Food'] },
       },
     ]);
     expect(overview.approved.map(a => [a.event_id, a.name, a.version])).toEqual([
       [BINGO, 'Bingo', 1],
       [QUIZ, 'Quiz', 1],
     ]);
+    // Each card says which facts are decided: Quiz has only Prizes, Bingo none.
+    expect(overview.approved.map(a => a.facts_decided.decided)).toEqual([[], ['Prizes']]);
+    expect(overview.approved[0]!.facts_decided.undecided).toHaveLength(8);
     expect(overview.approved[1]).toMatchObject({ master_prompt: `${QUIZ_PROMPT}\n\n${SCHEDULE_RULE}`, approved_by: 'dan@example.com', approved_at: NOW.toISOString(), example: WAITING });
 
     // An example that passed, one that would be held, and one n8n couldn't write.

@@ -5,6 +5,7 @@
 
 import type { AuthUser } from '../lib/auth';
 import { bannedPhrases } from './check';
+import { factsDecided, type ChecklistKey } from './checklist';
 import { isMissingExampleColumns, MAX_EXAMPLE_ATTEMPTS } from './examples';
 import { fingerprint, parseFacts, parsePeople, sourceFields, type FactKey, type Person } from './facts';
 import { approveOverride, currentPrompt, EVENT_FIELDS, requestFix, requestRegenerate, setSocialMode, socialMode, type Fail, type Mode, type StoredStatus } from './prompts';
@@ -138,7 +139,11 @@ export interface ReviewItem {
   suggestions: Suggestion[];
   /** An admin's Fix or Regenerate is waiting for the builder. */
   fixing: boolean;
+  /** Which of the eight fact keys the event's Approved Facts decide now (src/social/checklist.ts). */
+  facts_decided: FactsDecided;
 }
+
+export type FactsDecided = { decided: ChecklistKey[]; undecided: ChecklistKey[] };
 
 /** An event whose newest version is approved, for the "Approved" group. */
 export interface ApprovedItem {
@@ -149,6 +154,7 @@ export interface ApprovedItem {
   approved_by: string | null;
   approved_at: string | null;
   example: PromptExample;
+  facts_decided: FactsDecided;
 }
 
 export interface CheckRow {
@@ -256,19 +262,21 @@ export async function socialOverview(
         name: string;
         fixing: number;
       }>(),
-    db.prepare(APPROVED_SQL).bind(APPROVED_SHOWN).all<Omit<ApprovedItem, 'example'>>(),
+    db.prepare(APPROVED_SQL).bind(APPROVED_SHOWN).all<Omit<ApprovedItem, 'example' | 'facts_decided'>>(),
     db.prepare("SELECT * FROM social_checks WHERE result = 'fail' ORDER BY created_at DESC, check_id DESC LIMIT ?1").bind(HELD_SHOWN).all<CheckDbRow>(),
   ]);
   const example = await examplesOf(db, [...review.results, ...approved.results]);
-  // The events' facts as they are now, which the suggestions start from.
+  // The events' facts as they are now, which the suggestions start from and the cards count the decided keys of.
   const facts = new Map<string, ReturnType<typeof sourceFields>>();
-  if (review.results.length) {
+  const ids = [...new Set([...review.results, ...approved.results].map(r => r.event_id))];
+  if (ids.length) {
     const { results } = await db
       .prepare(`SELECT ${EVENT_FIELDS} FROM events e WHERE e.event_id IN (SELECT value FROM json_each(?1))`)
-      .bind(JSON.stringify(review.results.map(r => r.event_id)))
+      .bind(JSON.stringify(ids))
       .all<Record<string, unknown>>();
     for (const row of results) facts.set(String(row.event_id), sourceFields(row));
   }
+  const decidedOf = (eventId: string): FactsDecided => factsDecided(facts.get(eventId)?.approved_facts ?? '');
   return {
     ok: true,
     mode,
@@ -282,8 +290,9 @@ export async function socialOverview(
       example: r.status === 'blocked' ? null : example(r.event_id, r.version),
       suggestions: facts.has(r.event_id) ? suggestFixes(facts.get(r.event_id)!, list(r.validation_errors)) : [],
       fixing: r.fixing === 1,
+      facts_decided: decidedOf(r.event_id),
     })),
-    approved: approved.results.map(a => ({ ...a, example: example(a.event_id, a.version) })),
+    approved: approved.results.map(a => ({ ...a, example: example(a.event_id, a.version), facts_decided: decidedOf(a.event_id) })),
     held: await checkRows(db, held.results),
   };
 }

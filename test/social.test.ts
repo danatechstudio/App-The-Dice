@@ -1133,6 +1133,7 @@ describe('admin screens', () => {
         example: expect.objectContaining({ state: 'waiting' }),
         suggestions: [],
         fixing: false,
+        facts_decided: { decided: ['Booking'], undecided: ['Level', 'Age', 'Format', 'Prizes', 'Price', 'Bring', 'Food'] },
       },
     ]);
     expect(overview.held).toEqual([]);
