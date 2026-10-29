@@ -111,11 +111,13 @@ export function EventEditor({ eventId }: { eventId: string }) {
   }, [eventId]);
   useEffect(() => void load(), [load]);
   useTitle(event ? `Edit ${event.name}` : 'Edit event');
-  // A link to a part of the form (#social-facts from a Social posts card, #ev-description) lands there once it has loaded.
+  // A link to a part of the form from a Social posts card (#social-facts, a checklist row #ev-fact-age, People & Roles
+  // #ev-col-people-roles, Michelle's voice #ev-voice, #ev-description) lands there once it has loaded.
   const loaded = event !== null;
   useEffect(() => {
     const id = decodeURIComponent(location.hash.slice(1));
-    if (loaded && (id === 'social-facts' || id === 'ev-description')) requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: 'start' }));
+    if (loaded && /^(?:social-facts|ev-description|ev-voice|ev-col-people-roles|ev-fact-[a-z]+)$/.test(id))
+      requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: 'start' }));
   }, [loaded]);
   // Unsaved changes in the details form, so leaving for another screen can ask first.
   const dirty = useRef(false);

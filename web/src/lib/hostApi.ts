@@ -293,7 +293,11 @@ export interface SocialFactsDecided {
 export type SocialSuggestion =
   | { kind: 'people_add' | 'people_role'; name: string; column: 'People & Roles'; from: string; to: string; text: string }
   | { kind: 'booking_missing'; link: 'social-facts'; text: string }
-  | { kind: 'description_day'; link: 'ev-description'; text: string };
+  | { kind: 'description_day'; link: 'ev-description'; text: string }
+  /** A held example claims something a fact key would have to say: a link to that checklist row. */
+  | { kind: 'fact_missing'; key: string; link: string; text: string }
+  /** Michelle's Standard Prompt and People & Roles name someone differently: links to both, no one-tap. */
+  | { kind: 'name_mismatch'; prompt_name: string; people_name: string; links: { link: 'ev-col-people-roles' | 'ev-voice'; text: string }[]; text: string };
 
 export interface SocialApprovedItem {
   event_id: string;
@@ -303,6 +307,8 @@ export interface SocialApprovedItem {
   approved_by: string | null;
   approved_at: string | null;
   example: SocialExample;
+  /** When its example would be held: changes to the facts that would answer the reasons. */
+  suggestions: SocialSuggestion[];
   facts_decided: SocialFactsDecided;
 }
 

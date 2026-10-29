@@ -2,7 +2,8 @@
 // Each event gets its own master prompt, written from the facts the café put in the Logic Engine,
 // and every post is checked against that event's facts before it goes out. The panel (Organise ›
 // Social posts) has the prompts waiting for a person, each with its example post, inline Approve,
-// Regenerate and Fix (Fix all for the lot) and one-tap fact suggestions, the approved prompts with theirs, the switch and the posts the check held; the event
+// Regenerate and Fix (Fix all for the lot) and one-tap fact suggestions, the approved prompts whose example post would be held
+// (with the reasons, suggestions and Fix), the approved prompts with theirs, the switch and the posts the check held; the event
 // editor has one event's facts, its prompt and example, Regenerate, Approve with a note, versions and checks.
 
 import { AlertTriangle, Check, ExternalLink, RefreshCw, Wand2 } from 'lucide-preact';
@@ -25,7 +26,7 @@ import {
 } from '../lib/hostApi';
 import { editorHref, socialOrder } from '../lib/eventTrail';
 import { saveTrail } from '../lib/eventTrailStore';
-import { exampleView } from '../lib/socialExample';
+import { exampleView, fixAllMessage, fixExampleMessage, isHeldExample } from '../lib/socialExample';
 import { toast } from '../lib/toast';
 
 const MODES: { mode: SocialMode; label: string; hint: string }[] = [
@@ -49,8 +50,6 @@ const when = (iso: string) => `${shortDate(todayLondon(new Date(iso)))}, ${clock
 /** The problems a refused approval lists (the server sends them as a list). */
 const listOf = (errors: unknown): string[] => (Array.isArray(errors) ? errors : errors && typeof errors === 'object' ? Object.values(errors) : []).map(String);
 
-const prompts = (n: number) => `${n} prompt${n === 1 ? '' : 's'}`;
-
 // ---- The panel (Organise › Social posts) ----
 
 export function SocialPanel() {
@@ -63,9 +62,11 @@ export function SocialPanel() {
     else setError(res.error);
   }, []);
   useEffect(() => void load(), [load]);
-  const waiting = data ? data.review.length : 0;
+  const heldExamples = data ? data.approved.filter(a => isHeldExample(a.example)) : [];
+  const goodApproved = data ? data.approved.filter(a => !isHeldExample(a.example)) : [];
+  const waiting = data ? data.review.length + heldExamples.length : 0;
   const reviewIds = data ? data.review.map(r => r.event_id) : [];
-  const approvedIds = data ? data.approved.map(a => a.event_id) : [];
+  const approvedIds = [...heldExamples, ...goodApproved].map(a => a.event_id);
   // Opening an event remembers this list's order, so the editor can step through it.
   const remember = (fromApproved: boolean) => () => saveTrail({ from: 'social', ids: socialOrder(reviewIds, approvedIds, fromApproved) });
 
@@ -85,12 +86,12 @@ export function SocialPanel() {
           <div>
             <div class="cluster social__review-head">
               <h3 class="label social__subhead">Prompts to review</h3>
-              {data.review.length > 0 && <FixAll count={data.review.length} onDone={load} />}
+              {waiting > 0 && <FixAll count={waiting} onDone={load} />}
             </div>
             {data.review.length > 0 && (
               <p class="meta social__subhead">
                 Fix sends a prompt back to be rewritten without the problems listed. It never changes the event’s facts: a suggested change waits for you to tap
-                Apply.
+                Apply. Fix all also covers the posts that would be held, below.
               </p>
             )}
             {!data.review.length && (
@@ -102,12 +103,26 @@ export function SocialPanel() {
               ))}
             </div>
           </div>
-          {data.approved.length > 0 && (
+          {heldExamples.length > 0 && (
+            <div>
+              <h3 class="label social__subhead">Posts that would be held ({heldExamples.length})</h3>
+              <p class="meta social__subhead">
+                Approved prompts whose example post would fail its check. Fix checks it again with today’s rules first; if it still fails, a new example is
+                written. The facts only change when you tap Apply or edit the event.
+              </p>
+              <div class="list">
+                {heldExamples.map(a => (
+                  <HeldExampleCard key={`${a.event_id}-${a.version}`} a={a} onDone={load} onOpen={remember(true)} />
+                ))}
+              </div>
+            </div>
+          )}
+          {goodApproved.length > 0 && (
             <details class="social__group">
-              <summary class="label">Approved ({data.approved.length})</summary>
+              <summary class="label">Approved ({goodApproved.length})</summary>
               <p class="meta">What a good prompt looks like, with its example post.</p>
               <div class="list">
-                {data.approved.map(a => (
+                {goodApproved.map(a => (
                   <ApprovedCard key={`${a.event_id}-${a.version}`} a={a} onOpen={remember(true)} />
                 ))}
               </div>
@@ -133,15 +148,15 @@ export function SocialPanel() {
   );
 }
 
-/** Fix all: every prompt in the review list goes back to be rewritten, and the builder runs once. */
+/** Fix all: every prompt in the review list goes back to be rewritten, every held example is re-checked or written again, and the builder runs once. */
 function FixAll({ count, onDone }: { count: number; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const fixAll = async () => {
     setBusy(true);
-    const res = await hostApi<{ count: number }>('/api/staff/social/fix-all', {});
+    const res = await hostApi<{ count: number; prompts: number; examples: number; rechecked: number; rewriting: number }>('/api/staff/social/fix-all', {});
     setBusy(false);
     if (!res.ok) return toast(res.error);
-    toast(res.data.count ? `Fixing ${prompts(res.data.count)}: they’ll be back within a couple of minutes.` : 'Nothing to fix just now.');
+    toast(fixAllMessage(res.data));
     onDone();
   };
   return (
@@ -155,11 +170,25 @@ function FixAll({ count, onDone }: { count: number; onDone: () => void }) {
 function SuggestionRow({ eventId, s }: { eventId: string; s: SocialSuggestion }) {
   const [state, setState] = useState<'idle' | 'busy' | 'applied'>('idle');
   const [error, setError] = useState<string | null>(null);
-  if (s.kind === 'booking_missing' || s.kind === 'description_day') {
-    const href = `/organise/events/${encodeURIComponent(eventId)}?from=social#${s.link}`;
+  const hrefOf = (link: string) => `/organise/events/${encodeURIComponent(eventId)}?from=social#${link}`;
+  if (s.kind === 'booking_missing' || s.kind === 'description_day' || s.kind === 'fact_missing') {
     return (
       <li class="social__suggestion">
-        <a href={href}>{s.text}</a>
+        <a href={hrefOf(s.link)}>{s.text}</a>
+      </li>
+    );
+  }
+  if (s.kind === 'name_mismatch') {
+    return (
+      <li class="social__suggestion">
+        <p>{s.text}</p>
+        <p class="cluster" style={{ '--gap': '12px' }}>
+          {s.links.map(l => (
+            <a key={l.link} href={hrefOf(l.link)}>
+              {l.text}
+            </a>
+          ))}
+        </p>
       </li>
     );
   }
@@ -365,6 +394,48 @@ function ReviewCard({ r, onDone, onOpen }: { r: SocialReviewItem; onDone: () => 
           <RefreshCw size={16} aria-hidden="true" /> {asked ? 'New prompt on its way' : busy === 'regenerate' ? 'Asking...' : 'Regenerate'}
         </button>
         <a class="btn btn--text btn--sm" href={editorLink(r.event_id)} onClick={onOpen} aria-label={`Open the event editor for ${r.name}`}>
+          <ExternalLink size={16} aria-hidden="true" /> Open the event
+        </a>
+      </div>
+    </article>
+  );
+}
+
+/** An approved prompt whose example post would be held: the reasons and the example, what to change, and Fix. */
+function HeldExampleCard({ a, onDone, onOpen }: { a: SocialApprovedItem; onDone: () => void; onOpen: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const fix = async () => {
+    setBusy(true);
+    const res = await hostApi<{ ok: true; example?: 'passes' | 'rewriting' }>(`/api/staff/events/${a.event_id}/social/fix`, {});
+    setBusy(false);
+    toast(res.ok ? fixExampleMessage(a.name, res.data.example ?? 'rewriting') : res.error);
+    onDone();
+  };
+  return (
+    <article class="card card--pad stack social__review" style={{ '--gap': '10px' }} aria-labelledby={`held-${a.event_id}`}>
+      <div class="cluster" style={{ '--gap': '8px' }}>
+        <strong id={`held-${a.event_id}`}>{a.name}</strong>
+        <Chip kind={STATUS.approved.kind}>{STATUS.approved.label}</Chip>
+        <span class="meta">v{a.version}</span>
+      </div>
+      <FactsDecided eventId={a.event_id} name={a.name} f={a.facts_decided} onOpen={onOpen} />
+      <ExampleBlock example={a.example} />
+      {a.suggestions.length > 0 && (
+        <div class="stack social__suggestions" style={{ '--gap': '6px' }}>
+          <h4 class="label">Suggested changes</h4>
+          <ul class="stack" style={{ '--gap': '8px' }}>
+            {a.suggestions.map((s, i) => (
+              <SuggestionRow key={i} eventId={a.event_id} s={s} />
+            ))}
+          </ul>
+        </div>
+      )}
+      <PromptText text={a.master_prompt} version={a.version} />
+      <div class="cluster social__actions">
+        <button type="button" class="btn btn--secondary btn--sm" disabled={busy} onClick={fix}>
+          <Wand2 size={16} aria-hidden="true" /> {busy ? 'Fixing...' : 'Fix'}
+        </button>
+        <a class="btn btn--text btn--sm" href={editorLink(a.event_id)} onClick={onOpen} aria-label={`Open the event editor for ${a.name}`}>
           <ExternalLink size={16} aria-hidden="true" /> Open the event
         </a>
       </div>
