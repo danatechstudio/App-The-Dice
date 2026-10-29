@@ -2613,3 +2613,93 @@ PROHIBITED ASSUMPTIONS:
     });
   });
 });
+
+// 29 Oct: the facts checklist saves "Key: none" for a fact that doesn't apply. Posts and prompts must never claim it.
+describe('a fact set to none', () => {
+  const now = new Date('2026-10-18T19:00:00Z');
+  const quiz: CheckTarget = {
+    event_id: 'RTD-EVT-00001',
+    name: 'Quiz Night',
+    date: '2026-10-23',
+    start_time: '18:30',
+    end_time: '22:00',
+    price: '£2',
+    facts: { Booking: ['No need to book'] },
+    base_details: 'A quiz night.',
+    people: [],
+    banned: [],
+    booking_mode: 'optional',
+  };
+  const post = (text: string, facts: Record<string, string[]>, over: Partial<CheckTarget> = {}) =>
+    checkPostText(text, [{ ...quiz, ...over, facts: { ...quiz.facts, ...facts } }], { now, otherEventNames: [] });
+  const fact: SourceFields = {
+    event_id: 'RTD-EVT-00001',
+    name: 'Quiz Night',
+    source: 'event_index',
+    frequency: 'weekly',
+    base_details: 'A quiz night.',
+    approved_facts: 'Booking: No need to book',
+    people_roles: '',
+    category: 'Quiz',
+    visibility: 'public',
+    price: '£2',
+    capacity: '',
+  };
+  const promptErrors = (prompt: string, line: string, over: Partial<SourceFields> = {}) =>
+    promptTextErrors(prompt, { ...fact, ...over, approved_facts: `${fact.approved_facts}\n${line}` }, []);
+
+  const cases: [string, string, string, string][] = [
+    // key, a claim, a real value, the word reported
+    ['Prizes', 'Win cash prizes at the Quiz Night!', 'Cash prizes', 'cash'],
+    ['Level', 'Beginners welcome at the Quiz Night!', 'Beginners welcome', 'beginners'],
+    ['Age', 'Kids welcome at the Quiz Night!', 'Family friendly', 'kids'],
+    ['Food', 'Pizza and snacks at the Quiz Night!', 'Pizza provided', 'pizza'],
+    ['Format', 'A tournament at the Quiz Night!', 'Tournament', 'tournament'],
+    ['Bring', 'Bring your own pens to the Quiz Night!', 'Pens', 'bring your own'],
+  ];
+
+  for (const [key, claim, value, word] of cases) {
+    it(`${key}: none fails a ${key.toLowerCase()} claim, in a post and a prompt; a real value passes`, () => {
+      for (const none of ['none', 'None', 'N/A', 'not applicable']) {
+        const result = post(claim, { [key]: [none] });
+        expect(result.pass, `${key}: ${none}`).toBe(false);
+        expect(result.reasons).toContain(`${word}: needs a${key === 'Age' ? 'n' : ''} ${key} fact, but ${key} is set to none, so it can't be claimed`);
+        expect(promptErrors(`Write about the Quiz Night. ${claim}`, `${key}: ${none}`)).toContain(`In the prompt, ${word}: needs a${key === 'Age' ? 'n' : ''} ${key} fact, but ${key} is set to none, so it can't be claimed`);
+      }
+      const ok = post(claim, { [key]: [value] });
+      expect(ok.reasons).toEqual([]);
+      expect(ok.pass).toBe(true);
+      expect(promptErrors(`Write about the Quiz Night. ${claim}`, `${key}: ${value}`)).toEqual([]);
+    });
+  }
+
+  it('none wins over the same word in Base Details', () => {
+    expect(post('Beginners welcome!', { Level: ['none'] }, { base_details: 'Beginners welcome.' }).pass).toBe(false);
+    expect(post('Beginners welcome!', {}, { base_details: 'Beginners welcome.' }).pass).toBe(true);
+  });
+
+  it('a prompt may still say not to mention it', () => {
+    expect(promptErrors('Write about the Quiz Night. Never mention prizes, food or levels.', 'Prizes: none\nFood: none\nLevel: none')).toEqual([]);
+  });
+
+  it('with no Food, Format or Bring fact, those words are as before', () => {
+    expect(post('Pizza at the Quiz Night! A tournament! Bring your own pens.', {}).reasons).toEqual([]);
+  });
+
+  it('Price: none follows the price rules: the App Price still stands, and nothing else does', () => {
+    expect(post('Only £2 at the Quiz Night!', { Price: ['none'] }).pass).toBe(true);
+    expect(post('Only £3 at the Quiz Night!', { Price: ['none'] }).pass).toBe(false);
+    expect(post('Free entry at the Quiz Night!', { Price: ['none'] }, { price: '' }).pass).toBe(false);
+    expect(ownPrices({ ...fact, price: '', approved_facts: 'Price: none' })).toEqual([]);
+  });
+
+  it('a claim citing a none fact is not traced to it', () => {
+    const verdict = validatePrompt(
+      { status: 'ok', master_prompt: 'Write about the Quiz Night. No need to book.', claims: [{ claim: 'Food: none', source_field: 'approved_facts.Food' }], ambiguities: [], questions: [] },
+      { ...fact, approved_facts: 'Booking: No need to book\nFood: none' },
+      { otherEventNames: [] },
+    );
+    expect(verdict.status).not.toBe('approved');
+    expect(verdict.errors.join(' | ')).toContain('Food is set to none');
+  });
+});
