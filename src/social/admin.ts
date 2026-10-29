@@ -1,15 +1,16 @@
 // What the admin screens show about social prompts (spec §5): the switch, the prompts waiting for
 // a person and the approved ones, each with its example post (src/social/examples.ts), the posts the
 // check held (or, in Shadow, would have held), and one event's facts, prompt, versions and recent checks. Reading only: every change goes through the functions in
-// src/social/prompts.ts (setSocialMode, requestRegenerate, requestFix, approveOverride), which check and audit it.
+// src/social/prompts.ts (setSocialMode, requestRegenerate, requestFix, approveOverride), which check and audit it, or
+// src/social/examples.ts (fixExample) for an example post that would be held.
 
 import type { AuthUser } from '../lib/auth';
 import { bannedPhrases } from './check';
 import { factsDecided, type ChecklistKey } from './checklist';
-import { isMissingExampleColumns, MAX_EXAMPLE_ATTEMPTS } from './examples';
-import { fingerprint, parseFacts, parsePeople, sourceFields, type FactKey, type Person } from './facts';
+import { EXAMPLE_HELD, fixExample, isMissingExampleColumns, MAX_EXAMPLE_ATTEMPTS } from './examples';
+import { fingerprint, parseFacts, parsePeople, sourceFields, toneGuidanceOf, type FactKey, type Person } from './facts';
 import { approveOverride, currentPrompt, EVENT_FIELDS, requestFix, requestRegenerate, setSocialMode, socialMode, type Fail, type Mode, type StoredStatus } from './prompts';
-import { suggestFixes, type Suggestion } from './suggest';
+import { suggestExampleFixes, suggestFixes, type Suggestion } from './suggest';
 
 const DENIED: Fail = { ok: false, status: 403, error: 'Only admins can manage social prompts.' };
 const denied = (u: AuthUser): Fail | null => (u.role === 'admin' ? null : DENIED);
@@ -154,6 +155,8 @@ export interface ApprovedItem {
   approved_by: string | null;
   approved_at: string | null;
   example: PromptExample;
+  /** When its example would be held: changes to the event's facts that would answer the reasons (src/social/suggest.ts). */
+  suggestions: Suggestion[];
   facts_decided: FactsDecided;
 }
 
@@ -229,12 +232,19 @@ async function checkRows(db: D1Database, rows: CheckDbRow[]): Promise<CheckRow[]
  * Each running, Public or App Bookable event whose newest version (a waiting regenerate request aside)
  * is approved: what a good prompt looks like, beside its example.
  */
-const APPROVED_SQL = `SELECT p.event_id, p.version, p.master_prompt, p.approved_by, p.approved_at, COALESCE(e.display_name, p.event_id) AS name
-  FROM social_prompts p JOIN events e ON e.event_id = p.event_id
+const APPROVED_FROM = `FROM social_prompts p JOIN events e ON e.event_id = p.event_id
   WHERE p.status = 'approved'
     AND p.version = (SELECT MAX(q.version) FROM social_prompts q WHERE q.event_id = p.event_id AND q.status <> 'pending')
-    AND e.active = 1 AND e.visibility IN ('public', 'app_bookable')
+    AND e.active = 1 AND e.visibility IN ('public', 'app_bookable')`;
+const APPROVED_SQL = `SELECT p.event_id, p.version, p.master_prompt, p.approved_by, p.approved_at, COALESCE(e.display_name, p.event_id) AS name
+  ${APPROVED_FROM}
   ORDER BY name COLLATE NOCASE, p.event_id LIMIT ?1`;
+
+/**
+ * Those approved versions whose example post would be held ("Posts that would be held"): what Fix all re-checks or has
+ * rewritten, and the hub's count (src/staff/summary.ts). Needs migration 0025's columns.
+ */
+export const HELD_EXAMPLES_SQL = `SELECT p.event_id, p.version ${APPROVED_FROM} AND ${EXAMPLE_HELD('p')}`;
 
 /** Admins: the switch, the prompts waiting for a person, the approved ones (each with its example), and the last 50 posts that failed their check. */
 export async function socialOverview(
@@ -262,20 +272,32 @@ export async function socialOverview(
         name: string;
         fixing: number;
       }>(),
-    db.prepare(APPROVED_SQL).bind(APPROVED_SHOWN).all<Omit<ApprovedItem, 'example' | 'facts_decided'>>(),
+    db.prepare(APPROVED_SQL).bind(APPROVED_SHOWN).all<Omit<ApprovedItem, 'example' | 'suggestions' | 'facts_decided'>>(),
     db.prepare("SELECT * FROM social_checks WHERE result = 'fail' ORDER BY created_at DESC, check_id DESC LIMIT ?1").bind(HELD_SHOWN).all<CheckDbRow>(),
   ]);
   const example = await examplesOf(db, [...review.results, ...approved.results]);
   // The events' facts as they are now, which the suggestions start from and the cards count the decided keys of.
   const facts = new Map<string, ReturnType<typeof sourceFields>>();
+  // Michelle's Standard Prompt, which a held example's name suggestions compare with People & Roles.
+  const tone = new Map<string, string>();
   const ids = [...new Set([...review.results, ...approved.results].map(r => r.event_id))];
   if (ids.length) {
     const { results } = await db
-      .prepare(`SELECT ${EVENT_FIELDS} FROM events e WHERE e.event_id IN (SELECT value FROM json_each(?1))`)
+      .prepare(`SELECT ${EVENT_FIELDS}, e.sheet_values FROM events e WHERE e.event_id IN (SELECT value FROM json_each(?1))`)
       .bind(JSON.stringify(ids))
       .all<Record<string, unknown>>();
-    for (const row of results) facts.set(String(row.event_id), sourceFields(row));
+    for (const row of results) {
+      facts.set(String(row.event_id), sourceFields(row));
+      tone.set(String(row.event_id), toneGuidanceOf(row));
+    }
   }
+  // What a held example's reasons suggest, after what the prompt's own problems do (each suggestion once).
+  const exampleSuggestions = (eventId: string, ex: PromptExample | null, before: Suggestion[] = []): Suggestion[] => {
+    const f = facts.get(eventId);
+    if (!f || !ex || ex.passed !== false) return before;
+    const seen = new Set(before.map(s => JSON.stringify(s)));
+    return [...before, ...suggestExampleFixes(f, tone.get(eventId) ?? '', ex.problems).filter(s => !seen.has(JSON.stringify(s)))];
+  };
   const decidedOf = (eventId: string): FactsDecided => factsDecided(facts.get(eventId)?.approved_facts ?? '');
   return {
     ok: true,
@@ -288,11 +310,18 @@ export async function socialOverview(
       questions: [...list(r.ambiguities), ...list(r.validation_errors)],
       master_prompt: r.master_prompt,
       example: r.status === 'blocked' ? null : example(r.event_id, r.version),
-      suggestions: facts.has(r.event_id) ? suggestFixes(facts.get(r.event_id)!, list(r.validation_errors)) : [],
+      suggestions: exampleSuggestions(
+        r.event_id,
+        r.status === 'blocked' ? null : example(r.event_id, r.version),
+        facts.has(r.event_id) ? suggestFixes(facts.get(r.event_id)!, list(r.validation_errors)) : [],
+      ),
       fixing: r.fixing === 1,
       facts_decided: decidedOf(r.event_id),
     })),
-    approved: approved.results.map(a => ({ ...a, example: example(a.event_id, a.version), facts_decided: decidedOf(a.event_id) })),
+    approved: approved.results.map(a => {
+      const ex = example(a.event_id, a.version);
+      return { ...a, example: ex, suggestions: exampleSuggestions(a.event_id, ex), facts_decided: decidedOf(a.event_id) };
+    }),
     held: await checkRows(db, held.results),
   };
 }
@@ -420,17 +449,64 @@ export const setMode = (db: D1Database, admin: AuthUser, body: unknown, now: Dat
 /** Admins: the event is due again on the builder's next run. */
 export const regenerate = (db: D1Database, admin: AuthUser, eventId: string, now: Date) => requestRegenerate(db, admin, eventId, now);
 
-/** Admins: a fresh repair cycle for the event, from its latest version's text and problems. */
-export const fix = (db: D1Database, admin: AuthUser, eventId: string, now: Date) => requestFix(db, admin, eventId, now);
+/** Whether the event's newest version (a waiting request aside) is approved with an example that would be held: its version, or null. */
+async function heldExampleVersion(db: D1Database, eventId: string): Promise<number | null> {
+  try {
+    const row = await db
+      .prepare(`SELECT p.version FROM social_prompts p WHERE p.event_id = ?1 AND p.status = 'approved'
+         AND p.version = (SELECT MAX(q.version) FROM social_prompts q WHERE q.event_id = p.event_id AND q.status <> 'pending') AND ${EXAMPLE_HELD('p')}`)
+      .bind(eventId)
+      .first<{ version: number }>();
+    return row?.version ?? null;
+  } catch (e) {
+    if (isMissingExampleColumns(e)) return null;
+    throw e;
+  }
+}
 
-/** Admins: Fix for every event in the review list. Returns how many. */
-export async function fixAll(db: D1Database, admin: AuthUser, now: Date): Promise<{ ok: true; count: number } | Fail> {
+/**
+ * Admins: Fix on one card. When the event's newest prompt is approved and its example post would be held, the example is
+ * fixed instead (src/social/examples.ts fixExample): re-checked, and when it still fails, cleared to be written again
+ * (`example`: 'passes' or 'rewriting'). Otherwise a fresh repair cycle for the prompt, from its latest text and problems.
+ */
+export async function fix(db: D1Database, admin: AuthUser, eventId: string, now: Date): Promise<{ ok: true; example?: 'passes' | 'rewriting' } | Fail> {
+  const no = denied(admin);
+  if (no) return no;
+  const held = await heldExampleVersion(db, eventId);
+  return held === null ? requestFix(db, admin, eventId, now) : fixExample(db, eventId, held, now);
+}
+
+export interface FixAllResult {
+  ok: true;
+  /** Review prompts sent back to be rewritten. */
+  prompts: number;
+  /** Held examples that pass the current check now. */
+  rechecked: number;
+  /** Held examples cleared to be written again. */
+  rewriting: number;
+}
+
+/** Admins: Fix for every event in the review list, and for every approved prompt whose example would be held. Returns how many of each. */
+export async function fixAll(db: D1Database, admin: AuthUser, now: Date): Promise<FixAllResult | Fail> {
   const no = denied(admin);
   if (no) return no;
   const { results } = await db.prepare(`SELECT r.event_id FROM (${REVIEW_SQL}) r ORDER BY r.created_at DESC, r.event_id`).all<{ event_id: string }>();
-  let count = 0;
-  for (const r of results) if ((await requestFix(db, admin, r.event_id, now)).ok) count++;
-  return { ok: true, count };
+  let prompts = 0;
+  for (const r of results) if ((await requestFix(db, admin, r.event_id, now)).ok) prompts++;
+  let held: { event_id: string; version: number }[] = [];
+  try {
+    held = (await db.prepare(HELD_EXAMPLES_SQL).all<{ event_id: string; version: number }>()).results;
+  } catch (e) {
+    if (!isMissingExampleColumns(e)) throw e;
+  }
+  let rechecked = 0;
+  let rewriting = 0;
+  for (const h of held) {
+    const res = await fixExample(db, h.event_id, h.version, now);
+    if (res.ok && res.example === 'passes') rechecked++;
+    else if (res.ok) rewriting++;
+  }
+  return { ok: true, prompts, rechecked, rewriting };
 }
 
 /**

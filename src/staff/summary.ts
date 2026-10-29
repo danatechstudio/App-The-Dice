@@ -5,8 +5,9 @@
 import { enabled as attentionOn } from '../attention/attention';
 import type { AuthUser } from '../lib/auth';
 import { addDays, londonDate } from '../lib/time';
-import { REVIEW_SQL } from '../social/admin';
+import { HELD_EXAMPLES_SQL, REVIEW_SQL } from '../social/admin';
 import { factsDecided } from '../social/checklist';
+import { isMissingExampleColumns } from '../social/examples';
 import { sourceFields } from '../social/facts';
 
 export type SectionKey = 'approve' | 'attention' | 'events' | 'social' | 'bookings' | 'people' | 'content' | 'stats';
@@ -66,6 +67,16 @@ async function factsUndecided(db: D1Database, today: string): Promise<number> {
   return results.filter(r => factsDecided(sourceFields(r).approved_facts).undecided.length > 0).length;
 }
 
+/** Approved prompts whose example post would be held (as the Social posts panel's "Posts that would be held"). 0 before migration 0025. */
+async function examplesHeld(db: D1Database): Promise<number> {
+  try {
+    return Number((await db.prepare(`SELECT COUNT(*) AS n FROM (${HELD_EXAMPLES_SQL})`).first<{ n: number }>())?.n ?? 0);
+  } catch (e) {
+    if (isMissingExampleColumns(e)) return 0;
+    throw e;
+  }
+}
+
 const section = (parts: Record<string, number>): SectionSummary => ({ count: Object.values(parts).reduce((a, b) => a + b, 0), parts });
 
 export async function staffSummary(db: D1Database, user: AuthUser, now: Date): Promise<StaffSummary> {
@@ -73,10 +84,11 @@ export async function staffSummary(db: D1Database, user: AuthUser, now: Date): P
   const weekAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
   const keys = Object.keys(COUNTS) as (keyof typeof COUNTS)[];
   const admin = user.role === 'admin';
-  const [results, attention, undecided] = await Promise.all([
+  const [results, attention, undecided, heldExamples] = await Promise.all([
     db.batch(keys.map(k => db.prepare(COUNTS[k]).bind(...(BINDS[k]?.({ weekAgo, today }) ?? [])))),
     attentionOn(db),
     admin ? factsUndecided(db, today) : 0,
+    admin ? examplesHeld(db) : 0,
   ]);
   const n = Object.fromEntries(keys.map((k, i) => [k, Number((results[i]!.results[0] as { n?: number } | undefined)?.n ?? 0)])) as Record<keyof typeof COUNTS, number>;
 
@@ -85,9 +97,17 @@ export async function staffSummary(db: D1Database, user: AuthUser, now: Date): P
     attention: section({ open_items: attention ? n.open_items : 0, failed_deliveries: n.failed_emails + n.failed_pushes }),
     // Held posts count only while the switch isn't Off; at Off the part isn't there.
     events: admin ? section({ sheet_edit_problems: n.sheet_edit_problems }) : { count: 0 },
-    // Prompts to review count at every setting, Off included: they can be approved before posts are checked. So do events with facts to decide.
+    // Prompts to review count at every setting, Off included: they can be approved before posts are checked. So do events with facts
+    // to decide, and approved prompts whose example post would be held.
     ...(admin
-      ? { social: section({ social_prompts: n.social_prompts, facts_undecided: undecided, ...(n.social_on ? { social_held: n.social_held } : {}) }) }
+      ? {
+          social: section({
+            social_prompts: n.social_prompts,
+            facts_undecided: undecided,
+            examples_held: heldExamples,
+            ...(n.social_on ? { social_held: n.social_held } : {}),
+          }),
+        }
       : {}),
     bookings: { count: 0, info: { booked_dates_7_days: n.booked_dates_7_days } },
     people: { count: 0 },

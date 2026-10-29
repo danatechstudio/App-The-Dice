@@ -312,20 +312,28 @@ staffRoutes.post('/events/:id/social/regenerate', async c => {
   return c.json({ ok: true });
 });
 
-/** Fix: a fresh repair cycle for the event's current facts, from its latest version's text and problems. Facts never change. */
+/**
+ * Fix: a fresh repair cycle for the event's current facts, from its latest version's text and problems. Facts never change.
+ * When the newest prompt is approved and its example post would be held, the example is fixed instead: re-checked
+ * ({ example: 'passes' }), or cleared to be written again ({ example: 'rewriting' }), which wakes the builder.
+ */
 staffRoutes.post('/events/:id/social/fix', async c => {
   const res = await fixPrompt(c.env.DB, c.get('user'), c.req.param('id'), new Date());
   if (!res.ok) return c.json({ error: res.error }, res.status);
-  await triggerN8n(c.env, waiter(c), 'prompt-builder', { reason: 'regenerate', event_id: c.req.param('id') });
-  return c.json({ ok: true });
+  if (res.example !== 'passes') await triggerN8n(c.env, waiter(c), 'prompt-builder', { reason: 'regenerate', event_id: c.req.param('id') });
+  return c.json(res.example ? { ok: true, example: res.example } : { ok: true });
 });
 
-/** Fix all: Fix for every event in the review list, and the builder woken once. Answers { count }. */
+/**
+ * Fix all: Fix for every event in the review list and every approved prompt whose example would be held, and the builder
+ * woken once when anything is to be written. Answers { count, prompts, examples, rechecked, rewriting }.
+ */
 staffRoutes.post('/social/fix-all', async c => {
   const res = await fixAllPrompts(c.env.DB, c.get('user'), new Date());
   if (!res.ok) return c.json({ error: res.error }, res.status);
-  if (res.count) await triggerN8n(c.env, waiter(c), 'prompt-builder', { reason: 'regenerate' });
-  return c.json({ count: res.count });
+  if (res.prompts + res.rewriting) await triggerN8n(c.env, waiter(c), 'prompt-builder', { reason: 'regenerate' });
+  const examples = res.rechecked + res.rewriting;
+  return c.json({ count: res.prompts + examples, prompts: res.prompts, examples, rechecked: res.rechecked, rewriting: res.rewriting });
 });
 
 /** Approve with a note. Body: { text?, reason }. 400 { error, errors } when the text fails the checks a generated prompt gets. */
