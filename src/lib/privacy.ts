@@ -22,6 +22,8 @@ const KEEP_NETWORK_HASH_DAYS = 2;
 const KEEP_ENQUIRY_DAYS = 90;
 /** The words of a social post (caption and poster) checked before it went out (src/social/check.ts); the result is kept. */
 const KEEP_CHECK_TEXT_DAYS = 90;
+/** The sync log (one row every 5 minutes): enough to look back on; unbounded, it grew into the free plan's read limit. */
+const KEEP_SYNC_RUN_DAYS = 30;
 const EMAIL = /^[^\s@<>,;]+@[^\s@<>,;]+\.[a-z]{2,}$/i;
 
 export async function privacyInfo(db: D1Database): Promise<PrivacyInfo> {
@@ -58,6 +60,8 @@ export interface Erased {
   enquiries: number;
   /** Social post checks whose words were cleared, 90 days after the check. */
   social_checks: number;
+  /** Sync log rows over 30 days old (not personal: kept short so it stays cheap to read). */
+  sync_runs: number;
 }
 
 /**
@@ -75,7 +79,7 @@ export async function applyRetention(db: D1Database, now: Date, kv?: KVNamespace
   const bookingsBefore = monthsBefore(londonDate(now), months);
   const requestsBefore = `${monthsBefore(londonDate(now), DEFAULT_RETENTION_MONTHS)}T00:00:00Z`;
   const hashesBefore = new Date(now.getTime() - KEEP_NETWORK_HASH_DAYS * 86_400_000).toISOString();
-  const [bookings, hashes, vendorHashes, requests, alertHashes, staleDeliveries, enquiryHashes, enquiries, checkTexts] = await db.batch([
+  const [bookings, hashes, vendorHashes, requests, alertHashes, staleDeliveries, enquiryHashes, enquiries, checkTexts, syncRuns] = await db.batch([
     db
       .prepare(
         `UPDATE bookings SET lead_name = 'Erased', email = 'erased-' || booking_id, mobile = NULL, notes = NULL, ip_hash = NULL,
@@ -102,6 +106,13 @@ export async function applyRetention(db: D1Database, now: Date, kv?: KVNamespace
     db
       .prepare('UPDATE social_checks SET text = NULL, image_text = NULL WHERE (text IS NOT NULL OR image_text IS NOT NULL) AND created_at < ?1')
       .bind(new Date(now.getTime() - KEEP_CHECK_TEXT_DAYS * 86_400_000).toISOString()),
+    // The sync log, keeping the last good run however old: the next sync compares against it (src/sync/apply.ts).
+    db
+      .prepare(
+        `DELETE FROM sync_runs WHERE received_at < ?1
+           AND run_id IS NOT (SELECT run_id FROM sync_runs WHERE status = 'ok' ORDER BY received_at DESC LIMIT 1)`,
+      )
+      .bind(new Date(now.getTime() - KEEP_SYNC_RUN_DAYS * 86_400_000).toISOString()),
     // Devices people asked to be told on about a booking: only until the day after its date.
     ...forgetDevices(db, now),
   ]);
@@ -114,5 +125,6 @@ export async function applyRetention(db: D1Database, now: Date, kv?: KVNamespace
     vendors,
     enquiries: enquiries!.meta.changes,
     social_checks: checkTexts!.meta.changes,
+    sync_runs: syncRuns!.meta.changes,
   };
 }

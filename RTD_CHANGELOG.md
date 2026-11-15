@@ -1,5 +1,11 @@
 # RTD App Changelog
 
+## 2026-11-15 (database reads back under the free plan's limit)
+- **What happened:** the database was at 4.79M of the free plan's 5M rows read a day, and would have stopped answering until midnight UTC once over. Almost all of it was one lookup: every sync (every 5 minutes) asked for the last good sync, which had no index, so it read and sorted the whole sync log, about 17,000 rows a time. The log grows by 288 rows a day, so the reads grew every day.
+- **Fixed:** two indexes on the sync log (migration `0026_sync_runs_indexes.sql`, applied to the live database by hand on 15 Nov). The lookup now reads 1 row. Nothing else changes.
+- **The sync log is kept 30 days:** the daily job at 03:23 UTC deletes older rows, always keeping the last good run. The organiser shows the latest 50 anyway.
+- **Tests:** 860, including the cleanup and a check that the lookup uses the index.
+
 ## 2026-10-29 (Social facts: a checklist, so no fact is left to guess)
 - **What it's for:** the owner asked for "a part of the event builder where we choose if a fact is needed, and if it is we add a value, not always a default. Accuracy is king for socials." Built, not deployed; no migration and no n8n change.
 - **Approved facts is now a checklist** on the edit page (café events, Standard Diary groups and host sessions). One row each for Booking, Level, Age, Format, Prizes, Price, Bring and Food. Each is **Not decided**, **Doesn't apply** or **Applies**. Applies asks for a value: pick one from the list ("Choose…" to start, nothing picked for you) or type your own. Bring and Food are typed. Booking always applies, so it has no Doesn't apply; "No need to book" is one of its choices. Anything else goes under **Other**, one line each.

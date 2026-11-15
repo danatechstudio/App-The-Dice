@@ -65,6 +65,9 @@ Triggers abort any `UPDATE` or `DELETE`. Actions so far:
 
 One row per sync attempt: `run_id` (idempotency key, the n8n execution id), `status` (`ok` or `rejected`), `reason`, counts, `warnings` (JSON), `received_at`.
 
+- **Indexes** (migration `0026`): `(status, received_at)` for the last good run, read on every sync and by the organiser, and `(received_at)` for the latest runs.
+- **Kept 30 days:** the daily job at 03:23 UTC deletes older rows, always keeping the last good run (the next sync compares its event count with it).
+
 ## users
 
 `user_id, email (unique, case-insensitive), display_name, role (host|staff|admin), active`.

@@ -58,6 +58,7 @@ The sheet holds only an event's *next* date and overwrites it in place. The app 
 ## Safety rails
 
 - **Atomic sync.** Each sync is one D1 batch: it lands completely or not at all. Each sync uses about 10 queries, well under the free plan's limit per request.
+- **Reads count rows looked at, not rows returned.** The free plan allows 5M rows read a day, and since September 2026 every query fails for the rest of the day (until midnight UTC) once that's used. A query that runs on a schedule (every sync, every Cron run, every n8n poll) must find its rows through an index, and logs that grow must be trimmed. In November 2026 one unindexed lookup of the sync log, run on every sync, read about 17,000 rows a time: nearly all of the 5M. Check with `EXPLAIN QUERY PLAN`: `SCAN` on a growing table is the warning sign.
 - **Circuit breaker.** A snapshot with no usable rows, or fewer than half the previous count, is refused (`409`) and recorded. A broken sheet read can't empty the diary.
 - **Ambiguous rows are skipped and reported** (`warnings` on the sync run): rows with a missing or duplicated Event ID. A duplicated ID never causes a deactivation.
 - **Audit log.** `audit_log` is append-only; database triggers reject `UPDATE` and `DELETE`. So it records customers by booking or request number, never by name or email.

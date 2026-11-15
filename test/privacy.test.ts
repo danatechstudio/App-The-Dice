@@ -162,3 +162,31 @@ describe('erasing details that are no longer needed', () => {
     expect(await run('2027-11-01T03:23:00Z')).toBe('Erased');
   });
 });
+
+describe('the sync log', () => {
+  const run = (id: string, status: 'ok' | 'rejected', at: string) =>
+    env.DB.prepare("INSERT INTO sync_runs (run_id, source, status, received_at) VALUES (?1, 'logic_engine', ?2, ?3)").bind(id, status, at);
+  const ids = async () => (await env.DB.prepare('SELECT run_id FROM sync_runs ORDER BY received_at').all<{ run_id: string }>()).results.map(r => r.run_id);
+
+  it('keeps 30 days, and always the last good run', async () => {
+    await env.DB.prepare('DELETE FROM sync_runs').run();
+    await env.DB.batch([
+      run('old-ok', 'ok', '2026-10-01T10:00:00Z'),
+      run('old-rejected', 'rejected', '2026-10-02T10:00:00Z'),
+      run('recent-ok', 'ok', '2026-11-10T10:00:00Z'),
+    ]);
+    expect(await applyRetention(env.DB, new Date('2026-11-15T03:23:00Z'))).toMatchObject({ sync_runs: 2 });
+    expect(await ids()).toEqual(['recent-ok']);
+    // Syncs stopped for over 30 days: the last good run stays, for the next sync to compare against.
+    await env.DB.batch([run('later-rejected', 'rejected', '2026-11-11T10:00:00Z')]);
+    expect(await applyRetention(env.DB, new Date('2027-01-15T03:23:00Z'))).toMatchObject({ sync_runs: 1 });
+    expect(await ids()).toEqual(['recent-ok']);
+  });
+
+  it('finds the last good run through an index, not by reading the whole log', async () => {
+    const plan = async (sql: string) => (await env.DB.prepare(`EXPLAIN QUERY PLAN ${sql}`).all<{ detail: string }>()).results.map(r => r.detail).join(' | ');
+    expect(await plan("SELECT events_seen FROM sync_runs WHERE status = 'ok' ORDER BY received_at DESC LIMIT 1")).toMatch(/USING (COVERING )?INDEX sync_runs_by_status/);
+    expect(await plan("SELECT MAX(received_at) FROM sync_runs WHERE status = 'ok'")).toMatch(/USING (COVERING )?INDEX sync_runs_by_status/);
+    expect(await plan('SELECT run_id FROM sync_runs ORDER BY received_at DESC LIMIT 1')).toMatch(/INDEX sync_runs_by_time/);
+  });
+});
