@@ -276,7 +276,7 @@ describe('an admin changes a café event', () => {
   });
 
   it('refuses an event not in the last sync', async () => {
-    await env.DB.prepare('UPDATE events SET last_synced_at = NULL WHERE event_id = ?1').bind(QUIZ).run();
+    await env.DB.prepare('UPDATE events SET in_last_sync = 0 WHERE event_id = ?1').bind(QUIZ).run();
     const res = await save(QUIZ, { details: { name: 'Big Quiz' } });
     expect(res.status).toBe(409);
     expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM sheet_edits').first('n')).toBe(0);
@@ -477,7 +477,7 @@ describe('review fixes', () => {
     await env.DB.prepare("UPDATE settings SET value = 'off' WHERE key = 'sheet_writes'").run();
     expect((await stop(QUIZ, { confirm: true })).status).toBe(409);
     await env.DB.prepare("UPDATE settings SET value = 'live' WHERE key = 'sheet_writes'").run();
-    await env.DB.prepare('UPDATE events SET last_synced_at = NULL WHERE event_id = ?1').bind(QUIZ).run();
+    await env.DB.prepare('UPDATE events SET in_last_sync = 0 WHERE event_id = ?1').bind(QUIZ).run();
     expect((await stop(QUIZ, { confirm: true })).status).toBe(409);
     expect(await count("SELECT COUNT(*) AS n FROM occurrences WHERE status = 'cancelled'")).toBe(0);
     expect(await count("SELECT COUNT(*) AS n FROM bookings WHERE status = 'cancelled'")).toBe(0);

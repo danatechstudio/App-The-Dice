@@ -1,7 +1,9 @@
 // Applies a Logic Engine snapshot posted by n8n. Reads current state, plans the
 // changes in memory (plan.ts), then writes everything in one atomic D1 batch so
 // a sync either lands completely or not at all. Uses a fixed, small number of
-// queries regardless of sheet size (D1 caps queries per Worker invocation).
+// queries regardless of sheet size (D1 caps queries per Worker invocation), and
+// writes only what changed: it runs every minute, against the free plan's daily
+// limits on rows read and written.
 
 import { londonDate } from '../lib/time';
 import { normaliseRows, type NormalisedEvent, type SheetRow, type Source, type SyncWarning } from './normalise';
@@ -26,6 +28,15 @@ export interface SyncResult {
 
 const SOURCES: Source[] = ['event_index', 'standard_diary'];
 const MAX_ROWS_PER_SOURCE = 2000;
+
+/** The event columns a sync writes. An event whose stored values all match is left alone: a sync runs every minute. */
+const EVENT_COLUMNS = [
+  'event_id', 'source', 'source_row', 'event_name', 'display_name', 'category', 'description', 'frequency',
+  'repeatable', 'requires_redating', 'visibility', 'sheet_status', 'active', 'photo_folder_id', 'price_display',
+  'default_capacity', 'host_session_id', 'market_id', 'sheet_date_raw', 'source_hash', 'sheet_values', 'social_values',
+] as const;
+const unchanged = (row: Record<string, unknown>, stored: Record<string, unknown> | undefined) =>
+  !!stored && EVENT_COLUMNS.every(k => (row[k] ?? null) === (stored[k] ?? null));
 
 /** Returns the payload, or a message describing why it is invalid. */
 export function parsePayload(body: unknown): SyncPayload | string {
@@ -132,7 +143,7 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
     db.prepare(
       `SELECT event_id, source, source_row, event_name, display_name, category, description, frequency, repeatable,
               requires_redating, visibility, sheet_status, active, photo_folder_id, price_display, default_capacity,
-              host_session_id, market_id, sheet_date_raw, source_hash FROM events`,
+              host_session_id, market_id, sheet_date_raw, source_hash, sheet_values, social_values FROM events`,
     ),
     db
       .prepare(
@@ -165,16 +176,20 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
 
   // --- write everything atomically ---
   const writes: D1PreparedStatement[] = [];
-  if (plan.eventUpserts.length) {
+  // Only events that are new or differ from what's stored: rewriting all of them every minute
+  // would use most of the free plan's 100,000 rows written a day.
+  const stored = new Map(((eventRes?.results ?? []) as Record<string, unknown>[]).map(e => [e.event_id as string, e]));
+  const upserts = plan.eventUpserts.filter(row => !unchanged(row as unknown as Record<string, unknown>, stored.get(row.event_id)));
+  // The events this snapshot holds: "in the last sync" (src/sync/edits.ts IN_LAST_SYNC).
+  const seen = JSON.stringify(hashed.map(e => e.event_id));
+  if (upserts.length) {
     writes.push(
       db
         .prepare(
           `INSERT INTO events (event_id, source, source_row, event_name, display_name, category, description, frequency,
              repeatable, requires_redating, visibility, sheet_status, active, photo_folder_id, price_display,
              default_capacity, host_session_id, market_id, sheet_date_raw, source_hash, sheet_values, social_values, last_synced_at, created_at, updated_at)
-           SELECT ${['event_id', 'source', 'source_row', 'event_name', 'display_name', 'category', 'description', 'frequency',
-             'repeatable', 'requires_redating', 'visibility', 'sheet_status', 'active', 'photo_folder_id', 'price_display',
-             'default_capacity', 'host_session_id', 'market_id', 'sheet_date_raw', 'source_hash', 'sheet_values', 'social_values'].map(j).join(', ')},
+           SELECT ${EVENT_COLUMNS.map(j).join(', ')},
              ?2, ?2, ?2
            FROM json_each(?1) WHERE true
            ON CONFLICT (event_id) DO UPDATE SET
@@ -191,7 +206,7 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
              source_hash = excluded.source_hash, sheet_values = excluded.sheet_values, social_values = excluded.social_values,
              last_synced_at = excluded.last_synced_at`,
         )
-        .bind(JSON.stringify(plan.eventUpserts), now),
+        .bind(JSON.stringify(upserts), now),
     );
   }
   if (plan.eventDeactivations.length) {
@@ -201,6 +216,15 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
         .bind(JSON.stringify(plan.eventDeactivations), now),
     );
   }
+  // Written only for events that came or went since the last sync.
+  writes.push(
+    db
+      .prepare(
+        `UPDATE events SET in_last_sync = (event_id IN (SELECT value FROM json_each(?1)))
+         WHERE in_last_sync IS NOT (event_id IN (SELECT value FROM json_each(?1)))`,
+      )
+      .bind(seen),
+  );
   if (plan.occurrenceInserts.length) {
     writes.push(
       db
@@ -277,10 +301,10 @@ export async function applySync(db: D1Database, payload: SyncPayload, nowDate = 
     db
       .prepare(
         `UPDATE sheet_edits SET status = 'synced', settled_at = ?1, updated_at = ?1
-         WHERE status = 'written' AND target = 'live' AND event_id IN (SELECT event_id FROM events WHERE last_synced_at = ?1)
+         WHERE status = 'written' AND target = 'live' AND event_id IN (SELECT value FROM json_each(?2))
            AND NOT ${mismatch}`,
       )
-      .bind(now),
+      .bind(now, seen),
     db
       .prepare(
         `UPDATE sheet_edits SET status = 'overtaken', settled_at = ?1, updated_at = ?1

@@ -27,7 +27,8 @@ One row per permanent event identity, synced from the Logic Engine.
 | `market_id` | The same column holding `RTD-MKT-…`: a market set up in the organiser (0013). Customers don't book these. |
 | `photo_folder_id` | Drive folder used by the poster generator |
 | `sheet_date_raw` | The sheet's date cell as written ("Every Thursday", a past date; NULL when blank), so Needs attention can say why an event has no date (0017) |
-| `source_hash`, `last_synced_at` | Change detection |
+| `source_hash`, `last_synced_at` | Change detection. A sync writes an event only when something about it differs (including `sheet_values` and `social_values`), so `last_synced_at` is the last time a sync **changed** it. |
+| `in_last_sync` | 1 if the event was in the last good sync's snapshot (migration `0027`). Written only when an event comes or goes. The organiser allows Logic Engine changes only to events with 1. |
 
 ## occurrences
 

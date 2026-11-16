@@ -124,7 +124,8 @@ export const HOST_SESSION_COLUMNS = [
 ] as const satisfies readonly Column[];
 const HOST_MESSAGE = "This is a host's session: the host asks for changes and an approver decides (Change requests).";
 
-export const IN_LAST_SYNC =`e.last_synced_at >= (SELECT MAX(received_at) FROM sync_runs WHERE status = 'ok')`;
+/** The event was in the last good sync's snapshot (set by src/sync/apply.ts). */
+export const IN_LAST_SYNC = 'e.in_last_sync = 1';
 export const OPEN = `(s.status IN ('queued', 'conflict') OR (s.status = 'written' AND s.target = 'live'))`;
 const CAFE = 'e.host_session_id IS NULL AND e.market_id IS NULL';
 

@@ -1,5 +1,12 @@
 # RTD App Changelog
 
+## 2026-11-16 (the Logic Engine syncs every minute)
+- **Changes made in the spreadsheet reach the app within a minute** (it was 5). Changes made in the organiser still come back in about 20 seconds.
+- **A sync writes only what changed.** It used to rewrite every event on every run, about 40 rows; with nothing changed it now writes about 4. That's what makes every minute affordable: about 6,000 rows written a day of the free plan's 100,000, where rewriting everything every minute would have used about 60,000 and more with each new event.
+- **"In the last sync"** (which events the organiser lets you change in the Logic Engine) is now a flag on each event, `in_last_sync`, written only when an event comes or goes (migration `0027_events_in_last_sync.sql`). Nothing changes in how it behaves.
+- **n8n:** RTD Event Sync's schedule is every minute.
+- **Tests:** 862.
+
 ## 2026-11-15 (database reads back under the free plan's limit)
 - **What happened:** the database was at 4.79M of the free plan's 5M rows read a day, and would have stopped answering until midnight UTC once over. Almost all of it was one lookup: every sync (every 5 minutes) asked for the last good sync, which had no index, so it read and sorted the whole sync log, about 17,000 rows a time. The log grows by 288 rows a day, so the reads grew every day.
 - **Fixed:** two indexes on the sync log (migration `0026_sync_runs_indexes.sql`, applied to the live database by hand on 15 Nov). The lookup now reads 1 row. Nothing else changes.

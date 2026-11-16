@@ -125,6 +125,56 @@ describe('POST /internal/sync/logic-engine', () => {
   });
 });
 
+describe('writing only what changed (the sync runs every minute)', () => {
+  const stamps = async () =>
+    Object.fromEntries(
+      (await env.DB.prepare('SELECT event_id, last_synced_at FROM events ORDER BY event_id').all<{ event_id: string; last_synced_at: string }>()).results.map(r => [
+        r.event_id,
+        r.last_synced_at,
+      ]),
+    );
+  const inLastSync = async () =>
+    (await env.DB.prepare('SELECT event_id FROM events WHERE in_last_sync = 1 ORDER BY event_id').all<{ event_id: string }>()).results.map(r => r.event_id);
+
+  it('leaves unchanged events alone, and writes the ones that changed', async () => {
+    expect((await sync({ run_id: 'w1', sources: { event_index: rows() } })).status).toBe(200);
+    const first = await stamps();
+    vi.setSystemTime(new Date('2026-10-05T10:01:00Z'));
+    expect(await (await sync({ run_id: 'w2', sources: { event_index: rows() } })).json()).toMatchObject({ status: 'ok', events_changed: 0 });
+    expect(await stamps()).toEqual(first);
+
+    // A changed name, and a change only to a social column (not part of the change fingerprint): both written.
+    vi.setSystemTime(new Date('2026-10-05T10:02:00Z'));
+    const changed = rows();
+    changed[1] = indexRow(2, { 'Event Name': 'Kids Chess Club Plus', Frequency: 'Weekly', 'Event Date': '08/10/2026', 'App Category': 'Club' });
+    changed[3] = indexRow(4, { 'Event Name': 'Cleeples', 'Event Date': 'Every Thursday', 'App Category': 'Gaming', 'Approved Facts': 'Booking: drop in' });
+    expect((await sync({ run_id: 'w3', sources: { event_index: changed } })).status).toBe(200);
+    const after = await stamps();
+    const moved = Object.keys(after).filter(id => after[id] !== first[id]);
+    expect(moved).toEqual(['RTD-EVT-00002', 'RTD-EVT-00004']);
+    expect(await env.DB.prepare("SELECT display_name, json_extract(social_values, '$.approved_facts') AS facts FROM events WHERE event_id IN ('RTD-EVT-00002', 'RTD-EVT-00004') ORDER BY event_id").all().then(r => r.results)).toEqual([
+      { display_name: 'Kids Chess Club Plus', facts: '' },
+      { display_name: 'Cleeples', facts: 'Booking: drop in' },
+    ]);
+  });
+
+  it('knows which events were in the last sync, as they leave the sheet and come back', async () => {
+    await sync({ run_id: 'm1', sources: { event_index: rows() } });
+    expect(await inLastSync()).toEqual(['RTD-EVT-00001', 'RTD-EVT-00002', 'RTD-EVT-00003', 'RTD-EVT-00004', 'RTD-EVT-00005', 'RTD-EVT-00006']);
+    vi.setSystemTime(new Date('2026-10-05T10:01:00Z'));
+    await sync({ run_id: 'm2', sources: { event_index: rows().filter((_, i) => i !== 3) } });
+    expect(await inLastSync()).toEqual(['RTD-EVT-00001', 'RTD-EVT-00002', 'RTD-EVT-00003', 'RTD-EVT-00005', 'RTD-EVT-00006']);
+    expect(await env.DB.prepare("SELECT active FROM events WHERE event_id = 'RTD-EVT-00004'").first('active')).toBe(0);
+    vi.setSystemTime(new Date('2026-10-05T10:02:00Z'));
+    await sync({ run_id: 'm3', sources: { event_index: rows() } });
+    expect(await inLastSync()).toHaveLength(6);
+    // A refused snapshot changes nothing.
+    vi.setSystemTime(new Date('2026-10-05T10:03:00Z'));
+    expect(await (await sync({ run_id: 'm4', sources: { event_index: rows().slice(0, 1) } })).json()).toMatchObject({ status: 'rejected' });
+    expect(await inLastSync()).toHaveLength(6);
+  });
+});
+
 describe('audit_log', () => {
   it('is append-only', async () => {
     await sync({ run_id: 'a1', sources: { event_index: rows() } });

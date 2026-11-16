@@ -20,7 +20,7 @@ The Pi is still needed for n8n. Nothing public-facing depends on it.
 ```
 Logic Engine_RTD (Google Sheet)
   Event Index + Standard Diary, each row now carries Event ID / App Visibility / App Category
-        │  read every 15 min (RTD Event Sync, n8n; built after first deploy)
+        │  read every minute (RTD Event Sync, n8n), and straight after an organiser edit
         ▼
 POST /internal/sync/logic-engine  (bearer token, idempotent per run_id)
         │  normalise → plan → one atomic D1 batch

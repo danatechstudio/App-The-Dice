@@ -9,7 +9,7 @@ _Last updated: 2026-10-16_
 
 ## Cloudflare (deployed)
 - **App:** https://rtd-app.dan-289.workers.dev, deployed from GitHub `main` on every push (Workers Builds).
-- **Sync:** **RTD Event Sync** runs every 15 minutes, copying the Logic Engine into the app. It is live, with 31 events and 40 occurrences.
+- **Sync:** **RTD Event Sync** runs every minute (and straight after an organiser edit), copying the Logic Engine into the app. It writes only what changed.
 - **Database:** D1 `rtd-app` with the schema applied; Dan is admin.
 - **Staff sign-in:** Access application "RTD Staff" protects `/api/staff` only (team `solitary-thunder-9de0`).
 

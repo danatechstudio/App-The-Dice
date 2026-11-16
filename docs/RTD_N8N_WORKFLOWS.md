@@ -371,7 +371,8 @@ Still to do: point the Guard's date-change recipient at this instead of its hard
 - **First run** (`n8n-18419`): 31 events, 40 occurrences. The two expected `invalid_date` warnings were Cleeples ("Every Thursday") and Wednesdays ("Open Wednesdays!").
 - **Repeat run** (`n8n-18421`): 0 changes, which confirms a repeat sync is a no-op.
 
-- **Triggers:** every 15 minutes (Europe/London), plus **Run By Hand**.
+- **Triggers:** **every minute** (since 16 Nov 2026; every 15 minutes at first, then every 5), the app's **Run Now (App)** webhook (see [Instant triggers](#instant-triggers)), plus **Run By Hand**. A run takes about 3 seconds.
+- **Cost to the app, per run:** a few hundred rows read and about 4 rows written when nothing has changed (the sync log entry and its indexes, and the trigger stamp). The app writes an event only when it differs from what's stored. At one run a minute that's well under 10% of the free plan's daily reads and writes.
 - **Steps:**
   1. Read the app URL from `rtd_config` (`RTD_APP_BASE_URL` = `https://rtd-app.dan-289.workers.dev`).
   2. Read Event Index and Standard Diary.
